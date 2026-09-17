@@ -60,8 +60,10 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * **`--config <path>`**: 設定ファイル（yaml/json）へのパス。省略した場合はカレントディレクトリ直下の `text-compositor.config.yaml`/`text-compositor.config.json` を探す（5章）。どちらも指定・発見できなければエラー終了する。
 * **`--config-list <path>`**: ビルド対象のconfigファイルパスを1行1件で列挙したテキストファイルを渡し、1回の実行で複数PDFをビルドする（[#73](https://github.com/tokudiro/text-compositor/issues/73)）。`--config`とは同時指定できない。
 * **`--check-env`**: 実行環境の前提（隔離環境（venv/pipx）の使用有無、依存パッケージ、Typstバージョン、キャッシュ済みアセット、Mermaid/PlantUML/D2の前提条件）を、ビルドを実行せずに確認する（[#37](https://github.com/tokudiro/text-compositor/issues/37)、[#113](https://github.com/tokudiro/text-compositor/issues/113)）。
-* 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定、ログレベル等）は存在しない。
-* **終了コード**: 成功 `0` / 失敗 `1`。入力欠損・画像欠損・コンパイルエラーは即時失敗する（Fail-fast、10章）。`--check-env`はNGが1件でもあれば`1`。
+* **`-q`/`--quiet`・`-v`/`--verbose`**（[#52](https://github.com/tokudiro/text-compositor/issues/52)）: 実行時のログの詳細度を制御する。既定は`[Info]`まで表示、`[Warning]`/`[Error]`/`[Success]`は常に表示する。`-q`は`[Info]`を抑制し、`-v`は処理中の章・キャッシュ再利用状況などの`[Verbose]`ログも追加表示する。同時指定は不可。
+* **`--keep-temp`**（[#52](https://github.com/tokudiro/text-compositor/issues/52)）: ビルド成功時も中間ファイル（`temp_build.typ`等、12章）を削除せずに残す。既定では失敗時のみ残る。
+* 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定等の文書内容に関わる上書き）は存在しない。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
+* **終了コード**: 成功 `0` / 失敗 `1`。入力欠損・画像欠損・コンパイルエラーは即時失敗する（Fail-fast、10章）。`--check-env`はNGが1件でもあれば`1`。引数の指定誤り（`-q`と`-v`の同時指定等）は`argparse`標準の`2`。
 
 複数ファイル/ディレクトリの直接指定、追加オプション等のさらなる拡張は構想段階であり、実装するかどうかも含めて未定（[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
 

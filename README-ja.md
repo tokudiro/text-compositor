@@ -109,6 +109,8 @@ python /path/to/text-compositor/build.py
 
 `text-compositor --check-env`（または `python build.py --check-env`）を実行すると、ビルドを実行せずに環境（依存関係・Typstのバージョン・キャッシュ済みアセット・Mermaid/PlantUML/D2の前提条件）を確認できます。
 
+その他のオプションは実行時の振る舞いのみを制御します（文書の内容は`config.yaml`に一本化する方針のため、出力先や用紙設定等の上書きオプションはありません）。`-q`/`--quiet`は`[Info]`レベルのログを抑制し、`-v`/`--verbose`は処理中の章・キャッシュ再利用状況などの詳細ログを追加表示します。`--keep-temp`は、ビルド成功時も中間ファイル`temp_build.typ`を削除せず残します（デバッグ用。失敗時は元々常に残ります）。
+
 設定ファイルの書き方は [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) を、`document:`/`plugins:`/front-matter/Marpディレクティブ等の詳しい説明は[使い方ガイド](doc/usage/)を参照してください。`chapters` に列挙したMarkdownファイルを順に結合してPDFを生成します。
 
 ## サンプルを試す

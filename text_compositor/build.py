@@ -65,6 +65,21 @@ SYSTEM_BROWSER_COMMANDS = [
     "msedge", "microsoft-edge", "microsoft-edge-stable",
 ]
 
+# ログの詳細度（#52）。CLIの-q/-vで一度だけ設定するプロセスグローバルな状態。config.yamlに
+# 書くべき文書内容ではなく実行時の振る舞いのため、CLIオプションのみで制御する（config.yaml側の
+# 設定項目は設けない）。--config-listで複数ビルドをまとめて実行する場合もCLI全体で1つの
+# 詳細度に統一される。既定は[Info]まで表示、[Warning]/[Error]/[Success]は常に表示する。
+_QUIET = False
+_VERBOSE = False
+
+def _log_info(msg):
+    if not _QUIET:
+        print(f"[Info] {msg}")
+
+def _log_verbose(msg):
+    if _VERBOSE:
+        print(f"[Verbose] {msg}")
+
 def _user_cache_dir():
     """フォント/JRE/PlantUMLの取得物を置くアプリ専用のキャッシュディレクトリを返す。
     tool_dir（インストール場所）ではなくOS標準のユーザー領域（Windows:
@@ -936,13 +951,13 @@ class TypstRenderer:
             i = next_pos
             if i < len(tokens) and tokens[i].type == 'hr':
                 i += 1
-            print(f"[Info] Cover: replaced the leading title slide of {self.current_file} ({' / '.join(dropped)})")
+            _log_info(f"Cover: replaced the leading title slide of {self.current_file} ({' / '.join(dropped)})")
             return i
 
         if i < len(tokens) and tokens[i].type == 'hr':
             i += 1
         # サイレントに本文を捨てないよう、取り除いた内容は必ずログに出す
-        print(f"[Info] Cover: replaced the leading title slide of {self.current_file} ({' / '.join(dropped)})")
+        _log_info(f"Cover: replaced the leading title slide of {self.current_file} ({' / '.join(dropped)})")
         return i
 
     def strip_front_matter(self, text):
@@ -1183,7 +1198,7 @@ class TypstRenderer:
         self._mermaid_playwright = sync_playwright().start()
 
         if browser_path:
-            print(f"[Info] Reusing system browser for mermaid rendering: {browser_path}")
+            _log_info(f"Reusing system browser for mermaid rendering: {browser_path}")
             self._mermaid_profile_dir = tempfile.mkdtemp(prefix="cc-mermaid-")
             self._mermaid_chrome_proc, port = _launch_headless_chrome(browser_path, self._mermaid_profile_dir)
             try:
@@ -1195,9 +1210,9 @@ class TypstRenderer:
                     print(f"[Hint] [{diag.status}] {diag.name}: {diag.message}")
                 sys.exit(1)
         elif self.mermaid_auto_download:
-            print("[Info] No system Chrome/Edge found; plugins.mermaid_auto_download is true, so Playwright "
-                  "will download its own Chromium (one-time; approx. 700MB; cached under Playwright's "
-                  "browser cache, typically ~/.cache/ms-playwright)...")
+            _log_info("No system Chrome/Edge found; plugins.mermaid_auto_download is true, so Playwright "
+                      "will download its own Chromium (one-time; approx. 700MB; cached under Playwright's "
+                      "browser cache, typically ~/.cache/ms-playwright)...")
             try:
                 subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
             except (subprocess.CalledProcessError, OSError) as e:
@@ -1279,7 +1294,7 @@ class TypstRenderer:
         変換する。外部APIへの通信は行わず、ローカルのブラウザで完結させる（仕様書10章・11章、#35）。"""
         if not self.mermaid_enabled:
             if not self._mermaid_disabled_warned:
-                print(f"[Info] plugins.mermaid is disabled; leaving ```mermaid fences as plain code (first seen in {self.current_file}).")
+                _log_info(f"plugins.mermaid is disabled; leaving ```mermaid fences as plain code (first seen in {self.current_file}).")
                 self._mermaid_disabled_warned = True
             return f"```mermaid\n{code}```\n\n"
 
@@ -1289,7 +1304,7 @@ class TypstRenderer:
         svg_path = os.path.join(cache_dir, f"mermaid_{digest}.svg")
 
         if not os.path.exists(svg_path):
-            print(f"[Info] Rendering mermaid diagram via headless browser -> {os.path.basename(svg_path)}")
+            _log_info(f"Rendering mermaid diagram via headless browser -> {os.path.basename(svg_path)}")
             page = self._ensure_mermaid_page()
             try:
                 svg = page.evaluate(
@@ -1305,6 +1320,8 @@ class TypstRenderer:
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached mermaid diagram: {os.path.basename(svg_path)}")
 
         # fit-image() は templates/slide.typ 側で定義されているため、image() の相対パス解決基準は
         # base_dir ではなく templates/ になってしまう。ファイルの置き場所に依存しない
@@ -1321,7 +1338,7 @@ class TypstRenderer:
         if self._plantuml_java_bin is None:
             java_bin = find_system_java()
             if java_bin:
-                print(f"[Info] Reusing system Java for PlantUML rendering: {java_bin}")
+                _log_info(f"Reusing system Java for PlantUML rendering: {java_bin}")
             elif self.plantuml_auto_download:
                 java_bin = ensure_temurin_jre()
             else:
@@ -1341,7 +1358,7 @@ class TypstRenderer:
         込みで書く必要がある（暗黙の補完はしない。9章の決定論的出力・明示性の方針に沿う）。"""
         if not self.plantuml_enabled:
             if not self._plantuml_disabled_warned:
-                print(f"[Info] plugins.plantuml is disabled; leaving ```plantuml fences as plain code (first seen in {self.current_file}).")
+                _log_info(f"plugins.plantuml is disabled; leaving ```plantuml fences as plain code (first seen in {self.current_file}).")
                 self._plantuml_disabled_warned = True
             return f"```plantuml\n{code}```\n\n"
 
@@ -1351,7 +1368,7 @@ class TypstRenderer:
         svg_path = os.path.join(cache_dir, f"plantuml_{digest}.svg")
 
         if not os.path.exists(svg_path):
-            print(f"[Info] Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
+            _log_info(f"Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
             java_bin, jar_path = self._ensure_plantuml_tools()
             try:
                 result = subprocess.run(
@@ -1371,6 +1388,8 @@ class TypstRenderer:
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
+        else:
+            _log_verbose(f"Reusing cached PlantUML diagram: {os.path.basename(svg_path)}")
 
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
@@ -1382,7 +1401,7 @@ class TypstRenderer:
         if self._d2_bin is None:
             d2_bin = find_system_d2()
             if d2_bin:
-                print(f"[Info] Reusing system D2 for d2 rendering: {d2_bin}")
+                _log_info(f"Reusing system D2 for d2 rendering: {d2_bin}")
             elif self.d2_auto_download:
                 d2_bin = ensure_d2_binary()
             else:
@@ -1399,7 +1418,7 @@ class TypstRenderer:
         SVGを書く（D2公式のstdin/stdout規約。ステータスメッセージは標準エラーへ出るため混ざらない）。"""
         if not self.d2_enabled:
             if not self._d2_disabled_warned:
-                print(f"[Info] plugins.d2 is disabled; leaving ```d2 fences as plain code (first seen in {self.current_file}).")
+                _log_info(f"plugins.d2 is disabled; leaving ```d2 fences as plain code (first seen in {self.current_file}).")
                 self._d2_disabled_warned = True
             return f"```d2\n{code}```\n\n"
 
@@ -1409,7 +1428,7 @@ class TypstRenderer:
         svg_path = os.path.join(cache_dir, f"d2_{digest}.svg")
 
         if not os.path.exists(svg_path):
-            print(f"[Info] Rendering d2 diagram via local D2 -> {os.path.basename(svg_path)}")
+            _log_info(f"Rendering d2 diagram via local D2 -> {os.path.basename(svg_path)}")
             d2_bin = self._ensure_d2_bin()
             try:
                 result = subprocess.run(
@@ -1429,6 +1448,8 @@ class TypstRenderer:
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
+        else:
+            _log_verbose(f"Reusing cached d2 diagram: {os.path.basename(svg_path)}")
 
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
@@ -1716,7 +1737,7 @@ def ensure_fonts():
     if not missing:
         return font_dir
 
-    print(f"[Info] Downloading Noto Sans JP font (one-time; cached under {font_dir})...")
+    _log_info(f"Downloading Noto Sans JP font (one-time; cached under {font_dir})...")
     zip_path = os.path.join(font_dir, "_download.zip")
     try:
         urllib.request.urlretrieve(NOTO_SANS_JP_RELEASE_URL, zip_path)
@@ -1757,7 +1778,7 @@ def ensure_mermaid_js():
     if os.path.exists(js_path):
         return js_path
 
-    print(f"[Info] Downloading mermaid.min.js (one-time; cached under {cache_dir})...")
+    _log_info(f"Downloading mermaid.min.js (one-time; cached under {cache_dir})...")
     try:
         urllib.request.urlretrieve(MERMAID_JS_URL, js_path)
     except OSError as e:
@@ -1837,8 +1858,8 @@ def ensure_temurin_jre():
 
     os.makedirs(cache_root, exist_ok=True)
     archive_path = os.path.join(cache_root, filename)
-    print(f"[Info] No local Java 11+ found; downloading Eclipse Temurin JRE {TEMURIN_JRE_RELEASE} "
-          f"(one-time; cached under {cache_root})...")
+    _log_info(f"No local Java 11+ found; downloading Eclipse Temurin JRE {TEMURIN_JRE_RELEASE} "
+              f"(one-time; cached under {cache_root})...")
     try:
         urllib.request.urlretrieve(TEMURIN_JRE_BASE_URL + filename, archive_path)
     except OSError as e:
@@ -1885,7 +1906,7 @@ def ensure_plantuml_jar():
     if os.path.exists(jar_path):
         return jar_path
 
-    print(f"[Info] Downloading plantuml.jar (one-time; cached under {cache_dir})...")
+    _log_info(f"Downloading plantuml.jar (one-time; cached under {cache_dir})...")
     try:
         urllib.request.urlretrieve(PLANTUML_JAR_URL, jar_path)
     except OSError as e:
@@ -1951,7 +1972,7 @@ def ensure_d2_binary():
 
     os.makedirs(cache_root, exist_ok=True)
     archive_path = os.path.join(cache_root, filename)
-    print(f"[Info] No local D2 found; downloading D2 CLI {D2_RELEASE} (one-time; cached under {cache_root})...")
+    _log_info(f"No local D2 found; downloading D2 CLI {D2_RELEASE} (one-time; cached under {cache_root})...")
     try:
         urllib.request.urlretrieve(D2_BASE_URL + filename, archive_path)
     except OSError as e:
@@ -2119,7 +2140,19 @@ def parse_args():
                          help="ビルドを実行せず、実行環境の前提（依存パッケージ・Typstバージョン・"
                               "フォントキャッシュ・mermaid/plantumlに必要なツール）を確認して終了する（#37）。"
                               "--configと併用するとそのplugins設定を反映する。NGが1件でもあればexit code 1。")
+    # 実行時の振る舞い系オプション（#52）。文書の内容（出力先・用紙設定等）に関わる上書きオプションは
+    # 「config.yamlが単一の正」という方針とやや相性が悪いため見送り、ログレベルと中間ファイルの
+    # 扱いのみをCLIオプション化した（Issue本文で見送りが推奨されていた）。
+    parser.add_argument("-q", "--quiet", action="store_true",
+                         help="[Info]レベルのログを抑制する（[Warning]/[Error]/[Success]は常に表示）。-vとは同時指定できない。")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                         help="[Info]に加え、処理中の章やキャッシュ再利用状況など[Verbose]レベルの詳細なログも表示する。-qとは同時指定できない。")
+    parser.add_argument("--keep-temp", action="store_true",
+                         help="ビルド成功時も中間ファイル（temp_build.typ等、.text-compositor/配下）を削除せずに残す。"
+                              "既定ではビルド失敗時のみ残る（デバッグ用）。")
     args = parser.parse_args()
+    if args.quiet and args.verbose:
+        parser.error("-q/--quiet と -v/--verbose は同時に指定できません。")
     if args.config and args.config_list:
         parser.error("--config と --config-list は同時に指定できません。")
     if args.check_env and args.config_list:
@@ -2472,8 +2505,10 @@ def _annotate_typst_error(error_text, src_map):
             hints.append(f"[Hint] temp_build.typ:{typst_line} corresponds to around {md_file}:{md_line}")
     return error_text + "\n" + "\n".join(hints) if hints else error_text
 
-def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, font_dir, template_copy_path, repo_root):
-    """temp_build.typへ書き出してtypstコンパイルし、成功時は使い捨ての中間ファイルを削除する。"""
+def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, font_dir, template_copy_path, repo_root,
+                          keep_temp=False):
+    """temp_build.typへ書き出してtypstコンパイルし、成功時は使い捨ての中間ファイルを削除する。
+    keep_temp=True（--keep-temp、#52）なら成功時も削除せず残す（失敗時は元々常に残る）。"""
     temp_typ_path = os.path.join(work_dir, "temp_build.typ")
     with open(temp_typ_path, "w", encoding="utf-8") as f:
         f.write(typst_code)
@@ -2514,8 +2549,11 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
     # ビルド成功後、使い捨ての中間ファイルを削除する（12章、#20）。
     # mermaidキャッシュ(cache/)は次回以降のビルドで再利用するため対象外。
     # 失敗時は温存し、生成されたTypstコードをそのままデバッグに使えるようにする。
-    os.remove(temp_typ_path)
-    os.remove(template_copy_path)
+    if keep_temp:
+        _log_info(f"--keep-temp: keeping intermediate files ({temp_typ_path}, {template_copy_path})")
+    else:
+        os.remove(temp_typ_path)
+        os.remove(template_copy_path)
 
 def build():
     # tool_dir: ツール自身に同梱されたリソース（templates/）の場所。パッケージ化後は
@@ -2525,6 +2563,11 @@ def build():
     # pipインストール後はrequirements.txtが同梱されないため、自然に「見つからない」扱いになる。
     repo_root = os.path.dirname(tool_dir)
     args = parse_args()
+
+    # ログの詳細度（#52）。CLI起動時に一度だけプロセスグローバルへ反映する。
+    global _QUIET, _VERBOSE
+    _QUIET = args.quiet
+    _VERBOSE = args.verbose
 
     if args.check_env:
         sys.exit(run_env_check(repo_root, args.config))
@@ -2540,11 +2583,11 @@ def build():
         # いずれかのビルドが失敗した時点でsys.exit(1)により停止する（_load_project_config等が担う）。
         for config_path in config_paths:
             print(f"[Build] {config_path}")
-            _build_one(tool_dir, repo_root, font_dir, config_path)
+            _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=args.keep_temp)
     else:
-        _build_one(tool_dir, repo_root, font_dir, args.config)
+        _build_one(tool_dir, repo_root, font_dir, args.config, keep_temp=args.keep_temp)
 
-def _build_one(tool_dir, repo_root, font_dir, config_path):
+def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
     # 汎用ツールとして、呼び出し元プロジェクトが持つ設定ファイルを指定できるようにする。
     # inputs.dir/output.dir などプロジェクト固有の相対パスは、このconfigファイルの
     # 置き場所(project_dir)を基準に解決する。templates/等ツール自身のリソースはtool_dir基準のまま。
@@ -2597,6 +2640,7 @@ def _build_one(tool_dir, repo_root, font_dir, config_path):
     try:
         for ch in chapters:
             ch_file, ch_dict, ch_type = _parse_chapter_entry(ch)
+            _log_verbose(f"Processing chapter ({ch_type}): {ch_file}")
             if ch_type == "aggregate":
                 (fragment, current_landscape, current_paper,
                  current_header, current_footer, current_paginate,
@@ -2629,7 +2673,8 @@ def _build_one(tool_dir, repo_root, font_dir, config_path):
     if glossary_enabled and renderer.glossary_terms:
         typst_code += _build_glossary_section(renderer.glossary_terms)
 
-    _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, font_dir, template_copy_path, repo_root)
+    _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, font_dir, template_copy_path, repo_root,
+                         keep_temp=keep_temp)
 
 if __name__ == "__main__":
     build()
