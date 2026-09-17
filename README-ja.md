@@ -20,6 +20,8 @@
 
 - Python 3.10以上
 
+> **Windowsをお使いの方へ（重要）**: Microsoft Store版Pythonでは、このツールを使えません。`pipx`や`venv`を経由しても回避できません。原因は、Store版Pythonが`%LOCALAPPDATA%`への書き込みをパッケージ専用の隔離フォルダへ透過的にリダイレクトすることにあります。このリダイレクトは、Store版Pythonから作った`venv`/`pipx`環境にも引き継がれます（実機で検証済み）。その結果、ファイルがPython自身には存在するように見えても、サブプロセス経由の機能（PlantUML、Mermaid）が失敗します。このツールを使う前に、[python.org](https://www.python.org/downloads/)配布版など非Store版のPythonを別途インストールしてください（`winget install Python.Python.3.12`でも入手できます）。以降の手順は、そちらのPythonで実行してください。インストール後は`text-compositor --check-env`を実行すると、環境が正しく設定されているか確認できます。
+
 インストール・実行方法は2通りあります。
 
 ### 方法A: `pip install`（推奨）
@@ -34,8 +36,6 @@ pipx install text-compositor
 python -m venv .venv
 .venv/bin/pip install -e .        # Windowsの場合: .venv\Scripts\pip install -e .
 ```
-
-> **Windowsをお使いの方へ**: 必ず `pipx` または `venv` 経由でインストールしてください。Microsoft Store版Pythonへ直接インストールすることは避けてください。Store版Pythonは `%LOCALAPPDATA%` への書き込みを内部で専用の隔離フォルダへ透過的にリダイレクトするため、ファイルが存在するように見えてもPlantUMLの描画（サブプロセス経由）が失敗することがあります。`pipx`/`venv` は実体の（サンドボックス化されていない）Python実行ファイルを使うため、この問題を回避できます。ビルド前に `text-compositor --check-env` を実行すると、この問題を含む環境の不備を事前に確認できます。
 
 ### 方法B: クローンして直接実行（インストール不要）
 
