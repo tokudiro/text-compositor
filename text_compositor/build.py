@@ -2306,7 +2306,16 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
     out_pdf = os.path.join(outputs_dir, config["output"]["filename"])
 
     try:
-        typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=[font_dir])
+        # ignore_system_fonts=True（#71）。テンプレート（template.typ/slide.typ）は本文フォントを
+        # 一貫して"Noto Sans JP"（font_dirに同梱・キャッシュ済み）のみ指定しているため、システム
+        # フォントを混ぜる必要が無い。付けないと、テンプレート指定フォントがカバーしない文字
+        # （絵文字等）のフォールバック先がOSごとに異なる system フォント構成に左右され、同一入力
+        # からでも環境ごとに出力（フォールバックフォントの選択）が変わり得る（9章の決定論的出力の
+        # 前提が崩れる）。デフォルトで常に有効にし、config.yaml側に設定項目は設けない（このツールの
+        # 「明示性優先」方針に合わせ、フォントを変えたい場合は独自テンプレート（template.path）で
+        # 対応する）。
+        typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=[font_dir],
+                           ignore_system_fonts=True)
         print(f"[Success] Generated PDF: {out_pdf}")
     except typst_lib.TypstError as e:
         # str(e)はe.message（例: "unknown variable: foo"）のみで位置情報を持たない。
