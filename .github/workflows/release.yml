@@ -76,3 +76,34 @@ jobs:
 
       - name: Build usage guide PDF via the text-compositor command
         run: text-compositor --config this-repo/doc/usage/text-compositor.config.yaml
+
+  # タグpushのたびにPyPIへ公開する（#134）。APIトークンをGitHub Secretsに保存せず、
+  # PyPIのTrusted Publishing（OIDC）を使う。事前にPyPI側で「pending publisher」として
+  # このリポジトリ/ワークフローファイル名/environment名を登録しておく必要がある
+  # （PyPIアカウントでの手動設定、コードでは自動化できない）。
+  publish-pypi:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/text-compositor
+    permissions:
+      id-token: write  # Trusted Publishing用のOIDCトークン取得に必要
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install build
+        run: pip install build
+
+      # `python -m build`ではなく`pyproject-build`コマンドを使う。`-m`実行はカレント
+      # ディレクトリをsys.pathの先頭に追加するため、リポジトリ直下のbuild.py（クローンして
+      # 直接叩く用のラッパー、#111）が`build`パッケージより先に解決されてしまう
+      # （ローカル検証で実際に発生することを確認済み）。
+      - name: Build sdist and wheel
+        run: pyproject-build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
