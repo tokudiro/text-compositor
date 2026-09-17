@@ -14,13 +14,25 @@
 - ツール本体とドキュメント（原稿）を分離し、原稿はリポジトリ外の任意の場所に置ける
 - Python中心・最小限のダウンロードで完結し、外部サーバーやSaaSに依存しない（GitHub Actions上でも、Windows/Linux/macOSのローカルでも同じ手順で動く）
 
-`chapters`に列挙するファイルは拡張子で扱いが分かれます。`.md`/`.markdown`はMarkdownとして変換し、`.yaml`/`.yml`/`.json`はシンタックスハイライト付きの等幅表示、`.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`はそれぞれGraphviz/Mermaid/PlantUML/D2の図として1章分描画し、`.csv`はTypstのテーブルとして構造化して描画し、それ以外（プレーンテキスト・コードファイル等）は素の等幅表示にします。詳細は[使い方ガイド](doc/usage/)を参照してください。
+`chapters`に列挙するファイルは、拡張子ごとに次のように扱われます。
+
+- `.md`/`.markdown`: Markdownとして変換
+- `.yaml`/`.yml`/`.json`: シンタックスハイライト付きの等幅表示
+- `.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`: それぞれGraphviz/Mermaid/PlantUML/D2の図として1章分描画
+- `.csv`: Typstのテーブルとして構造化して描画
+- それ以外（プレーンテキスト・コードファイル等）: 素の等幅表示
+
+詳細は[使い方ガイド](doc/usage/)を参照してください。
 
 ## 必要なもの
 
 - Python 3.10以上
 
-> **Windowsをお使いの方へ（重要）**: Microsoft Store版Pythonでは、このツールを使えません。`pipx`や`venv`を経由しても回避できません。原因は、Store版Pythonが`%LOCALAPPDATA%`への書き込みをパッケージ専用の隔離フォルダへ透過的にリダイレクトすることにあります。このリダイレクトは、Store版Pythonから作った`venv`/`pipx`環境にも引き継がれます（実機で検証済み）。その結果、ファイルがPython自身には存在するように見えても、サブプロセス経由の機能（PlantUML、Mermaid、D2）が失敗します。このツールを使う前に、[python.org](https://www.python.org/downloads/)配布版など非Store版のPythonを別途インストールしてください（`winget install Python.Python.3.12`でも入手できます）。以降の手順は、そちらのPythonで実行してください。インストール後は`text-compositor --check-env`を実行すると、環境が正しく設定されているか確認できます。
+> **Windowsをお使いの方へ（重要）**: Microsoft Store版Pythonでは、このツールを使えません。`pipx`や`venv`を経由しても回避できません。
+>
+> 原因は、Store版Pythonが`%LOCALAPPDATA%`への書き込みをパッケージ専用の隔離フォルダへ透過的にリダイレクトすることにあります。このリダイレクトは、Store版Pythonから作った`venv`/`pipx`環境にも引き継がれます（実機で検証済み）。その結果、ファイルがPython自身には存在するように見えても、サブプロセス経由の機能（PlantUML、Mermaid、D2）が失敗します。
+>
+> このツールを使う前に、[python.org](https://www.python.org/downloads/)配布版など非Store版のPythonを別途インストールしてください（`winget install Python.Python.3.12`でも入手できます）。以降の手順は、そちらのPythonで実行してください。インストール後は`text-compositor --check-env`を実行すると、環境が正しく設定されているか確認できます。
 
 インストール・実行方法は2通りあります。
 
@@ -65,7 +77,7 @@ pip install playwright==1.62.0
 
 Node.js/npmは不要です。ビルド時にMermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）を取得してヘッドレスブラウザに読み込ませ、SVGに変換します（バンドルJS自体はOS標準のユーザーキャッシュディレクトリ、例えばWindowsなら`%LOCALAPPDATA%\text-compositor\Cache`、Linuxなら`~/.cache/text-compositor`にキャッシュし、変換結果は `.text-compositor/cache/` にキャッシュされ、次回以降は再取得しません）。Mermaidを使わない原稿ではこれらは一切不要です。
 
-システムにChrome/Edgeが無い場合は既定でエラー終了します。`plugins: { mermaid_auto_download: true }` にすると代わりにPlaywright自身のChromiumを自動取得しますが、**このダウンロードは約700MBあります**（プレインストールされたブラウザを使わない場合の最後の手段として用意した設定で、既定でこの量をダウンロードしてしまうことは意図的に避けています）。
+システムにChrome/Edgeが無い場合は既定でエラー終了します。`plugins: { mermaid_auto_download: true }` にすると代わりにPlaywright自身のChromiumを自動取得します。ただし、**このダウンロードは約700MBあります**（プレインストールされたブラウザを使わない場合の最後の手段として用意した設定です。既定でこの量をダウンロードしてしまうことは意図的に避けています）。
 
 ### PlantUML図を使う場合（任意）
 

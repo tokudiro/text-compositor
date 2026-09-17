@@ -14,13 +14,25 @@ This README covers only the essentials needed to get started quickly. For a full
 - Separates the tool itself from the documentation (source files), which can live anywhere outside the repository
 - Python-centric with minimal downloads, no dependency on external servers or SaaS (runs the same way on GitHub Actions and locally on Windows/Linux/macOS)
 
-Files listed in `chapters` are handled differently depending on their extension. `.md`/`.markdown` are converted as Markdown; `.yaml`/`.yml`/`.json` are rendered as monospaced text with syntax highlighting; `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, and `.d2` are each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, and D2 respectively); `.csv` is rendered as a structured Typst table; everything else (plain text, code files, etc.) is rendered as plain monospaced text. See the [usage guide](doc/usage/) for details.
+Files listed in `chapters` are handled differently depending on their extension:
+
+- `.md`/`.markdown`: converted as Markdown
+- `.yaml`/`.yml`/`.json`: rendered as monospaced text with syntax highlighting
+- `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, `.d2`: each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, D2 respectively)
+- `.csv`: rendered as a structured Typst table
+- everything else (plain text, code files, etc.): rendered as plain monospaced text
+
+See the [usage guide](doc/usage/) for details.
 
 ## Requirements
 
 - Python 3.10+
 
-> **Windows note — Microsoft Store Python is not supported, even inside `pipx`/`venv`:** If Python was installed from the Microsoft Store, this tool cannot be used with it, full stop — `pipx` or a `venv` does **not** work around this. Windows redirects that Python's writes under `%LOCALAPPDATA%` into a package-private folder, and this redirection follows the Store installation into any `venv`/`pipx` environment created from it (verified by testing), breaking every subprocess-based feature (PlantUML, Mermaid, D2) even though the files appear to exist to Python itself. Before installing this tool, install Python from [python.org](https://www.python.org/downloads/) (or another non-Store distribution such as `winget install Python.Python.3.12`) and use that Python for the steps below. Run `text-compositor --check-env` afterward to confirm the environment is set up correctly.
+> **Windows note — Microsoft Store Python is not supported, even inside `pipx`/`venv`:** If Python was installed from the Microsoft Store, this tool cannot be used with it, full stop — `pipx` or a `venv` does **not** work around this.
+>
+> Windows redirects that Python's writes under `%LOCALAPPDATA%` into a package-private folder, and this redirection follows the Store installation into any `venv`/`pipx` environment created from it (verified by testing), breaking every subprocess-based feature (PlantUML, Mermaid, D2) even though the files appear to exist to Python itself.
+>
+> Before installing this tool, install Python from [python.org](https://www.python.org/downloads/) (or another non-Store distribution such as `winget install Python.Python.3.12`) and use that Python for the steps below. Run `text-compositor --check-env` afterward to confirm the environment is set up correctly.
 
 There are two ways to install and run this tool.
 
