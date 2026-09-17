@@ -31,10 +31,17 @@ chapters:
   - file: "03_architecture.md"
     paper_size: "a4"  # 必要に応じてこの章だけa3等に変更可能
     background: "images/confidential-watermark.png"  # 章ごとに背景を差し替える例（#55）
-  - "04_deployment.dot"    # 図表ソースファイルを直接chaptersに指定する例（#53）
-  - "05_workflow.mmd"
-  - "06_components.puml"
-  - "07_dependencies.csv"   # CSVファイルをTypstテーブルとして描画する例（#36）
+  # 図表/データファイルを直接chaptersに指定する例（#53、#36）。それぞれ1ファイル＝1章・
+  # 見出しなしで描画されるため、単体では何のサンプルか分かりにくい（#137）。ファイル自体は
+  # 変更せず、章ごとのheader設定（#42）でページ上部に短い説明を出すことで対処する。
+  - file: "04_deployment.dot"
+    header: "サンプル: Graphvizファイルの直接指定 (.dot)"
+  - file: "05_workflow.mmd"
+    header: "サンプル: Mermaidファイルの直接指定 (.mmd)"
+  - file: "06_components.puml"
+    header: "サンプル: PlantUMLファイルの直接指定 (.puml)"
+  - file: "07_dependencies.csv"
+    header: "サンプル: CSVファイルのテーブル変換 (.csv)"
   - aggregate: "testcases"
     title: "システムテスト仕様書 (マトリクス)"
     landscape: true   # テーブルは横長になりやすいのでA4横を指定
