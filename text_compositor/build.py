@@ -147,20 +147,38 @@ def check_typst_version(repo_root):
 # 起きる状態、を表す。ビルド失敗時の原因切り分け（該当項目だけの再チェック）にも使う。
 CheckResult = namedtuple("CheckResult", ["name", "status", "message"])
 
+def _is_store_python_base(base_prefix):
+    """base_prefixがMicrosoft Store版Pythonのインストール先かどうかを判定する（#138）。
+    Store版Pythonは`C:\\Program Files\\WindowsApps\\<Publisher>.<Name>_...`配下にインストール
+    される。venv/pipxが作る`python.exe`はCPython本体のコピーではなく別物の小さなランチャー
+    （venvlauncher）で、`pyvenv.cfg`の`home`を通じて実行時にこのインストール先を参照しにいく
+    ため、venv/pipx環境の内部であってもここが判定対象になる（実機検証済み）。"""
+    return sys.platform == "win32" and "\\windowsapps\\" in base_prefix.lower()
+
 def _check_isolated_env():
-    """venv/pipx等の隔離された環境で実行されているかを確認する（#113）。Windows +
-    Microsoft Store版Pythonにグローバルインストールすると、ファイルシステムの透過的な
-    リダイレクトにより、サブプロセス（PlantUML用のJava等）がキャッシュファイルを見失う既知の
-    問題がある（実機・Procmonで確認済み）。venv/pipxが作るpython実行体は実体ファイルとして
-    コピーされるためこの問題を回避できる。Store版Pythonかどうかを個別に判定するのではなく、
-    「隔離環境を使っているか」だけを見る（OS/配布元を問わず有効な一般的ベストプラクティス
-    でもあるため、常にこのチェックを行う）。"""
+    """Windows + Microsoft Store版Pythonでは、ファイルシステムの透過的なリダイレクトにより、
+    サブプロセス（PlantUML用のJava等）がキャッシュファイルを見失う既知の問題がある（実機で
+    確認済み、#113）。venv/pipxで作った`python.exe`（venvlauncher）も、`pyvenv.cfg`の`home`を
+    通じて結局Store版Pythonのインストール先を参照し続けるため、venv/pipxで隔離してもこの問題を
+    回避できないことが判明した（実機検証済み、#138）。そのため「隔離環境を使っているか」では
+    なく「ベースのPythonがStore版かどうか」を直接判定し、Store版なら隔離環境の有無に関わらず
+    NGとする。隔離環境の使用自体は（Store版でなければ）引き続き一般的なベストプラクティスとして
+    WARNで推奨する。"""
+    base_prefix = sys.base_prefix
+    if _is_store_python_base(base_prefix):
+        return CheckResult("isolated environment", "NG",
+                            f"the underlying Python ({base_prefix}) is the Microsoft Store "
+                            "distribution. This tool cannot be used with it -- a venv/pipx "
+                            "environment created from it does NOT avoid the problem, since its "
+                            "`python.exe` still refers back to this same Store installation at "
+                            "runtime (verified; see issue #138). Install Python from "
+                            "https://www.python.org/downloads/ (or e.g. `winget install "
+                            "Python.Python.3.12`), then recreate your venv/pipx environment "
+                            "using that Python instead.")
     if sys.prefix != sys.base_prefix:
         return CheckResult("isolated environment", "OK", "running inside a venv/pipx-managed environment")
     return CheckResult("isolated environment", "WARN",
-                        "not running inside an isolated environment (venv/pipx). On Windows with "
-                        "Microsoft Store Python this can cause subprocess-based features (PlantUML, "
-                        "etc.) to fail even though files appear to exist. Recommended: "
+                        "not running inside an isolated environment (venv/pipx). Recommended: "
                         "`pipx install text-compositor` (end users) or a venv + "
                         "`pip install -e .` (developers)")
 

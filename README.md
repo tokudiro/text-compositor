@@ -20,6 +20,8 @@ Files listed in `chapters` are handled differently depending on their extension.
 
 - Python 3.10+
 
+> **Windows note — Microsoft Store Python is not supported, even inside `pipx`/`venv`:** If Python was installed from the Microsoft Store, this tool cannot be used with it, full stop — `pipx` or a `venv` does **not** work around this. Windows redirects that Python's writes under `%LOCALAPPDATA%` into a package-private folder, and this redirection follows the Store installation into any `venv`/`pipx` environment created from it (verified by testing), breaking every subprocess-based feature (PlantUML, Mermaid) even though the files appear to exist to Python itself. Before installing this tool, install Python from [python.org](https://www.python.org/downloads/) (or another non-Store distribution such as `winget install Python.Python.3.12`) and use that Python for the steps below. Run `text-compositor --check-env` afterward to confirm the environment is set up correctly.
+
 There are two ways to install and run this tool.
 
 ### Option A: `pip install` (recommended)
@@ -34,8 +36,6 @@ pipx install text-compositor
 python -m venv .venv
 .venv/bin/pip install -e .        # Windows: .venv\Scripts\pip install -e .
 ```
-
-> **Windows note:** Always install via `pipx` or a `venv`, never directly into a Microsoft Store-distributed Python. Store Python silently redirects writes under `%LOCALAPPDATA%` into its own sandboxed folder, which breaks subprocess-based features (PlantUML rendering) even though the files appear to exist. `pipx`/`venv` use a real, non-sandboxed Python executable and avoid this. Run `text-compositor --check-env` to check for this and other environment issues before building.
 
 ### Option B: Clone and run directly (no installation)
 
