@@ -13,7 +13,7 @@ Quartoとの比較の前に、より根本的な疑問に答えておく。「Ty
 両者の役割の違いは3点ある。
 
 * **入力形式**: 原稿を書く人間（AIも含む）はMarkdown等の平易なテキストで書く。Typst構文は一切書かない。text-compositorが`markdown-it-py`でAST化し、決定論的にTypst構文へ変換する（1章）。Typstを直接使う場合、原稿自体をTypst構文で書く必要がある。
-* **複数ファイルの合成**: 独立した複数のテキストファイル（`chapters`）を、章ごとの用紙設定・ヘッダー/フッターも含めて1冊のPDFに組み上げる`config.yaml`駆動の仕組みは、Typst自体には無い。Typstの`#include`で自分で書くことは可能だが、それは「Typstで自分用のビルドシステムを都度書く」のと同義であり、3章で述べた「ツールとドキュメントの分離」は得られない。
+* **複数ファイルの合成**: 独立した複数のテキストファイル（`chapters`）を、章ごとの用紙設定・ヘッダー/フッターも含めて1冊のPDFに組み上げる`config.yaml`駆動の仕組みは、Typst自体には無い。Typstの`#include`で自分で書くことは可能である。しかし、それは「Typstで自分用のビルドシステムを都度書く」のと同義であり、3章で述べた「ツールとドキュメントの分離」は得られない。
 * **書き手へのデザイン権限の遮断**: これが最も本質的な違いである。Typstは本来プログラマブルなレイアウト言語であり、Typst構文を直接扱えるなら、レイアウトの制御もその場でできてしまう。原稿の書き手（AIか人間かを問わない）がTypst構文を直書きできる状態は、その書き手にレイアウトの決定権まで渡すことを意味する。text-compositorがMarkdownしか受け付けない設計にしているのは、レイアウトの決定権をテンプレート（人間が書き・レビューする`.typ`ファイル）側に固定するためである（1章）。
 
 例えるなら、LaTeXに対するSphinxやPandocの関係に近い。「PandocとLaTeXは何が違うのか」が疑問になりにくいのと同様に、text-compositorはTypstの代替ではなく、Typstを変換先として使うツールである。
@@ -41,7 +41,7 @@ Quartoとの比較の前に、より根本的な疑問に答えておく。「Ty
 | text-compositor（Mermaidなし） | 約60.5MB | pip: `typst`(32.6MB) + `markdown-it-py`(0.08MB) + `mdit-py-plugins`(0.05MB) + `PyYAML`(0.73MB) ≈ 33.5MB／Noto Sans JP: ZIP全体27MBをダウンロードし2ファイルだけ使用 |
 | text-compositor（Mermaidあり） | **約109MB** | 上記60.5MB + `playwright`パッケージ（PyPI、manylinux1_x86_64ホイール実測**約45.5MB**） + `mermaid.min.js`（実測3.4MB）。ブラウザは`ubuntu-latest`に標準搭載のChromeを`find_system_browser()`（#34）で検出・再利用するため追加ダウンロードなし（11章、#35で実装済み） |
 | text-compositor（PlantUMLあり） | 約78MB | 上記60.5MB + `plantuml-mit-*.jar`（実測約17.6MB）。Javaは`ubuntu-latest`に標準搭載のものを`find_system_java()`で検出・再利用するため、CI上ではEclipse Temurin JREの追加ダウンロードは発生しない（11章、#22で実装済み）。Quartoは標準非対応のため比較対象なし |
-| Marp CLI（`npx @marp-team/marp-cli`） | 約123MB＋ブラウザ | HTML/CSSをヘッドレスブラウザ（Puppeteer-core）で描画してPDF化する方式。パッケージ自体は約123MBだが、Chromiumが別途必要 |
+| Marp CLI（`npx @marp-team/marp-cli`） | 約123MB＋ブラウザ | HTML/CSSをヘッドレスブラウザ（Puppeteer-core）で描画してPDF化する方式。パッケージ自体は約123MB。別途Chromiumが必要 |
 | Vivliostyle CLI（`npx @vivliostyle/cli`） | 約242MB＋ブラウザ | Marpと同じくPuppeteer-core方式。CSS組版のフル機能を持つ分、依存ツリーがさらに大きい |
 
 Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約254MB）の半分以下に収まる。Mermaidを使わない用途ではさらに差が開く（60.5MB対140MB）。この差はNoto SansフォントZIPの無駄（27MBダウンロードして9.2MBしか使わない）を解消すればさらに縮められる（今後の課題）。
@@ -59,7 +59,7 @@ Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約25
 | Marp CLI | 組み込みなし。`markdown-it-mermaid`等を自分で`engine.js`に組み込む必要（[参照](https://github.com/orgs/marp-team/discussions/207)） | 組み込みなし（[要望issueあり](https://github.com/orgs/marp-team/discussions/219)、未実装） | 組み込みなし | 組み込みなし |
 | Vivliostyle CLI | 組み込みなし。`rehype-mermaid`等をprocessor置き換え拡張点経由で手動導入（[参照](https://zenn.dev/mura_mi/articles/4f08cc99f19887)） | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 |
 
-Mermaid・GraphvizはQuartoが最初からネイティブに持っており、追加設定が一切要らない。text-compositorは独自に実装した図表連携（Playwright/CDP直接操作・`diagraph`）でダウンロード量の面では上回るようになったが、「設定不要ですぐ使える」という手軽さではQuartoに及ばない。PlantUML・D2はQuartoが標準非対応な一方、text-compositorは`plugins.plantuml: true`/`plugins.d2: true`の設定だけで使え（ローカルに実行環境が無ければそれぞれEclipse Temurin JRE・D2公式CLIバイナリを自動取得）、ここは明確な差別化点になった。
+Mermaid・GraphvizはQuartoが最初からネイティブに持っており、追加設定が一切要らない。text-compositorは独自に実装した図表連携（Playwright/CDP直接操作・`diagraph`）で、ダウンロード量の面では上回るようになった。ただし、「設定不要ですぐ使える」という手軽さではQuartoに及ばない。PlantUML・D2はQuartoが標準非対応な一方、text-compositorは`plugins.plantuml: true`/`plugins.d2: true`の設定だけで使え（ローカルに実行環境が無ければそれぞれEclipse Temurin JRE・D2公式CLIバイナリを自動取得）、ここは明確な差別化点になった。
 
 ## 結論
 

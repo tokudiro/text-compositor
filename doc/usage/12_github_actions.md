@@ -78,11 +78,11 @@ jobs:
           pip install playwright==1.62.0
 ```
 
-Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）は初回ビルド時にOS標準のユーザーキャッシュディレクトリ（Linuxランナーでは`~/.cache/text-compositor/`）へダウンロードされる。`actions/checkout`は毎回新規チェックアウトのためこのキャッシュは引き継がれないが、サイズが小さいため実用上は都度取得でも問題にならない。
+Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）は初回ビルド時にOS標準のユーザーキャッシュディレクトリ（Linuxランナーでは`~/.cache/text-compositor/`）へダウンロードされる。`actions/checkout`は毎回新規チェックアウトのため、このキャッシュは引き継がれない。ただし、サイズが小さいため実用上は都度取得でも問題にならない。
 
 ## D2を使う場合の注意
 
-`plugins.d2: true`（既定）のプロジェクトでは、追加の`pip install`は不要です（PlantUMLと同じくコア機能の一部）。ただしMermaid用のブラウザ・PlantUML用のJavaと異なり、GitHub-hosted runner（`ubuntu-latest`）にはD2 CLIが標準搭載されていないため、`d2`フェンス（または`.d2`直接指定）を使うプロジェクトは、ビルドのたびにD2公式CLIバイナリ（約13MB）をダウンロードします。`actions/checkout`は毎回新規チェックアウトのためキャッシュは引き継がれませんが、サイズが小さいため実用上は都度取得でも問題にならない点はMermaidの`mermaid.min.js`と同様です。
+`plugins.d2: true`（既定）のプロジェクトでは、追加の`pip install`は不要です（PlantUMLと同じくコア機能の一部）。ただしMermaid用のブラウザ・PlantUML用のJavaと異なり、GitHub-hosted runner（`ubuntu-latest`）にはD2 CLIが標準搭載されていないため、`d2`フェンス（または`.d2`直接指定）を使うプロジェクトは、ビルドのたびにD2公式CLIバイナリ（約13MB）をダウンロードします。`actions/checkout`は毎回新規チェックアウトのためキャッシュは引き継がれません。ただし、サイズが小さいため実用上は都度取得でも問題にならない点はMermaidの`mermaid.min.js`と同様です。
 
 ## リリース時にPDFをアセットとして添付する
 
