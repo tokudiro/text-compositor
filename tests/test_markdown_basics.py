@@ -45,7 +45,7 @@ class TestLists:
 class TestTable:
     def test_basic_table(self):
         out = render("| a | b |\n| - | - |\n| 1 | 2 |\n")
-        assert out == "#table(\n  columns: 2,\n  [a], [b], \n  [1], [2], \n  \n)\n\n"
+        assert out == "#table(\n  columns: 2,\n  table.header(\n  [a], [b], \n  \n  ),\n  [1], [2], \n  \n)\n\n"
 
 
 class TestBlockquoteAndAlert:

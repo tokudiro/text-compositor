@@ -548,10 +548,12 @@ class TypstRenderer:
                 sys.exit(1)
 
         open_wrap, close_wrap = self._table_header_open_close()
-        result = [f'#table(\n  columns: {cols}{self._table_header_fill_arg()},\n  ']
+        result = [f'#table(\n  columns: {cols}{self._table_header_fill_arg()},\n  table.header(\n  ']
         for cell in header:
             result.append('[' + open_wrap + self.escape_typst(cell, at_line_start=True) + close_wrap + '], ')
-        result.append('\n  ')
+        # table.header()はデフォルトでrepeat: trueのため、表がページを跨いだ次ページ以降にも
+        # ヘッダー行が自動的に再掲される（#70。Markdownテーブル側と同じ仕組み）。
+        result.append('\n  ),\n  ')
         for row in body:
             for cell in row:
                 result.append('[' + self.escape_typst(cell, at_line_start=True) + '], ')
@@ -995,7 +997,12 @@ class TypstRenderer:
             elif t.type == 'table_open':
                 self._emit_srcmap(result, t)
                 cols = self._count_table_cols(tokens, i)
-                result.append(f'#table(\n  columns: {cols}{self._table_header_fill_arg()},\n  ')
+                result.append(f'#table(\n  columns: {cols}{self._table_header_fill_arg()},\n  table.header(\n  ')
+            elif t.type == 'thead_close':
+                # table.header()呼び出しを閉じ、以降のtd_open/td_closeはtable()本体への
+                # 通常の位置引数として続く（#70）。table.header()はデフォルトでrepeat: trueの
+                # ため、表がページを跨いだ次ページ以降にもヘッダー行が自動的に再掲される。
+                result.append('\n  ),\n  ')
             elif t.type == 'table_close':
                 result.append('\n)\n\n')
             elif t.type == 'hr':
