@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "text-compositor"
 version = "0.1.0"
 description = "A tool for composing multiple text files into a PDF document."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
     "typst==0.15.0",
@@ -32,7 +32,7 @@ Repository = "https://github.com/tokudiro/text-compositor"
 text-compositor = "text_compositor.build:build"
 
 [tool.setuptools]
-packages = ["text_compositor"]
+packages = ["text_compositor", "text_compositor.templates"]
 
 [tool.setuptools.package-data]
 text_compositor = ["templates/*.typ"]
