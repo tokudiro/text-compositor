@@ -48,21 +48,21 @@ Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約25
 
 実測値は展開後のディスク使用量、またはHTTPヘッダーから直接取得した圧縮ファイルサイズのいずれか（各行に記載の取得方法を参照）。両ツールとも、GitHub Actionsのキャッシュ機構（`actions/cache`等）を使えば2回目以降の実行コストは大きく下げられる。
 
-## 図表描画（Mermaid / Graphviz / PlantUML）の対応状況
+## 図表描画（Mermaid / Graphviz / PlantUML / D2）の対応状況
 
-これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUMLは状況が異なる。
+これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUML・D2は状況が異なる。
 
-| ツール | Mermaid | Graphviz(dot) | PlantUML |
-| --- | --- | --- | --- |
-| text-compositor | 実装済み（Playwright経由のCDP直接操作、#35） | 実装済み（`diagraph`） | 実装済み（ローカルJava+Smetana、#22） |
-| [Quarto](https://quarto.org/docs/authoring/diagrams.html) | **ネイティブ組み込み**、追加設定不要 | **ネイティブ組み込み**、`{dot}`セルで即使える（[参照](https://medium.com/codex/quarto-1-4-adds-mermaid-and-graphviz-604de76fca21)） | 標準非対応。サードパーティのpandocフィルタか、Java+PlantUML jarの手動セットアップが必要（[参照](https://github.com/orgs/quarto-dev/discussions/6549)） |
-| Marp CLI | 組み込みなし。`markdown-it-mermaid`等を自分で`engine.js`に組み込む必要（[参照](https://github.com/orgs/marp-team/discussions/207)） | 組み込みなし（[要望issueあり](https://github.com/orgs/marp-team/discussions/219)、未実装） | 組み込みなし |
-| Vivliostyle CLI | 組み込みなし。`rehype-mermaid`等をprocessor置き換え拡張点経由で手動導入（[参照](https://zenn.dev/mura_mi/articles/4f08cc99f19887)） | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 |
+| ツール | Mermaid | Graphviz(dot) | PlantUML | D2 |
+| --- | --- | --- | --- | --- |
+| text-compositor | 実装済み（Playwright経由のCDP直接操作、#35） | 実装済み（`diagraph`） | 実装済み（ローカルJava+Smetana、#22） | 実装済み（D2公式CLIバイナリ、#90） |
+| [Quarto](https://quarto.org/docs/authoring/diagrams.html) | **ネイティブ組み込み**、追加設定不要 | **ネイティブ組み込み**、`{dot}`セルで即使える（[参照](https://medium.com/codex/quarto-1-4-adds-mermaid-and-graphviz-604de76fca21)） | 標準非対応。サードパーティのpandocフィルタか、Java+PlantUML jarの手動セットアップが必要（[参照](https://github.com/orgs/quarto-dev/discussions/6549)） | 標準非対応（公式ドキュメントに記載なし） |
+| Marp CLI | 組み込みなし。`markdown-it-mermaid`等を自分で`engine.js`に組み込む必要（[参照](https://github.com/orgs/marp-team/discussions/207)） | 組み込みなし（[要望issueあり](https://github.com/orgs/marp-team/discussions/219)、未実装） | 組み込みなし | 組み込みなし |
+| Vivliostyle CLI | 組み込みなし。`rehype-mermaid`等をprocessor置き換え拡張点経由で手動導入（[参照](https://zenn.dev/mura_mi/articles/4f08cc99f19887)） | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 |
 
-Mermaid・GraphvizはQuartoが最初からネイティブに持っており、追加設定が一切要らない。text-compositorは独自に実装した図表連携（Playwright/CDP直接操作・`diagraph`）でダウンロード量の面では上回るようになったが、「設定不要ですぐ使える」という手軽さではQuartoに及ばない。PlantUMLはQuartoが標準非対応な一方、text-compositorは`plugins.plantuml: true`の設定だけで使え（ローカルにJava 11+が無ければEclipse Temurin JREを自動取得）、ここは明確な差別化点になった。
+Mermaid・GraphvizはQuartoが最初からネイティブに持っており、追加設定が一切要らない。text-compositorは独自に実装した図表連携（Playwright/CDP直接操作・`diagraph`）でダウンロード量の面では上回るようになったが、「設定不要ですぐ使える」という手軽さではQuartoに及ばない。PlantUML・D2はQuartoが標準非対応な一方、text-compositorは`plugins.plantuml: true`/`plugins.d2: true`の設定だけで使え（ローカルに実行環境が無ければそれぞれEclipse Temurin JRE・D2公式CLIバイナリを自動取得）、ここは明確な差別化点になった。
 
 ## 結論
 
-「図表描画機能の手軽さ（追加設定の要否）」では、Mermaid/GraphvizについてQuartoに明確な優位性は見出せなかった。ただしPlantUMLはQuartoが標準非対応なのに対し、text-compositorは`plugins.plantuml: true`だけで使える（#22）ため、この1点は明確な差別化点になった。「ダウンロード量」は、#34・#35の実装によりMermaid込みでもtext-compositorがQuartoの半分以下に収まるようになった。
+「図表描画機能の手軽さ（追加設定の要否）」では、Mermaid/GraphvizについてQuartoに明確な優位性は見出せなかった。ただしPlantUML・D2はQuartoが標準非対応なのに対し、text-compositorは`plugins.plantuml: true`（#22）/`plugins.d2: true`（#90）だけで使えるため、この点は明確な差別化点になった。「ダウンロード量」は、#34・#35の実装によりMermaid込みでもtext-compositorがQuartoの半分以下に収まるようになった。
 
 とはいえ比較表（冒頭）に挙げた項目——`typst-exec`のホワイトリスト、HTMLタグのフェイルファスト、`--root`のサンドボックス化、ツール/ドキュメントの完全分離——は、Quartoを含む汎用ツールが標準では持たない、**複数の書き手（人間もAIも問わない）が持ち寄ったテキストを、レビューを経て安全に本番化するための運用ルール**である。これがtext-compositorの存在意義の核であることに変わりはなく、「軽量」は達成できた副次的な利点という位置づけに留め、主張の軸はこのガバナンス面に置き続けるべきである。

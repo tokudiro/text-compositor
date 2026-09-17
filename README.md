@@ -14,13 +14,13 @@ This README covers only the essentials needed to get started quickly. For a full
 - Separates the tool itself from the documentation (source files), which can live anywhere outside the repository
 - Python-centric with minimal downloads, no dependency on external servers or SaaS (runs the same way on GitHub Actions and locally on Windows/Linux/macOS)
 
-Files listed in `chapters` are handled differently depending on their extension. `.md`/`.markdown` are converted as Markdown; `.yaml`/`.yml`/`.json` are rendered as monospaced text with syntax highlighting; `.dot`/`.gv`, `.mmd`, and `.puml`/`.plantuml`/`.pu` are each rendered as a one-chapter diagram (Graphviz, Mermaid, and PlantUML respectively); `.csv` is rendered as a structured Typst table; everything else (plain text, code files, etc.) is rendered as plain monospaced text. See the [usage guide](doc/usage/) for details.
+Files listed in `chapters` are handled differently depending on their extension. `.md`/`.markdown` are converted as Markdown; `.yaml`/`.yml`/`.json` are rendered as monospaced text with syntax highlighting; `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, and `.d2` are each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, and D2 respectively); `.csv` is rendered as a structured Typst table; everything else (plain text, code files, etc.) is rendered as plain monospaced text. See the [usage guide](doc/usage/) for details.
 
 ## Requirements
 
 - Python 3.10+
 
-> **Windows note — Microsoft Store Python is not supported, even inside `pipx`/`venv`:** If Python was installed from the Microsoft Store, this tool cannot be used with it, full stop — `pipx` or a `venv` does **not** work around this. Windows redirects that Python's writes under `%LOCALAPPDATA%` into a package-private folder, and this redirection follows the Store installation into any `venv`/`pipx` environment created from it (verified by testing), breaking every subprocess-based feature (PlantUML, Mermaid) even though the files appear to exist to Python itself. Before installing this tool, install Python from [python.org](https://www.python.org/downloads/) (or another non-Store distribution such as `winget install Python.Python.3.12`) and use that Python for the steps below. Run `text-compositor --check-env` afterward to confirm the environment is set up correctly.
+> **Windows note — Microsoft Store Python is not supported, even inside `pipx`/`venv`:** If Python was installed from the Microsoft Store, this tool cannot be used with it, full stop — `pipx` or a `venv` does **not** work around this. Windows redirects that Python's writes under `%LOCALAPPDATA%` into a package-private folder, and this redirection follows the Store installation into any `venv`/`pipx` environment created from it (verified by testing), breaking every subprocess-based feature (PlantUML, Mermaid, D2) even though the files appear to exist to Python itself. Before installing this tool, install Python from [python.org](https://www.python.org/downloads/) (or another non-Store distribution such as `winget install Python.Python.3.12`) and use that Python for the steps below. Run `text-compositor --check-env` afterward to confirm the environment is set up correctly.
 
 There are two ways to install and run this tool.
 
@@ -77,6 +77,15 @@ No extra `config.yaml` settings are needed to use ` ```plantuml ` fences in your
 
 The layout engine is the pure-Java Smetana implementation, so no external binary like Graphviz (`dot`) is required. PlantUML itself (MIT edition, ~17.6MB) is cached under the same user cache directory, and conversion results are cached under `.text-compositor/cache/`, same as Mermaid.
 
+### Using D2 diagrams (optional)
+
+No extra `config.yaml` settings are needed to use ` ```d2 ` fences in your source documents (or to specify a `.d2` file directly in `chapters`) — `plugins.d2` defaults to `true` and no additional `pip install` is required.
+
+- If the `d2` command is available locally, it's reused as-is
+- Otherwise, the official D2 CLI binary (a single Go executable, ~13MB) is auto-fetched and cached by default under the same user cache directory as above. Setting `plugins: { d2_auto_download: false }` disables the auto-fetch and fails the build instead
+
+Unlike Java (used by PlantUML) or a browser (used by Mermaid), GitHub Actions' `ubuntu-latest` does not ship with D2 preinstalled, so a `d2` diagram triggers this ~13MB download on every CI run (this project's workflows don't persist the cache directory across separate runs).
+
 ## Usage
 
 If installed via `pip`/`pipx` (Option A):
@@ -98,7 +107,7 @@ cd my-project/
 python /path/to/text-compositor/build.py
 ```
 
-Run `text-compositor --check-env` (or `python build.py --check-env`) to check your environment (dependencies, Typst version, cached assets, Mermaid/PlantUML prerequisites) without running a build.
+Run `text-compositor --check-env` (or `python build.py --check-env`) to check your environment (dependencies, Typst version, cached assets, Mermaid/PlantUML/D2 prerequisites) without running a build.
 
 See [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) for how to write the config file, and the [usage guide](doc/usage/) for details on `document:`/`plugins:`, front matter, Marp directives, and more. The Markdown files listed in `chapters` are concatenated in order to produce the PDF.
 
