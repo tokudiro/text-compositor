@@ -17,7 +17,9 @@ class TestBasicConversion:
         assert out == (
             "#table(\n"
             "  columns: 2,\n"
+            "  table.header(\n"
             "  [name], [age], \n"
+            "  ),\n"
             "  [Alice], [30], \n"
             "  [Bob], [25], \n"
             "  \n"
@@ -26,7 +28,7 @@ class TestBasicConversion:
 
     def test_header_only_no_data_rows(self):
         out = render_csv("a,b\n")
-        assert out == "#table(\n  columns: 2,\n  [a], [b], \n  \n)\n\n"
+        assert out == "#table(\n  columns: 2,\n  table.header(\n  [a], [b], \n  ),\n  \n)\n\n"
 
 
 class TestRfc4180Quoting:
