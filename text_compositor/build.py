@@ -108,6 +108,12 @@ def find_system_java():
         major = int(parts[1])
     return java_path if major >= 11 else None
 
+def find_system_d2():
+    """PATH上のdコマンドを探す。PlantUMLのJava 11+のようなバージョン下限は無いため、
+    存在確認のみ行う（#90）。見つかった場合はensure_d2_binary()によるダウンロードを回避できる
+    （2章の最小限のダウンロード）。"""
+    return shutil.which("d2")
+
 def _typst_version_info(repo_root):
     """typstのインストール済みバージョンと、requirements.txtでピン留めされたバージョンを返す
     （#49のビルド時チェックと#37の--check-envで共用する）。requirements.txtが無い/`typst`の
@@ -247,6 +253,26 @@ def _check_plantuml(plantuml_enabled, plantuml_auto_download):
                         "no local Java 11+ found and plugins.plantuml_auto_download is false. "
                         "Install Java 11+, or set plugins.plantuml_auto_download: true")
 
+def _check_d2(d2_enabled, d2_auto_download):
+    if not d2_enabled:
+        return CheckResult("d2", "OK", "disabled (plugins.d2: false)")
+    d2_path = find_system_d2()
+    if d2_path:
+        return CheckResult("d2", "OK", f"system D2 found: {d2_path}")
+    key = _temurin_platform_key()
+    asset = D2_ASSETS.get(key)
+    if asset:
+        d2_bin_path = _d2_bin_path(_d2_cache_root(), key[0])
+        if os.path.exists(d2_bin_path):
+            return CheckResult("d2", "OK", f"no local D2, but the D2 CLI is already cached under {_d2_cache_root()}")
+    if d2_auto_download:
+        return CheckResult("d2", "WARN",
+                            "no local D2 found; the D2 CLI binary will be downloaded "
+                            "(one-time; approx. 13MB) on first d2 render")
+    return CheckResult("d2", "NG",
+                        "no local D2 found and plugins.d2_auto_download is false. "
+                        "Install D2 (https://d2lang.com), or set plugins.d2_auto_download: true")
+
 def run_env_check(repo_root, config_path):
     """`--check-env`本体。configを指定すればそのplugins設定を反映し、未指定なら全項目を
     既定値（すべて有効）でチェックする。実際のビルドは行わない。戻り値はexit code
@@ -260,6 +286,8 @@ def run_env_check(repo_root, config_path):
     mermaid_auto_download = bool(plugins_config.get("mermaid_auto_download", False))
     plantuml_enabled = bool(plugins_config.get("plantuml", True))
     plantuml_auto_download = bool(plugins_config.get("plantuml_auto_download", True))
+    d2_enabled = bool(plugins_config.get("d2", True))
+    d2_auto_download = bool(plugins_config.get("d2_auto_download", True))
 
     results = [
         _check_isolated_env(),
@@ -268,6 +296,7 @@ def run_env_check(repo_root, config_path):
         _check_font_cache(),
         _check_mermaid(mermaid_enabled, mermaid_auto_download),
         _check_plantuml(plantuml_enabled, plantuml_auto_download),
+        _check_d2(d2_enabled, d2_auto_download),
     ]
     _print_check_results(results)
     return 1 if any(r.status == "NG" for r in results) else 0
@@ -324,14 +353,14 @@ class TypstRenderer:
         r'layout-takahashi|align)'
         r'(?: +\{([^}\r\n]*)\})? *\r?\n(.*?)\r?\n::: *\r?$',
         re.MULTILINE | re.DOTALL)
-    # フェンス（mermaid/plantuml/dot/graphviz/svg）か、単独行のMarkdown画像（`![alt](src)`のみの行）の
+    # フェンス（mermaid/plantuml/dot/graphviz/svg/d2）か、単独行のMarkdown画像（`![alt](src)`のみの行）の
     # いずれかにマッチする。画像側は行全体にアンカーし、文中に埋め込まれたインライン画像を誤って
     # 抜き出さないようにする（テキストの前後を単純に連結する都合上、行の一部だけを抜くと文が壊れる）。
     # 言語名の後ろに`{width=50%}`のようなPandoc風のサイズ指定属性を書ける（#82）。
     # svgはmermaid/plantumlと異なりレンダリング不要（コードそのものが既に完成した画像）だが、
     # 「図/画像を1つ含む」という抽出対象としては同列に扱える（#91）。
     DIAGRAM_OR_IMAGE_RE = re.compile(
-        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
+        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
         r'|^[ \t]*(?P<image>!\[[^\]]*\]\([^)\n]+\))[ \t]*\r?$',
         re.MULTILINE | re.DOTALL)
     # フェンスのinfo string（'mermaid'や'{width=50% height=8cm}'の中身）からwidth=/height=を
@@ -415,8 +444,8 @@ class TypstRenderer:
     ALERT_MARKER_RE = re.compile(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$')
 
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
-                 plantuml_enabled=True, plantuml_auto_download=True, glossary_enabled=False,
-                 line_mapping="block", marp_compat=False):
+                 plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
+                 glossary_enabled=False, line_mapping="block", marp_compat=False):
         # 対応するMarkdown記法のスコープはGFM + GitHub Wiki（#48）。table/strikethroughはGFM拡張だが
         # commonmarkプリセットにコアルールとして同梱されており、enable()するだけで使える。
         self.md = (MarkdownIt("commonmark").enable("table").enable("strikethrough")
@@ -477,6 +506,16 @@ class TypstRenderer:
         # （mermaidのヘッドレスブラウザと異なり常駐プロセスではないため、都度subprocessで起動する）。
         self._plantuml_java_bin = None
         self._plantuml_jar_path = None
+        # plugins.d2: true（既定。#90）。falseなら```d2フェンスをローカルのD2 CLIバイナリで
+        # 描画せず、他の未対応言語と同じく素のコード表示にフォールバックする。
+        self.d2_enabled = d2_enabled
+        self._d2_disabled_warned = False
+        # plugins.d2_auto_download: true（既定）。システムにdコマンドが無い場合、trueならD2公式
+        # CLIバイナリを自動取得（実測約13MB。plantumlのJRE(約49.7MB)よりさらに小さいため、
+        # plantuml_auto_downloadと同じくtrueを既定にする。#22の設計議論を参照）、falseならFail-fast。
+        self.d2_auto_download = d2_auto_download
+        # d2実行ファイルのパスは初回の```d2描画時に遅延解決する（plantumlのjava/jarと同様）。
+        self._d2_bin = None
         # document.diagnostics.line_mapping: "block"（既定、#27）。Typstコンパイルエラーの行番号を
         # 元のMarkdownの行番号へ逆引きするための行コメント（`// @srcmap ...`）を生成コードに
         # 挿し込むかどうかの精度。"off"なら挿し込まず、従来どおりTypst側の生の行番号のみになる。
@@ -496,6 +535,7 @@ class TypstRenderer:
         '.dot': 'graphviz', '.gv': 'graphviz',
         '.mmd': 'mermaid',
         '.puml': 'plantuml', '.plantuml': 'plantuml', '.pu': 'plantuml',
+        '.d2': 'd2',
     }
 
     def render_chapter(self, text, filepath="", drop_leading_title=False):
@@ -517,6 +557,8 @@ class TypstRenderer:
             return self._render_mermaid(text)
         elif diagram_kind == 'plantuml':
             return self._render_plantuml(text)
+        elif diagram_kind == 'd2':
+            return self._render_d2(text)
         elif ext == '.csv':
             return self._render_csv_table(text)
 
@@ -645,17 +687,19 @@ class TypstRenderer:
         return width, height
 
     def _render_diagram_fence(self, lang, code, width=None, height=None):
-        """```mermaid/```plantuml/```dot/```graphviz/```svgフェンスの内容をTypstコードへ変換する。
-        通常のMarkdownフロー（render_tokens）とlayout-right/layout-compareブロックの双方から
-        共通で呼べるようにした処理（#77）。width/height（#82）が指定された場合、mermaid/plantuml/svgは
-        自動縮小（fit-image）をバイパスして直接そのサイズで埋め込み、dot/graphvizは
-        _render_graphvizが同様にバイパスする。"""
+        """```mermaid/```plantuml/```dot/```graphviz/```svg/```d2フェンスの内容をTypstコードへ
+        変換する。通常のMarkdownフロー（render_tokens）とlayout-right/layout-compareブロックの
+        双方から共通で呼べるようにした処理（#77）。width/height（#82）が指定された場合、
+        mermaid/plantuml/svg/d2は自動縮小（fit-image）をバイパスして直接そのサイズで埋め込み、
+        dot/graphvizは_render_graphvizが同様にバイパスする。"""
         if lang == 'mermaid':
             return self._render_mermaid(code, width, height)
         elif lang == 'plantuml':
             return self._render_plantuml(code, width, height)
         elif lang == 'svg':
             return self._render_svg(code, width, height)
+        elif lang == 'd2':
+            return self._render_d2(code, width, height)
         return self._render_graphviz(lang, code, width, height)
 
     def _render_diagram_or_image_match(self, m):
@@ -691,7 +735,7 @@ class TypstRenderer:
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
             print(f"[Error] '{block_name}' block in {self.current_file} must contain exactly one "
-                  "```mermaid/```plantuml/```dot/```graphviz/```svg fence or a standalone image.")
+                  "```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fence or a standalone image.")
             sys.exit(1)
         surrounding_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
         text_typst = self._render_markdown_segment(surrounding_md, False).strip()
@@ -710,13 +754,13 @@ class TypstRenderer:
         )
 
     def _render_compare_block(self, inner_text):
-        """::: layout-compare ... ::: ブロックを、2つの図（mermaid/plantuml/dot/graphviz/svgまたは
+        """::: layout-compare ... ::: ブロックを、2つの図（mermaid/plantuml/dot/graphviz/svg/d2または
         Markdown画像。種類は混在可）を左右に並べた2カラムgridへ変換する。
         各図の直前にあるテキスト（キャプション）は、その図と同じ列にまとめて配置する。"""
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if len(matches) != 2:
             print(f"[Error] 'layout-compare' block in {self.current_file} must contain exactly two "
-                  f"```mermaid/```plantuml/```dot/```graphviz/```svg fences or images (found {len(matches)}).")
+                  f"```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
         prev_end = 0
@@ -751,7 +795,7 @@ class TypstRenderer:
         「写真が主役」という趣旨に合わせ、Markdown画像はalt側のwidth/height指定（あれば）を
         無視してwidth/height: 100%・fit: "cover"で枠いっぱいに敷き詰める（枠の高さ自体は
         FEATURE_IMG_HEIGHTで固定するため、はみ出しはfit:coverのトリミングで吸収される）。
-        mermaid/plantuml/dot/graphviz/svgフェンスは想定外の使い方だが、#77の汎用抽出をそのまま通し、
+        mermaid/plantuml/dot/graphviz/svg/d2フェンスは想定外の使い方だが、#77の汎用抽出をそのまま通し、
         既存のfit-image表示（高さ上限あり・cover表示ではない）に委ねる。フェンス側のwidth/height
         属性（#82）はcover化の対象外（画像と同じ強制はしない）なので、他のブロックと同様に
         そのまま反映する。"""
@@ -768,7 +812,7 @@ class TypstRenderer:
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
             print(f"[Error] 'layout-feature' block in {self.current_file} must contain exactly one "
-                  "```mermaid/```plantuml/```dot/```graphviz/```svg fence or a standalone image.")
+                  "```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fence or a standalone image.")
             sys.exit(1)
         catchcopy_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
         catchcopy_typst = self._render_markdown_segment(catchcopy_md, False).strip()
@@ -1026,7 +1070,7 @@ class TypstRenderer:
                     # 後ろへ空白区切りでサイズ指定属性を書ける（#82）。
                     parts = info.split(None, 1)
                     lang = parts[0] if parts else ''
-                    if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg'):
+                    if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg', 'd2'):
                         width, height = self._parse_size_attrs(parts[1] if len(parts) > 1 else '')
                         result.append(self._render_diagram_fence(lang, t.content, width, height))
                     else:
@@ -1324,6 +1368,64 @@ class TypstRenderer:
             if result.returncode != 0:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
                 print(f"[Error] PlantUML rendering failed for {self.current_file}:\n{result.stderr}")
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(result.stdout)
+
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _ensure_d2_bin(self):
+        """d2実行ファイルを遅延解決する（初回のみ）。システムのdコマンドがあればそのまま
+        再利用する（2章の最小限のダウンロード）。無い場合、plugins.d2_auto_download（既定true）
+        ならD2公式CLIバイナリを自動取得し、falseならFail-fastでエラー終了する（#90）。"""
+        if self._d2_bin is None:
+            d2_bin = find_system_d2()
+            if d2_bin:
+                print(f"[Info] Reusing system D2 for d2 rendering: {d2_bin}")
+            elif self.d2_auto_download:
+                d2_bin = ensure_d2_binary()
+            else:
+                print("[Error] No local D2 found; required to render d2 diagrams. "
+                      "Install D2 (https://d2lang.com), or set plugins.d2_auto_download: true "
+                      "(downloads the D2 CLI binary, approx. 13MB), or set plugins.d2: false.")
+                sys.exit(1)
+            self._d2_bin = d2_bin
+        return self._d2_bin
+
+    def _render_d2(self, code, width=None, height=None):
+        """```d2```ブロックをローカルのD2公式CLIバイナリでSVG化し、Typstのimage呼び出しに変換する。
+        外部APIへの通信は行わない（仕様書10章・11章、#90）。`d2 - -`で標準入力から読み、標準出力へ
+        SVGを書く（D2公式のstdin/stdout規約。ステータスメッセージは標準エラーへ出るため混ざらない）。"""
+        if not self.d2_enabled:
+            if not self._d2_disabled_warned:
+                print(f"[Info] plugins.d2 is disabled; leaving ```d2 fences as plain code (first seen in {self.current_file}).")
+                self._d2_disabled_warned = True
+            return f"```d2\n{code}```\n\n"
+
+        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
+        svg_path = os.path.join(cache_dir, f"d2_{digest}.svg")
+
+        if not os.path.exists(svg_path):
+            print(f"[Info] Rendering d2 diagram via local D2 -> {os.path.basename(svg_path)}")
+            d2_bin = self._ensure_d2_bin()
+            try:
+                result = subprocess.run(
+                    [d2_bin, "-", "-"],
+                    input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)
+            except OSError as e:
+                print(f"[Error] Failed to run D2 for {self.current_file}:\n{e}")
+                # 隔離環境（venv/pipx）外での実行が原因の可能性が高い（#113、ファイルが
+                # 存在するように見えてもサブプロセスから見えない既知の問題）ため優先して案内する。
+                for diag in (_check_isolated_env(), _check_d2(self.d2_enabled, self.d2_auto_download)):
+                    if diag.status != "OK":
+                        print(f"[Hint] [{diag.status}] {diag.name}: {diag.message}")
+                sys.exit(1)
+            if result.returncode != 0:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
+                print(f"[Error] d2 rendering failed for {self.current_file}:\n{result.stderr}")
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
@@ -1798,6 +1900,82 @@ def ensure_plantuml_jar():
         sys.exit(1)
 
     return jar_path
+
+# D2公式CLIバイナリ（Go製、単一実行ファイル、外部ランタイム不要）。mermaid/plantumlと同じ設計方針
+# （#90）で、GitHub Releasesから取得しSHA256を固定した上でtool_dir配下にキャッシュする。
+# バージョン・SHA256を固定し、決定論的な取得結果にする（9章）。SHA256は公式リリースの
+# SHA256SUMSアセットから取得した値（https://github.com/d2lang/d2/releases/tag/v0.9.0）。
+D2_RELEASE = "v0.9.0"
+D2_BASE_URL = f"https://github.com/d2lang/d2/releases/download/{D2_RELEASE}/"
+D2_TOP_DIR = f"d2-{D2_RELEASE}"
+D2_ASSETS = {
+    ("win32", "x86_64"): ("d2-v0.9.0-windows-amd64.tar.gz",
+                           "5f63b643de8f5a6dfb922d172e1b5496e4caf47497c33c4427cf1127f28c340f"),
+    ("win32", "aarch64"): ("d2-v0.9.0-windows-arm64.tar.gz",
+                           "dd05cab459410c287d7ca3eb9cf78145a071742ee8e1b81a0122f84f471883e1"),
+    ("linux", "x86_64"): ("d2-v0.9.0-linux-amd64.tar.gz",
+                          "5669ddc46b99e942cc96078f4a4e36d5e62103348f4c05179ede27802fdd87a9"),
+    ("linux", "aarch64"): ("d2-v0.9.0-linux-arm64.tar.gz",
+                           "ac2c028697199479acb321db1e3d68caee9f2ba492ed73caa3cd13f3829bf913"),
+    ("darwin", "x86_64"): ("d2-v0.9.0-macos-amd64.tar.gz",
+                           "cad39576a480d6bb02ea142fef1726647914b0d2da51ccc9b30b660a2b1babf0"),
+    ("darwin", "aarch64"): ("d2-v0.9.0-macos-arm64.tar.gz",
+                            "eaf6c0c143e56dd9fa97bfb6df25ea9c1ebce40245f056a0768cf1a6c15d3064"),
+}
+
+def _d2_cache_root():
+    return os.path.join(_user_cache_dir(), "d2")
+
+def _d2_bin_path(cache_root, os_key):
+    exe = "d2.exe" if os_key == "win32" else "d2"
+    return os.path.join(cache_root, D2_TOP_DIR, "bin", exe)
+
+def ensure_d2_binary():
+    """ユーザーキャッシュディレクトリの d2/ にD2公式CLIバイナリが無ければダウンロード・展開する。
+    d2実行ファイルの絶対パスを返す。2回目以降のビルドはキャッシュを使い、ネットワークアクセス
+    なしで完結する（find_system_d2()でシステムのdコマンドが見つからなかった場合のみ呼ばれる、
+    #90）。プラットフォーム判定は_temurin_platform_key()を共用する（OS/CPUアーキテクチャの
+    検出ロジックはD2固有の事情が無く、Temurin JRE用のものと同一のため）。"""
+    key = _temurin_platform_key()
+    asset = D2_ASSETS.get(key)
+    if asset is None:
+        print(f"[Error] No D2 CLI build available for this platform ({key[0]}/{key[1]}). "
+              "Install D2 manually (https://d2lang.com) and ensure it is on PATH, or set plugins.d2: false.")
+        sys.exit(1)
+    filename, sha256 = asset
+
+    cache_root = _d2_cache_root()
+    d2_bin_path = _d2_bin_path(cache_root, key[0])
+    if os.path.exists(d2_bin_path):
+        return d2_bin_path
+
+    os.makedirs(cache_root, exist_ok=True)
+    archive_path = os.path.join(cache_root, filename)
+    print(f"[Info] No local D2 found; downloading D2 CLI {D2_RELEASE} (one-time; cached under {cache_root})...")
+    try:
+        urllib.request.urlretrieve(D2_BASE_URL + filename, archive_path)
+    except OSError as e:
+        print(f"[Error] Failed to download D2 CLI: {e}")
+        sys.exit(1)
+
+    with open(archive_path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    if digest != sha256:
+        os.remove(archive_path)
+        print(f"[Error] Checksum mismatch for {filename}: expected {sha256}, got {digest}")
+        sys.exit(1)
+
+    with tarfile.open(archive_path, "r:gz") as tf:
+        tf.extractall(cache_root)
+    os.remove(archive_path)
+
+    if not os.path.exists(d2_bin_path):
+        print(f"[Error] D2 CLI extraction did not produce the expected binary: {d2_bin_path}")
+        sys.exit(1)
+    if key[0] != "win32":
+        os.chmod(d2_bin_path, 0o755)
+
+    return d2_bin_path
 
 def _launch_headless_chrome(browser_path, user_data_dir):
     """browser_pathをリモートデバッグ有効・ヘッドレスで起動し、(Popen, ポート番号)を返す。
@@ -2372,17 +2550,19 @@ def _build_one(tool_dir, repo_root, font_dir, config_path):
     # 置き場所(project_dir)を基準に解決する。templates/等ツール自身のリソースはtool_dir基準のまま。
     project_dir, config, chapters = _load_project_config(config_path)
 
-    # plugins: Graphviz/PlantUML/Mermaidの有効・無効切り替え（6章、#21）。未指定時は既存動作を
-    # 維持する既定値（graphviz/mermaid/plantumlはいずれも常時有効）。
-    # *_auto_download は、システムに必要なツール（ブラウザ/Java）が無い場合の振る舞いを制御する
+    # plugins: Graphviz/PlantUML/Mermaid/D2の有効・無効切り替え（6章、#21、#90）。未指定時は
+    # 既存動作を維持する既定値（graphviz/mermaid/plantuml/d2はいずれも常時有効）。
+    # *_auto_download は、システムに必要なツール（ブラウザ/Java/D2）が無い場合の振る舞いを制御する
     # 別軸のフラグ（#22の設計議論）。既定値が非対称なのは、ダウンロードされる実体のサイズが
-    # 一桁違うため（Playwright自身のChromium: 約700MB対Eclipse Temurin JRE: 約49.7MB）。
+    # 一桁違うため（Playwright自身のChromium: 約700MB対Eclipse Temurin JRE: 約49.7MB対D2 CLI: 約13MB）。
     plugins_config = config.get("plugins") or {}
     graphviz_enabled = bool(plugins_config.get("graphviz", True))
     mermaid_enabled = bool(plugins_config.get("mermaid", True))
     mermaid_auto_download = bool(plugins_config.get("mermaid_auto_download", False))
     plantuml_enabled = bool(plugins_config.get("plantuml", True))
     plantuml_auto_download = bool(plugins_config.get("plantuml_auto_download", True))
+    d2_enabled = bool(plugins_config.get("d2", True))
+    d2_auto_download = bool(plugins_config.get("d2_auto_download", True))
     # document.glossary: false（既定。#47）。trueなら[[用語]]を検出し、巻末に索引ページを生成する。
     glossary_enabled = bool(config.get("document", {}).get("glossary", False))
     # document.marp_compat: false（既定、#92）。trueなら実際のMarpitに合わせ、hr（---/***/___）を
@@ -2405,6 +2585,7 @@ def _build_one(tool_dir, repo_root, font_dir, config_path):
     renderer = TypstRenderer(project_dir, typst_root=typst_root,
                               mermaid_enabled=mermaid_enabled, mermaid_auto_download=mermaid_auto_download,
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
+                              d2_enabled=d2_enabled, d2_auto_download=d2_auto_download,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat)
     current_landscape, current_paper = global_landscape, global_paper

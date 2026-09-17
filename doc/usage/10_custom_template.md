@@ -10,7 +10,7 @@
 
 - `conf(...)`: 文書全体の骨格（表紙・目次・本文ページの設定）。引数は「必須」と「任意」の2種類に分かれる（下記）。
 - `fit-image(path)`: 画像を1枚受け取り、はみ出さないよう自動縮小して配置する。
-- `render-graph(code, width: none, height: none)`: Graphviz（`dot`/`graphviz`フェンス）のソースコードを1つ受け取り描画する。`width`/`height`がいずれも`none`（未指定）ならページ幅を超えたときだけ自動縮小し、明示指定時はそのまま反映する（[図表（Mermaid / Graphviz / PlantUML）](08_diagrams.md)の`{width=...}`構文、#82）。同梱テンプレートは[diagraph](https://typst.app/universe/package/diagraph)（`@preview/diagraph:0.3.7`）に委譲する実装になっている。
+- `render-graph(code, width: none, height: none)`: Graphviz（`dot`/`graphviz`フェンス）のソースコードを1つ受け取り描画する。`width`/`height`がいずれも`none`（未指定）ならページ幅を超えたときだけ自動縮小し、明示指定時はそのまま反映する（[図表（Mermaid / Graphviz / PlantUML / D2）](08_diagrams.md)の`{width=...}`構文、#82）。同梱テンプレートは[diagraph](https://typst.app/universe/package/diagraph)（`@preview/diagraph:0.3.7`）に委譲する実装になっている。
 - `callout(kind: "note", body)`: alert記法（`> [!NOTE]`等、[Markdownファイルの書き方](06_markdown_basics.md)を参照）が生成する呼び出し先。`kind`は`"note"`/`"tip"`/`"important"`/`"warning"`/`"caution"`のいずれか。同梱テンプレートは[note-me](https://github.com/FlandiaYingman/note-me)（MIT、`@preview/note-me:0.6.0`）に委譲する実装になっている。
 - `render-background(path)`: `document.background`/`chapters[].background`（下記）が渡す画像パス（または`none`）を受け取り、ページ背景として敷くコンテンツを返す。
 - `render-header(header_text, logo)`: `chapters[]`単位の上書き（下記）のたびに`build.py`が呼び出す。`logo`は`document.logo`/`chapters[].logo`が渡す画像パス（または`none`）。

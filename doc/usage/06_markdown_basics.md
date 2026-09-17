@@ -11,12 +11,13 @@
 | `.dot` / `.gv` | Graphviz図として1章分描画（`plugins.graphviz`） |
 | `.mmd` | Mermaid図として1章分描画（`plugins.mermaid`） |
 | `.puml` / `.plantuml` / `.pu` | PlantUML図として1章分描画（`plugins.plantuml`） |
+| `.d2` | D2図として1章分描画（`plugins.d2`） |
 | `.csv` | Typstのテーブルとして1章分描画（下記） |
 | それ以外（`.txt`、コードファイル等） | 素の等幅表示（そのまま。インデント・改行を保持） |
 
 `.md`/`.markdown` 以外はMarkdownとして解釈されないため、YAML内の `-` やコード内の `#` が見出しやリストに化けることはありません。
 
-図表ソースファイル（`.dot`/`.mmd`/`.puml`等）は、Markdown内の```` ```mermaid ````等のフェンスコードブロックと全く同じ描画機構を使います。1ファイル＝1章（見出しなし、図だけのページ）として扱われ、該当する`plugins.*`が無効な場合は素のコード表示にフォールバックします（[#53](https://github.com/tokudiro/text-compositor/issues/53)）。「図表（Mermaid / Graphviz / PlantUML）」の章も参照してください。
+図表ソースファイル（`.dot`/`.mmd`/`.puml`/`.d2`等）は、Markdown内の```` ```mermaid ````等のフェンスコードブロックと全く同じ描画機構を使います。1ファイル＝1章（見出しなし、図だけのページ）として扱われ、該当する`plugins.*`が無効な場合は素のコード表示にフォールバックします（[#53](https://github.com/tokudiro/text-compositor/issues/53)）。「図表（Mermaid / Graphviz / PlantUML / D2）」の章も参照してください。
 
 ### CSVファイル（`.csv`）
 
@@ -137,7 +138,7 @@ GitHub形式のalert記法（`> [!NOTE]`等）で、本文と区別した囲み�
 - `width`/`height`をどちらも指定しない場合、画像は実寸（96dpi換算）で配置され、段幅または高さ12cmを超える場合だけ自動縮小されます（拡大はしません、[#69](https://github.com/tokudiro/text-compositor/issues/69)）。段幅いっぱいに引き伸ばしたい場合は`width=100%`を明示してください。
 - `align`を指定しない場合の見た目は変わらず、これまでどおり左寄せです。
 - `width`/`height`と`align`は組み合わせて指定できます（順不同）。
-- Mermaid/PlantUML/Graphvizのフェンス（「図表（Mermaid / Graphviz / PlantUML）」の章）には`align`は無く、常に中央寄せです。
+- Mermaid/PlantUML/Graphviz/D2のフェンス（「図表（Mermaid / Graphviz / PlantUML / D2）」の章）には`align`は無く、常に中央寄せです。
 
 ## 水平線・改ページ
 
