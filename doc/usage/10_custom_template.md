@@ -18,6 +18,55 @@
 
 同梱の `templates/template.typ` をコピーして書き換えるのが早道です。
 
+## 補助関数を `_common.typ` から取り込む
+
+上記のうち `fit-image`・`render-graph`・`callout`・`render-header`・`render-footer`・`render-background` の実装は、同梱の `templates/_common.typ` にあります。`build.py` は、テンプレートをコピーするたびに、その隣へ `_common.typ` もコピーします。独自テンプレートは、相対パスで読み込めば、これらを自前で書かずに済みます。
+
+```typst
+#import "_common.typ": fit-image, render-graph, render-header, render-footer, render-background, callout
+```
+
+`render-header`/`render-footer` は、同梱の `template.typ`（文書）と同じ既定の実装です。見た目を変えたいときは、読み込まずに自分で定義してください（同梱の `slide.typ` がそうしています）。`_common.typ` を読み込まない従来の独自テンプレートは、そのまま動きます。
+
+## Typst Universeのテンプレートを使う
+
+[Typst Universe](https://typst.app/universe)のテンプレートは、それぞれ独自の引数を持つため、`template.path` に直接パッケージ名は指定できません。代わりに、Universeのテンプレートを包む**アダプタ**（`.typ`）を書き、`template.path` に指定します。アダプタの仕事は次の2つです。
+
+1. 上記の補助関数をエクスポートする。`_common.typ` から読み込めば、1行で済みます。
+2. `conf()` の引数を、Universeのテンプレートの引数へ翻訳する。
+
+```typst
+#import "_common.typ": fit-image, render-graph, render-header, render-footer, render-background, callout
+#import "@preview/ilm:2.1.1": ilm
+
+#let conf(
+  title: none, subtitle: none, author: none, date: none,
+  paper_size: "a4", landscape: false, cover: true, cover_page_number: false,
+  toc: false, revision_history: none, graphviz: true,
+  header: none, footer: none, paginate: true, background: none, logo: none,
+  doc,
+) = {
+  set text(font: "Noto Sans JP")  // 日本語のフォントは、本ツールが取得したNoto Sans JPを使う
+  show: ilm.with(
+    title: title,
+    authors: author,
+    paper-size: paper_size,
+    cover-page: if cover { "use-ilm-default" } else { none },
+    table-of-contents: if toc { outline() } else { none },
+  )
+  doc
+}
+```
+
+完全な例は、リポジトリの `sample/universe-ilm/`（`ilm-adapter.typ` と設定ファイル）です。次の点に注意してください。
+
+- **バージョンを固定する**: `@preview/ilm:2.1.1` のように、アダプタの中にバージョンまで書きます。設定ファイルには書きません。パッケージが要求するTypstのバージョンが、本ツールが固定しているTypstより新しいと、コンパイルエラーになります。
+- **`document.cover: template` を指定する**: `document.cover` の既定は `none` です。`none` のままだと、テンプレートの表紙が出ず、先頭章のH1も落ちます（[document: 文書全体の設定](02_document.md)）。
+- **`conf()` の必須引数は、使わなくても受け取る**: 受け取れないと、常にビルドエラーになります。Universeのテンプレートが対応しない引数（例: `header`・`logo`・`background`）は、受け取って無視します。
+- **`date` は文字列で渡る**: `datetime` を要求するテンプレートには、アダプタで変換します（サンプルの `to-datetime`）。
+- **ネットワークが要る**: パッケージは初回のビルド時に、Typstが取得してキャッシュします。オフライン環境では、事前にキャッシュしてください。
+- **ライセンス**: `@preview` の記法で参照する限り、テンプレートのコードは本ツールにも利用者のリポジトリにも含まれません。テンプレートのコードをコピーして同梱する場合は、コピー元のライセンスを確認してください。
+
 ## conf() の必須引数
 
 `config.yaml`の指定有無に関わらず、`build.py`は常に以下を`conf()`へ渡す。テンプレートがこれらを受け取れないと、そのテンプレートは常にビルドエラーになる。

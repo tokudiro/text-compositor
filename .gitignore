@@ -8,6 +8,6 @@ __pycache__/
 dist/
 config.yaml
 config.json
-sample/*.pdf
+sample/**/*.pdf
 doc/usage/*.pdf
 doc/test_spec/*.pdf

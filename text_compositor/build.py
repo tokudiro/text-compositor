@@ -2276,7 +2276,7 @@ def parse_args():
                               "--clean/--watchとは同時指定できない。")
     parser.add_argument("--clean", action="store_true",
                          help="ビルドせず、生成物を削除して終了する（#151）。削除対象は出力PDFと、"
-                              ".text-compositor/配下の中間ファイル（temp_build.typ・_template.typ）。"
+                              ".text-compositor/配下の中間ファイル（temp_build.typ・_template.typ・_common.typ）。"
                               "図表キャッシュ（.text-compositor/cache/）は残す（--clean-cacheで削除）。")
     parser.add_argument("--clean-cache", action="store_true",
                          help="--cleanの削除対象に、図表キャッシュ（.text-compositor/cache/）も加える。"
@@ -2345,6 +2345,12 @@ def _resolve_project_dirs(project_dir, config):
     typst_root = os.path.commonpath([project_dir, inputs_dir, outputs_dir, work_dir])
     return outputs_dir, inputs_dir, work_dir, typst_root
 
+# 同梱テンプレート・アダプタが共有する補助関数のファイル名（templates/配下、work_dirへも同名でコピー）。
+COMMON_TEMPLATE_NAME = "_common.typ"
+
+def _common_template_path(tool_dir):
+    return os.path.join(tool_dir, "templates", COMMON_TEMPLATE_NAME)
+
 def _prepare_template(config, tool_dir, project_dir, work_dir, typst_root):
     """template.pathを解決してwork_dir配下へコピーし、(コピー先の絶対パス, --root起点の
     ルート絶対パス文字列)を返す。8章のセキュリティ要件（tool_dirを--rootにしない）を満たす
@@ -2355,6 +2361,10 @@ def _prepare_template(config, tool_dir, project_dir, work_dir, typst_root):
         sys.exit(1)
     template_copy_path = os.path.join(work_dir, "_template" + os.path.splitext(template_abs_path)[1])
     shutil.copyfile(template_abs_path, template_copy_path)
+    # 共通の補助関数（#63）。同梱テンプレートと、外部テンプレートを包むアダプタが、
+    # 相対パス（`#import "_common.typ"`）で読み込めるよう、テンプレートの隣へ常にコピーする。
+    # 読み込まないテンプレート（従来の独自テンプレート）には影響しない。
+    shutil.copyfile(_common_template_path(tool_dir), os.path.join(work_dir, COMMON_TEMPLATE_NAME))
 
     # 生成コード(temp_build.typ)の実際の置き場所に依存させないよう、typst_root起点の
     # ルート絶対パスに変換する（.text-compositor/等サブディレクトリに置いても解決できる）。
@@ -2832,6 +2842,7 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
     else:
         os.remove(temp_typ_path)
         os.remove(template_copy_path)
+        os.remove(os.path.join(work_dir, COMMON_TEMPLATE_NAME))
 
 def _config_paths_from_args(args):
     """--config-list/--config/カレントディレクトリ探索から、対象のconfigパス（未指定ならNone）のリストを返す。"""
@@ -2862,7 +2873,8 @@ def _is_up_to_date(tool_dir, config_path, project_dir, config):
     except OSError:
         return False, out_pdf
     roots, ignore, files = _watch_targets(tool_dir, config_path)
-    files = files + [os.path.abspath(__file__), resolve_template_path(config["template"]["path"], tool_dir, project_dir)]
+    files = files + [os.path.abspath(__file__), _common_template_path(tool_dir),
+                     resolve_template_path(config["template"]["path"], tool_dir, project_dir)]
     explicit = {os.path.normcase(os.path.normpath(f)) for f in files}
     snapshot = _watch_snapshot(roots, ignore, files)
     # 同じproject_dirを共有する別configのPDFを入力とみなすと、--config-listで互いのPDFの更新を
@@ -2880,7 +2892,7 @@ def _clean_one(config_path, include_cache):
     work_dir = os.path.join(project_dir, ".text-compositor")
     targets = [_output_pdf_path(project_dir, config), os.path.join(work_dir, "temp_build.typ")]
     if os.path.isdir(work_dir):
-        targets += [os.path.join(work_dir, n) for n in sorted(os.listdir(work_dir)) if n.startswith("_template.")]
+        targets += [os.path.join(work_dir, n) for n in sorted(os.listdir(work_dir)) if n.startswith("_template.") or n == COMMON_TEMPLATE_NAME]
     removed = 0
     for path in targets:
         if os.path.isfile(path):
