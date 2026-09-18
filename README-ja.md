@@ -125,6 +125,10 @@ python /path/to/text-compositor/build.py
 
 `--watch`を付けると、初回ビルド後も終了せず、config・入力ファイル・独自`.typ`テンプレートの保存を検知して自動で再ビルドします。ビルドが失敗しても止まらないため、修正して保存し直してください。`Ctrl+C`で終了します。プロジェクトディレクトリの外にあるファイル（`../`で参照する画像など）の変更は検知しません。
 
+`--if-changed`を付けると、出力PDFがconfig・入力ファイル・テンプレート・text-compositor本体のいずれよりも新しい場合に、makeのようにビルドをスキップします（判定は更新日時のみ）。付けなければ従来どおり毎回再生成します。Typstのバージョン、プロジェクトディレクトリの外のファイル、`variables`が参照する環境変数の変更は検知しません。CIでは`actions/checkout`が全ファイルの更新日時を更新するため、スキップを効かせるには出力先をキャッシュから復元してください。
+
+`--clean`は、ビルドせずに出力PDFと`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`）を削除します。`--clean-cache`は、加えて図表キャッシュ（`.text-compositor/cache/`）も削除します。入力ファイルとconfigは削除しません。
+
 設定ファイルの書き方は [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) を、`document:`/`plugins:`/front-matter/Marpディレクティブ等の詳しい説明は[使い方ガイド](doc/usage/)を参照してください。`chapters` に列挙したMarkdownファイルを順に結合してPDFを生成します。
 
 ## サンプルを試す

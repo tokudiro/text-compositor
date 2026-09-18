@@ -67,6 +67,16 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **検知方式**: 標準ライブラリのみで、0.5秒間隔にファイルの更新日時・サイズを走査する（2章の依存最小化方針に沿い、`watchdog`等は導入しない）。変更を検知したら、変化が止まる（0.3秒間隔の再走査で一致する）のを待ってからビルドする。エディタの「一時ファイルへ書いてリネーム」等の複数回の更新で、途中状態をビルドしないため。
   * **失敗時の挙動**: 初回を含め、ビルドが失敗しても終了せずエラーを表示して次の保存を待つ（編集→保存→確認の繰り返しが用途のため）。修正して保存すれば再ビルドされる。`Ctrl+C`で終了する。
   * **再ビルドのたびに監視対象を解決し直す**: configの編集で`inputs.dir`やテンプレートが変わっても追従するため。configが壊れている間は、configと`project_dir`のみを監視する。
+* **`--if-changed`**（[#151](https://github.com/tokudiro/text-compositor/issues/151)）: makeのように、出力PDFが依存物より新しければビルドをスキップする（`[Info] Skipped (up to date): <PDF>`を出力して正常終了）。`--config-list`と併用した場合は、config単位で判定する。`--clean`・`--watch`とは同時指定できない。以下の決定事項に沿う。
+  * **既定はオプトイン**: `--if-changed`を付けない限り、従来どおり毎回全章を再生成する。既定を変えると「入力は変えたのにPDFが古いまま」という事故を既存の利用者に起こし得るため。
+  * **判定方法は更新日時のみ**（make方式。内容ハッシュは採用しない）: 出力PDFの更新日時が、依存物の最新の更新日時より**厳密に新しい**ときだけスキップする。出力PDFが無ければ再生成する。ハッシュ方式は、判定のたびに全入力を読む必要がある。しかも図表SVGのキャッシュキー（[#26](https://github.com/tokudiro/text-compositor/issues/26)）と違い、出力PDFに対応するハッシュの保存先という状態を新たに持つことになり、得られる利点に見合わないと判断した。
+  * **依存物**: `--watch`と同じ解決処理（`_watch_targets`/`_watch_snapshot`）を共有する。config自身、`project_dir`配下（`inputs.dir`が外にあればそれも）、`.typ`パス指定のテンプレートに加え、ツール自身（`build.py`）と同梱テンプレートを含める。text-compositor本体の更新（`pip upgrade`等）で、入力が同じでも出力が変わり得るため。`.`で始まるディレクトリ・ファイル（`.text-compositor`等）と、出力先（`output.dir`配下）は含めない。`.pdf`ファイルは（`.typ`テンプレート等として個別に指定されたものを除き）依存物から除外する。`project_dir`を共有する別configの出力PDFを入力とみなすと、`--config-list`で互いに常に再生成となるため。
+  * **判定に含まれないもの**: (1)Typstのバージョン（更新日時では検出できない。Typstを更新した後に再生成したいときは`--if-changed`を外して実行する）。(2)`project_dir`の外にある画像等（`--watch`と同じ制約）。(3)`variables`の`env`参照先の環境変数の値（環境変数を変えても、ファイルが変わらなければスキップされる）。
+  * **CIでの扱い**: `actions/checkout`は全ファイルの更新日時を取得時刻にするため、`--if-changed`を付けるだけではCIでは常に再生成になる（PDFが無いか、入力より古いため）。CIで効果を出すには、出力先を`actions/cache`等で復元する必要がある。ただし復元されたPDFも復元時刻の更新日時になるので、`checkout`より後に復元した場合に限りスキップされる。実運用での有効性は未検証。CIでは、更新日時の代わりに`actions/cache`のキー（入力ファイルのハッシュ）でキャッシュの命中を判断する運用のほうが確実な可能性がある（推測）。
+* **`--clean`・`--clean-cache`**（[#151](https://github.com/tokudiro/text-compositor/issues/151)）: ビルドせず、生成物を削除して終了する（`make clean`相当）。Typstやフォントの取得は行わないため、環境不備があっても実行できる。`--config-list`と併用した場合は、全configを対象にする。`--check-env`・`--watch`・`--if-changed`とは同時指定できない。
+  * **`--clean`の削除対象**: 出力PDF（`output.dir`/`output.filename`）と、`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`。ビルド失敗時やデバッグ用の`--keep-temp`で残ったもの）。`.text-compositor/`が空になれば、そのディレクトリも削除する。入力ファイル・configは削除しない。
+  * **`--clean-cache`**: 上記に加えて、図表SVGのキャッシュ（`.text-compositor/cache/`）も削除する。再生成コストが高い（Mermaid・PlantUML・D2の描画）ため、`--clean`とは別オプションにした。単独で指定しても`--clean`を含む。キャッシュキーの仕様変更（#26）で残った古いキーのファイルの掃除にも使える。
+  * ユーザーキャッシュ（フォント・`mermaid.min.js`・PlantUML・JRE・D2。2章）は対象外。ツール全体で共有される資産で、プロジェクト単位の生成物ではないため。
 * 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定等の文書内容に関わる上書き）は存在しない。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
 * **終了コード**: 成功 `0` / 失敗 `1`。入力欠損・画像欠損・コンパイルエラーは即時失敗する（Fail-fast、10章）。`--check-env`はNGが1件でもあれば`1`。引数の指定誤り（`-q`と`-v`の同時指定等）は`argparse`標準の`2`。
 
@@ -227,6 +237,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
 ## 12. ビルド成果物と一時ファイル
 * 中間 Typst ファイルは `project_dir` 直下の `.text-compositor/temp_build.typ` に生成する（Mermaidのキャッシュも同じ `.text-compositor/cache/` 配下）。テンプレートは同じ `.text-compositor/_template.typ` へコピーしてから参照する（5章・8章のサンドボックス要件）。画像はコピーせず、`--root` 起点のルート絶対パス（`/...`）で参照して解決する。
 * ビルド成功後、`temp_build.typ` と `_template.typ` は使い捨ての中間ファイルとして削除する。`cache/`（Mermaid等の描画結果）は次回以降のビルドで再利用するため削除しない。ビルド失敗時はデバッグに使えるよう `temp_build.typ` 等を残したまま終了する（[#20](https://github.com/tokudiro/text-compositor/issues/20)）。`.gitignore` への追加を推奨する。
+* これらの生成物は`--clean`（出力PDF・中間ファイル）と`--clean-cache`（加えて`cache/`）で削除できる（4章、[#151](https://github.com/tokudiro/text-compositor/issues/151)）。
 * 出力 PDF が既に開かれている等で書き込めない場合は、部分的な破損ファイルを残さず明確なエラーで終了する。
 * **行番号マッピング**（[#27](https://github.com/tokudiro/text-compositor/issues/27)）: `document.diagnostics.line_mapping: "block"`（既定）のとき、Typstのコンパイルエラーが「Markdownの何行目に起因するか」をエラーメッセージに付記する。**（実装済み）**
   * **実装**: `TypstRenderer.render_tokens`がトップレベルのブロック（見出し・段落・引用・リスト全体・テーブル全体・hr・fence。リストの中は対象外）を出力する直前に、`// @srcmap {mdファイル}:{md行番号}`という行コメントを生成コードへ挿し込む（`_emit_srcmap`）。front-matter除去処理が既に「行数がずれないよう空行を残す」設計（7章）になっているため、`markdown-it-py`のトークンが持つ`t.map[0]`はそのまま元ファイルの行番号として使える。
