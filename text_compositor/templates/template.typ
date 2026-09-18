@@ -99,6 +99,7 @@
   cover: true,
   cover_page_number: false,
   toc: false,
+  revision_history: none,
   graphviz: true,
   header: none,
   footer: none,
@@ -141,6 +142,53 @@
   }
 
   // -------------------------
+  // 1.5. 改版履歴 (Revision History) : revision_history: none のときは省略する（#56）
+  //   表紙と目次の間に、独立した1ページとして挿入する。revision_historyは
+  //   (version:, date:, description:, author:) の辞書の配列（値はいずれも文字列。build.pyが
+  //   document.revision_historyから生成する）。担当（author）列は、1件でも値があるときだけ出す。
+  //   descriptionの改行は、文字列中の\nをlinebreak()へ変換して表現する。
+  //   ページ番号は目次と同じローマ数字で、目次へ続ける（下の目次側でリセットしない）。
+  // -------------------------
+  if revision_history != none {
+    set page(
+      paper: paper_size,
+      flipped: landscape,
+      margin: (x: 2cm, y: 2.5cm),
+      header: none,
+      footer: align(center)[#text(10pt)[- #context counter(page).display("i") -]]
+    )
+    counter(page).update(1)
+
+    align(center)[
+      #text(18pt, weight: "bold")[改版履歴]
+    ]
+    v(1.5em)
+
+    let has-author = revision_history.any(r => r.author != "")
+    let cell(s) = s.split("\n").join(linebreak())
+    let head = ([*版数*], [*日付*], [*改版内容*])
+    let widths = (auto, auto, 1fr)
+    if has-author {
+      head.push([*担当*])
+      widths.push(auto)
+    }
+    let rows = revision_history.map(r => {
+      let cells = (cell(r.version), cell(r.date), cell(r.description))
+      if has-author { cells.push(cell(r.author)) }
+      cells
+    }).flatten()
+    table(
+      columns: widths,
+      align: left,
+      stroke: 0.5pt + luma(150),
+      fill: (_, row) => if row == 0 { luma(240) } else { none },
+      table.header(..head),
+      ..rows,
+    )
+    pagebreak()
+  }
+
+  // -------------------------
   // 2. 目次 (Table of Contents) : toc: false のときは省略する
   // -------------------------
   if toc {
@@ -151,7 +199,8 @@
       header: none,
       footer: align(center)[#text(10pt)[- #context counter(page).display("i") -]]
     )
-    counter(page).update(1) // 目次のページ番号を i から開始
+    // 目次のページ番号を i から開始。ただし改版履歴ページがある場合は、その続き（ii）にする
+    if revision_history == none { counter(page).update(1) }
 
     align(center)[
       #text(18pt, weight: "bold")[目次]
