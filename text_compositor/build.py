@@ -4,6 +4,7 @@ import sys
 import csv
 import json
 import io
+import contextlib
 import bisect
 import subprocess
 import hashlib
@@ -128,6 +129,24 @@ def find_system_d2():
     存在確認のみ行う（#90）。見つかった場合はensure_d2_binary()によるダウンロードを回避できる
     （2章の最小限のダウンロード）。"""
     return shutil.which("d2")
+
+def _diagram_cache_key(kind, tool_version, code):
+    """図のキャッシュキー（#26）。入力テキストだけでなく、種別とレンダラのバージョンも
+    ハッシュに含める。レンダラを更新しても同じ入力の古いSVGが使い回される事故を防ぐため。
+    各要素の境界に\\0を挟み、「要素の切れ目が違うだけで連結結果が同じ」衝突を避ける。"""
+    h = hashlib.sha256()
+    for part in (kind, tool_version, code):
+        h.update(part.encode('utf-8'))
+        h.update(b'\0')
+    return h.hexdigest()[:16]
+
+def _system_d2_version(d2_bin):
+    """`d2 --version`の出力（例: "v0.9.0"）を返す。取得できなければNone。"""
+    try:
+        result = subprocess.run([d2_bin, "--version"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() or None
 
 def _typst_version_info(repo_root):
     """typstのインストール済みバージョンと、requirements.txtでピン留めされたバージョンを返す
@@ -460,10 +479,13 @@ class TypstRenderer:
 
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
-                 glossary_enabled=False, line_mapping="block", marp_compat=False):
+                 glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None):
         # 見出しレベルのオフセット（#68）。section配下の章で、Markdown本来のH1をH2以下へずらし、
         # sectionの章見出し（H1）の配下に入れるために使う。章ごとに_render_markdown_chapterが設定する。
         self.heading_offset = 0
+        # variables: {{KEY}}プレースホルダの置換表（#72）。Noneなら置換機構自体を無効にし、
+        # 本文中の{{...}}には一切触れない（configに`variables:`が無い既存プロジェクトの互換性維持）。
+        self.variables = variables
         # 対応するMarkdown記法のスコープはGFM + GitHub Wiki（#48）。table/strikethroughはGFM拡張だが
         # commonmarkプリセットにコアルールとして同梱されており、enable()するだけで使える。
         self.md = (MarkdownIt("commonmark").enable("table").enable("strikethrough")
@@ -534,6 +556,9 @@ class TypstRenderer:
         self.d2_auto_download = d2_auto_download
         # d2実行ファイルのパスは初回の```d2描画時に遅延解決する（plantumlのjava/jarと同様）。
         self._d2_bin = None
+        # キャッシュキー用のd2バージョン（#26）。キャッシュヒット時にバイナリの自動取得を
+        # 起こさないよう、_d2_binの解決とは別に遅延評価する。
+        self._d2_version_cache = None
         # document.diagnostics.line_mapping: "block"（既定、#27）。Typstコンパイルエラーの行番号を
         # 元のMarkdownの行番号へ逆引きするための行コメント（`// @srcmap ...`）を生成コードに
         # 挿し込むかどうかの精度。"off"なら挿し込まず、従来どおりTypst側の生の行番号のみになる。
@@ -562,6 +587,11 @@ class TypstRenderer:
         行頭記号（#, -, [ 等）がMarkdown構文として誤解釈され、静かに壊れるのを防ぐため。"""
         ext = os.path.splitext(filepath)[1].lower()
         if ext in ('.md', '.markdown'):
+            # 置換はMarkdownのパース前に文字列として行う。見出し・表・コードフェンス・図の中まで
+            # 一律に効き、front-matterの値にも及ぶ。素のコードやCSV（Markdown以外）は、{{...}}が
+            # 構文として現れうるため対象にしない。
+            if self.variables is not None:
+                text = self._substitute_variables(text, filepath)
             return self.render(text, filepath=filepath, drop_leading_title=drop_leading_title)
 
         self.current_file = filepath
@@ -581,6 +611,36 @@ class TypstRenderer:
             return self._render_csv_table(text)
 
         return self._render_raw_text(text, self.STRUCTURED_TEXT_LANGS.get(ext))
+
+    # {{KEY}}プレースホルダ（#72）。KEYは識別子の形（英数字とアンダースコア、先頭は数字不可）に
+    # 限る。{{ message }}のように空白を含む形（Vue/Jinja等のテンプレート記法）は対象外にして、
+    # 文書中にそのまま書けるようにする。先頭の\は「置換せず{{KEY}}をそのまま出力する」エスケープ。
+    PLACEHOLDER_RE = re.compile(r'(\\)?\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}')
+
+    def _substitute_variables(self, text, filepath):
+        """本文中の{{KEY}}をself.variablesの値に置換する。未定義のKEYは、9章のFail-fast方針に
+        従い黙って残さずエラー終了する（綴りミスのまま「{{VERSON}}」がPDFに載る事故を防ぐ）。
+        同じファイル内の未定義キーはまとめて報告する。"""
+        undefined = []
+
+        def replace(m):
+            key = m.group(2)
+            if m.group(1):
+                return '{{' + key + '}}'
+            if key not in self.variables:
+                lineno = text.count('\n', 0, m.start()) + 1
+                undefined.append(f"{filepath}:{lineno}: {{{{{key}}}}}")
+                return m.group(0)
+            return self.variables[key]
+
+        result = self.PLACEHOLDER_RE.sub(replace, text)
+        if undefined:
+            print("[Error] Undefined placeholder(s); define them under 'variables:' in the config, "
+                  "or write \\{{KEY}} to output the text literally:")
+            for entry in undefined:
+                print(f"  {entry}")
+            sys.exit(1)
+        return result
 
     def _render_csv_table(self, text):
         """.csvファイルをTypstの#table()へ変換する（#36）。区切り文字はカンマ固定（sniffingは
@@ -1292,6 +1352,22 @@ class TypstRenderer:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
+    def _diagram_cache_path(self, kind, tool_version, code):
+        """図のSVGキャッシュのパスとキー（ハッシュ）を返す。キーの設計は_diagram_cache_key()参照（#26）。"""
+        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        digest = _diagram_cache_key(kind, tool_version, code)
+        return os.path.join(cache_dir, f"{kind}_{digest}.svg"), digest
+
+    def _d2_version(self):
+        """キャッシュキーに使うd2のバージョン。システムのd2があればその実バージョン、無ければ
+        自動取得の対象（D2_RELEASE）。どちらの場合も、ここではバイナリの取得は行わない。"""
+        if self._d2_version_cache is None:
+            system_d2 = find_system_d2()
+            version = _system_d2_version(system_d2) if system_d2 else None
+            self._d2_version_cache = version or D2_RELEASE
+        return self._d2_version_cache
+
     def _render_mermaid(self, code, width=None, height=None):
         """mermaidブロックをヘッドレスブラウザ上のmermaid.render()でSVG化し、Typstのimage呼び出しに
         変換する。外部APIへの通信は行わず、ローカルのブラウザで完結させる（仕様書10章・11章、#35）。"""
@@ -1301,10 +1377,8 @@ class TypstRenderer:
                 self._mermaid_disabled_warned = True
             return f"```mermaid\n{code}```\n\n"
 
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
-        svg_path = os.path.join(cache_dir, f"mermaid_{digest}.svg")
+        # 固定済みmermaid.min.jsのSHA256をバージョンとして使う（バンドルが変われば別キーになる）
+        svg_path, digest = self._diagram_cache_path("mermaid", MERMAID_JS_SHA256, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering mermaid diagram via headless browser -> {os.path.basename(svg_path)}")
@@ -1365,10 +1439,7 @@ class TypstRenderer:
                 self._plantuml_disabled_warned = True
             return f"```plantuml\n{code}```\n\n"
 
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
-        svg_path = os.path.join(cache_dir, f"plantuml_{digest}.svg")
+        svg_path, _ = self._diagram_cache_path("plantuml", PLANTUML_JAR_SHA256, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
@@ -1425,10 +1496,7 @@ class TypstRenderer:
                 self._d2_disabled_warned = True
             return f"```d2\n{code}```\n\n"
 
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
-        svg_path = os.path.join(cache_dir, f"d2_{digest}.svg")
+        svg_path, _ = self._diagram_cache_path("d2", self._d2_version(), code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering d2 diagram via local D2 -> {os.path.basename(svg_path)}")
@@ -2045,6 +2113,52 @@ def load_config_file(config_path):
     deep_update(config, loaded)
     return config
 
+def _resolve_variables(config):
+    """configの`variables:`（#72）から{{KEY}}の置換表{KEY: 文字列}を作る。キーが無ければNone
+    （置換機構を無効にする）。値は次のいずれか。
+      * スカラー（文字列・数値・真偽値）: そのまま文字列化して使う。
+      * {env: 環境変数名, default: 既定値}: ビルド時の環境変数から取得する。未設定でdefaultも無ければ
+        エラー終了する（CI等で値の渡し忘れに気づけるように）。
+    コマンド実行による取得は設けない。configの記述だけで任意コマンドが動くのは安全性の面で
+    望ましくなく、出力を環境変数に入れて渡せば同じことができるため。
+    値は1行に限る。改行を許すと、行番号による診断（#27のsrcmap）が元のMarkdownの行とずれる。"""
+    raw = config.get("variables")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        print("[Error] 'variables' must be a mapping of KEY: value.")
+        sys.exit(1)
+    variables = {}
+    for key, spec in raw.items():
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', str(key)):
+            print(f"[Error] variables.{key}: the key must consist of letters, digits and '_' "
+                  f"(and not start with a digit).")
+            sys.exit(1)
+        if isinstance(spec, dict):
+            unknown = set(spec) - {"env", "default"}
+            if "env" not in spec or unknown:
+                print(f"[Error] variables.{key}: a mapping value must have 'env' (and optionally 'default'); "
+                      f"got keys {sorted(map(str, spec))}.")
+                sys.exit(1)
+            value = os.environ.get(str(spec["env"]))
+            if value is None:
+                if "default" not in spec:
+                    print(f"[Error] variables.{key}: environment variable {spec['env']} is not set "
+                          f"and no 'default' is given.")
+                    sys.exit(1)
+                value = spec["default"]
+        elif isinstance(spec, (list, tuple)):
+            print(f"[Error] variables.{key}: a list is not supported; use a scalar or {{env: NAME}}.")
+            sys.exit(1)
+        else:
+            value = spec
+        value = "" if value is None else str(value)
+        if "\n" in value or "\r" in value:
+            print(f"[Error] variables.{key}: the value must be a single line.")
+            sys.exit(1)
+        variables[str(key)] = value
+    return variables
+
 def escape_string_literal(text):
     return str(text).replace('\\', '\\\\').replace('"', '\\"')
 
@@ -2153,6 +2267,9 @@ def parse_args():
     parser.add_argument("--keep-temp", action="store_true",
                          help="ビルド成功時も中間ファイル（temp_build.typ等、.text-compositor/配下）を削除せずに残す。"
                               "既定ではビルド失敗時のみ残る（デバッグ用）。")
+    parser.add_argument("--watch", action="store_true",
+                         help="初回ビルド後も終了せず、config・入力ファイル・テンプレートの保存を検知して自動で再ビルドする（#30）。"
+                              "ビルドが失敗しても終了せず、次の保存を待つ。Ctrl+Cで終了する。--check-envとは同時指定できない。")
     args = parser.parse_args()
     if args.quiet and args.verbose:
         parser.error("-q/--quiet と -v/--verbose は同時に指定できません。")
@@ -2160,6 +2277,8 @@ def parse_args():
         parser.error("--config と --config-list は同時に指定できません。")
     if args.check_env and args.config_list:
         parser.error("--check-env と --config-list は同時に指定できません。")
+    if args.check_env and args.watch:
+        parser.error("--check-env と --watch は同時に指定できません。")
     return args
 
 def _read_config_list(list_path):
@@ -2672,12 +2791,135 @@ def build():
         if not config_paths:
             print(f"[Error] --config-list {args.config_list} に有効なconfigパスがありません。")
             sys.exit(1)
+        if args.watch:
+            _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=args.keep_temp)
+            return
         # いずれかのビルドが失敗した時点でsys.exit(1)により停止する（_load_project_config等が担う）。
         for config_path in config_paths:
             print(f"[Build] {config_path}")
             _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=args.keep_temp)
+    elif args.watch:
+        config_path = os.path.abspath(args.config) if args.config else find_config_in_cwd()
+        if not config_path:
+            print("[Error] --config not specified, and no text-compositor.config.yaml/.json found in the current directory.")
+            sys.exit(1)
+        _watch(tool_dir, repo_root, font_dir, [config_path], keep_temp=args.keep_temp)
     else:
         _build_one(tool_dir, repo_root, font_dir, args.config, keep_temp=args.keep_temp)
+
+# --watch（#30）。watchdog等のファイル監視ライブラリは追加せず、標準ライブラリだけでmtime/サイズを
+# ポーリングする（2章の「依存・ダウンロードは最小限」方針。対象は手書きの文書プロジェクトで
+# ファイル数が少なく、0.5秒間隔の走査で十分軽いため、OS依存のイベントAPIを持ち込む利点が薄い）。
+_WATCH_POLL_SECONDS = 0.5
+# エディタの保存は「一時ファイルへ書いてからリネーム」等で複数の変更に分かれることがある。
+# 変更検知後、この間隔で走査し直して変化が止まるのを待ってからビルドする。
+_WATCH_SETTLE_SECONDS = 0.3
+
+def _watch_targets(tool_dir, config_path):
+    """configから監視対象を解決し、(監視ルートのリスト, 無視するパスのリスト, 個別監視ファイルのリスト)を返す。
+    ルートはproject_dirとinputs.dir、個別ファイルはconfig自身と（.typパス指定の場合のみ）テンプレート。
+    ツール同梱テンプレート（名前指定）は利用者が編集しないため対象外。出力先は、ビルド自身が
+    書き込むPDFを「変更」と誤検知して無限に再ビルドしないよう無視する。config自体が壊れている
+    最中でも監視を続けたいので、読めなければconfigとproject_dirだけを対象にする。"""
+    project_dir = os.path.dirname(config_path)
+    roots, ignore, files = [project_dir], [], [config_path]
+    try:
+        # load_config_fileは失敗時に[Error]を出力してsys.exit(1)する。ビルド側で既に報告されるため、
+        # ここでの二重表示を避ける。
+        with contextlib.redirect_stdout(io.StringIO()):
+            config = load_config_file(config_path)
+        inputs_dir = os.path.normpath(os.path.join(project_dir, config.get("inputs", {}).get("dir") or "inputs"))
+        outputs_dir = os.path.normpath(os.path.join(project_dir, config["output"]["dir"]))
+        roots.append(inputs_dir)
+        ignore.append(os.path.join(outputs_dir, config["output"]["filename"]))
+        # output.dirが監視ルート自身（"."等）や祖先のときにディレクトリごと無視すると何も監視できなくなる
+        if not any(r == outputs_dir or r.startswith(outputs_dir + os.sep) for r in roots):
+            ignore.append(outputs_dir)
+        template_value = config["template"]["path"]
+        if template_value.endswith(".typ"):
+            files.append(resolve_template_path(template_value, tool_dir, project_dir))
+    except (Exception, SystemExit):
+        pass
+    return roots, ignore, files
+
+def _watch_snapshot(roots, ignore, files):
+    """監視対象の{パス: (mtime_ns, サイズ)}を返す。.始まりのディレクトリ・ファイル（.git、
+    .text-compositor、エディタのスワップファイル等）と末尾~のバックアップは対象外。"""
+    norm = lambda p: os.path.normcase(os.path.normpath(p))
+    ignored = {norm(p) for p in ignore}
+    state = {}
+
+    def record(path):
+        try:
+            st = os.stat(path)
+        except OSError:
+            return
+        state[path] = (st.st_mtime_ns, st.st_size)
+
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames
+                           if not d.startswith(".") and d != "node_modules"
+                           and norm(os.path.join(dirpath, d)) not in ignored]
+            for name in filenames:
+                path = os.path.join(dirpath, name)
+                if name.startswith(".") or name.endswith("~") or norm(path) in ignored:
+                    continue
+                record(path)
+    for path in files:
+        record(path)
+    return state
+
+def _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp):
+    """1回のビルドを実行し、成否を返す。ビルド内部のエラー終了（sys.exit(1)）や想定外の例外で
+    ウォッチ全体を止めないよう握りつぶす（エラー内容は呼び出し先が出力済み）。"""
+    try:
+        _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=keep_temp)
+        return True
+    except SystemExit as e:
+        return e.code in (0, None)
+    except Exception as e:
+        print(f"[Error] Build crashed: {e}")
+        return False
+
+def _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=False):
+    """全configを初回ビルドした後、保存を検知したconfigだけを再ビルドし続ける。失敗しても終了せず、
+    次の保存を待つ（編集→保存→結果確認の試行を繰り返す用途のため）。Ctrl+Cで終了する。"""
+    watched = {}
+    try:
+        for config_path in config_paths:
+            # 走査はビルドの前に行う。ビルド中の保存を取りこぼさず、次のループで検知するため。
+            targets = _watch_targets(tool_dir, config_path)
+            watched[config_path] = (targets, _watch_snapshot(*targets))
+            print(f"[Build] {config_path}")
+            _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp)
+        _log_info("Watching for changes... (Ctrl+C to stop)")
+
+        while True:
+            time.sleep(_WATCH_POLL_SECONDS)
+            for config_path in config_paths:
+                targets, baseline = watched[config_path]
+                current = _watch_snapshot(*targets)
+                if current == baseline:
+                    continue
+                while True:
+                    time.sleep(_WATCH_SETTLE_SECONDS)
+                    settled = _watch_snapshot(*targets)
+                    if settled == current:
+                        break
+                    current = settled
+                changed = sorted(p for p in current if baseline.get(p) != current[p]) + \
+                          sorted(p for p in baseline if p not in current)
+                shown = ", ".join(os.path.basename(p) for p in changed[:3])
+                _log_info(f"Change detected ({shown}{', ...' if len(changed) > 3 else ''}); rebuilding...")
+                # configの変更でinputs.dir等が変わり得るため、再ビルドのたびに監視対象を解決し直す
+                targets = _watch_targets(tool_dir, config_path)
+                watched[config_path] = (targets, _watch_snapshot(*targets))
+                print(f"[Build] {config_path}")
+                _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp)
+                _log_info("Watching for changes... (Ctrl+C to stop)")
+    except KeyboardInterrupt:
+        _log_info("Watch stopped.")
 
 def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
     # 汎用ツールとして、呼び出し元プロジェクトが持つ設定ファイルを指定できるようにする。
@@ -2704,6 +2946,9 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
     # 一律改ページとして描画する。
     marp_compat = bool(config.get("document", {}).get("marp_compat", False))
     line_mapping = _resolve_line_mapping(config)
+    # variables: {{KEY}}プレースホルダの置換表（#72）。章の処理より前に解決し、環境変数の未設定
+    # などの誤りを、長い描画処理を始める前にFail-fastで報告する。
+    variables = _resolve_variables(config)
 
     outputs_dir, inputs_dir, work_dir, typst_root = _resolve_project_dirs(project_dir, config)
     template_copy_path, template_root_rel_path = _prepare_template(config, tool_dir, project_dir, work_dir, typst_root)
@@ -2722,7 +2967,7 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
-                              marp_compat=marp_compat)
+                              marp_compat=marp_compat, variables=variables)
     current_landscape, current_paper = global_landscape, global_paper
     current_header, current_footer, current_paginate = effective_global_header, global_footer, global_paginate
     current_background = global_background

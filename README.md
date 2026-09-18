@@ -123,6 +123,8 @@ Run `text-compositor --check-env` (or `python build.py --check-env`) to check yo
 
 Other flags control runtime behavior only (not document content, which stays entirely in `config.yaml`): `-q`/`--quiet` suppresses `[Info]`-level logging, `-v`/`--verbose` adds extra detail (which chapter is being processed, cache reuse), and `--keep-temp` keeps the intermediate `temp_build.typ` around after a successful build instead of deleting it (useful for debugging; it's always kept after a failed build).
 
+`--watch` keeps running after the first build and rebuilds whenever it detects a save in the config, the input files, or a custom `.typ` template. A failed build does not stop it; fix the file and save again. Press Ctrl+C to stop. Changes to files outside the project directory (e.g. images referenced via `../`) are not detected.
+
 See [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) for how to write the config file, and the [usage guide](doc/usage/) for details on `document:`/`plugins:`, front matter, Marp directives, and more. The Markdown files listed in `chapters` are concatenated in order to produce the PDF.
 
 ## Trying the sample
