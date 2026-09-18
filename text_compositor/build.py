@@ -2270,7 +2270,20 @@ def parse_args():
     parser.add_argument("--watch", action="store_true",
                          help="初回ビルド後も終了せず、config・入力ファイル・テンプレートの保存を検知して自動で再ビルドする（#30）。"
                               "ビルドが失敗しても終了せず、次の保存を待つ。Ctrl+Cで終了する。--check-envとは同時指定できない。")
+    parser.add_argument("--if-changed", action="store_true",
+                         help="出力PDFが、config・入力ファイル・テンプレート・ツール自身のいずれよりも新しい場合はビルドをスキップする"
+                              "（makeと同様の更新日時による判定、#151）。既定は従来どおり常に再生成する。"
+                              "--clean/--watchとは同時指定できない。")
+    parser.add_argument("--clean", action="store_true",
+                         help="ビルドせず、生成物を削除して終了する（#151）。削除対象は出力PDFと、"
+                              ".text-compositor/配下の中間ファイル（temp_build.typ・_template.typ）。"
+                              "図表キャッシュ（.text-compositor/cache/）は残す（--clean-cacheで削除）。")
+    parser.add_argument("--clean-cache", action="store_true",
+                         help="--cleanの削除対象に、図表キャッシュ（.text-compositor/cache/）も加える。"
+                              "単独で指定しても--cleanを含む。再生成コストが高いため別オプションにしている。")
     args = parser.parse_args()
+    if args.clean_cache:
+        args.clean = True
     if args.quiet and args.verbose:
         parser.error("-q/--quiet と -v/--verbose は同時に指定できません。")
     if args.config and args.config_list:
@@ -2279,6 +2292,10 @@ def parse_args():
         parser.error("--check-env と --config-list は同時に指定できません。")
     if args.check_env and args.watch:
         parser.error("--check-env と --watch は同時に指定できません。")
+    if args.clean and (args.check_env or args.watch or args.if_changed):
+        parser.error("--clean/--clean-cache は --check-env・--watch・--if-changed と同時に指定できません。")
+    if args.if_changed and args.watch:
+        parser.error("--if-changed と --watch は同時に指定できません。")
     return args
 
 def _read_config_list(list_path):
@@ -2816,6 +2833,76 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
         os.remove(temp_typ_path)
         os.remove(template_copy_path)
 
+def _config_paths_from_args(args):
+    """--config-list/--config/カレントディレクトリ探索から、対象のconfigパス（未指定ならNone）のリストを返す。"""
+    if args.config_list:
+        config_paths = _read_config_list(args.config_list)
+        if not config_paths:
+            print(f"[Error] --config-list {args.config_list} に有効なconfigパスがありません。")
+            sys.exit(1)
+        return config_paths
+    return [args.config]
+
+def _output_pdf_path(project_dir, config):
+    """出力PDFの絶対パス。ディレクトリは作らない（_resolve_project_dirsと違い副作用を持たない）。"""
+    return os.path.normpath(os.path.join(project_dir, config["output"]["dir"], config["output"]["filename"]))
+
+# --if-changed（#151）。判定は更新日時のみ（make方式）で、内容ハッシュは採用しない。ハッシュ方式は
+# 全入力を毎回読む必要があり、しかもCIではactions/checkoutが全ファイルの更新日時を更新するため、
+# 更新日時方式は出力PDFを復元しない限り常に再生成になる。CIで使う場合は出力先をactions/cacheで
+# 復元し、復元したPDFが入力より新しくなる運用が必要（仕様書4章）。
+def _is_up_to_date(tool_dir, config_path, project_dir, config):
+    """(出力PDFが依存物のどれよりも新しいか, 出力PDFパス)を返す。出力PDFが無ければ古い扱い。
+    依存物は--watchと同じ解決結果（config・project_dir配下・inputs.dir・.typテンプレート）に、ツール自身
+    （build.py）と同梱テンプレートを加えたもの。ツールの更新（pip upgrade等）で出力が変わり得るため。
+    Typst自体のバージョンは判定に含めない（更新日時では検出できない。再生成したいときは--if-changedを外す）。"""
+    out_pdf = _output_pdf_path(project_dir, config)
+    try:
+        out_mtime = os.stat(out_pdf).st_mtime_ns
+    except OSError:
+        return False, out_pdf
+    roots, ignore, files = _watch_targets(tool_dir, config_path)
+    files = files + [os.path.abspath(__file__), resolve_template_path(config["template"]["path"], tool_dir, project_dir)]
+    explicit = {os.path.normcase(os.path.normpath(f)) for f in files}
+    snapshot = _watch_snapshot(roots, ignore, files)
+    # 同じproject_dirを共有する別configのPDFを入力とみなすと、--config-listで互いのPDFの更新を
+    # 検知し合い、常に再生成になる。PDFはTypstの入力にならないため、個別指定の依存物以外は除外する。
+    newest = max((mtime for path, (mtime, _) in snapshot.items()
+                  if not path.lower().endswith(".pdf") or os.path.normcase(os.path.normpath(path)) in explicit),
+                 default=0)
+    return out_mtime > newest, out_pdf
+
+def _clean_one(config_path, include_cache):
+    """1つのconfigの生成物を削除する。出力PDFと.text-compositor/直下の中間ファイル（temp_build.typ・
+    _template.*）が対象。include_cacheなら図表キャッシュ（.text-compositor/cache/）も削除する。
+    パスはビルド時と同じくconfigの置き場所（project_dir）基準で解決する。存在しないものは無視する。"""
+    project_dir, config, _ = _load_project_config(config_path)
+    work_dir = os.path.join(project_dir, ".text-compositor")
+    targets = [_output_pdf_path(project_dir, config), os.path.join(work_dir, "temp_build.typ")]
+    if os.path.isdir(work_dir):
+        targets += [os.path.join(work_dir, n) for n in sorted(os.listdir(work_dir)) if n.startswith("_template.")]
+    removed = 0
+    for path in targets:
+        if os.path.isfile(path):
+            os.remove(path)
+            _log_info(f"Removed: {path}")
+            removed += 1
+    cache_dir = os.path.join(work_dir, "cache")
+    if include_cache and os.path.isdir(cache_dir):
+        shutil.rmtree(cache_dir)
+        _log_info(f"Removed: {cache_dir}")
+        removed += 1
+    # 空になった作業ディレクトリは残さない（他のファイルがあれば削除されない）
+    try:
+        os.rmdir(work_dir)
+    except OSError:
+        pass
+    print(f"[Success] Cleaned {removed} item(s): {project_dir}")
+
+def _clean_all(config_paths, include_cache):
+    for config_path in config_paths:
+        _clean_one(config_path, include_cache)
+
 def build():
     # tool_dir: ツール自身に同梱されたリソース（templates/）の場所。パッケージ化後は
     # text_compositor/ パッケージのディレクトリを指す（#111）。
@@ -2833,6 +2920,11 @@ def build():
     if args.check_env:
         sys.exit(run_env_check(repo_root, args.config))
 
+    # cleanは削除のみで、Typstやフォントを必要としない。環境不備やフォントのダウンロードで妨げない。
+    if args.clean:
+        _clean_all(_config_paths_from_args(args), include_cache=args.clean_cache)
+        return
+
     check_typst_version(repo_root)
     font_dir = ensure_fonts()
 
@@ -2847,7 +2939,8 @@ def build():
         # いずれかのビルドが失敗した時点でsys.exit(1)により停止する（_load_project_config等が担う）。
         for config_path in config_paths:
             print(f"[Build] {config_path}")
-            _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=args.keep_temp)
+            _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=args.keep_temp,
+                       if_changed=args.if_changed)
     elif args.watch:
         config_path = os.path.abspath(args.config) if args.config else find_config_in_cwd()
         if not config_path:
@@ -2855,7 +2948,8 @@ def build():
             sys.exit(1)
         _watch(tool_dir, repo_root, font_dir, [config_path], keep_temp=args.keep_temp)
     else:
-        _build_one(tool_dir, repo_root, font_dir, args.config, keep_temp=args.keep_temp)
+        _build_one(tool_dir, repo_root, font_dir, args.config, keep_temp=args.keep_temp,
+                   if_changed=args.if_changed)
 
 # --watch（#30）。watchdog等のファイル監視ライブラリは追加せず、標準ライブラリだけでmtime/サイズを
 # ポーリングする（2章の「依存・ダウンロードは最小限」方針。対象は手書きの文書プロジェクトで
@@ -2971,11 +3065,19 @@ def _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=False):
     except KeyboardInterrupt:
         _log_info("Watch stopped.")
 
-def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
+def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False, if_changed=False):
     # 汎用ツールとして、呼び出し元プロジェクトが持つ設定ファイルを指定できるようにする。
     # inputs.dir/output.dir などプロジェクト固有の相対パスは、このconfigファイルの
     # 置き場所(project_dir)を基準に解決する。templates/等ツール自身のリソースはtool_dir基準のまま。
     project_dir, config, chapters = _load_project_config(config_path)
+
+    # --if-changed（#151）。副作用（作業ディレクトリ作成・図表描画）より前に判定し、スキップ時は何も書かない。
+    if if_changed:
+        resolved_config_path = os.path.abspath(config_path) if config_path else find_config_in_cwd()
+        up_to_date, out_pdf = _is_up_to_date(tool_dir, resolved_config_path, project_dir, config)
+        if up_to_date:
+            _log_info(f"Skipped (up to date): {out_pdf}")
+            return
 
     # plugins: Graphviz/PlantUML/Mermaid/D2の有効・無効切り替え（6章、#21、#90）。未指定時は
     # 既存動作を維持する既定値（graphviz/mermaid/plantuml/d2はいずれも常時有効）。

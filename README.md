@@ -125,6 +125,10 @@ Other flags control runtime behavior only (not document content, which stays ent
 
 `--watch` keeps running after the first build and rebuilds whenever it detects a save in the config, the input files, or a custom `.typ` template. A failed build does not stop it; fix the file and save again. Press Ctrl+C to stop. Changes to files outside the project directory (e.g. images referenced via `../`) are not detected.
 
+`--if-changed` skips the build, like `make`, when the output PDF is newer than the config, the input files, the template, and text-compositor itself (judged by modification time only). Without it, the PDF is always regenerated. Changes to Typst's version, to files outside the project directory, or to environment variables used by `variables` are not detected. On CI, `actions/checkout` resets every file's modification time, so restore the output directory from a cache if you want the skip to take effect.
+
+`--clean` deletes the output PDF and the intermediate files under `.text-compositor/` (`temp_build.typ`, `_template.typ`) without building. `--clean-cache` additionally deletes the diagram cache (`.text-compositor/cache/`). Input files and the config are never deleted.
+
 See [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) for how to write the config file, and the [usage guide](doc/usage/) for details on `document:`/`plugins:`, front matter, Marp directives, and more. The Markdown files listed in `chapters` are concatenated in order to produce the PDF.
 
 ## Trying the sample

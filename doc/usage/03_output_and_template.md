@@ -62,3 +62,30 @@ python build.py --watch
 監視するのは、configファイル、プロジェクトディレクトリ配下、`inputs.dir` 配下、`.typ` で指定した独自テンプレートです。出力先（`output.dir`）と、`.` で始まるディレクトリ・ファイルは無視します。プロジェクトディレクトリの外にある画像などを参照している場合、その変更は検知しません。
 
 ビルドが失敗しても終了しません。エラーを表示して次の保存を待つので、修正して保存し直してください。終了は `Ctrl+C` です。`--config-list` と併用すると、変更があったconfigだけを再ビルドします。`--check-env` とは同時に指定できません。
+
+# 更新がなければビルドをスキップする
+
+`--if-changed` を付けると、出力PDFが入力より新しい場合にビルドをスキップします。`make` と同じく、更新日時だけで判定します。複数のconfigを `--config-list` でまとめてビルドするときに、変更のないPDFの再生成を省けます。
+
+```bash
+python build.py --if-changed
+```
+
+比較するのは、configファイル、プロジェクトディレクトリ配下、`inputs.dir` 配下、`.typ` で指定した独自テンプレート、text-compositor本体（同梱テンプレートを含む）です。付けなければ、従来どおり毎回再生成します。次の変更は検知しないため、この場合は `--if-changed` を外して実行してください。
+
+- Typstのバージョン更新
+- プロジェクトディレクトリの外にある画像などの変更
+- `variables` が参照する環境変数の値の変更
+
+GitHub Actionsでは、`actions/checkout` が全ファイルの更新日時を更新します。出力先をキャッシュから復元しない限り、スキップは効きません。
+
+# 生成物を削除する
+
+`--clean` は、ビルドせずに生成物を削除します。`make clean` に相当します。
+
+```bash
+python build.py --clean
+python build.py --clean-cache
+```
+
+`--clean` の削除対象は、出力PDFと、`.text-compositor/` 直下の中間ファイル（`temp_build.typ`・`_template.typ`）です。`--clean-cache` は、加えて図表のキャッシュ（`.text-compositor/cache/`）も削除します。図表の再描画には時間がかかるため、キャッシュは別のオプションにしています。入力ファイルとconfigは削除しません。`--config-list` と併用すると、すべてのconfigが対象になります。
