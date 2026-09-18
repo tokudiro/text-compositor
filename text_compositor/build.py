@@ -129,6 +129,24 @@ def find_system_d2():
     （2章の最小限のダウンロード）。"""
     return shutil.which("d2")
 
+def _diagram_cache_key(kind, tool_version, code):
+    """図のキャッシュキー（#26）。入力テキストだけでなく、種別とレンダラのバージョンも
+    ハッシュに含める。レンダラを更新しても同じ入力の古いSVGが使い回される事故を防ぐため。
+    各要素の境界に\\0を挟み、「要素の切れ目が違うだけで連結結果が同じ」衝突を避ける。"""
+    h = hashlib.sha256()
+    for part in (kind, tool_version, code):
+        h.update(part.encode('utf-8'))
+        h.update(b'\0')
+    return h.hexdigest()[:16]
+
+def _system_d2_version(d2_bin):
+    """`d2 --version`の出力（例: "v0.9.0"）を返す。取得できなければNone。"""
+    try:
+        result = subprocess.run([d2_bin, "--version"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() or None
+
 def _typst_version_info(repo_root):
     """typstのインストール済みバージョンと、requirements.txtでピン留めされたバージョンを返す
     （#49のビルド時チェックと#37の--check-envで共用する）。requirements.txtが無い/`typst`の
@@ -531,6 +549,9 @@ class TypstRenderer:
         self.d2_auto_download = d2_auto_download
         # d2実行ファイルのパスは初回の```d2描画時に遅延解決する（plantumlのjava/jarと同様）。
         self._d2_bin = None
+        # キャッシュキー用のd2バージョン（#26）。キャッシュヒット時にバイナリの自動取得を
+        # 起こさないよう、_d2_binの解決とは別に遅延評価する。
+        self._d2_version_cache = None
         # document.diagnostics.line_mapping: "block"（既定、#27）。Typstコンパイルエラーの行番号を
         # 元のMarkdownの行番号へ逆引きするための行コメント（`// @srcmap ...`）を生成コードに
         # 挿し込むかどうかの精度。"off"なら挿し込まず、従来どおりTypst側の生の行番号のみになる。
@@ -1289,6 +1310,22 @@ class TypstRenderer:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
+    def _diagram_cache_path(self, kind, tool_version, code):
+        """図のSVGキャッシュのパスとキー（ハッシュ）を返す。キーの設計は_diagram_cache_key()参照（#26）。"""
+        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        digest = _diagram_cache_key(kind, tool_version, code)
+        return os.path.join(cache_dir, f"{kind}_{digest}.svg"), digest
+
+    def _d2_version(self):
+        """キャッシュキーに使うd2のバージョン。システムのd2があればその実バージョン、無ければ
+        自動取得の対象（D2_RELEASE）。どちらの場合も、ここではバイナリの取得は行わない。"""
+        if self._d2_version_cache is None:
+            system_d2 = find_system_d2()
+            version = _system_d2_version(system_d2) if system_d2 else None
+            self._d2_version_cache = version or D2_RELEASE
+        return self._d2_version_cache
+
     def _render_mermaid(self, code, width=None, height=None):
         """mermaidブロックをヘッドレスブラウザ上のmermaid.render()でSVG化し、Typstのimage呼び出しに
         変換する。外部APIへの通信は行わず、ローカルのブラウザで完結させる（仕様書10章・11章、#35）。"""
@@ -1298,10 +1335,8 @@ class TypstRenderer:
                 self._mermaid_disabled_warned = True
             return f"```mermaid\n{code}```\n\n"
 
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
-        svg_path = os.path.join(cache_dir, f"mermaid_{digest}.svg")
+        # 固定済みmermaid.min.jsのSHA256をバージョンとして使う（バンドルが変われば別キーになる）
+        svg_path, digest = self._diagram_cache_path("mermaid", MERMAID_JS_SHA256, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering mermaid diagram via headless browser -> {os.path.basename(svg_path)}")
@@ -1362,10 +1397,7 @@ class TypstRenderer:
                 self._plantuml_disabled_warned = True
             return f"```plantuml\n{code}```\n\n"
 
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
-        svg_path = os.path.join(cache_dir, f"plantuml_{digest}.svg")
+        svg_path, _ = self._diagram_cache_path("plantuml", PLANTUML_JAR_SHA256, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
@@ -1422,10 +1454,7 @@ class TypstRenderer:
                 self._d2_disabled_warned = True
             return f"```d2\n{code}```\n\n"
 
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
-        svg_path = os.path.join(cache_dir, f"d2_{digest}.svg")
+        svg_path, _ = self._diagram_cache_path("d2", self._d2_version(), code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering d2 diagram via local D2 -> {os.path.basename(svg_path)}")
