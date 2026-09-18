@@ -62,6 +62,11 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * **`--check-env`**: 実行環境の前提（隔離環境（venv/pipx）の使用有無、依存パッケージ、Typstバージョン、キャッシュ済みアセット、Mermaid/PlantUML/D2の前提条件）を、ビルドを実行せずに確認する（[#37](https://github.com/tokudiro/text-compositor/issues/37)、[#113](https://github.com/tokudiro/text-compositor/issues/113)）。
 * **`-q`/`--quiet`・`-v`/`--verbose`**（[#52](https://github.com/tokudiro/text-compositor/issues/52)）: 実行時のログの詳細度を制御する。既定は`[Info]`まで表示、`[Warning]`/`[Error]`/`[Success]`は常に表示する。`-q`は`[Info]`を抑制し、`-v`は処理中の章・キャッシュ再利用状況などの`[Verbose]`ログも追加表示する。同時指定は不可。
 * **`--keep-temp`**（[#52](https://github.com/tokudiro/text-compositor/issues/52)）: ビルド成功時も中間ファイル（`temp_build.typ`等、12章）を削除せずに残す。既定では失敗時のみ残る。
+* **`--watch`**（[#30](https://github.com/tokudiro/text-compositor/issues/30)）: 初回ビルド後も終了せず、保存を検知して自動で再ビルドする。`--check-env`とは同時指定できない。`--config-list`と併用した場合は、config単位で監視し、変更があったconfigだけを再ビルドする。
+  * **監視対象**: config自身、`project_dir`配下、`inputs.dir`配下、`.typ`パス指定のテンプレート。ツール同梱テンプレート（名前指定）は対象外。`.`で始まるディレクトリ・ファイル（`.git`・`.text-compositor`・エディタのスワップファイル等）、末尾`~`のファイル、出力先（`output.dir`配下）は無視する。`project_dir`の外にある画像などを`--root`経由で参照している場合、その変更は検知しない。
+  * **検知方式**: 標準ライブラリのみで、0.5秒間隔にファイルの更新日時・サイズを走査する（2章の依存最小化方針に沿い、`watchdog`等は導入しない）。変更を検知したら、変化が止まる（0.3秒間隔の再走査で一致する）のを待ってからビルドする。エディタの「一時ファイルへ書いてリネーム」等の複数回の更新で、途中状態をビルドしないため。
+  * **失敗時の挙動**: 初回を含め、ビルドが失敗しても終了せずエラーを表示して次の保存を待つ（編集→保存→確認の繰り返しが用途のため）。修正して保存すれば再ビルドされる。`Ctrl+C`で終了する。
+  * **再ビルドのたびに監視対象を解決し直す**: configの編集で`inputs.dir`やテンプレートが変わっても追従するため。configが壊れている間は、configと`project_dir`のみを監視する。
 * 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定等の文書内容に関わる上書き）は存在しない。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
 * **終了コード**: 成功 `0` / 失敗 `1`。入力欠損・画像欠損・コンパイルエラーは即時失敗する（Fail-fast、10章）。`--check-env`はNGが1件でもあれば`1`。引数の指定誤り（`-q`と`-v`の同時指定等）は`argparse`標準の`2`。
 
