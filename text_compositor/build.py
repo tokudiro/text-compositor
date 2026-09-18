@@ -479,7 +479,10 @@ class TypstRenderer:
 
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
-                 glossary_enabled=False, line_mapping="block", marp_compat=False):
+                 glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None):
+        # variables: {{KEY}}プレースホルダの置換表（#72）。Noneなら置換機構自体を無効にし、
+        # 本文中の{{...}}には一切触れない（configに`variables:`が無い既存プロジェクトの互換性維持）。
+        self.variables = variables
         # 対応するMarkdown記法のスコープはGFM + GitHub Wiki（#48）。table/strikethroughはGFM拡張だが
         # commonmarkプリセットにコアルールとして同梱されており、enable()するだけで使える。
         self.md = (MarkdownIt("commonmark").enable("table").enable("strikethrough")
@@ -581,6 +584,11 @@ class TypstRenderer:
         行頭記号（#, -, [ 等）がMarkdown構文として誤解釈され、静かに壊れるのを防ぐため。"""
         ext = os.path.splitext(filepath)[1].lower()
         if ext in ('.md', '.markdown'):
+            # 置換はMarkdownのパース前に文字列として行う。見出し・表・コードフェンス・図の中まで
+            # 一律に効き、front-matterの値にも及ぶ。素のコードやCSV（Markdown以外）は、{{...}}が
+            # 構文として現れうるため対象にしない。
+            if self.variables is not None:
+                text = self._substitute_variables(text, filepath)
             return self.render(text, filepath=filepath, drop_leading_title=drop_leading_title)
 
         self.current_file = filepath
@@ -600,6 +608,36 @@ class TypstRenderer:
             return self._render_csv_table(text)
 
         return self._render_raw_text(text, self.STRUCTURED_TEXT_LANGS.get(ext))
+
+    # {{KEY}}プレースホルダ（#72）。KEYは識別子の形（英数字とアンダースコア、先頭は数字不可）に
+    # 限る。{{ message }}のように空白を含む形（Vue/Jinja等のテンプレート記法）は対象外にして、
+    # 文書中にそのまま書けるようにする。先頭の\は「置換せず{{KEY}}をそのまま出力する」エスケープ。
+    PLACEHOLDER_RE = re.compile(r'(\\)?\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}')
+
+    def _substitute_variables(self, text, filepath):
+        """本文中の{{KEY}}をself.variablesの値に置換する。未定義のKEYは、9章のFail-fast方針に
+        従い黙って残さずエラー終了する（綴りミスのまま「{{VERSON}}」がPDFに載る事故を防ぐ）。
+        同じファイル内の未定義キーはまとめて報告する。"""
+        undefined = []
+
+        def replace(m):
+            key = m.group(2)
+            if m.group(1):
+                return '{{' + key + '}}'
+            if key not in self.variables:
+                lineno = text.count('\n', 0, m.start()) + 1
+                undefined.append(f"{filepath}:{lineno}: {{{{{key}}}}}")
+                return m.group(0)
+            return self.variables[key]
+
+        result = self.PLACEHOLDER_RE.sub(replace, text)
+        if undefined:
+            print("[Error] Undefined placeholder(s); define them under 'variables:' in the config, "
+                  "or write \\{{KEY}} to output the text literally:")
+            for entry in undefined:
+                print(f"  {entry}")
+            sys.exit(1)
+        return result
 
     def _render_csv_table(self, text):
         """.csvファイルをTypstの#table()へ変換する（#36）。区切り文字はカンマ固定（sniffingは
@@ -2072,6 +2110,52 @@ def load_config_file(config_path):
     deep_update(config, loaded)
     return config
 
+def _resolve_variables(config):
+    """configの`variables:`（#72）から{{KEY}}の置換表{KEY: 文字列}を作る。キーが無ければNone
+    （置換機構を無効にする）。値は次のいずれか。
+      * スカラー（文字列・数値・真偽値）: そのまま文字列化して使う。
+      * {env: 環境変数名, default: 既定値}: ビルド時の環境変数から取得する。未設定でdefaultも無ければ
+        エラー終了する（CI等で値の渡し忘れに気づけるように）。
+    コマンド実行による取得は設けない。configの記述だけで任意コマンドが動くのは安全性の面で
+    望ましくなく、出力を環境変数に入れて渡せば同じことができるため。
+    値は1行に限る。改行を許すと、行番号による診断（#27のsrcmap）が元のMarkdownの行とずれる。"""
+    raw = config.get("variables")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        print("[Error] 'variables' must be a mapping of KEY: value.")
+        sys.exit(1)
+    variables = {}
+    for key, spec in raw.items():
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', str(key)):
+            print(f"[Error] variables.{key}: the key must consist of letters, digits and '_' "
+                  f"(and not start with a digit).")
+            sys.exit(1)
+        if isinstance(spec, dict):
+            unknown = set(spec) - {"env", "default"}
+            if "env" not in spec or unknown:
+                print(f"[Error] variables.{key}: a mapping value must have 'env' (and optionally 'default'); "
+                      f"got keys {sorted(map(str, spec))}.")
+                sys.exit(1)
+            value = os.environ.get(str(spec["env"]))
+            if value is None:
+                if "default" not in spec:
+                    print(f"[Error] variables.{key}: environment variable {spec['env']} is not set "
+                          f"and no 'default' is given.")
+                    sys.exit(1)
+                value = spec["default"]
+        elif isinstance(spec, (list, tuple)):
+            print(f"[Error] variables.{key}: a list is not supported; use a scalar or {{env: NAME}}.")
+            sys.exit(1)
+        else:
+            value = spec
+        value = "" if value is None else str(value)
+        if "\n" in value or "\r" in value:
+            print(f"[Error] variables.{key}: the value must be a single line.")
+            sys.exit(1)
+        variables[str(key)] = value
+    return variables
+
 def escape_string_literal(text):
     return str(text).replace('\\', '\\\\').replace('"', '\\"')
 
@@ -2770,6 +2854,9 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
     # 一律改ページとして描画する。
     marp_compat = bool(config.get("document", {}).get("marp_compat", False))
     line_mapping = _resolve_line_mapping(config)
+    # variables: {{KEY}}プレースホルダの置換表（#72）。章の処理より前に解決し、環境変数の未設定
+    # などの誤りを、長い描画処理を始める前にFail-fastで報告する。
+    variables = _resolve_variables(config)
 
     outputs_dir, inputs_dir, work_dir, typst_root = _resolve_project_dirs(project_dir, config)
     template_copy_path, template_root_rel_path = _prepare_template(config, tool_dir, project_dir, work_dir, typst_root)
@@ -2788,7 +2875,7 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
-                              marp_compat=marp_compat)
+                              marp_compat=marp_compat, variables=variables)
     current_landscape, current_paper = global_landscape, global_paper
     current_header, current_footer, current_paginate = effective_global_header, global_footer, global_paginate
     current_background = global_background

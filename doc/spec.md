@@ -90,6 +90,13 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * ファイル順序、ページ設定、出力メタデータ、データ集約ディレクトリ（aggregate）を一元管理する。
   * `plugins:`（Graphviz/PlantUML/Mermaid/D2の有効・無効切り替え）。`graphviz`/`mermaid`/`plantuml`/`d2`はいずれも既定`true`（未指定時は常時有効）。`false`にすると該当フェンス（```` ```dot ````/```` ```graphviz ````/```` ```mermaid ````/```` ```plantuml ````/```` ```d2 ````）は描画せず、未対応言語と同じ素のコード表示にフォールバックする（[#21](https://github.com/tokudiro/text-compositor/issues/21)、[#22](https://github.com/tokudiro/text-compositor/issues/22)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。
   * `plugins.mermaid_auto_download`（既定`false`）/`plugins.plantuml_auto_download`（既定`true`）: 描画に必要なツール（ブラウザ/Java）がシステムに見つからない場合の振る舞いを別軸で制御する。`true`なら自動取得、`false`ならFail-fast。既定値が非対称なのは、Playwright自身のChromium（約700MB）とEclipse Temurin JRE（約49.7MB）でダウンロード量が一桁違うため（11章、#22の設計議論）。
+* **`variables:`（テキストの置換機構、[#72](https://github.com/tokudiro/text-compositor/issues/72)）**: Markdown本文中の`{{KEY}}`をビルド時に実値へ置換する。バージョン番号やビルド番号を、前処理スクリプトなしで差し込むための機構。
+  * **定義**: `variables:`にキーと値を書く。値はスカラー（文字列・数値・真偽値。文字列化して使う）か、`{env: 環境変数名, default: 既定値}`（ビルド時の環境変数から取得。未設定で`default`も無ければエラー）。キーは英数字とアンダースコア（先頭は数字不可）。値は1行に限る（複数行を許すと、#27の行番号による診断が元のMarkdownの行とずれるため）。YAMLでは`1.10`が数値`1.1`になるため、バージョン番号は文字列として引用符で囲む。
+  * **コマンド実行による取得は設けない**: configの記述だけで任意コマンドが動くのは安全性の面で望ましくない（8章）。コマンドの出力は環境変数に入れて渡す。
+  * **適用範囲**: `.md`/`.markdown`の章のみ。パース前の文字列として置換するため、見出し・表・コードフェンス・図の中、front-matterの値にも一律に効く。`config.yaml`自身の値（`document.title`等）、Markdown以外の章（コード・CSV等）には適用しない。
+  * **構文**: `{{KEY}}`（KEYは上記の形）。`{{ message }}`のように空白を含む形（Vue/Jinja等の記法）は対象外で、そのまま書ける。先頭に`\`を付けた`\{{KEY}}`は、置換せず`{{KEY}}`をそのまま出力するエスケープ。置換は1回だけで、値の中の`{{...}}`は展開しない。
+  * **未定義のキー**: 9章のFail-fast方針に従い、綴りミスのまま出力されないよう、ファイル名と行番号を報告して即エラー終了する。同じファイル内の未定義キーはまとめて報告する。
+  * **既定**: `variables:`キー自体が無ければ機構を無効にし、`{{...}}`に一切触れない。既存のプロジェクトの出力は変わらない。
 * **設定の優先順位**: `config.yaml` の章別設定 ＞ グローバル設定 ＞ 内蔵デフォルト。CLIオプションによる文書内容の上書き（出力先・用紙設定等）は、4章で述べたとおり方針上見送っており存在しない（[#52](https://github.com/tokudiro/text-compositor/issues/52)）。`-q`/`-v`/`--keep-temp`等、既存のCLIオプションはいずれも実行時の振る舞いのみを制御し、この優先順位には関与しない。
 * **設定ファイル自体は必須**: `--config`、またはカレントディレクトリからの自動検出（5章）で、いずれかの設定ファイルが必要。中身は最小限でよい。ただし、`chapters` は現状ここで指定する以外の方法がない（入力パスからの自動導出は未実装。[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
 * YAML パーサ（PyYAML）が未導入のまま `config.yaml` を無視して既定値でビルドを続行してはならない。サイレントに誤った成果物が出るため即エラーとする。
