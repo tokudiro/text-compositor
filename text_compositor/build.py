@@ -4,6 +4,7 @@ import sys
 import csv
 import json
 import io
+import contextlib
 import bisect
 import subprocess
 import hashlib
@@ -2179,6 +2180,9 @@ def parse_args():
     parser.add_argument("--keep-temp", action="store_true",
                          help="ビルド成功時も中間ファイル（temp_build.typ等、.text-compositor/配下）を削除せずに残す。"
                               "既定ではビルド失敗時のみ残る（デバッグ用）。")
+    parser.add_argument("--watch", action="store_true",
+                         help="初回ビルド後も終了せず、config・入力ファイル・テンプレートの保存を検知して自動で再ビルドする（#30）。"
+                              "ビルドが失敗しても終了せず、次の保存を待つ。Ctrl+Cで終了する。--check-envとは同時指定できない。")
     args = parser.parse_args()
     if args.quiet and args.verbose:
         parser.error("-q/--quiet と -v/--verbose は同時に指定できません。")
@@ -2186,6 +2190,8 @@ def parse_args():
         parser.error("--config と --config-list は同時に指定できません。")
     if args.check_env and args.config_list:
         parser.error("--check-env と --config-list は同時に指定できません。")
+    if args.check_env and args.watch:
+        parser.error("--check-env と --watch は同時に指定できません。")
     return args
 
 def _read_config_list(list_path):
@@ -2609,12 +2615,135 @@ def build():
         if not config_paths:
             print(f"[Error] --config-list {args.config_list} に有効なconfigパスがありません。")
             sys.exit(1)
+        if args.watch:
+            _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=args.keep_temp)
+            return
         # いずれかのビルドが失敗した時点でsys.exit(1)により停止する（_load_project_config等が担う）。
         for config_path in config_paths:
             print(f"[Build] {config_path}")
             _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=args.keep_temp)
+    elif args.watch:
+        config_path = os.path.abspath(args.config) if args.config else find_config_in_cwd()
+        if not config_path:
+            print("[Error] --config not specified, and no text-compositor.config.yaml/.json found in the current directory.")
+            sys.exit(1)
+        _watch(tool_dir, repo_root, font_dir, [config_path], keep_temp=args.keep_temp)
     else:
         _build_one(tool_dir, repo_root, font_dir, args.config, keep_temp=args.keep_temp)
+
+# --watch（#30）。watchdog等のファイル監視ライブラリは追加せず、標準ライブラリだけでmtime/サイズを
+# ポーリングする（2章の「依存・ダウンロードは最小限」方針。対象は手書きの文書プロジェクトで
+# ファイル数が少なく、0.5秒間隔の走査で十分軽いため、OS依存のイベントAPIを持ち込む利点が薄い）。
+_WATCH_POLL_SECONDS = 0.5
+# エディタの保存は「一時ファイルへ書いてからリネーム」等で複数の変更に分かれることがある。
+# 変更検知後、この間隔で走査し直して変化が止まるのを待ってからビルドする。
+_WATCH_SETTLE_SECONDS = 0.3
+
+def _watch_targets(tool_dir, config_path):
+    """configから監視対象を解決し、(監視ルートのリスト, 無視するパスのリスト, 個別監視ファイルのリスト)を返す。
+    ルートはproject_dirとinputs.dir、個別ファイルはconfig自身と（.typパス指定の場合のみ）テンプレート。
+    ツール同梱テンプレート（名前指定）は利用者が編集しないため対象外。出力先は、ビルド自身が
+    書き込むPDFを「変更」と誤検知して無限に再ビルドしないよう無視する。config自体が壊れている
+    最中でも監視を続けたいので、読めなければconfigとproject_dirだけを対象にする。"""
+    project_dir = os.path.dirname(config_path)
+    roots, ignore, files = [project_dir], [], [config_path]
+    try:
+        # load_config_fileは失敗時に[Error]を出力してsys.exit(1)する。ビルド側で既に報告されるため、
+        # ここでの二重表示を避ける。
+        with contextlib.redirect_stdout(io.StringIO()):
+            config = load_config_file(config_path)
+        inputs_dir = os.path.normpath(os.path.join(project_dir, config.get("inputs", {}).get("dir") or "inputs"))
+        outputs_dir = os.path.normpath(os.path.join(project_dir, config["output"]["dir"]))
+        roots.append(inputs_dir)
+        ignore.append(os.path.join(outputs_dir, config["output"]["filename"]))
+        # output.dirが監視ルート自身（"."等）や祖先のときにディレクトリごと無視すると何も監視できなくなる
+        if not any(r == outputs_dir or r.startswith(outputs_dir + os.sep) for r in roots):
+            ignore.append(outputs_dir)
+        template_value = config["template"]["path"]
+        if template_value.endswith(".typ"):
+            files.append(resolve_template_path(template_value, tool_dir, project_dir))
+    except (Exception, SystemExit):
+        pass
+    return roots, ignore, files
+
+def _watch_snapshot(roots, ignore, files):
+    """監視対象の{パス: (mtime_ns, サイズ)}を返す。.始まりのディレクトリ・ファイル（.git、
+    .text-compositor、エディタのスワップファイル等）と末尾~のバックアップは対象外。"""
+    norm = lambda p: os.path.normcase(os.path.normpath(p))
+    ignored = {norm(p) for p in ignore}
+    state = {}
+
+    def record(path):
+        try:
+            st = os.stat(path)
+        except OSError:
+            return
+        state[path] = (st.st_mtime_ns, st.st_size)
+
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames
+                           if not d.startswith(".") and d != "node_modules"
+                           and norm(os.path.join(dirpath, d)) not in ignored]
+            for name in filenames:
+                path = os.path.join(dirpath, name)
+                if name.startswith(".") or name.endswith("~") or norm(path) in ignored:
+                    continue
+                record(path)
+    for path in files:
+        record(path)
+    return state
+
+def _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp):
+    """1回のビルドを実行し、成否を返す。ビルド内部のエラー終了（sys.exit(1)）や想定外の例外で
+    ウォッチ全体を止めないよう握りつぶす（エラー内容は呼び出し先が出力済み）。"""
+    try:
+        _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=keep_temp)
+        return True
+    except SystemExit as e:
+        return e.code in (0, None)
+    except Exception as e:
+        print(f"[Error] Build crashed: {e}")
+        return False
+
+def _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=False):
+    """全configを初回ビルドした後、保存を検知したconfigだけを再ビルドし続ける。失敗しても終了せず、
+    次の保存を待つ（編集→保存→結果確認の試行を繰り返す用途のため）。Ctrl+Cで終了する。"""
+    watched = {}
+    try:
+        for config_path in config_paths:
+            # 走査はビルドの前に行う。ビルド中の保存を取りこぼさず、次のループで検知するため。
+            targets = _watch_targets(tool_dir, config_path)
+            watched[config_path] = (targets, _watch_snapshot(*targets))
+            print(f"[Build] {config_path}")
+            _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp)
+        _log_info("Watching for changes... (Ctrl+C to stop)")
+
+        while True:
+            time.sleep(_WATCH_POLL_SECONDS)
+            for config_path in config_paths:
+                targets, baseline = watched[config_path]
+                current = _watch_snapshot(*targets)
+                if current == baseline:
+                    continue
+                while True:
+                    time.sleep(_WATCH_SETTLE_SECONDS)
+                    settled = _watch_snapshot(*targets)
+                    if settled == current:
+                        break
+                    current = settled
+                changed = sorted(p for p in current if baseline.get(p) != current[p]) + \
+                          sorted(p for p in baseline if p not in current)
+                shown = ", ".join(os.path.basename(p) for p in changed[:3])
+                _log_info(f"Change detected ({shown}{', ...' if len(changed) > 3 else ''}); rebuilding...")
+                # configの変更でinputs.dir等が変わり得るため、再ビルドのたびに監視対象を解決し直す
+                targets = _watch_targets(tool_dir, config_path)
+                watched[config_path] = (targets, _watch_snapshot(*targets))
+                print(f"[Build] {config_path}")
+                _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp)
+                _log_info("Watching for changes... (Ctrl+C to stop)")
+    except KeyboardInterrupt:
+        _log_info("Watch stopped.")
 
 def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False):
     # 汎用ツールとして、呼び出し元プロジェクトが持つ設定ファイルを指定できるようにする。
