@@ -1,48 +1,6 @@
-// 幅・高さいずれかが利用可能領域をはみ出す場合だけ、縦横比を保って自動縮小する
-// （mermaidなど事前レンダリング済み画像用。正方形に近い図は幅基準だけだと高さが溢れるため、
-// 幅・高さ両方の縮小率を計算し、小さい方（より厳しい制約）を採用する）。
-// 【注意】layout()が返すsize.heightは「ページの残りスペース」ではなく「コンテナ全体の高さ」を
-// 返すため、見出しや説明文がすでに使った分は考慮されない。動的計算は信頼できないため、
-// タイトル・本文の余地を見込んだ固定の高さ上限(MAX_IMG_HEIGHT)を安全側に設定する。
-#let MAX_IMG_HEIGHT = 12cm
-#let fit-image(path) = layout(size => context {
-  let img = image(path)
-  let i-size = measure(img)
-  let w-scale = size.width / i-size.width
-  let h-scale = MAX_IMG_HEIGHT / i-size.height
-  let scale = calc.min(w-scale, h-scale, 1.0)
-  if scale < 1.0 {
-    image(path, width: i-size.width * scale)
-  } else {
-    img
-  }
-})
-
-// Graphviz（diagraph、#82でwidth/height明示指定に対応するためconf()の外へ出し、
-// build.py生成コードから直接呼べるようエクスポートした。conf()内のshow raw.where(lang: "dot")
-// ルールは、width/height未指定の呼び出し（自動縮小のみ）としてこの関数をそのまま使う）。
-#import "@preview/diagraph:0.3.7": render
-#let render-graph(code, width: none, height: none) = if width != none or height != none {
-  render(code,
-    width: if width != none { width } else { auto },
-    height: if height != none { height } else { auto })
-} else {
-  layout(size => context {
-    let graph = render(code)
-    let g-size = measure(graph)
-    if g-size.width > size.width {
-      render(code, width: 100%)
-    } else {
-      graph
-    }
-  })
-}
-
-// GitHub形式のalert記法（#61）。template.typと同じ実装（note-me、MIT、@preview/note-me:0.6.0。
-// #63でライセンス確認済み）。全テンプレートが同じ関数名を持つ必要があるため（#61参照）。
-#import "@preview/note-me:0.6.0": note, tip, important, warning, caution
-#let callout-fns = (note: note, tip: tip, important: important, warning: warning, caution: caution)
-#let callout(kind: "note", body) = (callout-fns.at(kind, default: note))(body)
+// fit-image・render-graph・callout・render-backgroundは、template.typと同一実装のため_common.typに
+// 置いている（#63）。render-header/render-footerはスライド固有の見た目のため、このファイルに持つ。
+#import "_common.typ": fit-image, render-graph, callout, render-background
 
 // 本文ページのヘッダー・フッター（#42）。template.typと同じ関数名でエクスポートし、build.py側が
 // テンプレート種別を意識せず同じ呼び出し方でチャプター単位の上書きを再発行できるようにする。
@@ -74,13 +32,6 @@
   } else {
     none
   }
-}
-
-// 本文ページの背景画像（#55）。template.typと同じ実装。
-#let render-background(path) = if path != none {
-  place(top + left, image(path, width: 100%, height: 100%))
-} else {
-  none
 }
 
 #let conf(

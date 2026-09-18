@@ -1,0 +1,22 @@
+# Typst Universeのテンプレート（ilm）を、アダプタ経由で使う例（#63）。
+# 実行: text-compositor --config sample/universe-ilm/text-compositor.config.yaml
+document:
+  title: "Universe Template Sample"
+  author: "text-compositor"
+  date: "2026-09-19"
+  cover: template  # 既定はnone。noneのままだと、ilmの表紙が出ず、先頭章のH1も落ちる
+  toc: true
+
+output:
+  filename: "UniverseSample.pdf"
+  dir: "."
+
+template:
+  path: "ilm-adapter.typ"  # .typで終わるパスはproject_dir基準の独自テンプレート（アダプタ）
+
+inputs:
+  dir: "."
+
+chapters:
+  - "01_intro.md"
+  - "02_details.md"

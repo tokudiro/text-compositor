@@ -74,7 +74,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **判定に含まれないもの**: (1)Typstのバージョン（更新日時では検出できない。Typstを更新した後に再生成したいときは`--if-changed`を外して実行する）。(2)`project_dir`の外にある画像等（`--watch`と同じ制約）。(3)`variables`の`env`参照先の環境変数の値（環境変数を変えても、ファイルが変わらなければスキップされる）。
   * **CIでの扱い**: `actions/checkout`は全ファイルの更新日時を取得時刻にするため、`--if-changed`を付けるだけではCIでは常に再生成になる（PDFが無いか、入力より古いため）。CIで効果を出すには、出力先を`actions/cache`等で復元する必要がある。ただし復元されたPDFも復元時刻の更新日時になるので、`checkout`より後に復元した場合に限りスキップされる。実運用での有効性は未検証。CIでは、更新日時の代わりに`actions/cache`のキー（入力ファイルのハッシュ）でキャッシュの命中を判断する運用のほうが確実な可能性がある（推測）。
 * **`--clean`・`--clean-cache`**（[#151](https://github.com/tokudiro/text-compositor/issues/151)）: ビルドせず、生成物を削除して終了する（`make clean`相当）。Typstやフォントの取得は行わないため、環境不備があっても実行できる。`--config-list`と併用した場合は、全configを対象にする。`--check-env`・`--watch`・`--if-changed`とは同時指定できない。
-  * **`--clean`の削除対象**: 出力PDF（`output.dir`/`output.filename`）と、`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`。ビルド失敗時やデバッグ用の`--keep-temp`で残ったもの）。`.text-compositor/`が空になれば、そのディレクトリも削除する。入力ファイル・configは削除しない。
+  * **`--clean`の削除対象**: 出力PDF（`output.dir`/`output.filename`）と、`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`。ビルド失敗時やデバッグ用の`--keep-temp`で残ったもの）。`.text-compositor/`が空になれば、そのディレクトリも削除する。入力ファイル・configは削除しない。
   * **`--clean-cache`**: 上記に加えて、図表SVGのキャッシュ（`.text-compositor/cache/`）も削除する。再生成コストが高い（Mermaid・PlantUML・D2の描画）ため、`--clean`とは別オプションにした。単独で指定しても`--clean`を含む。キャッシュキーの仕様変更（#26）で残った古いキーのファイルの掃除にも使える。
   * ユーザーキャッシュ（フォント・`mermaid.min.js`・PlantUML・JRE・D2。2章）は対象外。ツール全体で共有される資産で、プロジェクト単位の生成物ではないため。
 * 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定等の文書内容に関わる上書き）は存在しない。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
@@ -110,6 +110,15 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * **設定の優先順位**: `config.yaml` の章別設定 ＞ グローバル設定 ＞ 内蔵デフォルト。CLIオプションによる文書内容の上書き（出力先・用紙設定等）は、4章で述べたとおり方針上見送っており存在しない（[#52](https://github.com/tokudiro/text-compositor/issues/52)）。`-q`/`-v`/`--keep-temp`等、既存のCLIオプションはいずれも実行時の振る舞いのみを制御し、この優先順位には関与しない。
 * **設定ファイル自体は必須**: `--config`、またはカレントディレクトリからの自動検出（5章）で、いずれかの設定ファイルが必要。中身は最小限でよい。ただし、`chapters` は現状ここで指定する以外の方法がない（入力パスからの自動導出は未実装。[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
 * YAML パーサ（PyYAML）が未導入のまま `config.yaml` を無視して既定値でビルドを続行してはならない。サイレントに誤った成果物が出るため即エラーとする。
+* **Typst Universeのテンプレート**（[#63](https://github.com/tokudiro/text-compositor/issues/63)）: `template.path`に、Universeのテンプレートを包む**アダプタ**（`.typ`）を指定して使う。専用のconfigキー（`template.package`等）は設けない。Universeのテンプレートは、それぞれ独自の引数を持つ（例: `ilm.with(title:, authors:, ...)`）。汎用の対応表をconfigに持たせると、テンプレートごとのアダプタより保守が重くなるためである。
+  * **アダプタの責務**: (1)`build.py`が生成するコードが呼ぶ補助関数（`fit-image`・`render-graph`・`render-header`・`render-footer`・`render-background`・`callout`）をエクスポートする。(2)`conf()`の引数を、Universe側の引数へ翻訳する。(1)の実装は、下記の`_common.typ`から取り込む。
+  * **`_common.typ`**: 上記の補助関数を`templates/_common.typ`に置く。`build.py`はビルドのたびに、テンプレートのコピー（`.text-compositor/_template.typ`）の隣へ`.text-compositor/_common.typ`をコピーする。アダプタは`#import "_common.typ": ...`と相対パスで読み込める。同梱の`template.typ`・`slide.typ`も同じファイルを読み込む（4つの関数が両者で同一実装だったため、重複も解消した）。`render-header`/`render-footer`はテンプレートごとに見た目が違うため、`slide.typ`は自前の実装を持つ。`_common.typ`のものは`template.typ`と同じ既定の実装である。独自テンプレートが`_common.typ`を読み込まなくても、影響はない。
+  * **バージョンは`@preview/name:x.y.z`で固定する**: アダプタ内に、バージョンを含めて書く（`import "@preview/ilm:2.1.1": ilm`）。configには持たない。バージョン固定はアダプタの利用者が行い、更新はアダプタの書き換えで行う。Typstの`compiler`要件（パッケージ側の最低バージョン）が、固定した`typst`（`requirements.txt`）を超えると、コンパイルエラーになる。
+  * **ライセンス**: `@preview`参照は、コードをこのリポジトリへ同梱しない（ビルド時にTypstが取得する）。Universeのテンプレートの複製は同梱しない。サンプル（`sample/universe-ilm/`）が同梱するのはアダプタだけで、`ilm`（MIT-0）のコードは含まない。
+  * **表紙・目次・章送り**: 複数のMarkdownを章として結合する動作は、Universe側の単一文書向けの設計と衝突しなかった（`ilm`で確認。章のH1は`ilm`の章見出しになる）。ただし`document.cover`の既定は`none`のため、Universeの表紙を使うには`cover: template`を明示する必要がある。`none`のままだと、`conf(cover: false)`が渡されて表紙が出ず、先頭章のH1も落ちる。
+  * **アダプタで吸収できないもの**: 章単位の`header`/`footer`/`logo`/`background`の上書きは、`build.py`がページ設定を出し直す形で実現している。Universe側のページ設定と衝突し得るため、対応しないテンプレートでは、アダプタで無視するのを基本とする（`ilm`では無視して、`ilm`自身のフッタが保たれた）。`ilm`以外のテンプレートでの挙動は未検証。`landscape`・`subtitle`・`revision_history`も、対応するかどうかはテンプレート次第である。`date`は、`conf()`が`"YYYY-MM-DD"`形式の文字列で渡す一方、`datetime`を要求するテンプレートがある。アダプタで変換する（`sample/universe-ilm/ilm-adapter.typ`の`to-datetime`）。
+  * **ネットワーク**: パッケージは初回のビルド時にTypstが取得し、ローカルにキャッシュする（`templates/template.typ`が使う`@preview/diagraph`と同じ扱い）。オフライン環境では、事前にキャッシュしておく必要がある。
+  * **検証**: `sample/universe-ilm/`（`ilm@2.1.1`、Typst 0.15.0）で、表紙・目次・章・表・Graphviz図・callout・ページ番号のビルドを確認した。
 
 ## 7. Markdown 方言と Marp 互換
 本章は、ディレクティブ・front-matter・改ページ規則等の専用の変換規則を持つ唯一のフォーマットであるMarkdownの扱いを規定する（1章）。他フォーマット（YAML/JSON/プレーンテキスト等）は専用の変換規則を持たず、拡張子に応じて等幅表示にフォールバックするのみ（1章、[#15](https://github.com/tokudiro/text-compositor/issues/15)）。フォーマットごとに専用の変換規則を追加していく場合も、本章のMarkdown固有の扱いは維持する設計とする。
@@ -235,8 +244,8 @@ python build.py --config <path/to/text-compositor.config.yaml>
 5. **図表ソースファイルの直接指定**（[#53](https://github.com/tokudiro/text-compositor/issues/53)）: Graphviz・Mermaid・PlantUML・D2の図表ソースファイルそのものを`chapters`に直接指定できる（`.dot`/`.gv`→Graphviz、`.mmd`→Mermaid、`.puml`/`.plantuml`/`.pu`→PlantUML、`.d2`→D2。`.iuml`は`!include`で取り込む断片ファイル用の慣習であり単体の図として使われないため対象外）。**（実装済み）** 新しい描画ロジックは書かず、上記1〜4の既存の描画機構（Graphvizはテンプレート側の`show raw.where(lang: "dot")`、Mermaid/PlantUML/D2は`_render_mermaid()`/`_render_plantuml()`/`_render_d2()`）をそのまま呼び出すだけで実現している。1ファイル＝1章（見出しなし、図だけのページ）として扱われ、`plugins.*`の有効・無効判定もそれぞれの既存ロジックがそのまま適用される。
 
 ## 12. ビルド成果物と一時ファイル
-* 中間 Typst ファイルは `project_dir` 直下の `.text-compositor/temp_build.typ` に生成する（Mermaidのキャッシュも同じ `.text-compositor/cache/` 配下）。テンプレートは同じ `.text-compositor/_template.typ` へコピーしてから参照する（5章・8章のサンドボックス要件）。画像はコピーせず、`--root` 起点のルート絶対パス（`/...`）で参照して解決する。
-* ビルド成功後、`temp_build.typ` と `_template.typ` は使い捨ての中間ファイルとして削除する。`cache/`（Mermaid等の描画結果）は次回以降のビルドで再利用するため削除しない。ビルド失敗時はデバッグに使えるよう `temp_build.typ` 等を残したまま終了する（[#20](https://github.com/tokudiro/text-compositor/issues/20)）。`.gitignore` への追加を推奨する。
+* 中間 Typst ファイルは `project_dir` 直下の `.text-compositor/temp_build.typ` に生成する（Mermaidのキャッシュも同じ `.text-compositor/cache/` 配下）。テンプレートは同じ `.text-compositor/_template.typ` へコピーしてから参照する（5章・8章のサンドボックス要件）。共通の補助関数`templates/_common.typ`も、テンプレートの隣（`.text-compositor/_common.typ`）へコピーする（6章、[#63](https://github.com/tokudiro/text-compositor/issues/63)）。画像はコピーせず、`--root` 起点のルート絶対パス（`/...`）で参照して解決する。
+* ビルド成功後、`temp_build.typ`・`_template.typ`・`_common.typ` は使い捨ての中間ファイルとして削除する。`cache/`（Mermaid等の描画結果）は次回以降のビルドで再利用するため削除しない。ビルド失敗時はデバッグに使えるよう `temp_build.typ` 等を残したまま終了する（[#20](https://github.com/tokudiro/text-compositor/issues/20)）。`.gitignore` への追加を推奨する。
 * これらの生成物は`--clean`（出力PDF・中間ファイル）と`--clean-cache`（加えて`cache/`）で削除できる（4章、[#151](https://github.com/tokudiro/text-compositor/issues/151)）。
 * 出力 PDF が既に開かれている等で書き込めない場合は、部分的な破損ファイルを残さず明確なエラーで終了する。
 * **行番号マッピング**（[#27](https://github.com/tokudiro/text-compositor/issues/27)）: `document.diagnostics.line_mapping: "block"`（既定）のとき、Typstのコンパイルエラーが「Markdownの何行目に起因するか」をエラーメッセージに付記する。**（実装済み）**
