@@ -93,6 +93,9 @@
   cover: true,
   cover_page_number: false,
   toc: false,
+  // 改版履歴（#56）。スライドには意味を持たない引数のため、受け取るだけで何もしない（no-op）。
+  // config.yamlに書いてもエラーにならないようにするため（doc/usage/10_custom_template.md参照）。
+  revision_history: none,
   graphviz: true,
   header: none,
   footer: none,

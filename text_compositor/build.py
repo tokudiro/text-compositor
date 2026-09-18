@@ -2344,6 +2344,53 @@ def _prepare_template(config, tool_dir, project_dir, work_dir, typst_root):
     template_root_rel_path = "/" + os.path.relpath(template_copy_path, typst_root).replace(os.sep, '/')
     return template_copy_path, template_root_rel_path
 
+REVISION_HISTORY_KEYS = ("version", "date", "description", "author")
+
+def _resolve_revision_history(doc_config):
+    """document.revision_history（#56）を検証し、[{version, date, description, author}, ...]
+    （値はすべて文字列、省略されたキーは空文字）を返す。キー自体が無い、または空リストならNone
+    （改版履歴ページを出さない）。YAMLの日付（date: 2026-08-14）は文字列化してそのまま使う。
+    未知のキーは綴りミス（例: `discription`）が黙って無視されるのを避けるためエラーにする。"""
+    raw = doc_config.get("revision_history")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        print("[Error] document.revision_history must be a list of mappings "
+              "(version / date / description / author).")
+        sys.exit(1)
+    entries = []
+    for i, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            print(f"[Error] document.revision_history[{i}] must be a mapping "
+                  f"(version / date / description / author), got {item!r}.")
+            sys.exit(1)
+        unknown = [k for k in item if k not in REVISION_HISTORY_KEYS]
+        if unknown:
+            print(f"[Error] document.revision_history[{i}]: unknown key(s) {unknown} "
+                  f"(allowed: {', '.join(REVISION_HISTORY_KEYS)}).")
+            sys.exit(1)
+        entry = {k: ("" if item.get(k) is None else str(item[k])) for k in REVISION_HISTORY_KEYS}
+        if not any(v.strip() for v in entry.values()):
+            print(f"[Error] document.revision_history[{i}] is empty.")
+            sys.exit(1)
+        entries.append(entry)
+    return entries or None
+
+def _revision_history_typst_arg(entries):
+    """conf()へ渡す`revision_history: (...)`引数行を返す。entriesがNoneなら引数自体を渡さない
+    （tocなどと同じく、この引数を持たない既存の独自テンプレートとの互換を保つため）。
+    改行は文字列リテラル中の\\nとして渡し、テンプレート側がlinebreak()へ変換する。"""
+    if entries is None:
+        return ''
+
+    def literal(text):
+        return '"' + escape_string_literal(text.replace('\r\n', '\n')).replace('\r', '').replace('\n', '\\n') + '"'
+
+    rows = ", ".join(
+        "(" + ", ".join(f"{k}: {literal(e[k])}" for k in REVISION_HISTORY_KEYS) + ")" for e in entries)
+    # 要素が1つのときも配列になるよう、末尾のカンマを必ず付ける
+    return f'  revision_history: ({rows},),\n'
+
 def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, project_dir, typst_root):
     """document:設定からtypst_codeの冒頭（テンプレートのimportとconf()呼び出し）を組み立てる。
     戻り値は (preamble文字列, global_landscape, global_paper, cover_mode, global_table_header,
@@ -2388,6 +2435,9 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
     toc = doc_config.get('toc')
     toc_arg = f'  toc: {str(bool(toc)).lower()},\n' if toc is not None else ''
 
+    # 改版履歴ページ（#56）。表紙と目次の間に独立したページとして挿入する。未指定なら引数自体を渡さない。
+    revision_history_arg = _revision_history_typst_arg(_resolve_revision_history(doc_config))
+
     date_str = doc_config.get("date", "")
     if date_str == "auto":
         date_str = datetime.now().strftime("%Y-%m-%d")
@@ -2406,7 +2456,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
   date: "{safe_date}",
   paper_size: "{global_paper}",
   landscape: {str(global_landscape).lower()},
-{cover_arg}{cover_page_number_arg}{toc_arg}  graphviz: {str(graphviz_enabled).lower()},
+{cover_arg}{cover_page_number_arg}{toc_arg}{revision_history_arg}  graphviz: {str(graphviz_enabled).lower()},
   header: {_typst_str_or_none(global_header)},
   footer: {_typst_str_or_none(global_footer)},
   paginate: {str(global_paginate).lower()},
