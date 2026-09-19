@@ -4,6 +4,8 @@ English | [日本語](README-ja.md)
 
 A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, `svg`) as images. There is no editor and no PDF output.
 
+The visual design policy (colors, spacing, fonts) is in [doc/viewer-visual-design.md](../doc/viewer-visual-design.md).
+
 The display engine was chosen by measurement: see [doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md). Electron with `--disable-gpu --in-process-gpu` felt the fastest, so those flags are applied by default (set `VIEWER_GPU=1` to turn them off).
 
 This directory is a separate Node.js project from the Python package on PyPI. Nothing here is included in the sdist or wheel.
@@ -57,6 +59,8 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 
 The settings screen (gear button) has two items: the **toolbar position** (top or bottom; the error bar follows the toolbar) and the **color scheme** (follow the OS, light or dark). Changes apply at once. The automatic reload toggle is saved as well.
 
+The window size and position are remembered too (also maximized state). If the saved position no longer fits on any screen, for example after unplugging a monitor, only the size is restored.
+
 Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%\Obunzu` on Windows). A missing or broken file, or an unexpected value, falls back to the defaults, so the app always starts.
 
 ## Environment variables
@@ -83,6 +87,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
 | `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |
+| `scripts/check-window-state.js` | Checks that the window size, position and maximized state come back after a restart (manual, Windows only) |
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |

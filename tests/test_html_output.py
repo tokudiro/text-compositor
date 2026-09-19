@@ -9,6 +9,7 @@ import pytest
 
 import text_compositor.build as build
 from text_compositor.api import HtmlResult, Session, render_html
+from text_compositor.html_output import DOCUMENT_CSS
 
 PLAIN = {"mermaid": False, "plantuml": False, "d2": False}
 
@@ -319,6 +320,29 @@ class TestFences:
         result, html = convert(tmp_path, "digraph { a -> b }\n", name="g.dot")
         assert result.ok and any("#181" in m for m in messages(result, "warning"))
 
+
+def _luminance(hex_color):
+    channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast(a, b):
+    la, lb = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+class TestDarkColors:
+    """ダークの配色でも、alertの見出し（本文と同じ大きさの文字）が、読めること（#192）。
+    WCAG 2.1のAA（コントラスト比4.5:1）を基準にする。"""
+
+    def test_alert_titles_are_readable_on_the_dark_background(self):
+        background = re.search(r"prefers-color-scheme: dark\) \{ :root \{[^}]*--code-bg: (#[0-9a-f]{6})", DOCUMENT_CSS).group(1)
+        dark_alerts = DOCUMENT_CSS.split("@media (prefers-color-scheme: dark) {\n  .alert-note", 1)[1]
+        colors = dict(re.findall(r"\.alert-(\w+) \{ --alert: (#[0-9a-f]{6}); \}", ".alert-note" + dark_alerts))
+        assert set(colors) == {"note", "tip", "important", "warning", "caution"}
+        for kind, color in colors.items():
+            assert _contrast(color, background) >= 4.5, f"{kind}: {color} on {background}"
 
 class TestDiagramFailures:
     """図の描画に失敗したときの診断（#202）。messageは短い要約、ツールの出力はdetail、位置は原稿の行。

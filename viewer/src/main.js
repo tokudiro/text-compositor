@@ -8,11 +8,11 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, screen, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
-const { DEFAULTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
+const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, classifyNavigation, fileFromArgv, isOpenable } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { WorkerClient } = require('./worker-client');
@@ -110,9 +110,9 @@ app.on('before-quit', (event) => {
 function createWindow() {
   // 起動時に、白い画面を長く見せない。ウィンドウと内容のビューの背景を、ページの背景色に合わせる（#180）。
   const background = nativeTheme.shouldUseDarkColors ? '#0d1117' : '#ffffff';
+  const saved = restoredWindow();
   win = new BrowserWindow({
-    width: 1000,
-    height: 800,
+    ...saved.bounds,
     title: APP_TITLE,
     icon: path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     backgroundColor: background,
@@ -146,7 +146,12 @@ function createWindow() {
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
   contents.on('did-finish-load', () => contents.setZoomLevel(zoomLevel));
 
-  win.on('resize', layout);
+  if (saved.maximized) win.maximize();
+  win.on('resize', () => { layout(); scheduleWindowSave(); });
+  win.on('move', scheduleWindowSave);
+  win.on('maximize', scheduleWindowSave);
+  win.on('unmaximize', scheduleWindowSave);
+  win.on('close', saveWindowNow);
   handleEscape(win.webContents);
   handleEscape(contents);
   nativeTheme.on('updated', applyBackground);
@@ -198,6 +203,50 @@ function setSettingsOpen(open) {
   else if (state.hasDocument) contentView.webContents.focus();
 }
 
+// -- ウィンドウの大きさ・位置の記憶（#192） ------------------------------------------
+
+const DEFAULT_BOUNDS = { width: 1000, height: 800 };
+
+/** 位置が、どれかの画面に、十分に見える（タイトルバーをつかめる）か。外付けの画面を外したあとの、画面外への復元を防ぐ。 */
+function isVisibleOnScreen(bounds) {
+  return screen.getAllDisplays().some(({ workArea }) => {
+    const overlapX = Math.min(bounds.x + bounds.width, workArea.x + workArea.width) - Math.max(bounds.x, workArea.x);
+    const overlapY = Math.min(bounds.y + bounds.height, workArea.y + workArea.height) - Math.max(bounds.y, workArea.y);
+    return overlapX >= 100 && overlapY >= 50;
+  });
+}
+
+/** 前回の大きさ・位置。位置が、今の画面に収まらないときは、大きさだけを使う（位置は、OSに任せる）。 */
+function restoredWindow() {
+  const saved = state.settings.window;
+  if (!saved) return { bounds: { ...DEFAULT_BOUNDS }, maximized: false };
+  const bounds = { width: saved.width, height: saved.height };
+  if (saved.x !== undefined && isVisibleOnScreen({ x: saved.x, y: saved.y, width: saved.width, height: saved.height })) {
+    bounds.x = saved.x;
+    bounds.y = saved.y;
+  }
+  return { bounds, maximized: saved.maximized };
+}
+
+let windowSaveTimer = null;
+
+/** 移動・サイズ変更は、続けて何度も届くため、落ち着いてから、1回だけ保存する。 */
+function scheduleWindowSave() {
+  clearTimeout(windowSaveTimer);
+  windowSaveTimer = setTimeout(saveWindowNow, 400);
+}
+
+function saveWindowNow() {
+  clearTimeout(windowSaveTimer);
+  if (!win || win.isDestroyed() || win.isMinimized()) return;
+  // 最大化中でも、元の大きさ・位置を保存する（戻したときに、その大きさになる）
+  const { x, y, width, height } = win.getNormalBounds();
+  const next = { x, y, width, height, maximized: win.isMaximized() };
+  const current = state.settings.window;
+  if (current && Object.keys(next).every((key) => current[key] === next[key])) return;
+  state.settings = normalizeSettings({ ...state.settings, window: next });
+  saveSettings(settingsFile, state.settings);
+}
 /** 利用者が、ファイルを開く・再読み込みをしたときは、設定画面を閉じて、文書を見せる（自動更新では、閉じない）。 */
 function leaveSettings() {
   if (state.settingsOpen) setSettingsOpen(false);
@@ -205,7 +254,7 @@ function leaveSettings() {
 
 /** 設定を1つ変えて、すぐに反映し、保存する。想定外のキー・値は、無視する。 */
 function changeSetting(key, value) {
-  if (!Object.hasOwn(DEFAULTS, key)) return;
+  if (!EDITABLE.includes(key)) return;   // ウィンドウの状態などは、画面から変えさせない
   const next = normalizeSettings({ ...state.settings, [key]: value });
   if (next[key] !== value) return;
   state.settings = next;

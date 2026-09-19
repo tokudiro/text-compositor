@@ -4,6 +4,8 @@
 
 Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・`svg`）を、画像として表示します。エディタもPDF出力もありません。
 
+見た目の方針（色・余白・フォント）は、[doc/viewer-visual-design.md](../doc/viewer-visual-design.md)にあります。
+
 表示エンジンは、計測で決めました（[doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md)）。Electronに`--disable-gpu --in-process-gpu`を付けた構成が、体感で最速だったため、既定で、この引数を使います（`VIEWER_GPU=1`で、無効にできます）。
 
 このディレクトリは、PyPIのPythonパッケージとは別のNode.jsプロジェクトです。sdist・wheelには含まれません。
@@ -57,6 +59,8 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 設定画面（歯車のボタン）には、2つの項目があります。**ツールバーの位置**（上・下。エラーの帯も、ツールバーの側に移ります）と、**配色**（OSに合わせる・ライト・ダーク）です。変更は、すぐに反映されます。自動で更新のトグルも、保存されます。
 
+ウィンドウの大きさ・位置（最大化の状態も）も、記憶します。保存された位置が、今のどの画面にも収まらないとき（外付けの画面を外したあとなど）は、大きさだけを戻します。
+
 設定は、アプリのユーザーデータのフォルダ（Windowsでは`%APPDATA%\Obunzu`）に、`settings.json`として保存されます。ファイルがない・壊れている・値が想定外のときは、既定値に戻るため、起動は止まりません。
 
 ## 環境変数
@@ -83,6 +87,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `src/watcher.js` | 開いているファイルと、参照するファイルを監視する |
 | `scripts/check-auto-reload.js` | Viewerを起動して、自動更新を確認する（手動） |
 | `scripts/check-window.js` | 設定画面を閉じる操作を、実際のキー操作で確認する（手動。Windowsのみ） |
+| `scripts/check-window-state.js` | ウィンドウの大きさ・位置・最大化が、再起動後に戻ることを確認する（手動。Windowsのみ） |
 | `scripts/build-icons.js` | `assets/icon.svg`から、`assets/icon.ico`と`assets/icon.png`を書き出す |
 | `assets/` | アプリのアイコン（元のSVGと、書き出した`.ico`・`.png`） |
 | `src/chrome/` | ツールバー・エラーの帯・診断の一覧 |

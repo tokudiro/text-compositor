@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>Obunzu</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'">
   <link rel="stylesheet" href="chrome.css">
 </head>
 <body>
@@ -77,9 +77,10 @@
       <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
     </div>
   </section>  <div id="empty">
+    <img class="empty-icon" src="../../assets/icon.svg" alt="" width="72" height="72">
     <p class="title">Markdownファイルを開いてください</p>
-    <p class="hint">ここへドラッグ＆ドロップ、または Ctrl+O</p>
-  </div>
-  <script src="chrome.js"></script>
+    <button id="empty-open" class="primary">ファイルを開く…</button>
+    <p class="hint">ここへドラッグ＆ドロップ、または <kbd>Ctrl</kbd>+<kbd>O</kbd></p>
+  </div>  <script src="chrome.js"></script>
 </body>
 </html>
