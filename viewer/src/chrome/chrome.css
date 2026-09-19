@@ -85,11 +85,10 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 /* 案内は、ツールバー・帯・一覧を除いた、空き領域の中央に置く（一覧が長くても、重ならない） */
 .toolbar-bottom #empty { top: 0; bottom: var(--chrome-height, 40px); }
 #empty { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#empty .empty-icon { width: 72px; height: 72px; margin-bottom: 16px; }
-#empty .title { font-size: 16px; font-weight: 600; margin: 0 0 16px; }
 #empty .hint { margin: 16px 0 0; color: var(--muted); }
-#empty kbd { font: 12px/1 inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bar); }
+#empty kbd { font-family: inherit; font-size: 12px; line-height: 1; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bar); }
 button.primary { background: var(--accent); color: var(--accent-fg); padding: 0 16px; height: 32px; }
 button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
 /* ファイルをドラッグしているあいだは、受け付けることを、破線の枠で示す */
-body.dragging #empty { outline: 2px dashed var(--accent); outline-offset: -16px; border-radius: 12px; }#empty[hidden] { display: none; }
+body.dragging #empty { outline: 2px dashed var(--accent); outline-offset: -16px; border-radius: 12px; }
+#empty[hidden] { display: none; }
