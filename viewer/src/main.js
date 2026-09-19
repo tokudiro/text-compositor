@@ -13,7 +13,7 @@ const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme,
 const { summarize } = require('./diagnostics');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
-const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, classifyNavigation, fileFromArgv, isOpenable } = require('./targets');
+const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, OTHER_EXTENSIONS, checkOpenTarget, classifyNavigation, fileFromArgv } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { MermaidHost } = require('./mermaid-host');
 const { WorkerClient } = require('./worker-client');
@@ -85,7 +85,7 @@ if (!app.requestSingleInstanceLock()) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
-    const file = fileFromArgv(argv.slice(1), { cwd: workingDirectory });
+    const file = targetFromArgv(argv, workingDirectory);
     if (file) openFile(file);
   });
 
@@ -99,7 +99,7 @@ if (!app.requestSingleInstanceLock()) {
     watcher = new FileWatcher({ onChange: onFilesChanged });
     Menu.setApplicationMenu(buildMenu());
     startWorker();
-    const file = fileFromArgv(process.argv.slice(app.isPackaged ? 1 : 2));
+    const file = targetFromArgv(process.argv, process.cwd());
     if (file) openFile(file);
   });
 }
@@ -311,11 +311,21 @@ async function getWorker() {
   return worker;
 }
 
+/**
+ * 起動引数から、開くファイルを探す。開発時（`electron <アプリのフォルダ> <ファイル>`）は、引数に、アプリのフォルダも
+ * 入るため、外す。拡張子では絞らない（#196）ため、外さないと、アプリのフォルダを、ファイルとして開こうとしてしまう。
+ */
+function targetFromArgv(argv, cwd) {
+  const appPath = path.resolve(app.getAppPath());
+  const args = argv.slice(1).filter((arg) => !arg || arg.startsWith('-') || path.resolve(cwd, arg) !== appPath);
+  return fileFromArgv(args, { cwd });
+}
 /** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。 */
 function openFile(file) {
   const full = path.resolve(file);
-  if (!isOpenable(full)) {
-    state.diagnostics = summarize([{ severity: 'error', message: `開けないファイルです: ${path.basename(full)}` }]);
+  const target = checkOpenTarget(full);
+  if (!target.ok) {
+    state.diagnostics = summarize([{ severity: 'error', message: target.message }]);
     push();
     return;
   }
@@ -448,10 +458,10 @@ function zoomReset() {
 async function openWithDialog() {
   leaveSettings();
   const result = await dialog.showOpenDialog(win, {
-    title: 'Markdownファイルを開く',
+    title: 'ファイルを開く',
     properties: ['openFile'],
     filters: [
-      { name: 'Markdown・図', extensions: [...MARKDOWN_EXTENSIONS, ...DIAGRAM_EXTENSIONS].map((e) => e.slice(1)) },
+      { name: 'Markdown・図・テキスト・CSV・SVG', extensions: [...MARKDOWN_EXTENSIONS, ...DIAGRAM_EXTENSIONS, ...OTHER_EXTENSIONS].map((e) => e.slice(1)) },
       { name: 'すべてのファイル', extensions: ['*'] },
     ],
   });

@@ -42,7 +42,7 @@ If no Python is found, the window still opens and explains what to do.
 | Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **← 戻る** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
 | Show or hide error details | Click the error/warning bar |
 
-Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, `.puml`, `.d2`; `.dot` is shown as code with a warning until Graphviz is supported in HTML output, #181).
+Openable files: Markdown (`.md`, `.markdown`), single diagram files (`.mmd`, `.puml`, `.d2` are drawn as diagrams; `.dot` / `.gv` are shown as code with a warning until Graphviz is supported in HTML output, #181), plain text (`.txt`, shown as monospace text and never as Markdown), CSV (`.csv`, as a table whose first row is the header) and SVG (`.svg`, as an image). Text and CSV must be UTF-8 without a BOM (Shift_JIS, UTF-16 and UTF-8 with a BOM are reported as errors), and only the first 512 KB is shown for a larger file, with a note. Everything else (`.yaml`, `.json`, source code, `.html`, images other than SVG, PDF, files without an extension, unknown extensions, folders) is not opened: the error bar says what can be opened. Highlighted display of `.yaml`, `.json` and source code is planned (#218). A missing file given on the command line is reported too. Dropping several files opens the first one. A link in a document to any local file opens it in the viewer (and shows the same guide if it cannot be opened).
 
 While a conversion runs, a "変換中…" indicator is shown. If it fails, the last successful display stays on screen. The error bar shows a one-line summary; a new error also opens the details list, which has each item with its Markdown line (when known) and the tool's output (errors have a red mark and side line, warnings an amber one). Click the bar to close or open the list. Web links in a document open in the default browser; a link or dropped file that points to a Markdown file opens in the viewer. Nothing else can navigate the viewer away from the document.
 
@@ -90,6 +90,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/check-open-files.js` | Opens .txt, .csv, .svg, diagram files, unsupported files, a folder, a missing file and a large file from the command line and checks what is shown (manual) |
 | `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |
 | `scripts/check-window-state.js` | Checks that the window size, position and maximized state come back after a restart (manual, Windows only) |
 | `scripts/build-dist.js` | Builds the Windows portable ZIP (Electron + embeddable Python + minimal packages + notices) |
