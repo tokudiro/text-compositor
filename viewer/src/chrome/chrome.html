@@ -33,6 +33,10 @@
       <button id="zoom-in" class="icon" title="拡大（Ctrl++）" aria-label="拡大">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>
       </button>
+      <span class="sep"></span>
+      <button id="settings-button" class="icon toggle" aria-pressed="false" title="設定（Ctrl+,）" aria-label="設定">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg>
+      </button>
     </div>
     <div id="banner" hidden>
       <span id="banner-text"></span>
@@ -40,7 +44,39 @@
     </div>
     <div id="details" hidden></div>
   </div>
-  <div id="empty">
+  <section id="settings" hidden aria-labelledby="settings-title">
+    <!-- 見出しは左、閉じるボタンは右端（ダイアログと同じ配置）。項目は、「名前と説明」と「選択肢」を左右に並べた行にして、増えても縦に積める。 -->
+    <header class="settings-head">
+      <h2 id="settings-title">設定</h2>
+      <button id="settings-close" class="back" title="設定を閉じる（Esc）" aria-label="設定を閉じる">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>閉じる
+      </button>
+    </header>
+    <div class="settings-body">
+      <div class="row">
+        <div class="text">
+          <div class="name" id="toolbar-position-name">ツールバーの位置</div>
+          <div class="desc">操作のボタンを、画面の上か下に置きます。エラーの帯も、同じ側に移ります。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="toolbar-position-name">
+          <label><input type="radio" name="toolbarPosition" value="top"><span>上</span></label>
+          <label><input type="radio" name="toolbarPosition" value="bottom"><span>下</span></label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="text">
+          <div class="name" id="theme-name">配色</div>
+          <div class="desc">ライトとダークを、切り替えます。「OSに合わせる」は、OSの設定に従います。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="theme-name">
+          <label><input type="radio" name="theme" value="system"><span>OSに合わせる</span></label>
+          <label><input type="radio" name="theme" value="light"><span>ライト</span></label>
+          <label><input type="radio" name="theme" value="dark"><span>ダーク</span></label>
+        </div>
+      </div>
+      <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
+    </div>
+  </section>  <div id="empty">
     <p class="title">Markdownファイルを開いてください</p>
     <p class="hint">ここへドラッグ＆ドロップ、または Ctrl+O</p>
   </div>

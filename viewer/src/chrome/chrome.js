@@ -12,6 +12,12 @@ $('zoom-in').addEventListener('click', () => api.zoomIn());
 $('zoom-out').addEventListener('click', () => api.zoomOut());
 $('zoom').addEventListener('click', () => api.zoomReset());
 $('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reload').getAttribute('aria-checked') !== 'true'));
+$('settings-button').addEventListener('click', () => api.toggleSettings());
+$('settings-close').addEventListener('click', () => api.toggleSettings());
+// 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
+$('settings').addEventListener('change', (event) => {
+  if (event.target.matches('input[type="radio"]')) api.setSetting(event.target.name, event.target.value);
+});
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
 
 // ドラッグ＆ドロップ。ファイルへ、ページが遷移してしまわないように、既定の動作を止める。
@@ -27,6 +33,12 @@ function render(state) {
   const previousErrors = lastState?.diagnostics.hasError;
   lastState = state;
   const d = state.diagnostics;
+  document.body.classList.toggle('toolbar-bottom', state.settings.toolbarPosition === 'bottom');
+  $('settings').hidden = !state.settingsOpen;
+  $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
+  for (const [name, value] of Object.entries(state.settings)) {
+    for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === value;
+  }
 
   // ファイル名を主にして、フォルダは、控えめに添える。全体は、ホバーで表示する
   const split = state.file ? Math.max(state.file.lastIndexOf('\\'), state.file.lastIndexOf('/')) : -1;
@@ -42,7 +54,7 @@ function render(state) {
   $('busy').hidden = !state.busy;
   $('status').textContent = state.busy ? '' : state.status;
   // 案内は、何も開いていないときだけ。ファイルを開いている最中に、「開いてください」と出さない
-  $('empty').hidden = state.hasDocument || state.busy;
+  $('empty').hidden = state.hasDocument || state.busy || state.settingsOpen;
 
   const showBanner = d.hasError || d.warnings > 0;
   $('banner').hidden = !showBanner;
@@ -87,6 +99,8 @@ function itemElement(item) {
 let reportedHeight = 0;
 function reportHeight() {
   const height = Math.ceil($('top').getBoundingClientRect().height);
+  // 設定画面を、ツールバー・帯の反対側に、収めるため
+  document.documentElement.style.setProperty('--chrome-height', `${height}px`);
   if (height !== reportedHeight) { reportedHeight = height; api.setChromeHeight(height); }
 }
 

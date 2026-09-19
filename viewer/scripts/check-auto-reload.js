@@ -88,7 +88,9 @@ const stats = (values) => {
   fs.writeFileSync(path.join(dir, 'pic.png'), png([200, 30, 30]));
 
   const env = { ...process.env };
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, viewerDir, md], { env, stdio: 'ignore' });
+  // 設定（自動更新のオン・オフ）は保存されるため、確認用のユーザーデータで動かし、使っている設定を変えない
+  const userData = path.join(dir, 'user-data');
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, md], { env, stdio: 'ignore' });
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
 
@@ -202,7 +204,8 @@ const stats = (values) => {
   } finally {
     proc.kill();
     if (process.platform === 'win32') spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-    fs.rmSync(dir, { recursive: true, force: true });
+    // Electronの終了は非同期で、ユーザーデータのファイルが、しばらく使用中になる。後始末の失敗は、結果に影響させない
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
   console.log(results.every(Boolean) ? '\nすべて成功' : '\n失敗あり');
   process.exit(results.every(Boolean) ? 0 : 1);

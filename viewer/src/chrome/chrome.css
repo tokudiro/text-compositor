@@ -18,6 +18,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); o
   font: 13px/1.4 "Segoe UI", "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif; user-select: none; }
 #top { position: relative; z-index: 1; background: var(--bar); }
 #toolbar { display: flex; align-items: center; gap: 2px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-height: 40px; }
+/* ツールバーを下にする設定（#200）。帯・一覧も、ツールバーの側にまとめ、ツールバーが、いちばん端に来る */
+.toolbar-bottom #top { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column-reverse; }
+.toolbar-bottom #toolbar, .toolbar-bottom #details { border-bottom: 0; border-top: 1px solid var(--line); }
 button { font: inherit; color: var(--fg); background: transparent; border: 0; border-radius: 4px; padding: 0 8px; height: 28px; cursor: pointer; }
 button:hover:not(:disabled) { background: var(--button); }
 button:active:not(:disabled) { filter: brightness(0.92); }
@@ -51,7 +54,29 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 .item .mark.error { color: var(--error-fg); } .item .mark.warning { color: var(--warn-fg); }
 .item .loc { color: var(--muted); }
 .item pre { margin: 2px 0 0 20px; color: var(--muted); font: 12px/1.4 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; }
-#empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+/* 設定画面。ウィンドウ本体の側に表示し、内容のビューは、開いている間、隠す */
+#settings { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; overflow: auto; }
+.toolbar-bottom #settings { top: 0; bottom: var(--chrome-height, 40px); }
+#settings[hidden] { display: none; }
+/* 見出しの行（左に見出し、右端に閉じるボタン）と、項目の列は、同じ幅・同じ左右の位置に揃える */
+.settings-head, .settings-body { max-width: 720px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+#settings h2 { font-size: 18px; font-weight: 600; margin: 0; }
+button.back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); padding: 0 12px; }
+button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+/* 項目は、「名前と説明」（左）と「選択肢」（右）の行。項目が増えたら、行を足す */
+.row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.row .name { font-weight: 600; }
+.row .desc { margin-top: 2px; color: var(--muted); }
+.segmented { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.segmented label { cursor: pointer; }
+.segmented label + label { border-left: 1px solid var(--line); }
+.segmented input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented span { display: block; padding: 5px 14px; white-space: nowrap; }
+.segmented label:hover span { background: var(--button); }
+.segmented input:checked + span { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+#settings .hint { margin: 16px 0 0; color: var(--muted); }#empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #empty .title { font-size: 16px; margin: 0 0 6px; }
 #empty .hint { margin: 0; color: var(--muted); }
 #empty[hidden] { display: none; }

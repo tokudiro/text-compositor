@@ -35,8 +35,9 @@ If no Python is found, the window still opens and explains what to do.
 | Action | How |
 | --- | --- |
 | Open a file | `Ctrl+O`, drag and drop a file onto the window, or pass it as a command-line argument. Opening a file while the viewer is running shows it in the existing window. |
-| Reload | `F5` / `Ctrl+R` / the **再読み込み** button. The scroll position is kept. |
-| Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%) |
+| Reload | `F5` / `Ctrl+R` / the reload button. The scroll position is kept. |
+| Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%). Clicking the percentage in the toolbar also resets it. |
+| Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **← 戻る** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
 | Show or hide error details | Click the error/warning bar |
 
 Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, `.puml`, `.d2`; `.dot` is shown as code with a warning until Graphviz is supported in HTML output, #181).
@@ -52,6 +53,12 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 
 `node scripts/check-auto-reload.js` starts the viewer and checks these behaviors and the latency (it needs Electron and the Python worker; it is not part of `npm test`).
 
+## Settings
+
+The settings screen (gear button) has two items: the **toolbar position** (top or bottom; the error bar follows the toolbar) and the **color scheme** (follow the OS, light or dark). Changes apply at once. The automatic reload toggle is saved as well.
+
+Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%\Obunzu` on Windows). A missing or broken file, or an unexpected value, falls back to the defaults, so the app always starts.
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -61,7 +68,7 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 | `VIEWER_GPU=1` | Use the standard Chromium GPU settings instead of `--disable-gpu --in-process-gpu` |
 | `VIEWER_TRACE=1` | Print startup timings to stderr |
 | `VIEWER_DEBUG=1` | Add a "toggle developer tools" item to the View menu |
-| `VIEWER_THEME=light` / `dark` | Fix the color scheme regardless of the OS setting (for checking both looks) |
+| `VIEWER_THEME=light` / `dark` | Fix the color scheme regardless of the OS and the settings (for checking both looks) |
 
 ## Structure
 
@@ -72,8 +79,10 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 | `src/python.js` | Finds the Python for the worker |
 | `src/diagnostics.js` | Turns the worker's diagnostics into what the window shows |
 | `src/targets.js` | Which files can be opened; how links and drops are handled |
+| `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |
