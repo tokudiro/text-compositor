@@ -10,7 +10,8 @@ $('open').addEventListener('click', () => api.openDialog());
 $('reload').addEventListener('click', () => api.reload());
 $('zoom-in').addEventListener('click', () => api.zoomIn());
 $('zoom-out').addEventListener('click', () => api.zoomOut());
-$('auto-reload').addEventListener('change', (event) => api.setAutoReload(event.target.checked));
+$('zoom').addEventListener('click', () => api.zoomReset());
+$('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reload').getAttribute('aria-checked') !== 'true'));
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
 
 // ドラッグ＆ドロップ。ファイルへ、ページが遷移してしまわないように、既定の動作を止める。
@@ -27,11 +28,17 @@ function render(state) {
   lastState = state;
   const d = state.diagnostics;
 
-  $('file').textContent = state.file ? state.file : '';
+  // ファイル名を主にして、フォルダは、控えめに添える。全体は、ホバーで表示する
+  const split = state.file ? Math.max(state.file.lastIndexOf('\\'), state.file.lastIndexOf('/')) : -1;
+  $('file-name').textContent = state.file ? state.file.slice(split + 1) : '';
+  $('file-dir').textContent = split > 0 ? state.file.slice(0, split) : '';
   $('file').title = state.file ?? '';
   $('zoom').textContent = `${state.zoomPercent}%`;
-  $('auto-reload').checked = state.autoReload;
+  $('auto-reload').setAttribute('aria-checked', String(state.autoReload));
+  $('auto-reload').title = `保存したら自動で更新する（${state.autoReload ? 'オン' : 'オフ'}）`;
   $('reload').disabled = !state.file || state.busy;
+  // 文書が無いときは、拡大縮小の対象が無い
+  for (const id of ['zoom-in', 'zoom-out', 'zoom']) $(id).disabled = !state.hasDocument;
   $('busy').hidden = !state.busy;
   $('status').textContent = state.busy ? '' : state.status;
   // 案内は、何も開いていないときだけ。ファイルを開いている最中に、「開いてください」と出さない

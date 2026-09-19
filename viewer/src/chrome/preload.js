@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('viewer', {
   setAutoReload: (value) => ipcRenderer.send('auto-reload', value),
   zoomIn: () => ipcRenderer.send('zoom', 1),
   zoomOut: () => ipcRenderer.send('zoom', -1),
+  zoomReset: () => ipcRenderer.send('zoom-reset'),
   openPath: (filePath) => ipcRenderer.send('open-path', filePath),
   pathForFile: (file) => webUtils.getPathForFile(file),
   setChromeHeight: (height) => ipcRenderer.send('chrome-height', height),
