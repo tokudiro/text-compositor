@@ -26,3 +26,6 @@ benchmarks/gui-startup/cs/obj/
 benchmarks/gui-startup/rs/target/
 benchmarks/gui-startup/pub-slim/
 benchmarks/gui-startup/pdfium/
+
+# 作業用の一時ファイル置き場
+temp/
