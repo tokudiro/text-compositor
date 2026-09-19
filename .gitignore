@@ -15,8 +15,14 @@ doc/test_spec/*.pdf
 # viewer-csharp/ (.NET) と viewer-rust/ (Cargo) のビルド成果物（#99）
 viewer-csharp/bin/
 viewer-csharp/obj/
-viewer-rust/target/
 
 # 組込版Python（embeddable Python）の検証用一時展開先・配布物（#102）
 viewer-csharp/python-embed/
 viewer-csharp/*.zip
+
+# GUI版Viewerの起動時間の計測用アプリ（#166）のビルド成果物
+benchmarks/gui-startup/cs/bin/
+benchmarks/gui-startup/cs/obj/
+benchmarks/gui-startup/rs/target/
+benchmarks/gui-startup/pub-slim/
+benchmarks/gui-startup/pdfium/

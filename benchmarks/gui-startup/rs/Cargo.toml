@@ -1,0 +1,12 @@
+[package]
+name = "startup-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "=0.36.2", default-features = false, features = ["glow", "default_fonts"] }
+egui = "=0.36.2"
+pdfium-render = "=0.9.4"
+
+[profile.release]
+opt-level = 3
