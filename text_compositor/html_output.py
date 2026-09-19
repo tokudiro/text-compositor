@@ -44,6 +44,17 @@ _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
 
+# Markdown・図のほかに、開けるファイル（#196）: `.txt`（等幅の素のテキスト）・`.csv`（表）・`.svg`（画像）。
+# それ以外（`.yaml`・`.json`・ソースコード・拡張子なし・未知の拡張子・バイナリ）は、案内つきのエラーにする
+# （`.yaml`・`.json`・ソースコードのハイライト表示は、別のissue #218）。
+TEXT_FILE_EXT = '.txt'
+CSV_FILE_EXT = '.csv'
+SVG_FILE_EXT = '.svg'
+# 大きなファイルは、先頭のこの大きさだけを読む（表示が、固まらないように。1 MBで約2秒、2 MBで約10秒かかった）。
+TEXT_MAX_BYTES = 512 * 1024
+# 中身がバイナリか判断する範囲。この範囲にNUL文字があれば、バイナリとする。
+_SNIFF_BYTES = 8192
+
 # 出力するHTMLは、スクリプトを含まない（原稿の文字は、すべてエスケープする）。念のため、スクリプトとプラグインを、
 # ブラウザ側でも禁止する。Viewerは、この文書を、JavaScriptを有効にしたビューで開く（ドロップの受け口のため。#190）。
 CONTENT_SECURITY_POLICY = "script-src 'none'; object-src 'none'; base-uri 'none'"
@@ -65,7 +76,9 @@ ul.contains-task-list { list-style: none; padding-left: 1em; }
 code { font: 0.9em/1.4 "Cascadia Mono", Consolas, Menlo, monospace; background: var(--code-bg); padding: 0.15em 0.35em; border-radius: 4px; }
 pre { background: var(--code-bg); padding: 12px 16px; border-radius: 6px; overflow: auto; }
 pre code { background: none; padding: 0; font-size: 0.875em; }
-blockquote { margin-left: 0; padding: 0 1em; color: var(--muted); border-left: 4px solid var(--line); }
+table.csv td, table.csv th { overflow-wrap: anywhere; }
+pre.plain-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.5 "Cascadia Mono", Consolas, Menlo, monospace; tab-size: 4; }
+.text-note { color: var(--muted); border-left: 4px solid var(--line); padding: 0.25em 1em; margin: 0 0 1em; }blockquote { margin-left: 0; padding: 0 1em; color: var(--muted); border-left: 4px solid var(--line); }
 table { border-collapse: collapse; }
 th, td { border: 1px solid var(--line); padding: 6px 12px; vertical-align: top; }
 th { background: var(--code-bg); }
@@ -214,19 +227,24 @@ class HtmlRenderer(TypstRenderer):
         self._pagebreaks = 0
         self._line_base = 0
         self.dependencies = set()
-        with open(md_path, "r", encoding="utf-8") as f:
-            text = f.read()
-
         ext = os.path.splitext(md_path)[1].lower()
-        if ext in ('.md', '.markdown'):
-            if self.variables is not None:
-                text = self._substitute_variables(text, md_path)
-            body = self._render_markdown(text)
-        elif ext in self.DIAGRAM_FILE_EXTS:
-            body = self._diagram_source_html(self.DIAGRAM_FILE_EXTS[ext], text)
+        if ext in ('.md', '.markdown', *self.DIAGRAM_FILE_EXTS):
+            with open(md_path, "r", encoding="utf-8") as f:
+                text = f.read()
+            if ext in ('.md', '.markdown'):
+                if self.variables is not None:
+                    text = self._substitute_variables(text, md_path)
+                body = self._render_markdown(text)
+            else:
+                body = self._diagram_source_html(self.DIAGRAM_FILE_EXTS[ext], text)
+        elif ext == TEXT_FILE_EXT:
+            body = self._plain_text_html(md_path)
+        elif ext == CSV_FILE_EXT:
+            body = self._csv_html(md_path)
+        elif ext == SVG_FILE_EXT:
+            body = self._svg_file_html(md_path)
         else:
-            diagnostics.error(f"Unsupported file type for HTML output: {ext or md_path}", file=md_path)
-            sys.exit(1)
+            self._unsupported_file(md_path, ext)
         if self._pagebreaks:
             diagnostics.info(f"Ignored {self._pagebreaks} '<!-- pagebreak -->' in HTML output.", file=md_path)
 
@@ -238,6 +256,89 @@ class HtmlRenderer(TypstRenderer):
             f"<title>{escapeHtml(title)}</title>\n<style>\n{DOCUMENT_CSS}</style>\n</head>\n"
             f"<body>\n<main>\n{body}</main>\n</body>\n</html>\n"
         )
+
+    # -- Markdown・図以外のファイル（#196） -------------------------------------------
+
+    SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot など）・"
+                             "テキスト（.txt）・CSV（.csv）・SVG（.svg）です。")
+
+    def _unsupported_file(self, path: str, ext: str) -> None:
+        name = os.path.basename(path)
+        detail = self.SUPPORTED_FILES_GUIDE
+        if ext in ('.yaml', '.yml', '.json') or ext in ('.py', '.js', '.ts', '.toml', '.xml', '.ini', '.sh', '.css'):
+            detail += "設定ファイル・ソースコードの表示は、今後対応する予定です（#218）。"
+        elif ext in ('.html', '.htm'):
+            detail += "HTMLは、スクリプトを実行しないため、開きません。"
+        diagnostics.error(f"'{name}' cannot be opened: the file type '{ext or '(no extension)'}' is not supported.",
+                          file=path, detail=detail)
+        sys.exit(1)
+
+    def _read_utf8(self, path: str) -> tuple:
+        """UTF-8（BOMなし）のテキストとして読む。(文字列, 切ったか, ファイルの大きさ)。テキストでない・UTF-8でなければ、
+        案内つきのエラー。大きなファイルは、先頭の`TEXT_MAX_BYTES`だけを読み、切れた末尾の1文字は、捨てる。"""
+        import codecs
+        name = os.path.basename(path)
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            data = f.read(TEXT_MAX_BYTES + 1)
+        truncated = len(data) > TEXT_MAX_BYTES
+        data = data[:TEXT_MAX_BYTES]
+
+        reason = None
+        if data.startswith(b"\xef\xbb\xbf"):
+            reason = "BOMつきのUTF-8です。"
+        elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
+            reason = "UTF-16です。"
+        elif b"\x00" in data[:_SNIFF_BYTES]:
+            diagnostics.error(f"'{name}' is a binary file, not text, so it cannot be shown.", file=path,
+                              detail="バイナリのファイル（画像・PDFなど）は、開けません。" + self.SUPPORTED_FILES_GUIDE)
+            sys.exit(1)
+        else:
+            try:
+                return codecs.getincrementaldecoder("utf-8")("strict").decode(data, final=not truncated), truncated, size
+            except UnicodeDecodeError:
+                reason = "UTF-8として読めない文字があります（Shift_JISなどの可能性があります）。"
+        diagnostics.error(f"'{name}' is not UTF-8 (without BOM), so it cannot be shown.", file=path,
+                          detail=f"{reason}文字コードは、UTF-8（BOMなし）だけに対応しています。UTF-8（BOMなし）で保存し直してください。")
+        sys.exit(1)
+
+    def _truncation_note(self, path: str, size: int, what: str) -> str:
+        """大きなファイルを、途中で切ったときの、ページの先頭の案内。警告の診断も出す。"""
+        name = os.path.basename(path)
+        limit = f"{TEXT_MAX_BYTES // 1024} KB"
+        diagnostics.warning(f"'{name}' is large ({size} bytes); only the first {limit} is shown.", file=path)
+        return (f'<p class="text-note">ファイルが大きいため、先頭の約{limit}（{what}）だけを表示しています'
+                f'（全体は、約{size / 1024 / 1024:.1f} MB）。</p>\n')
+
+    def _plain_text_html(self, path: str) -> str:
+        """`.txt`を、等幅の素のテキストにする。Markdownとしては、解釈しない（`#`や`-`が、見出しやリストに化けないように）。"""
+        text, truncated, size = self._read_utf8(path)
+        note = self._truncation_note(path, size, "文字数で約" + f"{len(text):,}" + "文字") if truncated else ""
+        return f'{note}<pre class="plain-text">{escapeHtml(text)}</pre>\n'
+
+    def _csv_html(self, path: str) -> str:
+        """`.csv`を、表にする。1行目は、見出し行（PDF出力と同じ）。列の数が足りない行は、空のセルで、そろえる。"""
+        import csv
+        import io
+        text, truncated, size = self._read_utf8(path)
+        if truncated:
+            text = text[:text.rfind("\n") + 1] if "\n" in text else text   # 途中で切れた最後の行は、捨てる
+        rows = [row for row in csv.reader(io.StringIO(text, newline="")) if row]
+        note = self._truncation_note(path, size, f"{len(rows):,}行") if truncated else ""
+        if not rows:
+            return f'{note}<p class="text-note">空のCSVファイルです。</p>\n'
+        width = max(len(row) for row in rows)
+        cells = lambda row, tag: "".join(f"<{tag}>{escapeHtml(cell)}</{tag}>" for cell in row + [""] * (width - len(row)))
+        head = f"<thead><tr>{cells(rows[0], 'th')}</tr></thead>"
+        body = "".join(f"<tr>{cells(row, 'td')}</tr>\n" for row in rows[1:])
+        return f'{note}<table class="csv">\n{head}\n<tbody>\n{body}</tbody>\n</table>\n'
+
+    def _svg_file_html(self, path: str) -> str:
+        """`.svg`を、画像として表示する。ファイルそのものを`<img>`で参照するため、スクリプトは、実行されず、
+        ファイルを保存し直すと、自動で更新される（`dependencies`）。"""
+        self.dependencies.add(os.path.abspath(path))
+        name = os.path.basename(path)
+        return f'<div class="diagram diagram-svg"><img src="{escapeHtml(self._url_for(os.path.abspath(path)))}" alt="{escapeHtml(name)}"></div>\n'
 
     def _diagram_source_html(self, kind: str, code: str) -> str:
         """図の単体ファイル（.mmd・.puml・.d2）の中身を、図1つのページにする。"""

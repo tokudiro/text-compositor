@@ -9,6 +9,7 @@ import pytest
 
 import text_compositor.build as build
 from text_compositor.api import HtmlResult, Session, render_html
+from text_compositor import html_output
 from text_compositor.html_output import DOCUMENT_CSS
 
 PLAIN = {"mermaid": False, "plantuml": False, "d2": False}
@@ -75,11 +76,12 @@ class TestApi:
         assert not result.ok and result.html_path is None
         assert result.errors and "not found" in result.errors[0].message
 
-    def test_an_unsupported_file_type_is_an_error(self, tmp_path):
-        md = tmp_path / "data.csv"
-        write(md, "a,b\n1,2\n")
-        result = render_html(str(md), plugins=PLAIN)
-        assert not result.ok and "Unsupported" in result.errors[0].message
+    def test_an_unsupported_file_type_is_an_error_that_says_what_can_be_opened(self, tmp_path):
+        other = tmp_path / "data.bin"
+        other.write_bytes(b"\x00\x01\x02binary\x00")
+        result = render_html(str(other), plugins=PLAIN)
+        assert not result.ok and "not supported" in result.errors[0].message
+        assert "Markdown（.md）" in result.errors[0].detail
 
     def test_a_closed_session_fails_cleanly(self, tmp_path):
         md = tmp_path / "a.md"
@@ -330,6 +332,122 @@ def _luminance(hex_color):
 def _contrast(a, b):
     la, lb = sorted((_luminance(a), _luminance(b)), reverse=True)
     return (la + 0.05) / (lb + 0.05)
+
+def plain(html):
+    """テキストファイルのページの、`<pre>`の中身（エスケープされたまま）。"""
+    return html.split('<pre class="plain-text">', 1)[1].split("</pre>", 1)[0]
+
+
+def error_of(tmp_path, name, content):
+    path = tmp_path / name
+    path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+    result = render_html(str(path), plugins=PLAIN)
+    assert not result.ok, name
+    return result.errors[0]
+
+
+class TestTextFiles:
+    """`.txt`・`.csv`・`.svg`の表示と、対象外のファイルの案内（#196）。"""
+
+    def test_a_txt_file_is_shown_as_plain_text_not_as_markdown(self, tmp_path):
+        text = "# not a heading\n- not a list\n    indented **not bold**\n\n<b>tag</b> & more\n"
+        result, html = convert(tmp_path, text, name="memo.txt")
+        assert result.ok and not result.warnings
+        assert "<h1>" not in html and "<ul>" not in html and "<strong>" not in html
+        assert plain(html) == "# not a heading\n- not a list\n    indented **not bold**\n\n&lt;b&gt;tag&lt;/b&gt; &amp; more\n"
+        assert "<title>memo</title>" in html
+
+    def test_an_empty_txt_file_is_shown_empty(self, tmp_path):
+        result, html = convert(tmp_path, "", name="empty.txt")
+        assert result.ok and plain(html) == ""
+
+    @pytest.mark.parametrize("name", ["settings.yaml", "data.json", "script.py", "page.html", "README", "app.log", "image.png", "doc.pdf"])
+    def test_other_files_are_an_error_with_a_guide(self, tmp_path, name):
+        error = error_of(tmp_path, name, "content")
+        assert "cannot be opened" in error.message
+        assert "Markdown（.md）" in error.detail and "テキスト（.txt）" in error.detail
+
+    def test_settings_files_and_source_code_point_to_the_follow_up_issue(self, tmp_path):
+        for name in ("a.yaml", "a.yml", "a.json", "a.py"):
+            assert "#218" in error_of(tmp_path, name, "x").detail, name
+
+    def test_html_is_never_opened(self, tmp_path):
+        error = error_of(tmp_path, "page.html", "<script>alert(1)</script>")
+        assert "スクリプトを実行しない" in error.detail
+
+    def test_only_utf8_without_bom_is_accepted(self, tmp_path):
+        bom = error_of(tmp_path, "bom.txt", b"\xef\xbb\xbfabc")
+        assert "not UTF-8" in bom.message and "BOMつきのUTF-8" in bom.detail
+        utf16 = error_of(tmp_path, "u16.txt", "hello".encode("utf-16"))
+        assert "not UTF-8" in utf16.message and "UTF-16" in utf16.detail
+        sjis = error_of(tmp_path, "sjis.txt", "日本語のメモ".encode("cp932"))
+        assert "not UTF-8" in sjis.message and "Shift_JIS" in sjis.detail
+        assert "UTF-8（BOMなし）で保存し直して" in sjis.detail
+
+    def test_a_txt_file_with_nul_bytes_is_a_binary_error(self, tmp_path):
+        error = error_of(tmp_path, "a.txt", b"text\x00with a nul")
+        assert "binary file" in error.message
+
+    def test_a_large_txt_file_is_cut_at_the_limit_with_a_note_and_a_warning(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(html_output, "TEXT_MAX_BYTES", 1000)
+        md = tmp_path / "big.txt"
+        md.write_text("あ" * 2000, encoding="utf-8")   # 1文字3バイト。1000バイトは、文字の途中で切れる
+        result = render_html(str(md), plugins=PLAIN)
+        html = open(result.html_path, encoding="utf-8").read()
+        assert result.ok and any("large" in w.message for w in result.warnings)
+        assert "ファイルが大きいため、先頭の約" in html
+        shown = plain(html)
+        assert set(shown) == {"あ"} and len(shown) == 333   # 切れた1文字は、捨てる
+
+    def test_the_default_limit_is_512_kb(self):
+        assert html_output.TEXT_MAX_BYTES == 512 * 1024
+
+
+class TestCsvFiles:
+    def test_a_csv_file_becomes_a_table_with_a_header_row(self, tmp_path):
+        result, html = convert(tmp_path, 'name,qty,note\nりんご,10,"甘い, 赤い"\nみかん,3,\n', name="items.csv")
+        assert result.ok
+        table = html.split('<table class="csv">', 1)[1].split("</table>", 1)[0]
+        assert "<thead><tr><th>name</th><th>qty</th><th>note</th></tr></thead>" in table
+        assert "<tr><td>りんご</td><td>10</td><td>甘い, 赤い</td></tr>" in table
+        assert "<tr><td>みかん</td><td>3</td><td></td></tr>" in table
+
+    def test_cells_are_escaped_and_short_rows_are_padded(self, tmp_path):
+        _, html = convert(tmp_path, 'a,b,c\n<i>x</i>,"line1\nline2"\n', name="x.csv")
+        assert "<td>&lt;i&gt;x&lt;/i&gt;</td>" in html and "<i>" not in html.split("<tbody>", 1)[1]
+        assert "<td>line1\nline2</td><td></td>" in html   # 列が足りない行は、空のセルで、そろえる
+
+    def test_an_empty_csv_says_so(self, tmp_path):
+        result, html = convert(tmp_path, "", name="empty.csv")
+        assert result.ok and "空のCSVファイルです" in html and "<table" not in html
+
+    def test_a_large_csv_is_cut_at_a_whole_row(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(html_output, "TEXT_MAX_BYTES", 50)
+        body = "h1,h2\n" + "".join(f"row{i:03d},value\n" for i in range(100))
+        result, html = convert(tmp_path, body, name="big.csv")
+        assert result.ok and any("large" in w.message for w in result.warnings)
+        assert "ファイルが大きいため" in html
+        cells = html.split("<tbody>", 1)[1].split("</tbody>", 1)[0]
+        assert cells.count("<tr>") >= 1 and "<td>row000</td><td>value</td>" in cells
+        assert cells.rstrip().endswith("</tr>")   # 切れた行が、混ざらない
+
+    def test_a_csv_with_a_bom_or_other_encoding_is_an_error(self, tmp_path):
+        assert "not UTF-8" in error_of(tmp_path, "b.csv", b"\xef\xbb\xbfa,b\n").message
+        assert "not UTF-8" in error_of(tmp_path, "s.csv", "名前,数\n".encode("cp932")).message
+
+
+class TestSvgFiles:
+    SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script><rect width="10" height="10"/></svg>'
+
+    def test_an_svg_file_is_shown_as_an_image_and_never_inlined(self, tmp_path):
+        result, html = convert(tmp_path, self.SVG, name="pic.svg")
+        assert result.ok
+        assert '<img src="../pic.svg" alt="pic.svg">' in html
+        assert "<script>alert(1)</script>" not in html   # ファイルの中身は、ページに入れない（<img>は、スクリプトを実行しない）
+
+    def test_the_svg_file_is_a_dependency_so_that_saving_it_updates_the_view(self, tmp_path):
+        result, _ = convert(tmp_path, self.SVG, name="pic.svg")
+        assert result.dependencies == [str(tmp_path / "pic.svg")]
 
 
 class TestDarkColors:
