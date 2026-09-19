@@ -12,6 +12,7 @@ $('zoom-in').addEventListener('click', () => api.zoomIn());
 $('zoom-out').addEventListener('click', () => api.zoomOut());
 $('zoom').addEventListener('click', () => api.zoomReset());
 $('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reload').getAttribute('aria-checked') !== 'true'));
+$('empty-open').addEventListener('click', () => api.openDialog());
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
@@ -21,9 +22,11 @@ $('settings').addEventListener('change', (event) => {
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
 
 // ドラッグ＆ドロップ。ファイルへ、ページが遷移してしまわないように、既定の動作を止める。
-window.addEventListener('dragover', (event) => event.preventDefault());
+window.addEventListener('dragover', (event) => { event.preventDefault(); document.body.classList.add('dragging'); });
+window.addEventListener('dragleave', (event) => { if (!event.relatedTarget) document.body.classList.remove('dragging'); });
 window.addEventListener('drop', (event) => {
   event.preventDefault();
+  document.body.classList.remove('dragging');
   const file = event.dataTransfer?.files?.[0];
   if (file) api.openPath(api.pathForFile(file));
 });

@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { DEFAULTS, loadSettings, normalizeSettings, saveSettings } = require('../src/settings');
+const { DEFAULTS, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
 
 function temporaryFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-settings-'));
@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, window: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, window: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 } };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -57,4 +57,19 @@ test('saving creates the folder, and a failure is reported without throwing', ()
   fs.writeFileSync(blocker, 'x');
   assert.equal(saveSettings(path.join(blocker, 'settings.json'), DEFAULTS), false);
   fs.rmSync(dir, { recursive: true });
+});
+
+test('a saved window state is kept, with the position only when both x and y are valid', () => {
+  assert.deepEqual(normalizeWindow({ x: 100, y: -20, width: 1000.4, height: 800, maximized: true }),
+    { width: 1000, height: 800, maximized: true, x: 100, y: -20 });
+  assert.deepEqual(normalizeWindow({ x: 100, width: 900, height: 700 }), { width: 900, height: 700, maximized: false });
+  assert.deepEqual(normalizeWindow({ x: 'a', y: 5, width: 900, height: 700, maximized: 'yes' }),
+    { width: 900, height: 700, maximized: false });
+});
+
+test('an unusable window size drops the whole window state (the default size is used)', () => {
+  for (const value of [null, 3, 'x', [], {}, { width: 10, height: 700 }, { width: 900, height: 10 },
+    { width: 'wide', height: 700 }, { width: 99999, height: 700 }, { width: NaN, height: 700 }]) {
+    assert.equal(normalizeWindow(value), null, JSON.stringify(value));
+  }
 });
