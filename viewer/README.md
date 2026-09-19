@@ -93,6 +93,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `scripts/check-window-state.js` | Checks that the window size, position and maximized state come back after a restart (manual, Windows only) |
 | `scripts/build-dist.js` | Builds the Windows portable ZIP (Electron + embeddable Python + minimal packages + notices) |
 | `scripts/check-dist.js` | Runs the unpacked distribution with Python hidden from the environment and checks it (manual, Windows only) |
+| `scripts/check-embed-dependencies.py` | Checks that the embedded Python needs only bundled or standard Windows DLLs (needs `pefile`; manual) |
 | `dist-requirements.txt` | Python packages bundled in the distribution (pinned; `typst` and `playwright` are left out) |
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |

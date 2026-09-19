@@ -97,8 +97,14 @@ node scripts/check-dist.js
 
 実測（2026-09-19、開発機）: すべて成功。起動（プロセスの開始から、文書の表示まで）は、5回で、0.82〜0.90秒。開発時（`npm start`）の0.86秒と、同じ範囲である。
 
-**クリーンなWindowsでの確認は、未実施**（開発機は、Pythonがインストール済みで、上の検証は、環境変数を外したのみ。Windows Sandboxは、管理者権限と、機能の有効化が要るため、使っていない）。Pythonのない別のPCで、ZIPを展開して起動する確認を、お願いする。
+### クリーンなWindowsでの確認
 
+**実際のクリーンなWindows（Pythonが入っていない別のPC）での起動は、未実施**である（別のPCを用意するのが難しい。Windows Sandboxは、管理者権限と、機能の有効化が要るため、使っていない）。代わりに、次の2つで、確認した。
+
+1. **環境から、Pythonへの手がかりを外して起動した**（上の`check-dist.js`）。開発機には、Pythonがインストールされているが、`PATH`・`TEXT_COMPOSITOR_*`・`PYTHON*`を外しても、ワーカーは、同梱の`python-embed/python.exe`で動く。組込版Pythonは、`python312._pth`で、`sys.path`が固定され、環境変数や、インストール済みのPythonの影響を受けない。
+2. **組込版Pythonが、必要とするDLLを、すべて解析した**（`scripts/check-embed-dependencies.py`。`pefile`が要る）。`python.exe`・`python312.dll`・`*.pyd`が読み込むDLLは、**フォルダに同梱のもの**（`vcruntime140.dll`・`libcrypto-3.dll`など）か、**Windowsに標準で入っているもの**（`kernel32`・`advapi32`・`ws2_32`・`crypt32`など、と、Universal CRTを含むAPIセット）だけだった。Microsoft Visual C++の再頒布可能パッケージを、別にインストールする必要は、ない。
+
+残る不確かさは、Electron本体（Chromium）の動作環境（Windows 10以降）と、ウイルス対策ソフトや、SmartScreenの挙動である（どちらも、この環境では、確認できない）。クリーンな環境で問題が出た場合は、報告を受けて、直す。
 ## 更新の方法
 
 - **新しいZIPを取得して、展開し直す**（フォルダごと置き換える）。自動更新は、行わない（署名と、配布の基盤が要るため。必要になったら、別に検討する）。

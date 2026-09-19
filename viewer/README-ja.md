@@ -93,6 +93,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `scripts/check-window-state.js` | ウィンドウの大きさ・位置・最大化が、再起動後に戻ることを確認する（手動。Windowsのみ） |
 | `scripts/build-dist.js` | Windows向けのポータブルZIP（Electron + 組込版Python + 必要最小限のパッケージ + ライセンス表記）を作る |
 | `scripts/check-dist.js` | 展開した配布物を、Pythonへの手がかりを外した環境で起動して、確認する（手動。Windowsのみ） |
+| `scripts/check-embed-dependencies.py` | 組込版Pythonが、同梱のDLLと、Windows標準のDLLだけに依存することを確認する（`pefile`が要る。手動） |
 | `dist-requirements.txt` | 配布物に同梱するPythonのパッケージ（版を固定。`typst`と`playwright`は、外す） |
 | `scripts/build-icons.js` | `assets/icon.svg`から、`assets/icon.ico`と`assets/icon.png`を書き出す |
 | `assets/` | アプリのアイコン（元のSVGと、書き出した`.ico`・`.png`） |
