@@ -12,6 +12,7 @@ const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme,
 
 const { summarize } = require('./diagnostics');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
+const { DEFAULTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, classifyNavigation, fileFromArgv, isOpenable } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { WorkerClient } = require('./worker-client');
@@ -30,10 +31,10 @@ if (process.env.VIEWER_GPU !== '1') {
   app.commandLine.appendSwitch('in-process-gpu');
 }
 
-// 環境変数 VIEWER_THEME=light|dark で、OSの設定に関わらず、配色を固定する（画面の確認用。#192）。
-if (process.env.VIEWER_THEME === 'light' || process.env.VIEWER_THEME === 'dark') {
-  nativeTheme.themeSource = process.env.VIEWER_THEME;
-}
+// 環境変数 VIEWER_THEME=light|dark は、設定より優先して、配色を固定する（画面の確認用。#192）。
+const THEME_FROM_ENV = process.env.VIEWER_THEME === 'light' || process.env.VIEWER_THEME === 'dark'
+  ? process.env.VIEWER_THEME
+  : null;
 
 // 環境変数 VIEWER_TRACE=1 で、起動の各段階の時刻（プロセスの開始から）を、標準エラーへ出す。
 const trace = process.env.VIEWER_TRACE
@@ -45,10 +46,15 @@ const state = {
   busy: false,
   status: '',
   zoomPercent: 100,
-  autoReload: true,      // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）
+  autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
   hasDocument: false,    // 内容を表示しているか
+  fullScreen: false,     // 全画面表示のとき、ツールバーを隠す（#200）
+  settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
+  settings: { ...DEFAULTS },
   diagnostics: summarize([]),
 };
+
+let settingsFile = null;
 
 let win = null;
 let contentView = null;
@@ -76,6 +82,10 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     trace('app-ready');
+    settingsFile = path.join(app.getPath('userData'), 'settings.json');
+    state.settings = loadSettings(settingsFile);
+    state.autoReload = state.settings.autoReload;
+    applyTheme();
     createWindow();
     watcher = new FileWatcher({ onChange: onFilesChanged });
     Menu.setApplicationMenu(buildMenu());
@@ -137,7 +147,16 @@ function createWindow() {
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
   contents.on('did-finish-load', () => contents.setZoomLevel(zoomLevel));
 
-  win.on('resize', layout);
+  win.on('resize', () => {
+    // 全画面の出入りは、サイズの変化として、確実に届く（イベントの発火に頼らない）
+    if (win.isFullScreen() !== state.fullScreen) syncFullScreen();
+    else layout();
+  });
+  win.on('enter-full-screen', syncFullScreen);
+  win.on('leave-full-screen', syncFullScreen);
+  handleEscape(win.webContents);
+  handleEscape(contents);
+  nativeTheme.on('updated', applyBackground);
   layout();
   trace('window-created');
 }
@@ -146,9 +165,77 @@ function createWindow() {
 function layout() {
   if (!win || !contentView) return;
   const [width, height] = win.getContentSize();
-  contentView.setBounds(state.hasDocument
-    ? { x: 0, y: chromeHeight, width, height: Math.max(0, height - chromeHeight) }
-    : { x: 0, y: chromeHeight, width: 0, height: 0 });
+  // ツールバーが下のときは、内容が、画面の上端から始まる（帯・一覧も、ツールバーの側に、まとまる）
+  const y = state.settings.toolbarPosition === 'bottom' ? 0 : chromeHeight;
+  // 設定画面を開いている間も、内容のビューを隠す（設定は、ウィンドウ本体の側に表示するため）
+  contentView.setBounds(state.hasDocument && !state.settingsOpen
+    ? { x: 0, y, width, height: Math.max(0, height - chromeHeight) }
+    : { x: 0, y, width: 0, height: 0 });
+}
+
+// -- 全画面表示（#200）。ブラウザと同じく、F11で切り替え、EscまたはF11で戻す --------------
+
+function toggleFullScreen() {
+  if (win) win.setFullScreen(!win.isFullScreen());
+}
+
+/** 全画面のとき、ツールバーを隠す。エラーの帯は、見落とさないように、隠さない。 */
+function syncFullScreen() {
+  state.fullScreen = win.isFullScreen();
+  trace(`full-screen ${state.fullScreen}`);
+  push();
+  layout();
+}
+
+/**
+ * どちらのビューにフォーカスがあっても、Escで、全画面から戻る。全画面でなければ、設定画面を閉じる
+ * （文書の側は、キーを受けないため、メインプロセスで受ける）。
+ */
+function handleEscape(webContents) {
+  webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.key !== 'Escape') return;
+    if (win?.isFullScreen()) {
+      event.preventDefault();
+      win.setFullScreen(false);
+    } else if (state.settingsOpen) {
+      event.preventDefault();
+      setSettingsOpen(false);
+    }
+  });
+}
+
+// -- 設定（#200） -------------------------------------------------------------
+
+function applyTheme() {
+  nativeTheme.themeSource = THEME_FROM_ENV ?? state.settings.theme;
+}
+
+/** 配色が変わったとき（設定・OSの切り替え）、起動時に合わせた背景色も、合わせ直す。 */
+function applyBackground() {
+  const background = nativeTheme.shouldUseDarkColors ? '#0d1117' : '#ffffff';
+  win?.setBackgroundColor(background);
+  contentView?.setBackgroundColor(background);
+}
+
+function setSettingsOpen(open) {
+  state.settingsOpen = Boolean(open);
+  layout();
+  push();
+  // 閉じたら、文書へフォーカスを戻す（スクロール・キー操作が、そのまま使える）
+  if (!state.settingsOpen && state.hasDocument) contentView.webContents.focus();
+}
+
+/** 設定を1つ変えて、すぐに反映し、保存する。想定外のキー・値は、無視する。 */
+function changeSetting(key, value) {
+  if (!Object.hasOwn(DEFAULTS, key)) return;
+  const next = normalizeSettings({ ...state.settings, [key]: value });
+  if (next[key] !== value) return;
+  state.settings = next;
+  if (key === 'theme') applyTheme();
+  if (key === 'autoReload') state.autoReload = next.autoReload;
+  saveSettings(settingsFile, state.settings);
+  layout();
+  push();
 }
 
 function push() {
@@ -266,10 +353,9 @@ async function onFilesChanged(paths) {
 }
 
 function setAutoReload(value) {
-  state.autoReload = Boolean(value);
+  changeSetting('autoReload', Boolean(value));   // 設定として保存し、次の起動でも保つ
   const item = Menu.getApplicationMenu()?.getMenuItemById('auto-reload');
   if (item) item.checked = state.autoReload;
-  push();
 }
 
 function clock() {
@@ -290,7 +376,7 @@ async function showHtml(md, html, sameDocument, dependencies = []) {
   await loaded;
   shown = { md, html, deps: dependencies };
   if (!state.hasDocument) { state.hasDocument = true; layout(); }
-  contents.focus();
+  if (!state.settingsOpen) contents.focus();
 }
 
 // -- ナビゲーション・ズーム -------------------------------------------------------
@@ -337,7 +423,7 @@ function buildMenu() {
         { label: '開く…', accelerator: 'CommandOrControl+O', click: () => openWithDialog() },
         { label: '再読み込み', accelerator: 'F5', click: reload },
         { label: '再読み込み', accelerator: 'CommandOrControl+R', click: reload, visible: false },
-        { id: 'auto-reload', label: '保存したら自動で更新', type: 'checkbox', checked: true, click: (item) => setAutoReload(item.checked) },
+        { id: 'auto-reload', label: '保存したら自動で更新', type: 'checkbox', checked: state.autoReload, click: (item) => setAutoReload(item.checked) },
         { type: 'separator' },
         { label: '終了', accelerator: 'CommandOrControl+Q', click: () => app.quit() },
       ],
@@ -349,6 +435,9 @@ function buildMenu() {
         { label: '拡大', accelerator: 'CommandOrControl+=', click: () => zoomBy(1), visible: false },
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
+        { type: 'separator' },
+        { label: '全画面表示', accelerator: 'F11', click: toggleFullScreen },
+        { label: '設定…', accelerator: 'CommandOrControl+,', click: () => setSettingsOpen(!state.settingsOpen) },
         ...(process.env.VIEWER_DEBUG ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
       ],
     },
@@ -362,4 +451,6 @@ ipcMain.on('reload', reload);
 ipcMain.on('auto-reload', (_event, value) => setAutoReload(value));
 ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
+ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
+ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') openFile(filePath); });

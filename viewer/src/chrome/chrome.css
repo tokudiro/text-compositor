@@ -18,6 +18,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); o
   font: 13px/1.4 "Segoe UI", "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif; user-select: none; }
 #top { position: relative; z-index: 1; background: var(--bar); }
 #toolbar { display: flex; align-items: center; gap: 2px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-height: 40px; }
+/* 全画面では、ツールバーを隠す。エラーの帯・詳細の一覧は、残す */
+.fullscreen #toolbar { display: none; }
+/* ツールバーを下にする設定（#200）。帯・一覧も、ツールバーの側にまとめ、ツールバーが、いちばん端に来る */
+.toolbar-bottom #top { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column-reverse; }
+.toolbar-bottom #toolbar, .toolbar-bottom #details { border-bottom: 0; border-top: 1px solid var(--line); }
 button { font: inherit; color: var(--fg); background: transparent; border: 0; border-radius: 4px; padding: 0 8px; height: 28px; cursor: pointer; }
 button:hover:not(:disabled) { background: var(--button); }
 button:active:not(:disabled) { filter: brightness(0.92); }
@@ -51,6 +56,16 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 .item .mark.error { color: var(--error-fg); } .item .mark.warning { color: var(--warn-fg); }
 .item .loc { color: var(--muted); }
 .item pre { margin: 2px 0 0 20px; color: var(--muted); font: 12px/1.4 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; }
+/* 設定画面。ウィンドウ本体の側に表示し、内容のビューは、開いている間、隠す */
+#settings { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; overflow: auto; padding: 32px 48px; }
+.toolbar-bottom #settings { top: 0; bottom: var(--chrome-height, 40px); }
+#settings[hidden] { display: none; }
+#settings h2 { font-size: 18px; font-weight: 600; margin: 0 0 20px; }
+#settings fieldset { border: 0; padding: 0; margin: 0 0 20px; }
+#settings legend { padding: 0; margin-bottom: 8px; color: var(--muted); }
+#settings label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+#settings input { accent-color: var(--accent); margin: 0; }
+#settings .hint { margin: 24px 0 0; color: var(--muted); }
 #empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #empty .title { font-size: 16px; margin: 0 0 6px; }
 #empty .hint { margin: 0; color: var(--muted); }
