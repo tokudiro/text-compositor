@@ -326,6 +326,7 @@ result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
 
 ### 診断の構造化
 
+* **図の描画の失敗の診断**（[#202](https://github.com/tokudiro/text-compositor/issues/202)）: Mermaid・PlantUML・D2の描画に失敗したとき、`message`は短い要約（`mermaid diagram failed to render`など）、ツールの出力は`detail`、位置は`file`・`line`（HTML出力では、原稿でのフェンスの行）で返す。Mermaidの出力からは、ブラウザ内部のスタック（`    at ...`の行）を省く。CLIの表示は、従来どおり（`[Error] mermaid rendering failed for <原稿>:`と、ツールの出力）である（`cli_text`）。
 * **診断の受け皿**（`text_compositor.diagnostics`）: `build.py`の`[Error]`・`[Warning]`・`[Hint]`の出力は、`_error()`・`_warn()`・`_hint()`を通す。`collect()`の外（CLI）では、従来どおり標準出力へ`[Error] ...`の形式で出す（**CLIの出力は変わらない**。全ページ画像の一致で確認した）。中（Python API）では、標準出力へは出さず、`Diagnostic`として集める。`contextvars`で持つため、スレッドをまたいでも混ざらない。
 * **`file`・`line`が入る場合**: (1)Typstのコンパイルエラーと警告: `temp_build.typ`の行を、#27のsrcmapで元のMarkdownの位置へ逆引きする（最初の位置を`file`・`line`にし、整形済みの全文を`detail`に入れる）。(2)レンダラーが出す、原稿に紐づく警告とエラー: `file`は処理中の原稿。`line`は、トークンの行、またはインライン要素（HTML等）では、直近のブロックの開始行（近似）。(3)それ以外（環境の不備等）: どちらもNone。
 * **CLIの警告の位置**: 上記の近似を取り入れたため、インラインHTMLの警告の位置表示が、`:?`から、直近のブロックの行番号に変わった（唯一のCLI出力の変更。原稿の位置が分かる場合だけ）。

@@ -59,10 +59,16 @@ function render(state) {
   const showBanner = d.hasError || d.warnings > 0;
   $('banner').hidden = !showBanner;
   $('banner').classList.toggle('warning', !d.hasError);
-  $('banner-text').textContent = d.hasError ? `変換エラー: ${d.banner}` : `警告 ${d.warnings} 件`;
   // エラーが新しく出たときは、詳細を、自動で開く
   if (d.hasError && !previousErrors) detailsOpen = true;
   if (!showBanner) detailsOpen = false;
+
+  // 帯は、要約だけ。詳細を開いているときは、一覧が同じ内容を出すため、帯は、件数の見出しにする（同じ文を2回出さない）
+  const counts = `${d.hasError ? `変換エラー ${d.errors} 件` : ''}${d.hasError && d.warnings > 0 ? '・' : ''}${d.warnings > 0 ? `警告 ${d.warnings} 件` : ''}`;
+  const summary = d.hasError ? `変換エラー: ${d.banner}${d.errors > 1 ? `（ほか ${d.errors - 1} 件）` : ''}` : `警告 ${d.warnings} 件: ${d.warningBanner}`;
+  $('banner-text').textContent = detailsOpen ? counts : summary;
+  $('banner-text').title = detailsOpen ? '' : summary;
+  $('banner-toggle').textContent = detailsOpen ? '閉じる' : '詳細';
 
   const details = $('details');
   details.hidden = !(showBanner && detailsOpen);
@@ -72,7 +78,7 @@ function render(state) {
 
 function itemElement(item) {
   const root = document.createElement('div');
-  root.className = 'item';
+  root.className = `item ${item.severity}`;
   const head = document.createElement('div');
   head.className = 'head';
   const mark = document.createElement('span');

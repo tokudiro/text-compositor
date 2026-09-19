@@ -291,21 +291,22 @@ class HtmlRenderer(TypstRenderer):
     def _fenced_html(self, lang: str, code: str, width, height, line=None) -> str:
         """フェンス1つ分。図は`<img>`に、それ以外（未対応・無効な図を含む）は、コードブロックにする。"""
         if lang in _DIAGRAM_LANGS:
-            svg_path = self._diagram_svg_path(lang, code)
+            svg_path = self._diagram_svg_path(lang, code, line)
             if svg_path is not None:
                 return self._diagram_html(lang, svg_path, width, height)
         elif lang in _UNSUPPORTED_FENCES:
             self._warn_line(f"{_UNSUPPORTED_FENCES[lang]}; showing the source as a code block.", line)
         return self._code_block(code, lang)
 
-    def _diagram_svg_path(self, lang: str, code: str) -> Optional[str]:
-        """図のSVGファイルのパス。無効なプラグインの図は、Noneを返す（呼び出し側が、コード表示にする）。"""
+    def _diagram_svg_path(self, lang: str, code: str, line=None) -> Optional[str]:
+        """図のSVGファイルのパス。無効なプラグインの図は、Noneを返す（呼び出し側が、コード表示にする）。
+        line: 描画に失敗したとき、診断に付ける、原稿でのフェンスの行。"""
         if lang == 'mermaid':
-            return self._mermaid_svg_path(code)
+            return self._mermaid_svg_path(code, line)
         if lang == 'plantuml':
-            return self._plantuml_svg_path(code)
+            return self._plantuml_svg_path(code, line)
         if lang == 'd2':
-            return self._d2_svg_path(code)
+            return self._d2_svg_path(code, line)
         return self._svg_fence_path(code)
 
     def _diagram_html(self, lang: str, svg_path: str, width, height) -> str:

@@ -46,10 +46,14 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 #banner { display: flex; gap: 12px; padding: 6px 12px; cursor: pointer; background: var(--error-bg); color: var(--error-fg); }
 #banner.warning { background: var(--warn-bg); color: var(--warn-fg); }
 #banner[hidden], #details[hidden] { display: none; }
-#banner-text { flex: 1; user-select: text; }
+/* 帯は、1行の要約。長いときは、省略して、全文は、ホバーと、詳細の一覧で見せる */
+#banner-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
 #banner-toggle { text-decoration: underline; white-space: nowrap; }
 #details { max-height: 180px; overflow: auto; padding: 6px 12px; border-bottom: 1px solid var(--line); user-select: text; }
-.item { margin: 2px 0 6px; }
+/* エラーと警告は、左の線の色でも見分ける */
+.item { margin: 2px 0 6px; padding-left: 8px; border-left: 3px solid transparent; }
+.item.error { border-left-color: var(--error-fg); }
+.item.warning { border-left-color: var(--warn-fg); }
 .item .head { display: flex; gap: 8px; }
 .item .mark.error { color: var(--error-fg); } .item .mark.warning { color: var(--warn-fg); }
 .item .loc { color: var(--muted); }
@@ -76,7 +80,10 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 .segmented label:hover span { background: var(--button); }
 .segmented input:checked + span { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
-#settings .hint { margin: 16px 0 0; color: var(--muted); }#empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#settings .hint { margin: 16px 0 0; color: var(--muted); }
+/* 案内は、ツールバー・帯・一覧を除いた、空き領域の中央に置く（一覧が長くても、重ならない） */
+.toolbar-bottom #empty { top: 0; bottom: var(--chrome-height, 40px); }
+#empty { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #empty .title { font-size: 16px; margin: 0 0 6px; }
 #empty .hint { margin: 0; color: var(--muted); }
 #empty[hidden] { display: none; }

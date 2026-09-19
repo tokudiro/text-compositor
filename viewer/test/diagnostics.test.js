@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { describe, test } = require('node:test');
 
-const { formatLocation, summarize, visibleDiagnostics } = require('../src/diagnostics');
+const { formatLocation, splitMessage, summarize, visibleDiagnostics } = require('../src/diagnostics');
 
 describe('formatLocation', () => {
   test('file name and line', () => {
@@ -43,5 +43,32 @@ describe('summarize', () => {
 
   test('an error without a location has no parentheses', () => {
     assert.equal(summarize([{ severity: 'error', message: 'boom' }]).banner, 'boom');
+  });
+
+  test('errors and warnings are counted, and the first warning is summarized', () => {
+    const summary = summarize(diagnostics);
+    assert.deepEqual([summary.errors, summary.warnings], [1, 1]);
+    assert.equal(summary.warningBanner, 'image not found（a.md:3）');
+    assert.equal(summarize([]).warningBanner, '');
+  });
+});
+
+describe('a long message is split into a summary and a detail (#202)', () => {
+  test('only the first line is the summary; the rest goes to the detail', () => {
+    const { message, detail } = splitMessage('rendering failed for a.md:\nParse error on line 3\n  ^', null);
+    assert.equal(message, 'rendering failed for a.md:');
+    assert.equal(detail, 'Parse error on line 3\n  ^');
+  });
+
+  test('an existing detail is kept after the extra lines; a single line has no detail', () => {
+    assert.equal(splitMessage('short', null).detail, null);
+    assert.equal(splitMessage('short', 'compile output').detail, 'compile output');
+    assert.equal(splitMessage('first\nsecond', 'compile output').detail, 'second\ncompile output');
+  });
+
+  test('the banner shows the summary only, so the same long text does not appear twice', () => {
+    const summary = summarize([{ severity: 'error', message: 'failed:\nlong original text', file: '/x/a.md', line: 5 }]);
+    assert.equal(summary.banner, 'failed:（a.md:5）');
+    assert.equal(summary.items[0].detail, 'long original text');
   });
 });

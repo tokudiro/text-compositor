@@ -1355,9 +1355,17 @@ class TypstRenderer:
         """現在処理中の原稿（current_file）の位置つきで警告を出す（Python APIの診断のfile/line、#167）。"""
         _warn(message, file=self.current_file or None, line=line)
 
-    def _error_here(self, message, line=None):
+    def _error_here(self, message, line=None, **kwargs):
         """現在処理中の原稿（current_file）の位置つきでエラーを出す（呼び出し側が、sys.exitで止める）。"""
-        _error(message, file=self.current_file or None, line=line)
+        _error(message, file=self.current_file or None, line=line, **kwargs)
+
+    def _diagram_error(self, tool, output, line=None):
+        """図の描画の失敗を、エラーとして出す（呼び出し側が、sys.exitで止める）。
+        messageは短い要約にし、ツールの出力は、detailへ入れる（Viewerが、帯には要約だけを出し、詳細を別に見せる。#202）。
+        CLIの表示は、従来どおり（原稿のパスと、ツールの出力を、そのまま出す）。"""
+        output = (output or "").strip()
+        self._error_here(f"{tool} diagram failed to render", line=line, detail=output or None,
+                         cli_text=f"{tool} rendering failed for {self.current_file}:\n{output}")
 
     def _warn_html(self, t):
         line_no = self._line_of(t)
@@ -1493,9 +1501,10 @@ class TypstRenderer:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _mermaid_svg_path(self, code):
+    def _mermaid_svg_path(self, code, line=None):
         """mermaidの図のSVG（キャッシュ）のパスを返す。無ければ、ヘッドレスブラウザで描画して作る。
-        plugins.mermaid: falseなら、何も作らずNoneを返す（呼び出し側が、素のコード表示にフォールバックする）。"""
+        plugins.mermaid: falseなら、何も作らずNoneを返す（呼び出し側が、素のコード表示にフォールバックする）。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行（分かる場合）。"""
         if not self.mermaid_enabled:
             if not self._mermaid_disabled_warned:
                 _log_info(f"plugins.mermaid is disabled; leaving ```mermaid fences as plain code (first seen in {self.current_file}).")
@@ -1518,7 +1527,9 @@ class TypstRenderer:
                 )
             except Exception as e:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                self._error_here(f"mermaid rendering failed for {self.current_file}:\n{e}")
+                # ブラウザの例外に付く、mermaid.jsの内部のスタック（"    at ..."の行）は、原因の理解に役立たないため省く
+                message = "\n".join(l for l in str(e).splitlines() if not re.match(r"\s+at ", l))
+                self._diagram_error("mermaid", message, line)
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(svg)
@@ -1559,9 +1570,9 @@ class TypstRenderer:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _plantuml_svg_path(self, code):
+    def _plantuml_svg_path(self, code, line=None):
         """plantumlの図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのjava+plantuml.jarで作る。
-        plugins.plantuml: falseなら、何も作らずNoneを返す。"""
+        plugins.plantuml: falseなら、何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
         if not self.plantuml_enabled:
             if not self._plantuml_disabled_warned:
                 _log_info(f"plugins.plantuml is disabled; leaving ```plantuml fences as plain code (first seen in {self.current_file}).")
@@ -1587,7 +1598,7 @@ class TypstRenderer:
                 sys.exit(1)
             if result.returncode != 0:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                self._error_here(f"PlantUML rendering failed for {self.current_file}:\n{result.stderr}")
+                self._diagram_error("PlantUML", result.stderr, line)
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
@@ -1623,9 +1634,9 @@ class TypstRenderer:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _d2_svg_path(self, code):
+    def _d2_svg_path(self, code, line=None):
         """d2の図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのD2で作る。
-        plugins.d2: falseなら、何も作らずNoneを返す。"""
+        plugins.d2: falseなら、何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
         if not self.d2_enabled:
             if not self._d2_disabled_warned:
                 _log_info(f"plugins.d2 is disabled; leaving ```d2 fences as plain code (first seen in {self.current_file}).")
@@ -1651,7 +1662,7 @@ class TypstRenderer:
                 sys.exit(1)
             if result.returncode != 0:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                self._error_here(f"d2 rendering failed for {self.current_file}:\n{result.stderr}")
+                self._diagram_error("d2", result.stderr, line)
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
