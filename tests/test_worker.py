@@ -4,10 +4,11 @@ import json
 import os
 import subprocess
 import sys
+import threading
 
 import pytest
 
-from text_compositor import worker
+from text_compositor import build, worker
 from text_compositor.api import BuildResult, HtmlResult
 from text_compositor.diagnostics import Diagnostic
 
@@ -246,7 +247,7 @@ class TestProcess:
         code = (
             "import os, sys\n"
             "import text_compositor.worker as w\n"
-            "def fake_serve(stdin, out):\n"
+            "def fake_serve(stdin, out, **kwargs):\n"
             "    print('stray print')\n"
             "    os.write(1, b'stray fd write\\n')\n"
             "    out.write('{\"event\": \"x\"}\\n'); out.flush()\n"
@@ -259,3 +260,112 @@ class TestProcess:
         assert proc.returncode == 0
         assert proc.stdout == b'{"event": "x"}\n'
         assert b"stray print" in proc.stderr and b"stray fd write" in proc.stderr
+
+
+class TestHostMermaid:
+    """Mermaidの描画を、呼び出し元（ViewerのElectron）に任せる通信（#207）。呼び出し元の役は、テストが演じる。
+    mermaid.min.jsの取得は、差し替える（ネットワークを使わない）。"""
+
+    FENCE_DOC = "# T\n\n本文。\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
+
+    def _drive(self, tmp_path, monkeypatch, on_event, doc=FENCE_DOC, requests=1):
+        """ワーカー（serve）を、スレッドで動かし、render_htmlを`requests`回依頼する。`on_event(event, host_in)`が、描画の依頼に応える。
+        戻り値: (各依頼の応答, 出たイベントの一覧)。"""
+        monkeypatch.setattr(build, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
+        md = tmp_path / "doc.md"
+        md.write_text(doc, encoding="utf-8")
+        stdin_r, stdin_w = os.pipe()
+        out_r, out_w = os.pipe()
+        stdin = io.TextIOWrapper(os.fdopen(stdin_r, "rb"), encoding="utf-8")
+        out = io.TextIOWrapper(os.fdopen(out_w, "wb"), encoding="utf-8", newline="\n", write_through=True)
+        host_in = os.fdopen(stdin_w, "w", encoding="utf-8", newline="\n")
+        host_out = os.fdopen(out_r, "r", encoding="utf-8")
+        thread = threading.Thread(target=worker.serve, args=(stdin, out, True), daemon=True)
+        thread.start()
+
+        events, responses = [], []
+        assert json.loads(host_out.readline())["event"] == "ready"
+        plugins = {"mermaid": True, "plantuml": False, "d2": False}
+        for number in range(1, requests + 1):
+            host_in.write(json.dumps({"id": number, "method": "render_html", "params": {"path": str(md), "plugins": plugins}}) + "\n")
+            host_in.flush()
+            while True:
+                line = host_out.readline()
+                if not line:
+                    break
+                message = json.loads(line)
+                if message.get("event") == "render_mermaid":
+                    events.append(message)
+                    on_event(message, host_in)
+                    continue
+                responses.append(message)
+                break
+        try:
+            host_in.write('{"id": 99, "method": "shutdown"}\n')
+            host_in.close()
+        except (OSError, ValueError):   # 依頼の途中で、ホスト側が閉じた場合
+            pass
+        thread.join(timeout=10)
+        assert not thread.is_alive()
+        host_out.close()
+        return responses, events
+
+    @staticmethod
+    def _reply(number, **fields):
+        return json.dumps({"callback": number, **fields}) + "\n"
+
+    def test_the_host_renders_the_diagram_and_the_result_is_cached(self, tmp_path, monkeypatch):
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>from the host</text></svg>'
+
+        def on_event(event, host_in):
+            host_in.write(self._reply(event["callback"], ok=True, svg=svg))
+            host_in.flush()
+
+        responses, events = self._drive(tmp_path, monkeypatch, on_event, requests=2)
+        assert [r["ok"] for r in responses] == [True, True]
+        assert len(events) == 1   # 2回目は、キャッシュ。ホストに、頼まない
+        event = events[0]
+        assert event["code"] == "graph TD\n  A --> B\n"
+        assert event["js"] == "fake-mermaid.min.js" and event["diagram_id"].startswith("mermaid-")
+        html = open(responses[0]["html"], encoding="utf-8").read()
+        assert '<img src="' in html and 'alt="mermaid diagram"' in html
+        cached = list((tmp_path / ".text-compositor" / "cache").glob("mermaid_*.svg"))
+        assert len(cached) == 1 and cached[0].read_text(encoding="utf-8") == svg
+        assert build._mermaid_host_renderer is None   # 終わったら、外す
+
+    def test_a_render_error_from_the_host_is_a_diagnostic_with_the_line(self, tmp_path, monkeypatch):
+        def on_event(event, host_in):
+            host_in.write(self._reply(event["callback"], ok=False, error="Parse error on line 3:\n  A --> \n----^"))
+            host_in.flush()
+
+        responses, _ = self._drive(tmp_path, monkeypatch, on_event)
+        assert responses[0]["ok"] is False
+        error = [d for d in responses[0]["diagnostics"] if d["severity"] == "error"][0]
+        assert error["message"] == "mermaid diagram failed to render"
+        assert error["line"] == 5 and "Parse error on line 3" in error["detail"]
+
+    def test_lines_that_are_not_the_awaited_reply_are_ignored(self, tmp_path, monkeypatch):
+        def on_event(event, host_in):
+            host_in.write("not json\n")
+            host_in.write(self._reply(event["callback"] + 100, ok=True, svg="<svg>other</svg>"))
+            host_in.write(self._reply(event["callback"], ok=True, svg="<svg>mine</svg>"))
+            host_in.flush()
+
+        responses, _ = self._drive(tmp_path, monkeypatch, on_event)
+        assert responses[0]["ok"] is True
+        cached = list((tmp_path / ".text-compositor" / "cache").glob("mermaid_*.svg"))[0]
+        assert cached.read_text(encoding="utf-8") == "<svg>mine</svg>"
+
+    def test_a_host_that_disappears_fails_the_diagram_instead_of_hanging(self, tmp_path, monkeypatch):
+        def on_event(event, host_in):
+            host_in.close()   # 応えずに、標準入力を閉じる
+
+        responses, _ = self._drive(tmp_path, monkeypatch, on_event)
+        assert responses[0]["ok"] is False
+        error = [d for d in responses[0]["diagnostics"] if d["severity"] == "error"][0]
+        assert "closed the connection" in error["detail"]
+
+    def test_without_the_flag_the_host_hook_is_not_installed(self, tmp_path):
+        assert build._mermaid_host_renderer is None
+        worker.serve(io.StringIO(""), io.StringIO())
+        assert build._mermaid_host_renderer is None

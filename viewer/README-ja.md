@@ -65,7 +65,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 ## 配布物（Windows）
 
-`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約162 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。HTML出力に必要なパッケージだけ）と、サードパーティのライセンス表記（`licenses/`）です。`typst`（PDF専用）と`playwright`（Mermaid用）は、同梱しないため、**このZIPでは、Mermaidの図は、まだ表示されません**（#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。
+`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約162 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。HTML出力に必要なパッケージだけ）と、サードパーティのライセンス表記（`licenses/`）です。`typst`（PDF専用）と`playwright`は、同梱しません。Mermaidの図は、Electron自身のChromiumで描画します（`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。
 ## 環境変数
 
 | 変数 | 意味 |
@@ -86,6 +86,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `src/python.js` | ワーカーを動かすPythonを探す |
 | `src/diagnostics.js` | ワーカーの診断を、画面に出す形にする |
 | `src/targets.js` | 開けるファイルの判定と、リンク・ドロップの扱い |
+| `src/mermaid-host.js` | ワーカーの依頼で、非表示のウィンドウに、Mermaidの図を描画する（#207） |
 | `src/settings.js` | 設定の読み書き（壊れていても、既定値で動く） |
 | `src/watcher.js` | 開いているファイルと、参照するファイルを監視する |
 | `scripts/check-auto-reload.js` | Viewerを起動して、自動更新を確認する（手動） |

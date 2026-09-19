@@ -30,12 +30,14 @@ const STDERR_TAIL_LINES = 40;
 class WorkerClient {
   /**
    * @param {{file: string, args: string[], env?: Record<string,string>, cwd?: string}} launch
-   * @param {{startTimeoutMs?: number, requestTimeoutMs?: number}} [options]
+   * @param {{startTimeoutMs?: number, requestTimeoutMs?: number, services?: Record<string, (payload: object) => Promise<any>>}} [options]
+   *   services: ワーカーが、依頼の処理中に、こちらへ頼んでくる処理（`render_mermaid`など。#207）。名前は、イベントの名前。
    */
   constructor(launch, options = {}) {
     this._launch = launch;
     this._startTimeoutMs = options.startTimeoutMs ?? 60_000;
     this._requestTimeoutMs = options.requestTimeoutMs ?? 300_000;
+    this._services = options.services ?? {};
     this._proc = null;
     this._ready = null;
     this._pending = new Map();
@@ -184,6 +186,7 @@ class WorkerClient {
         try { message = JSON.parse(line); } catch { return; }   // JSONでない行は、通信の対象外
         if (message === null || typeof message !== 'object' || Array.isArray(message)) return;
         if (message.event === 'ready') { settle(resolve); return; }
+        if (typeof message.event === 'string' && typeof message.callback === 'number') { this._serve(proc, message); return; }
         if (typeof message.id === 'number') {
           const pending = this._pending.get(message.id);
           if (pending) { this._pending.delete(message.id); pending.resolve(message); }
@@ -207,6 +210,28 @@ class WorkerClient {
         }
       });
     });
+  }
+
+  /**
+   * ワーカーからの、処理の依頼（`{event, callback, ...}`）に応える（#207）。結果は、`{callback, ok, ...}`の1行で返す。
+   * 処理を持たないイベント・処理の失敗は、`ok: false`で返す（ワーカーが、待ち続けないように）。
+   */
+  async _serve(proc, message) {
+    const { event, callback, ...payload } = message;
+    const service = this._services[event];
+    let reply;
+    try {
+      if (!service) throw new Error(`未対応の依頼です: ${event}`);
+      const svg = await service(payload);
+      reply = { callback, ok: true, svg };
+    } catch (error) {
+      reply = { callback, ok: false, error: String(error?.message ?? error) };
+    }
+    try {
+      proc.stdin.write(`${JSON.stringify(reply)}\n`);
+    } catch {
+      /* ワーカーが終了している。終了は、'exit'で扱う */
+    }
   }
 
   /**

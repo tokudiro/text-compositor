@@ -6,7 +6,8 @@
 //   - 環境変数（PATH・TEXT_COMPOSITOR_*・PYTHON*）から、Pythonを、すべて外して起動しても、文書が表示される。
 //   - ワーカーが、同梱の python-embed/python.exe で動いている（PATH上のPythonではない）。
 //   - 日本語のファイル名・フォルダ名の原稿も、表示できる。
-//   - 変換エラーは、帯に出る（ワーカーが、標準出力で、エラーを返せる）。
+//   - Mermaidの図が、playwrightもシステムのブラウザもなしで、ElectronのChromiumで描画され、表示される（#207）。
+//   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
 //   - 同梱しないもの（typst・playwright）が、なくても、HTML出力は成功する。
 
 const { execFileSync, spawn } = require('node:child_process');
@@ -32,9 +33,9 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`);
 }
 
-async function connect() {
+async function connect(match = 'chrome.html') {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  const ws = new WebSocket(targets.find((t) => t.url.includes('chrome.html')).webSocketDebuggerUrl);
+  const ws = new WebSocket(targets.find((t) => t.url.includes(match)).webSocketDebuggerUrl);
   await new Promise((resolve) => ws.addEventListener('open', resolve));
   let id = 0;
   const pending = new Map();
@@ -53,22 +54,23 @@ function workerPythonPaths() {
   return out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 }
 
-async function runCase(name, markdown, file, expect) {
+async function runCase(name, markdown, file, expect, wait = 6000, extraEnv = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-dist-'));
   // 最小の環境: Windowsの基本のフォルダだけ。Pythonへの手がかりを、すべて外す。
   const env = { SystemRoot: process.env.SystemRoot, windir: process.env.windir, TEMP: process.env.TEMP, TMP: process.env.TMP,
     USERPROFILE: process.env.USERPROFILE, APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA,
-    PATH: `${process.env.SystemRoot}\\System32;${process.env.SystemRoot}` };
+    PATH: `${process.env.SystemRoot}\\System32;${process.env.SystemRoot}`, ...extraEnv };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, markdown);
   const proc = spawn(exe, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, file], { env, stdio: 'ignore' });
   try {
-    await sleep(6000);
+    await sleep(wait);
     const evaluate = await connect();
+    const content = await connect('preview.html').catch(() => null);   // 文書のビュー（表示できなかったときは、無い）
     const state = JSON.parse(await evaluate("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "file: document.getElementById('file-name').textContent })"));
-    expect(state, workerPythonPaths());
+    await expect(state, workerPythonPaths(), { chrome: evaluate, content });
   } finally {
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
     await sleep(1500);
@@ -89,10 +91,30 @@ async function main() {
   await runCase('日本語のフォルダ名・ファイル名', '# 日本語のパス\n\n本文。\n', path.join(work, '日本語のフォルダ', '原稿 その1.md'), (state) => {
     check('日本語のパスの原稿が、表示される', /更新/.test(state.status) && state.banner === '' && state.file === '原稿 その1.md', JSON.stringify(state));
   });
-  await runCase('変換エラー', '# エラー\n\n```mermaid\ngraph TD\n  A --> B\n```\n', path.join(work, 'error.md'), (state) => {
-    // Mermaidは、playwrightを同梱しないため、この配布物では、エラーとして、帯に出る（#168の記録）
-    check('Mermaidは、未対応であることが、帯に出る（エラーで落ちない）', state.banner !== '', JSON.stringify(state));
-  });
+  // Mermaid（#207）。playwrightもシステムのブラウザも使わず、ElectronのChromiumで描画される。
+  // 初回の図は、mermaid.min.jsの取得（未取得なら、数秒）と、描画用のウィンドウの準備を含むため、長めに待つ。
+  const mermaidDoc = '# Mermaid\n\n```mermaid\ngraph LR\n  A[開始] --> B[終了]\n```\n\n'
+    + '```mermaid\nsequenceDiagram\n  Viewer->>Worker: render_html\n  Worker-->>Viewer: SVG\n```\n';
+  await runCase('Mermaidの図', mermaidDoc, path.join(work, 'mermaid.md'), async (state, _pythons, { content }) => {
+    check('Mermaidを含む文書が、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram-mermaid img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('2つのMermaidの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
+    console.log(`   初回の変換（Mermaid 2図、準備を含む）: ${state.status}`);
+  }, 12000);
+  // キャッシュがない環境（初めて使う人）: mermaid.min.js（約3.4 MB）を、組込版Pythonが、HTTPSで取得できること。
+  // （キャッシュの場所は、環境変数ではなく、Windowsのフォルダ設定で決まるため、取得の処理を、直接呼んで確認する）
+  const fetchCheck = 'import hashlib, os, tempfile; from text_compositor import build\n'
+    + 'p = os.path.join(tempfile.mkdtemp(), "m.js"); build._download(build.MERMAID_JS_URL, p)\n'
+    + 'print(hashlib.sha256(open(p, "rb").read()).hexdigest() == build.MERMAID_JS_SHA256)';
+  const fetched = execFileSync(path.join(appDir, 'python-embed', 'python.exe'), ['-c', fetchCheck], {
+    encoding: 'utf8', env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
+      APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` } });
+  check('組込版Pythonが、HTTPSで、mermaid.min.jsを取得でき、SHA256が一致する（初回の取得）', fetched.trim() === 'True', fetched.trim());
+  await runCase('Mermaidの構文エラー', '# エラー\n\n本文。\n\n```mermaid\ngraph TD\n  A --> \n  B[[[\n```\n', path.join(work, 'error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('error.md:5'), JSON.stringify(item.head));
+    check('Mermaidのエラーの内容が、詳細に出る', /Parse error/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);

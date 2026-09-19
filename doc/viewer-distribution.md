@@ -30,8 +30,8 @@ Obunzu-0.3.0-win-x64/
 | Pythonのパッケージ（`markdown-it-py`・`mdurl`・`mdit-py-plugins`・`PyYAML`・`platformdirs`）と、`text_compositor` | 同梱 | 約2.3 MB（`text_compositor`は0.6 MB、`markdown_it`は0.4 MB、`yaml`は0.7 MB） |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
 | **`typst`**（PDF用のコンパイラ） | **同梱しない** | 約59 MB（外した分） |
-| **`playwright`**（Mermaidの描画用） | **同梱しない** | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
-| PlantUML・D2・Mermaid用のブラウザ・Noto Sans JP | 同梱しない（下の表） | - |
+| **`playwright`**（Mermaid用のブラウザ操作） | **同梱しない**。Mermaidは、Electronで描画する（下記） | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
+| PlantUML・D2・Noto Sans JP | 同梱しない（下の表） | - |
 
 ### `typst`を、同梱から外せるか（結果: 外せる。外した）
 
@@ -48,18 +48,27 @@ Obunzu-0.3.0-win-x64/
 | PlantUMLの`plantuml-mit-1.2026.6.jar` | `plantuml`の図 | 約16.8 MB | GitHub Releases（`plantuml/plantuml`） |
 | Java（Eclipse Temurin JRE 21） | `plantuml`の図。システムにJava 11以上があれば、それを使う | 約49.7 MB（取得）、展開後 約144.5 MB | GitHub Releases（`adoptium/temurin21-binaries`） |
 | D2のCLI（v0.9.0） | `d2`の図。システムに`d2`があれば、それを使う | 約13 MB（取得）、展開後 約40.8 MB | GitHub Releases（`d2lang/d2`） |
-| `mermaid.min.js` | `mermaid`の図 | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
+| `mermaid.min.js` | `mermaid`の図（取得は、組込版Python。描画は、Electron） | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
 | Noto Sans JP | **PDF専用**（Viewerは、HTML出力で、使わない） | 約8.8 MB | GitHub Releases（`notofonts/noto-cjk`） |
 
 サイズは、`build.py`の記載と、実際にキャッシュされたファイルの実測による。PlantUMLとD2は、初回の描画で、取得のために、数秒〜数十秒かかる（回線による）。
 
-### Mermaidについて（この配布物の制限）
+### Mermaidについて（Electronで描画する。#207）
 
-Mermaidの描画は、Pythonの`playwright`で、システムのChromeまたはEdgeを起動して行う。この配布物は、`playwright`を同梱しないため、**Mermaidの図は、この配布物では、エラーになる**（帯に、変換エラーとして出る）。
+**Mermaidは、Electron自身のChromiumで描画する**。Pythonの`playwright`（約106 MB）と、システムのChrome・Edgeは、要らない。
 
-- 代わりに、**Electron自身のChromiumで描画する**ことを、検討した。非表示のウィンドウで`mermaid.render()`を呼ぶと、準備に約0.3秒（1回だけ）、描画に16〜51 msで、構文エラーも、例外で返る。描画できることと、速いことを、確認した。
-- 実装は、別のissue（[#207](https://github.com/tokudiro/text-compositor/issues/207)）で行う。それまでの、Mermaidの利用は、開発環境（Python + `playwright` + Chrome・Edge）に限られる。
+- **仕組み**: Pythonのワーカーが、Mermaidのフェンスに出会うと、標準出力（JSON行）で、描画をElectronに依頼する。Electronは、非表示のウィンドウに、`mermaid.min.js`を読み込み、`mermaid.render()`でSVGにして、標準入力で返す（プロトコルは、仕様書14章）。`mermaid.min.js`の取得（SHA256の確認・キャッシュ）は、Pythonが行い、ファイルのパスを渡す。描画用のウィンドウは、最初の図で、1回だけ作る（起動を遅くしないため）。
+- **速さ**（実測。2回目以降は、SVGが、原稿の隣の`.text-compositor/cache/`に、キャッシュされる）:
 
+| | 従来（Python + `playwright` + Chrome・Edge） | Electronで描画 |
+|---|---|---|
+| 最初のMermaidの図を含む変換（`check-auto-reload.js`。図を1つ変えた場合） | 1.6〜1.8秒 | **約0.47秒**（描画用のウィンドウの準備を含む） |
+| 配布物で、Mermaidの図を2つ含む文書の、初回の変換 | （配布物では、動かなかった） | 約0.31〜0.35秒 |
+| 2回目以降（図を変えた場合） | 約0.2秒 | 約0.2秒（変わらない） |
+
+- **配布物での確認**: `check-dist.js`が、`playwright`もシステムのブラウザもない配布物で、2つのMermaidの図が表示されること、構文エラーが原稿の行つきで帯・一覧に出ること、組込版Pythonが、HTTPSで`mermaid.min.js`を取得できること（SHA256が一致）を、確認する。
+- **Electronの外**（CLI・Python API）は、従来どおり、`playwright`を使う（環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`でワーカーを起動したときだけ、Electronに任せる）。
+- **配色**は、従来と同じ設定（`htmlLabels: false`。Mermaidの既定のテーマ）にした。そのため、ダークの文書では、図の線・矢印・ラベルが、暗い背景に溶けて、読みにくい（従来から同じ。#207の確認で気づき、[#209](https://github.com/tokudiro/text-compositor/issues/209)にした）。
 ## ライセンス表記
 
 - 配布物の`licenses/`に、`THIRD-PARTY-NOTICES.md`（一覧）と、各ライセンスの全文を入れる。ビルドが、パッケージのメタデータ（`*.dist-info`）から、自動で作る。
@@ -93,7 +102,7 @@ node scripts/check-dist.js
 - 文書が表示される。
 - ワーカーが、同梱の`python-embed/python.exe`で動いている。
 - 日本語のフォルダ名・ファイル名の原稿が、表示できる。
-- Mermaidの図は、エラーとして、帯に出る（落ちない）。
+- Mermaidの図が、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`mermaid.min.js`を取得できる。
 
 実測（2026-09-19、開発機）: すべて成功。起動（プロセスの開始から、文書の表示まで）は、5回で、0.82〜0.90秒。開発時（`npm start`）の0.86秒と、同じ範囲である。
 
@@ -113,5 +122,5 @@ node scripts/check-dist.js
 
 ## 関連
 
-- [#165](https://github.com/tokudiro/text-compositor/issues/165) Viewer（親）、[#172](https://github.com/tokudiro/text-compositor/issues/172) CI（配布物のビルドと添付）、[#171](https://github.com/tokudiro/text-compositor/issues/171) 配布環境での図の描画の実機検証、[#207](https://github.com/tokudiro/text-compositor/issues/207) Mermaidの描画をElectronで行う
+- [#165](https://github.com/tokudiro/text-compositor/issues/165) Viewer（親）、[#172](https://github.com/tokudiro/text-compositor/issues/172) CI（配布物のビルドと添付）、[#171](https://github.com/tokudiro/text-compositor/issues/171) 配布環境での図の描画の実機検証、[#207](https://github.com/tokudiro/text-compositor/issues/207) Mermaidの描画をElectronで行う（実装済み）
 - [gui-viewer-spike.md](gui-viewer-spike.md) 組込版Pythonの同梱方式のスパイク（#99・#102）
