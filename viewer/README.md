@@ -43,7 +43,7 @@ If no Python is found, the window still opens and explains what to do.
 
 Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, `.puml`, `.d2`; `.dot` is shown as code with a warning until Graphviz is supported in HTML output, #181).
 
-While a conversion runs, a "変換中…" indicator is shown. If it fails, the last successful display stays on screen and the cause (with the Markdown line, when known) is listed under the toolbar. Web links in a document open in the default browser; a link or dropped file that points to a Markdown file opens in the viewer. Nothing else can navigate the viewer away from the document.
+While a conversion runs, a "変換中…" indicator is shown. If it fails, the last successful display stays on screen. The error bar shows a one-line summary; a new error also opens the details list, which has each item with its Markdown line (when known) and the tool's output (errors have a red mark and side line, warnings an amber one). Click the bar to close or open the list. Web links in a document open in the default browser; a link or dropped file that points to a Markdown file opens in the viewer. Nothing else can navigate the viewer away from the document.
 
 **Automatic reload**: saving the open Markdown file, or an image it references, refreshes the display (about 0.18 s after the save; the scroll position is kept). The lightning-bolt toggle in the toolbar (highlighted while on; and the View menu) turns it off. Details:
 

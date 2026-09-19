@@ -318,8 +318,8 @@ async function renderOnce(file) {
   if (result.ok && result.html) {
     await showHtml(file, result.html, sameDocument, result.dependencies);
     const total = result.timings_ms.total;
-    const warnings = state.diagnostics.warnings > 0 ? ` ／ 警告 ${state.diagnostics.warnings} 件` : '';
-    state.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}${warnings}`;
+    // 警告の件数は、帯に出るため、状態の表示には、入れない（同じ内容を2か所に出さない）
+    state.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}`;
     win?.setTitle(`${path.basename(file)} - ${APP_TITLE}`);
     trace('content-shown');
   } else {
