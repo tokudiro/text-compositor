@@ -112,17 +112,22 @@ async function main() {
     r.page?.tableHead.length === 0 && r.page.tableRows === 3 && r.csvButton.checked === 'false' && r.saved?.csvHeader === false, JSON.stringify({ head: r.page?.tableHead, rows: r.page?.tableRows, saved: r.saved?.csvHeader }));
   r = await open(write('other.txt', 'text\n'));
   check('.csv以外では、見出しの切り替えのボタンが出ない', r.csvButton.hidden === true);
-  // 図の単体ファイル（Mermaid・PlantUML・D2）は、図として表示される。Graphviz（.dot・.gv）は、対応する（#181）まで、コードで表示され、警告が出る。
+  // 図の単体ファイル（Mermaid・PlantUML・D2・Graphviz）は、図として表示される。
   r = await open(write('flow.mmd', 'graph LR\n  A[開始] --> B[終了]\n'), 9000);
   check('.mmd（Mermaid）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${JSON.stringify(r.page?.images)}`);
   r = await open(write('seq.puml', '@startuml\nAlice -> Bob: Hello\n@enduml\n'), 15000);
   check('.puml（PlantUML）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   r = await open(write('graph.d2', 'A -> B: hello\n'), 12000);
   check('.d2（D2）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
+  // Graphviz（#181）。Viz.jsは、初回に取得する（キャッシュがあれば、すぐ）。ElectronのChromium上で描画する。
   for (const name of ['g.dot', 'g.gv']) {
-    r = await open(write(name, 'digraph { A -> B }\n'), 4000);
-    check(`${name}（Graphviz）は、対応する（#181）まで、コードとして表示され、警告が出る`, /警告/.test(r.state.banner) && r.page?.code?.includes('digraph'), r.state.banner);
+    r = await open(write(name, 'digraph { 開始 -> 処理 -> 終了 }\n'), 9000);
+    check(`${name}（Graphviz）が、図として表示される`, r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   }
+  r = await open(write('with-dot.md', '# 図\n\n```dot\ndigraph { rankdir=LR; 長い日本語のラベルを持つノード -> b }\n```\n\n```graphviz\ngraph { a -- b }\n```\n'), 9000);
+  check('Markdownの```dotと```graphvizが、図として表示される', r.page?.images.length === 2 && r.page.images.every(Boolean) && r.state.banner === '', `${r.state.status} ${JSON.stringify(r.page?.images)} ${r.state.banner}`);
+  r = await open(write('bad.dot', 'graph { a -- b -- }\n'), 9000);
+  check('Graphvizの構文エラーは、変換エラーとして、原因が示される', r.state.banner.includes('変換エラー') && /syntax error/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);

@@ -191,6 +191,18 @@ function writeLicenses(appDir, embed, sitePackages, apacheText) {
     '| Electron | (see the app) | MIT | https://www.electronjs.org/ | ../LICENSE |',
     '| Chromium and its components | (bundled with Electron) | various | https://www.chromium.org/ | ../LICENSES.chromium.html |',
     '',
+    '## Downloaded on first use (not bundled)',
+    '',
+    'These files are not part of this archive. They are fetched when a document needs them (pinned by version and SHA256),',
+    'and cached per user. They are listed here for transparency.',
+    '',
+    '| Component | License | Source |',
+    '| --- | --- | --- |',
+    '| Mermaid (`mermaid.min.js`) | MIT | https://github.com/mermaid-js/mermaid |',
+    '| Viz.js (`viz-global.js`; Graphviz compiled to WebAssembly) | MIT | https://github.com/mdaines/viz-js |',
+    '| Graphviz (inside Viz.js) | EPL-2.0 | https://graphviz.org/ |',
+    '| Expat (inside Viz.js) | MIT | https://libexpat.github.io/ |',
+    '',
   ];
   fs.writeFileSync(path.join(dir, 'THIRD-PARTY-NOTICES.md'), lines.join('\n'));
   return rows;
