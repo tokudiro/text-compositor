@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('viewer', {
   openDialog: () => ipcRenderer.send('open-dialog'),
   reload: () => ipcRenderer.send('reload'),
   setAutoReload: (value) => ipcRenderer.send('auto-reload', value),
+  setCsvHeader: (value) => ipcRenderer.send('csv-header', value),
   zoomIn: () => ipcRenderer.send('zoom', 1),
   zoomOut: () => ipcRenderer.send('zoom', -1),
   zoomReset: () => ipcRenderer.send('zoom-reset'),

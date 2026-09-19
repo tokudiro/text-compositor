@@ -181,7 +181,8 @@ class Session:
     def render_html(self, markdown_path: str, output_html: Optional[str] = None, *,
                     plugins: Optional[Mapping[str, Any]] = None,
                     variables: Optional[Mapping[str, Any]] = None,
-                    config: Optional[Mapping[str, Any]] = None) -> HtmlResult:
+                    config: Optional[Mapping[str, Any]] = None,
+                    csv_header: bool = True) -> HtmlResult:
         """Markdownファイル（または、図の単体ファイル`.mmd`・`.puml`・`.d2`）を、HTMLにする（#161、実験的）。
         失敗しても例外は出さず、`ok=False`の結果を返す。
 
@@ -192,12 +193,13 @@ class Session:
         markdown_path: 対象のファイル。画像等の相対パスは、このファイルの場所が基準。
         output_html: 出力先。省略時は、原稿の隣の`.text-compositor/preview.html`。
         plugins・variables・config: `build`と同じ（`config`は、config全体への上書き。上級者向け）。
+        csv_header: `.csv`の1行目を、見出し行にするか（既定`True`。`False`なら、すべての行がデータ行。#220）。
         """
         started = time.perf_counter()
         timings: Dict[str, float] = {}
         with self._lock, diagnostics.collect() as collected:
             ok, html_path, dependencies = self._render_html_locked(
-                markdown_path, output_html, plugins, variables, config, timings)
+                markdown_path, output_html, plugins, variables, config, timings, csv_header=bool(csv_header))
         timings["total"] = (time.perf_counter() - started) * 1000.0
         return HtmlResult(ok=ok, html_path=html_path if ok else None, diagnostics=list(collected.items),
                           timings_ms=timings, dependencies=dependencies if ok else [])
@@ -264,7 +266,7 @@ class Session:
                 self._mermaid.close()
 
 
-    def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings):
+    def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings, csv_header=True):
         from text_compositor import build as _build
         from text_compositor.html_output import HtmlRenderer
 
@@ -296,7 +298,7 @@ class Session:
                     d2_enabled=bool(plugins_config.get("d2", True)),
                     d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
                     variables=_build._resolve_variables(config),
-                    mermaid_browser=self._mermaid)
+                    mermaid_browser=self._mermaid, csv_header=csv_header)
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)
             timings["render"] = (time.perf_counter() - started) * 1000.0

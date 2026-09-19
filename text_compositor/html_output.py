@@ -76,7 +76,7 @@ ul.contains-task-list { list-style: none; padding-left: 1em; }
 code { font: 0.9em/1.4 "Cascadia Mono", Consolas, Menlo, monospace; background: var(--code-bg); padding: 0.15em 0.35em; border-radius: 4px; }
 pre { background: var(--code-bg); padding: 12px 16px; border-radius: 6px; overflow: auto; }
 pre code { background: none; padding: 0; font-size: 0.875em; }
-table.csv td, table.csv th { overflow-wrap: anywhere; }
+table.csv td, table.csv th { overflow-wrap: anywhere; white-space: pre-line; }   /* セル内の改行は、保つ */
 pre.plain-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.5 "Cascadia Mono", Consolas, Menlo, monospace; tab-size: 4; }
 .text-note { color: var(--muted); border-left: 4px solid var(--line); padding: 0.25em 1em; margin: 0 0 1em; }blockquote { margin-left: 0; padding: 0 1em; color: var(--muted); border-left: 4px solid var(--line); }
 table { border-collapse: collapse; }
@@ -329,6 +329,9 @@ class HtmlRenderer(TypstRenderer):
             return f'{note}<p class="text-note">空のCSVファイルです。</p>\n'
         width = max(len(row) for row in rows)
         cells = lambda row, tag: "".join(f"<{tag}>{escapeHtml(cell)}</{tag}>" for cell in row + [""] * (width - len(row)))
+        if not self.csv_header:   # 見出し行なし（#220）: すべての行が、データ行
+            body = "".join(f"<tr>{cells(row, 'td')}</tr>\n" for row in rows)
+            return f'{note}<table class="csv">\n<tbody>\n{body}</tbody>\n</table>\n'
         head = f"<thead><tr>{cells(rows[0], 'th')}</tr></thead>"
         body = "".join(f"<tr>{cells(row, 'td')}</tr>\n" for row in rows[1:])
         return f'{note}<table class="csv">\n{head}\n<tbody>\n{body}</tbody>\n</table>\n'

@@ -38,7 +38,7 @@ async function connect(match) {
 }
 
 /** ファイルを引数にして起動し、少し待って、画面の状態（帯・状態・文書の中身）を読む。 */
-async function open(arg, wait = 4500) {
+async function open(arg, wait = 4500, act = null) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-open-'));
   const args = packaged ? [] : [viewerDir];
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env }, stdio: 'ignore' });
@@ -46,6 +46,7 @@ async function open(arg, wait = 4500) {
   try {
     await sleep(wait);
     const chrome = await connect('chrome.html');
+    if (act) { await act(chrome); await sleep(3000); }
     const state = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "detail: document.querySelector('#details .item')?.textContent ?? '' })"));
@@ -55,7 +56,10 @@ async function open(arg, wait = 4500) {
       + "images: [...document.querySelectorAll('img')].map((i) => i.complete && i.naturalWidth > 0), "
       + "tableHead: [...document.querySelectorAll('table.csv th')].map((c) => c.textContent), tableRows: document.querySelectorAll('table.csv tbody tr').length, "
       + "code: document.querySelector('pre code')?.textContent ?? null })")) : null;
-    return { state, page, ms: Date.now() - started };
+    const csvButton = JSON.parse(await chrome("JSON.stringify({ hidden: document.getElementById('csv-header').hidden, checked: document.getElementById('csv-header').getAttribute('aria-checked') })"));
+    let saved = null;
+    try { saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')); } catch { /* 保存されていない */ }
+    return { state, page, csvButton, saved, ms: Date.now() - started };
   } finally {
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
     await sleep(1500);
@@ -99,6 +103,15 @@ async function main() {
   check('大きなファイル（約2 MB）は、先頭の約512 KBだけが、表示され、案内が出る（固まらない）',
     r.page?.notes.some((n) => n.includes('先頭の約512 KB')) && r.page.text.length <= 512 * 1024 && /更新/.test(r.state.status), `${r.state.status} / ${r.page?.notes}`);
 
+  // CSVの、1行目を見出しにするかの切り替え（#220）。ボタンは、.csvのときだけ出て、切り替えは、設定として覚える。
+  const csvText = 'りんご,10\nみかん,3\nぶどう,2\n';
+  r = await open(write('noheader.csv', csvText));
+  check('.csvでは、見出しの切り替えのボタンが出て、既定は、1行目が見出し', r.csvButton.hidden === false && r.csvButton.checked === 'true' && r.page?.tableHead.length === 2 && r.page.tableRows === 2, JSON.stringify(r.csvButton));
+  r = await open(write('noheader2.csv', csvText), 4500, (chrome) => chrome("document.getElementById('csv-header').click()"));
+  check('ボタンを押すと、すべての行がデータ行になり、設定として覚える',
+    r.page?.tableHead.length === 0 && r.page.tableRows === 3 && r.csvButton.checked === 'false' && r.saved?.csvHeader === false, JSON.stringify({ head: r.page?.tableHead, rows: r.page?.tableRows, saved: r.saved?.csvHeader }));
+  r = await open(write('other.txt', 'text\n'));
+  check('.csv以外では、見出しの切り替えのボタンが出ない', r.csvButton.hidden === true);
   // 図の単体ファイル（Mermaid・PlantUML・D2）は、図として表示される。Graphviz（.dot・.gv）は、対応する（#181）まで、コードで表示され、警告が出る。
   r = await open(write('flow.mmd', 'graph LR\n  A[開始] --> B[終了]\n'), 9000);
   check('.mmd（Mermaid）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${JSON.stringify(r.page?.images)}`);

@@ -13,6 +13,7 @@ $('zoom-out').addEventListener('click', () => api.zoomOut());
 $('zoom').addEventListener('click', () => api.zoomReset());
 $('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reload').getAttribute('aria-checked') !== 'true'));
 $('empty-open').addEventListener('click', () => api.openDialog());
+$('csv-header').addEventListener('click', () => api.setCsvHeader($('csv-header').getAttribute('aria-checked') !== 'true'));
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
@@ -50,6 +51,9 @@ function render(state) {
   $('file').title = state.file ?? '';
   $('zoom').textContent = `${state.zoomPercent}%`;
   $('auto-reload').setAttribute('aria-checked', String(state.autoReload));
+  $('csv-header').hidden = !state.isCsv;
+  $('csv-header').setAttribute('aria-checked', String(state.settings.csvHeader));
+  $('csv-header').title = `CSV: 1行目を見出しにする（${state.settings.csvHeader ? 'オン' : 'オフ'}）`;
   $('auto-reload').title = `保存したら自動で更新する（${state.autoReload ? 'オン' : 'オフ'}）`;
   $('reload').disabled = !state.file || state.busy;
   // 文書が無いときは、拡大縮小の対象が無い

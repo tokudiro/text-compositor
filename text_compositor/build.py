@@ -677,7 +677,11 @@ class TypstRenderer:
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
-                 mermaid_browser=None):
+                 mermaid_browser=None, csv_header=True):
+        # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
+        # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
+        self.csv_header_default = csv_header
+        self.csv_header = csv_header
         # 見出しレベルのオフセット（#68）。section配下の章で、Markdown本来のH1をH2以下へずらし、
         # sectionの章見出し（H1）の配下に入れるために使う。章ごとに_render_markdown_chapterが設定する。
         self.heading_offset = 0
@@ -855,21 +859,29 @@ class TypstRenderer:
             self._error_here(f"{self.current_file} is an empty CSV file.")
             sys.exit(1)
 
-        header, *body = rows
-        cols = len(header)
-        for row_no, row in enumerate(body, start=2):
+        # csv_header（#220）: trueなら1行目をヘッダー行にする（既定）。falseなら、すべての行がデータ行で、
+        # 列数は、1行目が決める。
+        if self.csv_header:
+            header, *body = rows
+        else:
+            header, body = None, rows
+        cols = len(rows[0])
+        for row_no, row in enumerate(rows[1:], start=2):
             if len(row) != cols:
-                self._error_here(f"{self.current_file}:{row_no}: expected {cols} columns (from the header row), "
-                                 f"got {len(row)}.", line=row_no)
+                self._error_here(f"{self.current_file}:{row_no}: expected {cols} columns (from the "
+                                 f"{'header' if self.csv_header else 'first'} row), got {len(row)}.", line=row_no)
                 sys.exit(1)
 
-        open_wrap, close_wrap = self._table_header_open_close()
-        result = [f'#table(\n  columns: {cols}{self._table_header_fill_arg()},\n  table.header(\n  ']
-        for cell in header:
-            result.append('[' + open_wrap + self.escape_typst(cell, at_line_start=True) + close_wrap + '], ')
-        # table.header()はデフォルトでrepeat: trueのため、表がページを跨いだ次ページ以降にも
-        # ヘッダー行が自動的に再掲される（#70。Markdownテーブル側と同じ仕組み）。
-        result.append('\n  ),\n  ')
+        if header is None:
+            result = [f'#table(\n  columns: {cols},\n  ']
+        else:
+            open_wrap, close_wrap = self._table_header_open_close()
+            result = [f'#table(\n  columns: {cols}{self._table_header_fill_arg()},\n  table.header(\n  ']
+            for cell in header:
+                result.append('[' + open_wrap + self.escape_typst(cell, at_line_start=True) + close_wrap + '], ')
+            # table.header()はデフォルトでrepeat: trueのため、表がページを跨いだ次ページ以降にも
+            # ヘッダー行が自動的に再掲される（#70。Markdownテーブル側と同じ仕組み）。
+            result.append('\n  ),\n  ')
         for row in body:
             for cell in row:
                 result.append('[' + self.escape_typst(cell, at_line_start=True) + '], ')
@@ -2787,6 +2799,13 @@ def _parse_chapter_entry(ch):
 ChapterDefaults = namedtuple("ChapterDefaults", [
     "landscape", "paper", "header", "footer", "paginate", "background", "logo", "table_header", "heading_offset"])
 
+def _parse_csv_header(value, where):
+    """.csvの1行目をヘッダー行にするか（csv_header、#220）を検証して返す。true/falseのみ。"""
+    if not isinstance(value, bool):
+        _error(f"{where}: csv_header must be true or false (got {value!r}).")
+        sys.exit(1)
+    return value
+
 def _parse_heading_offset(value, where):
     """heading_offset（見出しレベルをずらす段数）を検証して返す。0以上の整数のみ。上限5は、
     MarkdownのH1〜H6を最大でH11相当まで下げても意味を成さないため、明らかな誤記を弾く目的。"""
@@ -2962,6 +2981,9 @@ def _render_markdown_chapter(ch_dict, ch_file, inputs_dir, renderer, current_lan
     renderer.table_header_style = ch_table_header
     # 見出しのオフセット（#68）。章の明示指定 ＞ 所属sectionの値（引数）の順。
     renderer.heading_offset = ch_dict.get("heading_offset", heading_offset)
+    # .csvの1行目をヘッダー行にするか（#220）。章の明示指定 ＞ document.csv_header（既定true）。
+    renderer.csv_header = (_parse_csv_header(ch_dict["csv_header"], f"chapter {ch_file!r}")
+                           if "csv_header" in ch_dict else renderer.csv_header_default)
 
     with open(md_path, "r", encoding="utf-8") as f:
         md_text = f.read()
@@ -3460,6 +3482,8 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     # variables: {{KEY}}プレースホルダの置換表（#72）。章の処理より前に解決し、環境変数の未設定
     # などの誤りを、長い描画処理を始める前にFail-fastで報告する。
     variables = _resolve_variables(config)
+    # document.csv_header: true（既定、#220）。.csvの章の1行目を、ヘッダー行にするか。
+    csv_header = _parse_csv_header(config.get("document", {}).get("csv_header", True), "document")
 
     outputs_dir, inputs_dir, work_dir, typst_root = _resolve_project_dirs(
         project_dir, config, create_outputs=out_pdf is None)
@@ -3480,7 +3504,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
-                              mermaid_browser=mermaid_browser)
+                              mermaid_browser=mermaid_browser, csv_header=csv_header)
     current_landscape, current_paper = global_landscape, global_paper
     current_header, current_footer, current_paginate = effective_global_header, global_footer, global_paginate
     current_background = global_background
