@@ -490,7 +490,7 @@ class TypstRenderer:
         # commonmarkプリセットにコアルールとして同梱されており、enable()するだけで使える。
         self.md = (MarkdownIt("commonmark").enable("table").enable("strikethrough")
                    .use(tasklists_plugin)
-                   .use(attrs_plugin, spans=True, span_after="link", allowed=["color", "size"]))
+                   .use(attrs_plugin, spans=True, span_after="link", allowed=["color", "size", "bg", "border"]))
         self.list_stack = []
         self.current_file = ""
         self.current_dir = ""
@@ -1160,12 +1160,12 @@ class TypstRenderer:
                 result.append(self._handle_html_token(t))
             elif t.type == 'th_open':
                 open_wrap, _ = self._table_header_open_close()
-                result.append('[' + open_wrap)
+                result.append(self._table_cell_open(tokens, i) + open_wrap)
             elif t.type == 'th_close':
                 _, close_wrap = self._table_header_open_close()
                 result.append(close_wrap + '], ')
             elif t.type == 'td_open':
-                result.append('[')
+                result.append(self._table_cell_open(tokens, i))
             elif t.type == 'td_close':
                 result.append('], ')
             elif t.type == 'tr_close':
@@ -1649,6 +1649,10 @@ class TypstRenderer:
                 # 取り除かれている。color/sizeのどちらも無ければ何もラップしない。両方指定された
                 # 場合は#text()呼び出し1つにfill/sizeをまとめる（2重にラップしない）。
                 attrs = dict(t.attrs)
+                if ('bg' in attrs or 'border' in attrs) and not t.meta.get('cell_style'):
+                    # セル全体を包むspanは、_table_cell_openが既にtable.cell()へ変換して印を付けている
+                    print(f"[Warning] Ignoring bg/border in {self.current_file}: they apply only to a span that "
+                          f"wraps the entire table cell, e.g. | [text]{{bg=\"#eeeeee\"}} |.")
                 color = attrs.get('color')
                 size = attrs.get('size')
                 if size is not None and not self.FONT_SIZE_RE.match(str(size)):
@@ -1721,6 +1725,64 @@ class TypstRenderer:
         if self.COLOR_IDENTIFIER_RE.match(value):
             return value
         return f'rgb("{escape_string_literal(value)}")'
+
+    # セル単位のborder属性（#89）が取れる値と、対応するTypstのstroke式。太さと色は、Typstの表の
+    # 既定の枠線（1pt・黒）に揃える。実線（solid）を明示できるのは、隣のセルの破線と並べたときに
+    # 「そのセルだけ実線」を表すため。
+    CELL_BORDER_STROKES = {
+        'solid': '1pt + black',
+        'dashed': '(paint: black, thickness: 1pt, dash: "dashed")',
+        'dotted': '(paint: black, thickness: 1pt, dash: "dotted")',
+        'none': 'none',
+    }
+
+    def _table_cell_open(self, tokens, i):
+        """th_open/td_open（tokens[i]）に対する、セルの開きの文字列を返す（#89）。
+        セルの中身全体が`[text]{bg="#eeeeee" border=dashed}`のような1つのspanで、bg/borderを
+        持つときだけ、セル自体の背景色・枠線として`table.cell(fill:, stroke:)[`を出力する。
+        テキストの一部だけを包むspanでは、セルの装飾か文字の装飾か曖昧になるため対象にしない
+        （render_inline側で警告して無視する）。それ以外は従来どおり`[`のみ。
+        セルのbg/border以外の属性（color/size）は、通常どおりセル内のテキストに適用される。"""
+        span = self._whole_cell_span(tokens, i)
+        if span is None:
+            return '['
+        span.meta['cell_style'] = True
+        attrs = dict(span.attrs)
+        args = []
+        bg = attrs.get('bg')
+        if bg:
+            args.append(f'fill: {self._color_to_typst(bg)}')
+        border = attrs.get('border')
+        if border:
+            stroke = self.CELL_BORDER_STROKES.get(str(border).lower())
+            if stroke is None:
+                print(f"[Warning] Ignoring invalid border {border!r} in {self.current_file}; "
+                      f"expected one of {', '.join(self.CELL_BORDER_STROKES)}.")
+            else:
+                args.append(f'stroke: {stroke}')
+        return f'table.cell({", ".join(args)})[' if args else '['
+
+    @staticmethod
+    def _whole_cell_span(tokens, i):
+        """セル（tokens[i]のth_open/td_open）の中身全体を包む、bg/borderを持つspan_openを返す。
+        該当しなければNone。"""
+        if i + 1 >= len(tokens) or tokens[i + 1].type != 'inline':
+            return None
+        children = tokens[i + 1].children or []
+        if not children or children[0].type != 'span_open':
+            return None
+        attrs = dict(children[0].attrs)
+        if 'bg' not in attrs and 'border' not in attrs:
+            return None
+        depth = 0
+        for k, child in enumerate(children):
+            if child.type == 'span_open':
+                depth += 1
+            elif child.type == 'span_close':
+                depth -= 1
+                if depth == 0:
+                    return children[0] if k == len(children) - 1 else None
+        return None
 
     def _table_header_fill_arg(self):
         """table_header.backgroundが指定されていれば、#table()のfill:引数（1行目のみ着色）を返す。
