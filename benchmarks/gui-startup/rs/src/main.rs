@@ -12,6 +12,9 @@ struct App {
     text: String,
     zoom: usize,
     auto: bool,
+    soak: u32,
+    soak_n: u32,
+    pdfium: Option<Pdfium>,
 }
 
 fn render(pdfium: &Pdfium, path: &str, target_width: i32) -> egui::ColorImage {
@@ -57,9 +60,30 @@ impl eframe::App for App {
             }
             println!("pdf_warm_200dpi_ms={:.1}", t.elapsed().as_secs_f64() * 1000.0 / 5.0);
             std::io::stdout().flush().ok();
+            let n: u32 = std::env::var("SOAK").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+            if n > 0 {
+                println!("soak_start");
+                std::io::stdout().flush().ok();
+                self.soak_n = n;
+                self.pdfium = Some(pdfium);
+                ctx.request_repaint();
+                return;
+            }
             if std::env::var("HOLD").as_deref() != Ok("1") {
                 std::process::exit(0);
             }
+        }
+        if self.soak_n > 0 {
+            // 1フレームにつき1回、描き直す（古いテクスチャのハンドルは、差し替えで破棄される）
+            let image = render(self.pdfium.as_ref().unwrap(), &self.pdf_path, 794);
+            self.texture = Some(ctx.load_texture("page", image, Default::default()));
+            self.soak += 1;
+            if self.soak >= self.soak_n {
+                println!("soak_end");
+                std::io::stdout().flush().ok();
+                std::process::exit(0);
+            }
+            ctx.request_repaint();
         }
         // 見た目の比較用: ツールバー・ボタン・コンボボックス・入力欄・ステータスバーを、日本語で並べる
         egui::Panel::top("toolbar").show_inside(ui, |ui| {
@@ -107,7 +131,7 @@ fn main() -> eframe::Result {
                 fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().push("cjk".to_owned());
                 cc.egui_ctx.set_fonts(fonts);
             }
-            Ok(Box::new(App { pdf_path, texture: None, frame: 0, text: "日本語の入力欄：検索".to_string(), zoom: 1, auto: true }))
+            Ok(Box::new(App { pdf_path, texture: None, frame: 0, text: "日本語の入力欄：検索".to_string(), zoom: 1, auto: true, soak: 0, soak_n: 0, pdfium: None }))
         }),
     )
 }

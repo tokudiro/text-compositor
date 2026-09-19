@@ -100,7 +100,31 @@ class MainWindow : Window
         for (int i = 0; i < 5; i++) _image.Source = Render(200);
         Console.WriteLine($"pdf_warm_200dpi_ms={sw.Elapsed.TotalMilliseconds / 5:F1}");
 
+        int n = int.Parse(Environment.GetEnvironmentVariable("SOAK") ?? "0");
+        if (n > 0)
+        {
+            Console.WriteLine("soak_start");
+            Console.Out.Flush();
+            Step(1, n);
+            return;
+        }
         Console.Out.Flush();
         if (Environment.GetEnvironmentVariable("HOLD") != "1") Environment.Exit(0);
+    }
+
+    // 1回の描き直し（実際のビューアと同じく、新しい画像に差し替え、古い画像を破棄する）を、UIスレッドの
+    // 次の処理として続ける。描画のフレームと交互に動く。
+    void Step(int i, int n)
+    {
+        var old = _image.Source as IDisposable;
+        _image.Source = Render(96);
+        old?.Dispose();
+        if (i >= n)
+        {
+            Console.WriteLine("soak_end");
+            Console.Out.Flush();
+            Environment.Exit(0);
+        }
+        Dispatcher.UIThread.Post(() => Step(i + 1, n), DispatcherPriority.Background);
     }
 }

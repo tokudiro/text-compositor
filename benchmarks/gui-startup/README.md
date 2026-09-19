@@ -9,12 +9,16 @@
 - 2つとも、ウィンドウを開き、PDFの1ページ目をPDFiumで描画して表示し、標準出力へ`first_frame`・`pdf_ms`・`pdf_warm_96dpi_ms`・`pdf_warm_200dpi_ms`を出して終了する（環境変数`HOLD=1`なら終了しない）。日本語のボタン・コンボボックス・チェックボックス・入力欄・ステータスバーも並べている（見た目の比較用）。
 - Rustは、環境変数`CJK_FONT`にフォントファイルのパスを渡すと、日本語フォントを追加する。指定しないと、egui標準のフォントで、日本語が文字化けする。
 - `measure.ps1`: アプリを繰り返し起動し、最初のフレームまでの時間・PDF描画の時間・ピークのワーキングセットを集計する。
+- 2つとも、環境変数`SOAK=N`を付けて起動すると、最初の描画の後、PDFの1ページをN回描き直して終了する（連続再描画でのメモリの増え方を見るため。C#は古い画像を破棄しながら、UIスレッドの処理として1回ずつ。Rustは1フレームにつき1回。終了前に`soak_start`・`soak_end`を出す）。
+- `soak.ps1`: `SOAK`付きでアプリを起動し、描き直しの間の、ワーキングセットと専用メモリを0.5秒ごとに記録して、増加の有無と終了の様子（正常終了か）を表示する。
 - `shot.ps1`: アプリのウィンドウのスクリーンショットを撮る（`HOLD=1`で起動する）。
 - `worker_startup.py`: 常駐Pythonワーカーの、起動からimport完了・最初のPDF生成までの時間と、メモリを測る。
 
 ## 手順（Windows）
 
-必要なもの: .NET SDK（`net8.0`を対象にビルドする）、Rust、PDFium（`pdfium.dll`）。
+必要なもの: .NET 10 SDK（`net10.0`を対象にビルドする。.NET 8・9は2026-11-10にサポートが終わるため、本実装は.NET 10（LTS）を使う）、Rust、PDFium（`pdfium.dll`）。
+
+システムに.NET 10 SDKを入れたくない場合は、公式のインストールスクリプト（`dotnet-install.ps1 -Channel 10.0 -InstallDir <任意のフォルダ> -NoPath`）で、任意のフォルダにだけ入れられる。その場合は、環境変数`DOTNET_ROOT`をそのフォルダに向け、そのフォルダの`dotnet.exe`でビルドする。
 
 ```powershell
 # C#: 自己完結・ReadyToRun・デバッグシンボルなし。native ライブラリの .pdb が大きいため、除く
@@ -33,6 +37,10 @@ cd ..
 .\measure.ps1 -Exe pub-slim\StartupCs.exe -Pdf <PDFのパス> -Runs 12 -Label "C#"
 .\measure.ps1 -Exe rs\target\release\startup-rs.exe -Pdf <PDFのパス> -Runs 12 -Label "Rust"
 python worker_startup.py
+
+# 連続再描画（1,500回）でのメモリの増え方
+.\soak.ps1 -Exe pub-slim\StartupCs.exe -Pdf <PDFのパス> -N 1500 -Label "C#"
+.\soak.ps1 -Exe rs\target\release\startup-rs.exe -Pdf <PDFのパス> -N 1500 -Label "Rust"
 ```
 
 ## 注意
