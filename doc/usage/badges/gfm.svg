@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="42" height="22" viewBox="0 0 42 22" role="img" aria-label="GFM">
-  <title>GFM: GitHub Flavored Markdown（GitHub）の記法</title>
+  <title>GFM: GitHub Flavored Markdown（GitHub）の記法（text-compositor・Obunzuの両方で使える）</title>
   <rect width="42" height="22" rx="11" fill="#953800"/>
   <text x="21" y="15" fill="#ffffff" font-family="-apple-system, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="middle" textLength="22" lengthAdjust="spacingAndGlyphs">GFM</text>
 </svg>

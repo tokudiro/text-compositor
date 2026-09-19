@@ -40,17 +40,21 @@
 
 CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wikiの記法を対応範囲としています（#48）。
 
-各記法の種別は、GitHubのラベルのようなバッジで示します。見出しの下と、下の表に並べています。**共通の記法は、使えるものすべてのバッジが並びます。**
+各記法の種別は、GitHubのラベルのようなバッジで示します。見出しの下と、下の表に並べています。バッジの決まりは、次のとおりです。
+
+- **標準（CommonMark）と、GFMの記法**は、text-compositor（PDF出力）でも、Obunzu（HTML出力）でも使えます。そのため、`CommonMark`・`GFM`のバッジだけを付けます。使えないものは、表の「対応状況」に書きます。
+- **本ツールの拡張記法**には、`text-compositor`のバッジを付けます。Obunzuでも使えるものには、`Obunzu`のバッジも**並べます**（共通の拡張）。
+- **Marp互換の記法**には、`Marp`のバッジを付けます。
 
 | バッジ | 意味 |
 | --- | --- |
-| ![CommonMark](badges/commonmark.svg) | 標準のMarkdown記法 |
-| ![GFM](badges/gfm.svg) | GitHub Flavored Markdown（GitHub）の記法 |
-| ![text-compositor](badges/text-compositor.svg) | text-compositor（PDF出力）で使える。本ツール独自の拡張記法 |
-| ![Obunzu](badges/obunzu.svg) | Obunzu（Viewer・HTML出力）でも使える |
+| ![CommonMark](badges/commonmark.svg) | 標準のMarkdown記法（PDF出力・Obunzuの両方で使える） |
+| ![GFM](badges/gfm.svg) | GitHub Flavored Markdown（GitHub）の記法（PDF出力・Obunzuの両方で使える） |
+| ![text-compositor](badges/text-compositor.svg) | 本ツール独自の拡張記法。PDF出力で使える |
+| ![Obunzu](badges/obunzu.svg) | 上の拡張記法が、Obunzu（Viewer・HTML出力）でも使える（`text-compositor`と並ぶ） |
 | ![Marp](badges/marp.svg) | Marp互換の記法 |
 
-たとえば、text-compositor と Obunzu の両方のバッジが並ぶ記法は、PDF出力でも、Obunzu（HTML出力）でも、同じ書き方で使えます。text-compositor のバッジだけの記法は、PDF出力だけで使えます（Obunzuでは、記法どおりには、表示されません）。
+たとえば、`text-compositor`と`Obunzu`の両方のバッジが並ぶ拡張記法は、PDF出力でも、Obunzuでも、同じ書き方で使えます。`text-compositor`のバッジだけの拡張記法は、PDF出力だけで使えます（Obunzuでは、記法どおりには、表示されません）。
 
 | 記法 | 種別 | 対応状況 |
 | --- | --- | --- |
@@ -60,7 +64,7 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 | 自動リンク（`<https://example.com>`、山括弧付き） | ![CommonMark](badges/commonmark.svg) | 対応（CommonMark標準） |
 | 裸URLの自動リンク化（`https://example.com`、山括弧なし） | ![GFM](badges/gfm.svg) | **非対応**。リンクにしたい場合は山括弧で囲むか `[表示テキスト](URL)` を使う |
 | GitHub Wikiの用語索引記法（`[[用語]]`） | ![text-compositor](badges/text-compositor.svg) | 対応（`document.glossary: true`のときのみ。下記） |
-| alert（`> [!NOTE]`等） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（下記） |
+| alert（`> [!NOTE]`等） | ![GFM](badges/gfm.svg) | 対応（下記） |
 | 文字色指定 | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（GFM/GitHub Wikiのどちらにも属さない例外。下記） |
 | フォントサイズ指定 | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（文字色指定と同じブラケット+属性記法。下記） |
 | 生HTML | — | 非対応（`<span style="color:...">`を除く狭い例外のみ。「Markdownの書き方」以降の各章を参照） |
@@ -125,7 +129,7 @@ Markdownテーブルの本文セルごとに、背景色と枠線（実線・破
 
 ## alert: 注意書きの囲み
 
-![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+![GFM](badges/gfm.svg)
 
 GitHub形式のalert記法（`> [!NOTE]`等）で、本文と区別した囲み枠（callout）を出せます。GFMの記法で、PDF出力でも、Obunzuでも、同じ書き方で使えます。
 
