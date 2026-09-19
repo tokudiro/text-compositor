@@ -34,6 +34,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # フォント（Noto Sans JP）など、初回に取得するものと、Typstのパッケージ（@preview/...）を、実行をまたいで
+      # 保存する（#189）。CIは、毎回まっさらな環境で始まるため、これが無いと、毎回ネットワークから取得し、
+      # 一時的な失敗（GitHubのHTTP 500など）で、テストが落ちる。テンプレートやbuild.pyが変わったときは、
+      # 新しいキーで保存し直す。それまでの保存は、restore-keysで引き継ぐ（取得済みのものは、再取得しない）。
+      - name: Cache downloaded files (fonts, Typst packages)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/text-compositor
+            ~/.cache/typst
+          key: downloads-${{ runner.os }}-${{ hashFiles('text_compositor/build.py', 'text_compositor/templates/*.typ') }}
+          restore-keys: |
+            downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
