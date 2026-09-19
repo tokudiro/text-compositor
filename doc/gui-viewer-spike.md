@@ -32,11 +32,13 @@ v0.3.0時点のmasterで、両スパイクが動くことを確認した。た�
 
 ## 未確認・課題
 
-- **保存から更新までのレイテンシ**: 未計測である。GUIの体感を決めるため、[#166](https://github.com/tokudiro/text-compositor/issues/166)で計測する。
+- **保存から更新までのレイテンシ**: スパイクでは未計測だった。[#166](https://github.com/tokudiro/text-compositor/issues/166)で計測した（[gui-viewer-design.md](gui-viewer-design.md)）。
 - **`site-packages`の組み立て**: `pip install --target`と、`python310._pth`の編集による手作業である。依存の追加に追従できないことが、今回の確認で実際に起きた。自動化が要る（[#168](https://github.com/tokudiro/text-compositor/issues/168)）。
 - **Typstコンパイル・PDF表示・図表の描画**: 未確認である。それぞれ、#167・#169・[#171](https://github.com/tokudiro/text-compositor/issues/171)で扱う。
 - **Linux・macOS**: Rust版は、Linuxのサンドボックスで`render()`の呼び出しに成功した。C#版は、Linuxで終了時のハングが残った（その後、Windowsで原因を特定して解消した。Linuxでの再確認はしていない）。macOSは未確認である。
 
 ## ソースの場所
 
-`viewer-csharp/`（C#・pythonnet）と`viewer-rust/`（Rust・PyO3）に、スパイクのコードがある。実装言語の決定（#166）の後、採用しなかった側を削除し、採用した側を本実装のディレクトリへ改める予定である。どちらも、PyPIの配布物には含まれない（`pyproject.toml`が`packages`を明示しているため）。
+`viewer-csharp/`（C#・pythonnet）に、スパイクのコードがある。実装言語をC#に決めた（#166、[gui-viewer-design.md](gui-viewer-design.md)）ため、Rust版（`viewer-rust/`、PyO3）は削除した。参照が必要なら、`git show af23aab:viewer-rust/README.md`で取り出せる（`af23aab`はmasterのコミット）。
+
+連携方式も、埋め込み（pythonnet・PyO3）ではなく、常駐サブプロセスに決めた。`viewer-csharp/`は、本実装（#169）で、別のディレクトリの実装へ置き換わる予定である。どちらも、PyPIの配布物には含まれない（`pyproject.toml`が`packages`を明示しているため）。
