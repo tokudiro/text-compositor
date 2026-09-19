@@ -2403,6 +2403,29 @@ def _resolve_revision_history(doc_config):
         entries.append(entry)
     return entries or None
 
+def _typst_multiline_literal(text):
+    """複数行の文字列を、改行を`\\n`とした1行のTypst文字列リテラルにする。値はデータとして埋め込むため、
+    `#`や`*`等はMarkup記法として解釈されない。テンプレート側が`\\n`をlinebreak()等へ変換する。"""
+    return '"' + escape_string_literal(text.replace('\r\n', '\n')).replace('\r', '').replace('\n', '\\n') + '"'
+
+def _resolve_abstract(doc_config):
+    """document.abstract（#64）を検証し、文字列（前後の空白を除く）を返す。未指定・空文字ならNone
+    （概要を出さない）。文字列以外（リスト等）は、意図しない値が黙って文字列化されるのを避けるためエラーにする。"""
+    raw = doc_config.get("abstract")
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        print(f"[Error] document.abstract must be a string (got {type(raw).__name__}).")
+        sys.exit(1)
+    return raw.strip() or None
+
+def _abstract_typst_arg(abstract):
+    """conf()へ渡す`abstract: "..."`引数行を返す。未指定なら引数自体を渡さない
+    （tocやrevision_historyと同じく、この引数を持たない既存の独自テンプレートとの互換を保つため）。"""
+    if abstract is None:
+        return ''
+    return f'  abstract: {_typst_multiline_literal(abstract)},\n'
+
 def _revision_history_typst_arg(entries):
     """conf()へ渡す`revision_history: (...)`引数行を返す。entriesがNoneなら引数自体を渡さない
     （tocなどと同じく、この引数を持たない既存の独自テンプレートとの互換を保つため）。
@@ -2410,11 +2433,8 @@ def _revision_history_typst_arg(entries):
     if entries is None:
         return ''
 
-    def literal(text):
-        return '"' + escape_string_literal(text.replace('\r\n', '\n')).replace('\r', '').replace('\n', '\\n') + '"'
-
     rows = ", ".join(
-        "(" + ", ".join(f"{k}: {literal(e[k])}" for k in REVISION_HISTORY_KEYS) + ")" for e in entries)
+        "(" + ", ".join(f"{k}: {_typst_multiline_literal(e[k])}" for k in REVISION_HISTORY_KEYS) + ")" for e in entries)
     # 要素が1つのときも配列になるよう、末尾のカンマを必ず付ける
     return f'  revision_history: ({rows},),\n'
 
@@ -2464,6 +2484,8 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
 
     # 改版履歴ページ（#56）。表紙と目次の間に独立したページとして挿入する。未指定なら引数自体を渡さない。
     revision_history_arg = _revision_history_typst_arg(_resolve_revision_history(doc_config))
+    # 概要（#64）。論文形式のテンプレート（paper）がタイトルブロックの下に出す。未指定なら引数自体を渡さない。
+    abstract_arg = _abstract_typst_arg(_resolve_abstract(doc_config))
 
     date_str = doc_config.get("date", "")
     if date_str == "auto":
@@ -2483,7 +2505,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
   date: "{safe_date}",
   paper_size: "{global_paper}",
   landscape: {str(global_landscape).lower()},
-{cover_arg}{cover_page_number_arg}{toc_arg}{revision_history_arg}  graphviz: {str(graphviz_enabled).lower()},
+{cover_arg}{cover_page_number_arg}{toc_arg}{revision_history_arg}{abstract_arg}  graphviz: {str(graphviz_enabled).lower()},
   header: {_typst_str_or_none(global_header)},
   footer: {_typst_str_or_none(global_footer)},
   paginate: {str(global_paginate).lower()},

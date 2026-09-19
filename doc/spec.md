@@ -119,6 +119,14 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **アダプタで吸収できないもの**: 章単位の`header`/`footer`/`logo`/`background`の上書きは、`build.py`がページ設定を出し直す形で実現している。Universe側のページ設定と衝突し得るため、対応しないテンプレートでは、アダプタで無視するのを基本とする（`ilm`では無視して、`ilm`自身のフッタが保たれた）。`ilm`以外のテンプレートでの挙動は未検証。`landscape`・`subtitle`・`revision_history`も、対応するかどうかはテンプレート次第である。`date`は、`conf()`が`"YYYY-MM-DD"`形式の文字列で渡す一方、`datetime`を要求するテンプレートがある。アダプタで変換する（`sample/universe-ilm/ilm-adapter.typ`の`to-datetime`）。
   * **ネットワーク**: パッケージは初回のビルド時にTypstが取得し、ローカルにキャッシュする（`templates/template.typ`が使う`@preview/diagraph`と同じ扱い）。オフライン環境では、事前にキャッシュしておく必要がある。
   * **検証**: `sample/universe-ilm/`（`ilm@2.1.1`、Typst 0.15.0）で、表紙・目次・章・表・Graphviz図・callout・ページ番号のビルドを確認した。
+* **論文形式テンプレート（`paper`）**（[#64](https://github.com/tokudiro/text-compositor/issues/64)）: 2段組みの論文・査読レポート・特許明細書向けに、`templates/paper.typ`を同梱する。
+  * **新テンプレートとした理由**: 段組みの数は、Viewの構造そのものを変える。`template.typ`に`document.columns`のような設定を足す形にすると、表紙・目次・章ごとの改ページなど、単一段組みを前提とした処理と両立させる必要が出る。媒体が違うときに新テンプレートを作るという基準（[独自テンプレートを使う](usage/10_custom_template.md)）に従い、`slide.typ`と同じく別テンプレートにした。
+  * **実現方法**: Typstの標準機能（`set page(columns: 2)`と、`place(float: true, scope: "parent")`による全幅のタイトルブロック）だけで実現する。外部パッケージは使わない。補助関数は`_common.typ`から読み込む（#63）。
+  * **`cover`の意味**: このテンプレートでは、`cover`は表紙ページではなく、1ページ目上部のタイトルブロック（タイトル・副題・著者・日付・概要）の有無を指す。論文には独立した表紙ページを設けないため。`document.cover`の既定が`none`である点は他のテンプレートと同じで、タイトルブロックを出すには`cover: template`を明示する必要がある。副題は、`subtitle`が空でなければ出す。未指定時は設定の既定値（`自動生成ドキュメント`）が入るため、消すには`subtitle: ""`と書く。
+  * **`document.abstract`**（文字列、既定は未指定）: タイトルブロックの下に「概要」として全幅で出す。`conf()`の任意引数`abstract`として、指定されたときだけ渡す（`toc`・`revision_history`と同じ方針で、この引数を持たない既存の独自テンプレートとの互換を保つ）。値は生成するTypstコードにデータとして埋め込み、改行は`\n`で渡す（`revision_history`と共通の`_typst_multiline_literal`）。文字列以外はエラー終了する。`template.typ`・`slide.typ`は、引数を受け取るだけで何も出力しない（no-op）。
+  * **章をまたいで連続して流す**: 論文は章ごとに改ページしない。`build.py`は、章の末尾ごとに弱い改ページ（`#pagebreak(weak: true)`）を出す。`paper.typ`は`show pagebreak: none`で、これを無効にする。`<!-- pagebreak -->`（#92）も同じコードを生成するため、区別できず、明示の改ページも効かなくなる。この代償を、章単位で改ページしないことの引き換えとして受け入れた。区別が要るようになれば、`build.py`側で章末の改ページを別の記法にする変更が要る。
+  * **範囲外**: (1)参考文献・引用（Typstの`bibliography()`との連携。Markdown側の引用記法が未定義のため）。(2)段幅より広い表・コードを、段をまたいで全幅に置く機能（折り返されるか、はみ出す）。(3)章や図表の全幅配置。`toc`・`cover_page_number`・`revision_history`は、論文に無い要素のため受け取って何も出力しない。
+  * **サンプル**: `sample/paper/`。
 
 ## 7. Markdown 方言と Marp 互換
 本章は、ディレクティブ・front-matter・改ページ規則等の専用の変換規則を持つ唯一のフォーマットであるMarkdownの扱いを規定する（1章）。他フォーマット（YAML/JSON/プレーンテキスト等）は専用の変換規則を持たず、拡張子に応じて等幅表示にフォールバックするのみ（1章、[#15](https://github.com/tokudiro/text-compositor/issues/15)）。フォーマットごとに専用の変換規則を追加していく場合も、本章のMarkdown固有の扱いは維持する設計とする。

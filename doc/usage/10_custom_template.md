@@ -81,10 +81,12 @@ conf(title:, subtitle:, author:, date:, paper_size:, landscape:,
 以下は`config.yaml`側で明示指定したときだけ`conf()`へ渡される。未指定なら引数自体を渡さないため、テンプレートが持たなくても即座には壊れない（そのテンプレートを使う人が該当のconfig.yamlキーを使わない限り安全）。
 
 ```
-conf(cover:, cover_page_number:, toc:, revision_history:, ...)
+conf(cover:, cover_page_number:, toc:, revision_history:, abstract:, ...)
 ```
 
 `revision_history`（改版履歴、[#56](https://github.com/tokudiro/text-compositor/issues/56)）は、`(version:, date:, description:, author:)`という辞書の配列で渡される。値はいずれも文字列で、省略された項目は空文字である。`description`内の改行は、文字列中の`\n`として渡されるため、表示するテンプレートが`split("\n")`等で改行に変換する。`config.yaml`に書かれなければ引数自体が渡されないので、この引数を持たない既存の独自テンプレートは影響を受けない。
+
+`abstract`（概要、[#64](https://github.com/tokudiro/text-compositor/issues/64)）は、`document.abstract` の文字列です。改行は、文字列中の`\n`として渡されるため、表示するテンプレートが`split("\n")`等で改行に変換します。同梱では `paper.typ` だけが表示し、`template.typ`・`slide.typ` は受け取って何も出しません。
 
 ただし、これらは「`config.yaml`があればどのテンプレートでも上書きできる」という設計原則（`doc/spec.md` 1章）の対象でもある。独自テンプレートでも、可能な限り全て受け取れるようにしておくことを推奨する。テンプレートの見た目として意味を持たない引数（例: スライド用テンプレートにとっての`toc`）は、受け取った上で何もしない（no-op）実装でよい。
 

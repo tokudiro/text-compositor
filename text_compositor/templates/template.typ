@@ -14,6 +14,7 @@
   cover_page_number: false,
   toc: false,
   revision_history: none,
+  abstract: none, // 論文形式のテンプレート（paper.typ）用。ここでは受け取るだけで何も出さない（#64）
   graphviz: true,
   header: none,
   footer: none,

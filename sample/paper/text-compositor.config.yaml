@@ -1,0 +1,27 @@
+# 2段組みの論文形式テンプレート（paper）の例（#64）。
+# 実行: text-compositor --config sample/paper/text-compositor.config.yaml
+document:
+  title: "Markdownから2段組みPDFを作る"
+  subtitle: ""  # 未指定だと、既定値の「自動生成ドキュメント」がタイトルの下に出る。空文字で消す
+  author: "text-compositor"
+  date: "2026-09-19"
+  # paperでは、coverは「表紙ページ」ではなく1ページ目上部のタイトルブロックの有無を指す。
+  # 既定はnoneで、タイトルブロックが出ず、先頭章のH1も落ちる。
+  cover: template
+  abstract: |
+    Markdownの原稿を、2段組みのPDFへ変換するテンプレートを示す。
+    タイトル・著者・概要は全幅で置き、本文は2段で連続して流れる。
+
+output:
+  filename: "PaperSample.pdf"
+  dir: "."
+
+template:
+  path: "paper"  # ツール同梱のtemplates/paper.typ
+
+inputs:
+  dir: "."
+
+chapters:
+  - "01_intro.md"
+  - "02_method.md"

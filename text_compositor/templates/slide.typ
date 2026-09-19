@@ -47,6 +47,7 @@
   // 改版履歴（#56）。スライドには意味を持たない引数のため、受け取るだけで何もしない（no-op）。
   // config.yamlに書いてもエラーにならないようにするため（doc/usage/10_custom_template.md参照）。
   revision_history: none,
+  abstract: none, // 論文形式のテンプレート（paper.typ）用。ここでは受け取るだけで何も出さない（#64）
   graphviz: true,
   header: none,
   footer: none,
