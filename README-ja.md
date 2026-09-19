@@ -127,7 +127,7 @@ python /path/to/text-compositor/build.py
 
 `--if-changed`を付けると、出力PDFがconfig・入力ファイル・テンプレート・text-compositor本体のいずれよりも新しい場合に、makeのようにビルドをスキップします（判定は更新日時のみ）。付けなければ従来どおり毎回再生成します。Typstのバージョン、プロジェクトディレクトリの外のファイル、`variables`が参照する環境変数の変更は検知しません。CIでは`actions/checkout`が全ファイルの更新日時を更新するため、スキップを効かせるには出力先をキャッシュから復元してください。
 
-`--clean`は、ビルドせずに出力PDFと`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`）を削除します。`--clean-cache`は、加えて図表キャッシュ（`.text-compositor/cache/`）も削除します。入力ファイルとconfigは削除しません。
+`--clean`は、ビルドせずに出力PDFと`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`）を削除します。`--clean-cache`は、加えて図表キャッシュ（`.text-compositor/cache/`）も削除します。入力ファイルとconfigは削除しません。
 
 設定ファイルの書き方は [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) を、`document:`/`plugins:`/front-matter/Marpディレクティブ等の詳しい説明は[使い方ガイド](doc/usage/)を参照してください。`chapters` に列挙したMarkdownファイルを順に結合してPDFを生成します。
 
@@ -138,7 +138,7 @@ cd sample/
 python ../build.py
 ```
 
-`sample/System_Specification.pdf` が生成されます。
+`sample/SampleDocument.pdf` が生成されます。ほかのテンプレートを示すサンプルが2つあります。`sample/paper/`（2段組みの論文形式、`template.path: paper`）と、`sample/universe-ilm/`（[Typst Universe](https://typst.app/universe)のテンプレートをアダプタ経由で使う例。初回のビルドはネットワークが必要）です。
 
 ## 実装状況
 

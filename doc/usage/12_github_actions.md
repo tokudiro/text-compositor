@@ -67,6 +67,10 @@ jobs:
 
 `plugins.graphviz`のみを使うプロジェクトは、この構成だけで完結する（Node.js/JRE等の追加インストール不要）。
 
+## 増分ビルド（`--if-changed`）をCIで使う場合の注意
+
+`--if-changed` は、出力PDFの更新日時を、入力・config・テンプレートと比較して、生成をスキップします。`actions/checkout` は、全ファイルの更新日時を取得した時刻にするため、`--if-changed` を付けるだけでは、CIでは常に再生成されます。出力先を `actions/cache` で復元する運用が必要です。ただし、復元したPDFの更新日時も復元した時刻になるため、`checkout` より後に復元しないと、スキップされません。実際にスキップされるかは、運用する環境での確認が必要です（本ツールでは未検証）。
+
 ## Mermaidを使う場合の注意
 
 `plugins.mermaid: true`のプロジェクトでは、クローン方式なら`pip install playwright==1.62.0`を追加で実行する（`requirements.txt`には含まれない。任意依存のため）。pipインストール方式なら`pip install "text-compositor[mermaid]"`でまとめて入る。ブラウザは前述のとおりランナー標準搭載のChromeを再利用するため、Node.jsのインストールは不要。

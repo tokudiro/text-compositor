@@ -22,7 +22,7 @@ output:
   dir: "."
 
 template:
-  path: "template"    # "template" または "slide"（同梱）／独自テンプレートは .typ 拡張子で指定
+  path: "template"    # "template"・"slide"・"paper"（同梱）／独自テンプレートは .typ 拡張子で指定
 
 plugins:
   graphviz: true
