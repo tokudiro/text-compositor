@@ -1,6 +1,6 @@
 # Pythonから使う（API・常駐ワーカー）
 
-単一のMarkdownファイルを、`config.yaml`なしでPDFにするAPIがあります（[#167](https://github.com/tokudiro/text-compositor/issues/167)）。エディタやGUIのプレビューのように、同じ原稿を何度もビルドする用途を想定しています。
+単一のMarkdownファイルを、`config.yaml`なしでPDF（実験的にHTMLも）にするAPIがあります（[#167](https://github.com/tokudiro/text-compositor/issues/167)）。エディタやGUIのプレビューのように、同じ原稿を何度もビルドする用途を想定しています。
 
 ## 使い方
 
@@ -44,6 +44,25 @@ with Session() as session:
 - PDFは、一時ファイルへ書いてから置き換えます。読んでいる側が、書きかけのPDFを見ることはありません。**Windowsでは、開いたままのPDFへは置き換えられません**。PDFを全体を読んで閉じるか、ビルドごとに別の出力先を指定してください。
 - `Session`は、使い終わったら`close()`します（`with`を使うと自動です）。Mermaidのブラウザなどを片付けます。
 
+## HTMLにする（実験的）
+
+Markdownを、PDFではなく、HTMLと図の画像にすることもできます（[#161](https://github.com/tokudiro/text-compositor/issues/161)）。図（Mermaid・PlantUML・D2・`svg`）は、PDFと同じ仕組みで画像にして、HTMLから参照します。
+
+```python
+from text_compositor import Session, render_html
+
+result = render_html("doc.md", "out/doc.html")    # 1回だけ
+with Session() as session:                        # 繰り返す
+    result = session.render_html("doc.md")        # 出力先の既定: 原稿の隣の .text-compositor/preview.html
+    print(result.ok, result.html_path)
+```
+
+- 引数は、`output_html`（出力先）・`plugins`・`variables`・`config`です（`template`・`document`は、ありません）。戻り値は、`HtmlResult`（`ok`・`html_path`・`diagnostics`・`timings_ms`）です。
+- 出力は、外部のCSSやJavaScriptを使わない、1ファイルのHTMLです。画像と図は、HTMLからの相対パスで参照します。
+- **PDFとの違い**: 用紙サイズ・改ページ・ヘッダなど、ページにだけ意味を持つ指定は、無視します（診断は、警告ではなく`info`です）。画像が見つからなくても、警告にとどめて、続けます。`:::`のレイアウトブロックは、近い見た目のCSSで表示します。
+- **未対応**: Graphviz（`dot`）・`typst-exec`・生のHTMLは、内容をコードブロックで表示して、警告します。数式と、複数ファイルの出力は、ありません。
+- 実験的な機能です。HTMLの構造やAPIは、変わる可能性があります。詳しくは、仕様書（`doc/spec.md`）の「14. Python APIと常駐ワーカー」を参照してください。
+
 ## 常駐ワーカー
 
 別のプロセス（GUIなど）から使う場合は、常駐ワーカーを起動します。標準入力へJSONを1行ずつ書くと、標準出力へ、JSONの応答が1行ずつ返ります（UTF-8）。
@@ -63,6 +82,6 @@ python -m text_compositor.worker
 {"id": 1, "ok": true, "pdf": "C:/tmp/doc.pdf", "diagnostics": [], "timings_ms": {"render": 9.1, "compile": 31.4, "total": 42.0}}
 ```
 
-- **メソッド**: `build`（`params`はAPIの引数と同じ。`path`は必須）・`ping`・`shutdown`。
+- **メソッド**: `build`（`params`はAPIの引数と同じ。`path`は必須）・`render_html`（実験的。前節）・`ping`・`shutdown`。
 - **ビルドの失敗**は、`"ok": false`と`diagnostics`で返ります。**プロトコルの誤り**（JSONでない、未知のメソッド、引数の不足）は、`error`キーで返り、その依頼は処理されていません。
 - ビルド中の出力が、通信を壊すことはありません。詳しい仕様は、仕様書（`doc/spec.md`）の「14. Python APIと常駐ワーカー」を参照してください。

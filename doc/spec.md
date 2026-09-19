@@ -357,12 +357,49 @@ result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
 * **起動時のイベント**: `{"event": "ready", "protocol": 1, "version": "0.3.0"}`。
 * **依頼**: `{"id": <任意。応答に返る>, "method": <名前>, "params": {...}}`。
   * `build`: `params`は、`path`（必須）・`output`・`template`・`plugins`・`document`・`variables`・`config`・`keep_temp`（`Session.build`と同じ意味）。未知のキーは、プロトコルエラー。
+  * `render_html`: MarkdownをHTMLにする（実験的、#161。前節）。`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`。
   * `ping`: 生存確認。`{"id": ..., "ok": true, "result": {"pong": true}}`。
   * `shutdown`: 応答の後、Mermaidのブラウザ等を片付けて、終了する（終了コード0）。標準入力が閉じられた場合も、同じく片付けて終了する。
 * **`build`の応答**: `{"id": ..., "ok": true|false, "pdf": "...", "diagnostics": [{"severity", "message", "file", "line", "detail"}, ...], "timings_ms": {...}}`。`ok`はビルドの成否で、**失敗（`ok: false`）でも、`error`キーは付かない**。
 * **プロトコルエラー**（JSONでない・JSONオブジェクトでない・未知のメソッド・`path`の欠落・未知の`params`）: `{"id": ..., "ok": false, "error": {"code": "bad_json|bad_request|unknown_method|internal_error", "message": "..."}}`。**`error`キーがあれば、依頼は処理されていない**。ワーカーは、次の依頼を受け付ける。
 * **通信路の保護**: 標準出力は、通信専用にする。起動時に、元の標準出力を複製して通信に使い、標準出力そのもの（fd 1）は、標準エラーへ付け替える。ビルド中にライブラリが`print`しても、外部プロセス（`playwright install`等）がfd 1へ書いても、通信路は壊れない（テストで確認した）。文字コードは、Windowsの既定（cp932等）に左右されないよう、UTF-8で読み書きする。
 * **取り消し・並行実行**: プロトコル1にはない。最新の1件だけを依頼する（途中の依頼は、GUI側で捨てる）のは、GUI側の責務（#170）。
+
+### HTML出力（実験的、[#161](https://github.com/tokudiro/text-compositor/issues/161)）
+
+単一のMarkdownを、HTMLと図の画像にする。GUI版Viewerの表示の材料と、ドキュメントのWeb公開の土台にする。**実験的な機能**で、HTMLの構造（クラス名など）やAPIは、Viewer（#165）と公開の用途が固まるまで、変わる可能性がある。
+
+```python
+from text_compositor import Session, render_html
+
+result = render_html("doc.md", "out/doc.html")          # 1回だけなら
+with Session() as session:                              # 繰り返すなら（Mermaidのブラウザを使い回す）
+    result = session.render_html("doc.md")
+    print(result.ok, result.html_path)                  # 既定の出力先: 原稿の隣の .text-compositor/preview.html
+```
+
+* **`Session.render_html(markdown_path, output_html=None, *, plugins=None, variables=None, config=None) -> HtmlResult`**: `plugins`・`variables`・`config`は、`build`と同じ。`template`・`document`・`keep_temp`は、意味がないため、無い。失敗しても例外は出さず、`ok=False`で返す。標準出力へは何も書かない。
+* **`HtmlResult`**: `ok`・`html_path`（成功時のHTMLの絶対パス）・`diagnostics`・`timings_ms`（`total`・`render`）。`errors`・`warnings`・`to_dict()`を持つ（`to_dict()`は、`html_path`を`html`キーにする）。Typstもフォントも使わないため、`build`より、初回が速い。
+* **対象のファイル**: `.md`・`.markdown`と、図の単体ファイル（`.mmd`・`.puml`・`.d2`。`.dot`・`.gv`は、下記のとおり未対応）。それ以外は、エラー。
+* **出力**: 外部のCSS・JavaScriptを使わない、1ファイルで完結したHTML文書。`<title>`は、最初の見出し（無ければ、ファイル名）。HTMLは、一時ファイルへ書いてから置き換える。図・画像は、HTMLの置き場所からの相対URLで参照する。図のSVGは、PDFと同じキャッシュ（`.text-compositor/cache/`）に置く。
+* **常駐ワーカー**: メソッド`render_html`（`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`）。応答は、`{"id", "ok", "html", "diagnostics", "timings_ms"}`。プロトコルのバージョンは、1のまま（メソッドの追加）。
+
+**Markdown記法の扱い**（PDFとは別の変換処理。Markdownの解釈は、`TypstRenderer`の部品を共有する。実装は`html_output.py`）:
+
+| 分類 | 記法 | HTMLでの扱い |
+| --- | --- | --- |
+| そのまま | CommonMark・表・取り消し線・タスクリスト（無効なチェックボックス）・リンク・コード | 標準の変換。コードの構文の色付けは、しない |
+| 図 | Mermaid・PlantUML・D2・`svg`フェンス | PDFと同じ仕組みでSVGにし、`<img>`で参照する。`{width= height=}`は、`style`にする。プラグインが無効なら、コードブロックにする（警告なし） |
+| 置き換え | `[text]{color= size=}`・`<span style="color:...">`・表のセルの`{bg= border=}`・画像の`alt\|width=\|height=\|align=`・alert（`> [!NOTE]`等） | CSSの`style`や、`<div class="alert alert-note">`にする。値は、CSSとして安全な形だけを通し、それ以外は、警告して無視する |
+| 近似 | `:::`のレイアウトブロック | CSS 2.1の表・`position`と、`column-count`で近似する。`layout-feature`は、写真の下部にキャッチコピーを重ねる。`layout-takahashi`のサイズは、そのまま`font-size`にする。PDFの見た目とは一致しない |
+| 無視（`info`） | 改ページ（`<!-- pagebreak -->`）・front-matterの`paper_size`・`landscape`・`header`・`footer`・`paginate`・`font_size` | HTMLには意味がないため無視し、`info`の診断にする（警告にしない）。Marpのディレクティブは、PDFと同じく黙って無視する。`---`は、常に`<hr>`（`marp_compat`は、config側の設定のため、範囲外） |
+| 未対応（警告） | Graphviz（`dot`・`graphviz`）、`typst-exec` | 内容を消さずに、コードブロックで表示し、警告する。Graphvizは[#181](https://github.com/tokudiro/text-compositor/issues/181)、`typst-exec`は[#182](https://github.com/tokudiro/text-compositor/issues/182)。`typst-exec`は、HTMLでは実行しない（`reviewed/`の制限は、不要） |
+| 未対応（警告） | 生のHTML | PDFと同じく、捨てて警告する。許可リスト方式は、[#184](https://github.com/tokudiro/text-compositor/issues/184) |
+
+* **PDFとの違い**: (1)画像が見つからないとき、PDFはFail-fastで止まるが、HTMLは警告して、他の部分を表示する（確認用の表示のため）。(2)`:::`ブロックの中身が不正（図が無い等）なときは、PDFと同じくエラーで止まる。(3)Typstにない単位（`px`）も、CSSとして通す。
+* **セキュリティ**: 原稿の文字は、すべてエスケープする。生のHTMLは通さず、`javascript:`のリンクはリンクにしない。`style`に入れる値（色・寸法・サイズ）は、CSSの構文を壊さない形だけを通す。JavaScriptは、出力しない。
+* **範囲外**: `config.yaml`由来の機能（章立て・目次・表紙・改版履歴・巻末用語索引など）と、複数ファイルの出力・ファイル間リンクの変換（[#185](https://github.com/tokudiro/text-compositor/issues/185)）、数式（[#183](https://github.com/tokudiro/text-compositor/issues/183)）。CLIの`--format html`は、単一ファイルのCLI（#179）の後に扱う。
+* **レイアウトブロックのHTML**は、表示側のエンジン（[#180](https://github.com/tokudiro/text-compositor/issues/180)）が決まったあとに、見直す可能性がある。
 
 ### CLIとの関係（#25）
 
