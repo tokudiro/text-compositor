@@ -19,7 +19,10 @@
       <button id="auto-reload" class="icon toggle" role="switch" aria-checked="true" aria-label="保存したら自動で更新">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5 5.5 13.5h5.5l-1 7 7.5-10h-5.5z"/></svg>
       </button>
-      <span class="sep"></span>
+      <!-- .csvを開いているときだけ出る。1行目を、見出し行にするかの切り替え（#220）。オンのとき、上の1行が塗られる。 -->
+      <button id="csv-header" class="icon toggle" role="switch" aria-checked="true" aria-label="1行目を見出しにする" title="CSV: 1行目を見出しにする（オン）" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none"/><path d="M4 10.5h16M10 10.5V19" fill="none"/><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3.5H4z" stroke="none"/></svg>
+      </button>      <span class="sep"></span>
       <span id="file"><span id="file-name"></span><span id="file-dir"></span></span>
       <span class="spacer"></span>
       <!-- 右: 状態と、拡大縮小 -->

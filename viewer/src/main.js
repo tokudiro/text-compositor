@@ -50,6 +50,7 @@ const state = {
   autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
   hasDocument: false,    // 内容を表示しているか
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
+  isCsv: false,          // 開いているのが、.csvか（ツールバーの、見出し行の切り替えを出す。#220）
   settings: { ...DEFAULTS },
   diagnostics: summarize([]),
 };
@@ -279,6 +280,10 @@ function changeSetting(key, value) {
 }
 
 function push() {
+  state.isCsv = /\.csv$/i.test(state.file ?? '');
+  // 「表示」メニューの、CSVの見出し行の項目は、.csvを開いているときだけ、有効にする
+  const csvItem = Menu.getApplicationMenu()?.getMenuItemById('csv-header');
+  if (csvItem) { csvItem.enabled = state.isCsv; csvItem.checked = state.settings.csvHeader; }
   if (win && !win.isDestroyed()) win.webContents.send('state', state);
 }
 
@@ -361,7 +366,7 @@ async function renderOnce(file) {
   let result;
   try {
     const client = await getWorker();
-    result = await client.renderHtml({ path: file });
+    result = await client.renderHtml({ path: file, csv_header: state.settings.csvHeader });
   } catch (error) {
     if (error instanceof PythonNotFoundError) worker = null;
     // 想定外の例外でも、アプリを落とさず、原因を診断として見せる
@@ -404,6 +409,12 @@ async function onFilesChanged(paths) {
   // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
   for (let i = 0; i < 10 && !fs.existsSync(target); i++) await new Promise((resolve) => setTimeout(resolve, 100));
   if (state.file === target && fs.existsSync(target)) openFile(target);
+}
+
+/** .csvの1行目を、見出し行にするか（#220）。設定として覚え、開いているCSVを、表示し直す（スクロール位置は、保たれる）。 */
+function setCsvHeader(value) {
+  changeSetting('csvHeader', Boolean(value));
+  if (state.isCsv && state.file) openFile(state.file);
 }
 
 function setAutoReload(value) {
@@ -491,6 +502,8 @@ function buildMenu() {
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
+        { id: 'csv-header', label: 'CSV: 1行目を見出しにする', type: 'checkbox', checked: state.settings.csvHeader, enabled: false, click: (item) => setCsvHeader(item.checked) },
+        { type: 'separator' },
         { label: '設定…', accelerator: 'CommandOrControl+,', click: () => setSettingsOpen(!state.settingsOpen) },
         ...(process.env.VIEWER_DEBUG ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
       ],
@@ -503,6 +516,7 @@ ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Mat
 ipcMain.on('open-dialog', () => openWithDialog());
 ipcMain.on('reload', reload);
 ipcMain.on('auto-reload', (_event, value) => setAutoReload(value));
+ipcMain.on('csv-header', (_event, value) => setCsvHeader(value));
 ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));

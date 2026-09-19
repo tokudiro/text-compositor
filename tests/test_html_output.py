@@ -431,6 +431,19 @@ class TestCsvFiles:
         assert cells.count("<tr>") >= 1 and "<td>row000</td><td>value</td>" in cells
         assert cells.rstrip().endswith("</tr>")   # 切れた行が、混ざらない
 
+    def test_without_a_header_every_row_is_a_data_row(self, tmp_path):
+        md = tmp_path / "raw.csv"
+        md.write_text("りんご,10\nみかん,3\n", encoding="utf-8")
+        result = render_html(str(md), plugins=PLAIN, csv_header=False)
+        html = open(result.html_path, encoding="utf-8").read()
+        assert result.ok and "<thead>" not in html and "<th>" not in html
+        assert "<tr><td>りんご</td><td>10</td></tr>" in html and "<tr><td>みかん</td><td>3</td></tr>" in html
+
+    def test_the_header_is_the_default(self, tmp_path):
+        md = tmp_path / "raw.csv"
+        md.write_text("a,b\n1,2\n", encoding="utf-8")
+        html = open(render_html(str(md), plugins=PLAIN).html_path, encoding="utf-8").read()
+        assert "<thead><tr><th>a</th><th>b</th></tr></thead>" in html
     def test_a_csv_with_a_bom_or_other_encoding_is_an_error(self, tmp_path):
         assert "not UTF-8" in error_of(tmp_path, "b.csv", b"\xef\xbb\xbfa,b\n").message
         assert "not UTF-8" in error_of(tmp_path, "s.csv", "名前,数\n".encode("cp932")).message

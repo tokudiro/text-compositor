@@ -25,6 +25,8 @@ chapters:
 
 `paper_size`/`landscape`/`header`/`footer`/`paginate` を省略すると、そのMarkdownファイルのfront-matter（次章）の値、それも無ければ `document:` のグローバル設定が使われます。`table_header` はキー単位（`bold`/`background`/`color`）で `document.table_header` を上書きします。指定しなかったキーはグローバル設定を引き継ぎます（front-matterでの上書きは非対応。「document: 文書全体の設定」の章を参照）。
 
+`.csv`の章では、`csv_header: false`で、1行目をヘッダー行にせず、すべての行をデータ行にできます（`document.csv_header`を、この章だけ上書きします。「Markdownファイルの書き方」の章の「CSVファイル」を参照）。
+
 `header`/`footer`/`paginate`は**その章だけ**に効き、`landscape`/`paper_size`と同様に次の章には持続しません。章を並べ替えても、設定は`chapters:`のエントリごとついてくるため、意図しないヘッダーが別の章に混入することはありません（Marpディレクティブのような「以降のページに持続する」仕組みは採用していません。[#41](https://github.com/tokudiro/text-compositor/issues/41)/[#42](https://github.com/tokudiro/text-compositor/issues/42)を参照）。
 
 ## 3. aggregate: （YAML/JSONファイル群をテーブルとして集約）

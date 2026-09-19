@@ -9,11 +9,12 @@ const DEFAULTS = Object.freeze({
   toolbarPosition: 'top',   // 'top' | 'bottom'
   theme: 'system',          // 'system' | 'light' | 'dark'
   autoReload: true,         // 保存したら、自動で更新する（#170）
+  csvHeader: true,          // .csvの1行目を、見出し行にする（#220）。ツールバーで切り替え、覚える
   window: null,             // 前回のウィンドウの大きさ・位置（#192）。設定画面では変えない
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態は、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload']);
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -51,6 +52,7 @@ function normalizeSettings(value) {
     if (choices.includes(source[key])) result[key] = source[key];
   }
   if (typeof source.autoReload === 'boolean') result.autoReload = source.autoReload;
+  if (typeof source.csvHeader === 'boolean') result.csvHeader = source.csvHeader;
   result.window = normalizeWindow(source.window);
   return result;
 }

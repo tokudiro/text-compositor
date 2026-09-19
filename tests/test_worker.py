@@ -102,6 +102,20 @@ class TestHandleRequest:
         assert response["ok"] is False and response["error"]["code"] == code
 
 
+class TestCsvHeaderParam:
+    """render_htmlの`csv_header`（#220）。"""
+
+    def test_a_boolean_is_passed_to_the_session(self):
+        session = FakeSession()
+        response = worker.handle_request(session, {"id": 1, "method": "render_html", "params": {"path": "a.csv", "csv_header": False}})
+        assert response["ok"] is True
+        assert session.html_calls[-1][2]["csv_header"] is False
+
+    def test_something_that_is_not_a_boolean_is_a_protocol_error(self):
+        for value in ("false", 0, None, [True]):
+            response = worker.handle_request(FakeSession(), {"id": 1, "method": "render_html", "params": {"path": "a.csv", "csv_header": value}})
+            assert response["ok"] is False and response["error"]["code"] == "bad_request", value
+
 class TestServe:
     def run(self, lines, session=None):
         session = session or FakeSession()
