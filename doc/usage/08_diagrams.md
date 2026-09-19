@@ -31,9 +31,23 @@ A -> B
 
 `plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`とも既定`true`）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
+### 記法ごとの対応
+
+| フェンス | 種別 | Obunzu（HTML出力）での扱い |
+| --- | --- | --- |
+| `mermaid` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します |
+| `plantuml` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
+| `d2` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
+| `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
+| `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) | 未対応です。コードブロックとして表示し、警告を出します（[#181](https://github.com/tokudiro/text-compositor/issues/181)） |
+
+レイアウトのブロック（`::: layout-...`・`::: align`）も、PDF出力とObunzuの両方で使えます。Obunzuでは、CSSで近似するため、見た目が、PDF出力と少し違う場合があります。
+
 `svg`フェンスはMermaid/PlantUML/Graphvizと異なりレンダリングを一切行いません。SVGは既にテキストで完結したベクター画像フォーマットのため、コードの内容をそのまま画像として埋め込みます。外部ツールへの依存が無いため`plugins:`の無効化対象にもなりません（常時有効）。
 
 ### 既存のSVGファイルを画像として貼る
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
 
 コードを原稿に直接書くのではなく、すでに手元にある`.svg`ファイルを貼りたい場合は、`svg`フェンスを使わず通常のMarkdown画像記法だけで済みます。TypstがSVGをネイティブにサポートしているため、専用の対応やレンダリングを追加しなくてもそのまま埋め込まれます。
 
@@ -44,6 +58,8 @@ A -> B
 PNG/JPEGと同じ画像として扱われるため、[Markdown画像の配置・サイズ指定](06_markdown_basics.md)（`alt|width=`/`align=`構文）やレイアウト記法（`layout-right`等）もそのまま使えます。`svg`フェンスとの使い分けは、「別ファイルとして管理された既存のSVGを貼るか」「原稿に直接コードを書くか」です。
 
 ## サイズ指定（width/height）
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
 
 図は既定でページ幅・高さの上限（Mermaid/PlantUML/D2は12cm、Graphvizはページ幅）を超えないよう自動縮小されます。ただし、拡大はされません。明示的にサイズを指定したい場合は、言語名の後ろに`{width=...}`/`{height=...}`を書きます。
 
@@ -131,6 +147,8 @@ graph TD
 
 ## layout-feature: 写真メイン＋キャッチコピー
 
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
 写真（または図）をフルブリードで敷き、下部に半透明の帯とキャッチコピーを重ねるレイアウトです。表紙・扉スライドなどで使います。
 
 ````markdown
@@ -146,6 +164,8 @@ graph TD
 想定している用途はスライド自体と同じ横長〜正方形に近い写真です。縦長写真を置くと上下がトリミングされます（枠の高さに収まるよう左右基準で拡大されるため）。縦長写真の全体を見せたい場合はこのレイアウトの対象外とし、通常のMarkdown画像として配置してください。
 
 ## layout-columns: 箇条書き等をN列に分割
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
 
 中身（任意のMarkdown）をN列に流し込みます。列数は省略時2列、`layout-columns {n=3}`のように`{n=...}`を付けるとN列にできます。
 
@@ -171,6 +191,8 @@ graph TD
 
 ## layout-takahashi: 画面中央に大きな文字を表示する
 
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
 高橋メソッド（1スライドに短い言葉を大きな文字だけで見せるプレゼン手法）のように、中身を画面の上下左右中央に大きな文字で表示したい場合は`::: layout-takahashi`を使います。
 
 ````markdown
@@ -190,6 +212,8 @@ graph TD
 `{size=...}`を省略した場合は既定の96ptのまま表示されます。値はTypstがそのまま解釈できる文字列（`48pt`等）で、他のlayout系ブロックの属性（`layout-right`の`left=`/`right=`等）と同様に妥当性チェックは行いません（不正な値はTypst側のコンパイルエラーになります）。
 
 ## align: 段落を中央寄せ・右寄せにする
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
 
 本文（段落）を中央寄せ・右寄せにしたい場合は`::: align {align=...}`を使います。中身は複数行・複数段落でも構いません。
 

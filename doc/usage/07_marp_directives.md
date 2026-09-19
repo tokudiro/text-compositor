@@ -1,5 +1,9 @@
 # Marpディレクティブ
 
+![Marp](badges/marp.svg)
+
+Obunzu（HTML出力）も、同じディレクティブを、警告なしで読み捨てます。
+
 Marp形式のスライドでよく使う3つのHTMLコメントディレクティブ（`header`/`footer`/`paginate`）は認識します。ただし、**値は反映しません**（読み捨てます）。Marp原稿をそのまま`chapters`に流し込んでも、ビルドが失敗したり不要な警告が大量に出たりしないための措置です。
 
 ```markdown
