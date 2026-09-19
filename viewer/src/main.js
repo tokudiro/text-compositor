@@ -100,6 +100,7 @@ function createWindow() {
     width: 1000,
     height: 800,
     title: APP_TITLE,
+    icon: path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     backgroundColor: background,
     autoHideMenuBar: true,
     webPreferences: {
