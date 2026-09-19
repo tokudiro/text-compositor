@@ -38,7 +38,7 @@ If no Python is found, the window still opens and explains what to do.
 | Reload | `F5` / `Ctrl+R` / the reload button. The scroll position is kept. |
 | Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%). Clicking the percentage in the toolbar also resets it. |
 | Full screen | `F11` to enter; `Esc` or `F11` to leave. The toolbar is hidden in full screen (the error bar stays). `Ctrl+O`, `F5` and drag and drop still work. |
-| Settings | The gear button in the toolbar, or `Ctrl+,`. Close with `Esc` or the gear button. |
+| Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **← 戻る** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
 | Show or hide error details | Click the error/warning bar |
 
 Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, `.puml`, `.d2`; `.dot` is shown as code with a warning until Graphviz is supported in HTML output, #181).
@@ -83,6 +83,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/check-window.js` | Checks full screen (F11/Esc) and closing the settings screen with real key presses (manual, Windows only) |
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |

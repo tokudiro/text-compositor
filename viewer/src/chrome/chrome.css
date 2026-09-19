@@ -60,7 +60,11 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 #settings { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; overflow: auto; padding: 32px 48px; }
 .toolbar-bottom #settings { top: 0; bottom: var(--chrome-height, 40px); }
 #settings[hidden] { display: none; }
-#settings h2 { font-size: 18px; font-weight: 600; margin: 0 0 20px; }
+.settings-head { display: flex; align-items: center; gap: 16px; margin: 0 0 20px; }
+#settings h2 { font-size: 18px; font-weight: 600; margin: 0; }
+/* 戻るボタンは、枠を付けて、押せることが分かるようにする */
+button.back { border: 1px solid var(--line); padding: 0 12px; }
+#settings .hint + .hint { margin-top: 4px; }
 #settings fieldset { border: 0; padding: 0; margin: 0 0 20px; }
 #settings legend { padding: 0; margin-bottom: 8px; color: var(--muted); }
 #settings label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }

@@ -147,13 +147,9 @@ function createWindow() {
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
   contents.on('did-finish-load', () => contents.setZoomLevel(zoomLevel));
 
-  win.on('resize', () => {
-    // 全画面の出入りは、サイズの変化として、確実に届く（イベントの発火に頼らない）
-    if (win.isFullScreen() !== state.fullScreen) syncFullScreen();
-    else layout();
-  });
-  win.on('enter-full-screen', syncFullScreen);
-  win.on('leave-full-screen', syncFullScreen);
+  win.on('resize', () => { layout(); scheduleFullScreenSync(); });
+  win.on('enter-full-screen', scheduleFullScreenSync);
+  win.on('leave-full-screen', scheduleFullScreenSync);
   handleEscape(win.webContents);
   handleEscape(contents);
   nativeTheme.on('updated', applyBackground);
@@ -179,10 +175,25 @@ function toggleFullScreen() {
   if (win) win.setFullScreen(!win.isFullScreen());
 }
 
-/** 全画面のとき、ツールバーを隠す。エラーの帯は、見落とさないように、隠さない。 */
+let fullScreenTimer = null;
+
+/**
+ * 全画面のとき、ツールバーを隠す。エラーの帯は、見落とさないように、隠さない。
+ * 全画面の出入りでは、イベントとサイズの変化が、続けて届き、その時点の`isFullScreen()`が、まだ古いことがある
+ * （入るときも、戻るときも、実測で確認した）。1回ごとの値を信じず、落ち着いてから、最新の状態に合わせる。
+ * 戻ったのに、ツールバーが消えたままになる不具合（#200）の対策。
+ */
+function scheduleFullScreenSync() {
+  clearTimeout(fullScreenTimer);
+  fullScreenTimer = setTimeout(syncFullScreen, 150);
+}
+
 function syncFullScreen() {
-  state.fullScreen = win.isFullScreen();
-  trace(`full-screen ${state.fullScreen}`);
+  if (!win || win.isDestroyed()) return;
+  const fullScreen = win.isFullScreen();
+  if (fullScreen === state.fullScreen) return;
+  state.fullScreen = fullScreen;
+  trace(`full-screen ${fullScreen}`);
   push();
   layout();
 }
@@ -221,8 +232,15 @@ function setSettingsOpen(open) {
   state.settingsOpen = Boolean(open);
   layout();
   push();
-  // 閉じたら、文書へフォーカスを戻す（スクロール・キー操作が、そのまま使える）
-  if (!state.settingsOpen && state.hasDocument) contentView.webContents.focus();
+  // 開いたら、フォーカスを設定画面（ウィンドウ本体）へ移す。文書に残ったままだと、隠れた文書がキーを受けて、
+  // Escで閉じられない（実測）。閉じたら、文書へ戻す（スクロール・キー操作が、そのまま使える）。
+  if (state.settingsOpen) win.webContents.focus();
+  else if (state.hasDocument) contentView.webContents.focus();
+}
+
+/** 利用者が、ファイルを開く・再読み込みをしたときは、設定画面を閉じて、文書を見せる（自動更新では、閉じない）。 */
+function leaveSettings() {
+  if (state.settingsOpen) setSettingsOpen(false);
 }
 
 /** 設定を1つ変えて、すぐに反映し、保存する。想定外のキー・値は、無視する。 */
@@ -281,6 +299,7 @@ function openFile(file) {
 }
 
 function reload() {
+  leaveSettings();
   if (state.file) openFile(state.file);
 }
 
@@ -402,6 +421,7 @@ function zoomReset() {
 }
 
 async function openWithDialog() {
+  leaveSettings();
   const result = await dialog.showOpenDialog(win, {
     title: 'Markdownファイルを開く',
     properties: ['openFile'],
@@ -453,4 +473,4 @@ ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
-ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') openFile(filePath); });
+ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
