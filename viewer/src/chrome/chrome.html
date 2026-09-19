@@ -45,7 +45,10 @@
     <div id="details" hidden></div>
   </div>
   <section id="settings" hidden aria-labelledby="settings-title">
-    <h2 id="settings-title">設定</h2>
+    <div class="settings-head">
+      <button id="settings-close" class="back" title="設定を閉じる（Esc）">← 戻る</button>
+      <h2 id="settings-title">設定</h2>
+    </div>
     <fieldset>
       <legend>ツールバーの位置</legend>
       <label><input type="radio" name="toolbarPosition" value="top">上</label>
@@ -57,7 +60,8 @@
       <label><input type="radio" name="theme" value="light">ライト</label>
       <label><input type="radio" name="theme" value="dark">ダーク</label>
     </fieldset>
-    <p class="hint">変更は、すぐに反映され、自動で保存されます。閉じるには、Esc または歯車のボタンを押します。</p>
+    <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
+    <p class="hint">この画面を閉じるには、「← 戻る」、Esc、または、歯車のボタンを押します。</p>
   </section>
   <div id="empty">
     <p class="title">Markdownファイルを開いてください</p>

@@ -13,6 +13,7 @@ $('zoom-out').addEventListener('click', () => api.zoomOut());
 $('zoom').addEventListener('click', () => api.zoomReset());
 $('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reload').getAttribute('aria-checked') !== 'true'));
 $('settings-button').addEventListener('click', () => api.toggleSettings());
+$('settings-close').addEventListener('click', () => api.toggleSettings());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
 $('settings').addEventListener('change', (event) => {
   if (event.target.matches('input[type="radio"]')) api.setSetting(event.target.name, event.target.value);
