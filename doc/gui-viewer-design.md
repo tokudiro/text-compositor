@@ -1,5 +1,7 @@
 # GUI版Viewer: 設計の決定（#166）
 
+> **注（2026-09-19）**: 本書は、PDFを表示するViewerを前提にした設計である。Viewerのコンセプトを、「閲覧専用・軽量・Diagrams as Code」に組み直した（[#165](https://github.com/tokudiro/text-compositor/issues/165)）ため、表示方法（本書の「C# + Avalonia」「PDFium」）は、見直し対象である。表示方法の計測は、[html-viewer-benchmark.md](html-viewer-benchmark.md)にある。Pythonの常駐ワーカーと標準入出力のJSON行による連携方式は、そのまま使う。
+
 GUI版Markdown Viewer（[#165](https://github.com/tokudiro/text-compositor/issues/165)）の、実装言語・Pythonとの連携方式・GUIフレームワーク・PDF表示ライブラリの決定と、その根拠である。スパイクの結果は、[gui-viewer-spike.md](gui-viewer-spike.md)にある。
 
 判断の優先順位は、①安定性、②見た目（好みの見た目に近づけられること）、③性能とサイズ、の順とした。

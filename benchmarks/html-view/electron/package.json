@@ -1,0 +1,6 @@
+{
+  "name": "electron-bench",
+  "version": "0.0.0",
+  "private": true,
+  "main": "main.js"
+}

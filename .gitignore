@@ -27,5 +27,10 @@ benchmarks/gui-startup/rs/target/
 benchmarks/gui-startup/pub-slim/
 benchmarks/gui-startup/pdfium/
 
+# HTML表示方法の計測（#180）用アプリのビルド成果物
+benchmarks/html-view/wv2/bin/
+benchmarks/html-view/wv2/obj/
+benchmarks/html-view/wry/target/
+
 # 作業用の一時ファイル置き場
 temp/
