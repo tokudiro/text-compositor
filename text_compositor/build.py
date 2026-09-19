@@ -10,7 +10,9 @@ import subprocess
 import hashlib
 import shutil
 import argparse
+import urllib.error
 import urllib.request
+import http.client
 import zipfile
 import tarfile
 import time
@@ -94,6 +96,46 @@ def _log_success(msg):
     """CLI専用の完了表示。Python APIは、結果オブジェクト（BuildResult）で成否を返すため出さない。"""
     if not diagnostics.active():
         print(f"[Success] {msg}")
+
+# 取得（ダウンロード）の再試行（#189）。GitHubのリリース等は、一時的に5xxや接続エラーを返すことがある。CIの
+# ように、毎回まっさらな環境で、取得が必ず起こる場合、1回の失敗が、テスト全体の失敗になっていた。
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_RETRY_DELAYS = (1.0, 3.0)   # 失敗ごとの、次の試行までの待ち時間（秒）
+
+def _is_transient_download_error(error):
+    """再試行して、成功する見込みのある失敗か。HTTPの5xx・408・429、接続や時間切れ、途中で切れた転送。
+    404などのクライアントエラーや、ディスクへの書き込みの失敗は、再試行しても直らないため、対象外。"""
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code >= 500 or error.code in (408, 429)
+    return isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionError))
+
+def _download(url, dest, attempts=DOWNLOAD_ATTEMPTS, delays=DOWNLOAD_RETRY_DELAYS, sleep=None):
+    """urlをdestへ取得する。一時的な失敗は、間隔を空けて再試行する（合計attempts回）。
+    取得中は、`dest.part`へ書き、成功したときだけdestへ置き換える。途中で失敗した書きかけのファイルが、
+    destに残って、次回以降、取得済みとして使われるのを防ぐ。最後の失敗は、OSErrorとして、そのまま送出する。"""
+    part = dest + ".part"
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            urllib.request.urlretrieve(url, part)
+            os.replace(part, dest)
+            return
+        except http.client.HTTPException as e:   # 切れた応答など。一時的な失敗とみなす。呼び出し側は、OSErrorだけを扱う
+            last_error = OSError(f"{type(e).__name__}: {e}")
+            last_error.__cause__ = e
+            transient = True
+        except OSError as e:
+            last_error = e
+            transient = _is_transient_download_error(e)
+        finally:
+            if os.path.exists(part):
+                os.remove(part)
+        if attempt == attempts or not transient:
+            raise last_error
+        delay = delays[min(attempt - 1, len(delays) - 1)]
+        _log_info(f"Download failed ({last_error}); retrying in {delay:g}s ({attempt}/{attempts})...")
+        (sleep or time.sleep)(delay)
+    raise last_error
 
 def _user_cache_dir():
     """フォント/JRE/PlantUMLの取得物を置くアプリ専用のキャッシュディレクトリを返す。
@@ -1967,7 +2009,7 @@ def ensure_fonts():
     _log_info(f"Downloading Noto Sans JP font (one-time; cached under {font_dir})...")
     zip_path = os.path.join(font_dir, "_download.zip")
     try:
-        urllib.request.urlretrieve(NOTO_SANS_JP_RELEASE_URL, zip_path)
+        _download(NOTO_SANS_JP_RELEASE_URL, zip_path)
         with zipfile.ZipFile(zip_path) as zf:
             for name in missing:
                 data = zf.read(name)
@@ -2007,7 +2049,7 @@ def ensure_mermaid_js():
 
     _log_info(f"Downloading mermaid.min.js (one-time; cached under {cache_dir})...")
     try:
-        urllib.request.urlretrieve(MERMAID_JS_URL, js_path)
+        _download(MERMAID_JS_URL, js_path)
     except OSError as e:
         _error(f"Failed to download mermaid.min.js: {e}")
         sys.exit(1)
@@ -2088,7 +2130,7 @@ def ensure_temurin_jre():
     _log_info(f"No local Java 11+ found; downloading Eclipse Temurin JRE {TEMURIN_JRE_RELEASE} "
               f"(one-time; cached under {cache_root})...")
     try:
-        urllib.request.urlretrieve(TEMURIN_JRE_BASE_URL + filename, archive_path)
+        _download(TEMURIN_JRE_BASE_URL + filename, archive_path)
     except OSError as e:
         _error(f"Failed to download Eclipse Temurin JRE: {e}")
         sys.exit(1)
@@ -2135,7 +2177,7 @@ def ensure_plantuml_jar():
 
     _log_info(f"Downloading plantuml.jar (one-time; cached under {cache_dir})...")
     try:
-        urllib.request.urlretrieve(PLANTUML_JAR_URL, jar_path)
+        _download(PLANTUML_JAR_URL, jar_path)
     except OSError as e:
         _error(f"Failed to download plantuml.jar: {e}")
         sys.exit(1)
@@ -2201,7 +2243,7 @@ def ensure_d2_binary():
     archive_path = os.path.join(cache_root, filename)
     _log_info(f"No local D2 found; downloading D2 CLI {D2_RELEASE} (one-time; cached under {cache_root})...")
     try:
-        urllib.request.urlretrieve(D2_BASE_URL + filename, archive_path)
+        _download(D2_BASE_URL + filename, archive_path)
     except OSError as e:
         _error(f"Failed to download D2 CLI: {e}")
         sys.exit(1)
