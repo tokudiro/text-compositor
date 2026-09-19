@@ -1,0 +1,18 @@
+[package]
+name = "wry-bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Tauriのホスト層（ウィンドウのtaoと、WebViewのwry）だけで、HTMLを表示する、計測用の最小アプリ（#180）。
+# Tauri本体（IPC・バンドラ等）は含めない。Windowsでは、WebView2を使う。
+[dependencies]
+wry = "0.57"
+tao = "0.37"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

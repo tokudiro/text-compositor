@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>計測用の文書（HTML表示の候補の比較）</title>
+<style>
+:root { color-scheme: light dark; --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code-bg: #f6f8fa; --link: #0969da; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --muted: #9198a1; --line: #3d444d; --code-bg: #151b23; --link: #4493f8; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 "Noto Sans JP", "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 28px 64px; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.3; margin: 1.6em 0 0.6em; }
+h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line); }
+h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.25em; }
+a { color: var(--link); }
+p, ul, ol, table, pre, blockquote { margin: 0 0 1em; }
+ul, ol { padding-left: 2em; }
+li > p { margin: 0.25em 0; }
+ul.contains-task-list { list-style: none; padding-left: 1em; }
+code { font: 0.9em/1.4 "Cascadia Mono", Consolas, Menlo, monospace; background: var(--code-bg); padding: 0.15em 0.35em; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 12px 16px; border-radius: 6px; overflow: auto; }
+pre code { background: none; padding: 0; font-size: 0.875em; }
+blockquote { margin-left: 0; padding: 0 1em; color: var(--muted); border-left: 4px solid var(--line); }
+table { border-collapse: collapse; }
+th, td { border: 1px solid var(--line); padding: 6px 12px; vertical-align: top; }
+th { background: var(--code-bg); }
+hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
+img { max-width: 100%; }
+.diagram { text-align: center; margin: 1em 0; }
+.alert { margin: 0 0 1em; padding: 0.5em 1em; border-left: 4px solid var(--alert, #0969da); background: var(--code-bg); }
+.alert p { margin: 0.4em 0; }
+.alert-title { font-weight: bold; color: var(--alert, #0969da); }
+.alert-note { --alert: #0969da; } .alert-tip { --alert: #1a7f37; } .alert-important { --alert: #8250df; }
+.alert-warning { --alert: #9a6700; } .alert-caution { --alert: #d1242f; }
+table.layout, table.layout td { border: 0; padding: 0 8px 0 0; width: auto; }
+table.layout { width: 100%; table-layout: fixed; }
+.feature { position: relative; margin: 1em 0; }
+.feature img { display: block; width: 100%; }
+.feature-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 1em 1.5em; color: #fff; font-size: 1.5em; font-weight: bold; background: rgba(0, 0, 0, 0.6); }
+.feature-caption p { margin: 0; }
+.columns { column-gap: 1.5em; margin-bottom: 1em; }
+.takahashi { text-align: center; padding: 1.5em 0; line-height: 1.2; }
+</style>
+</head>
+<body>
+<main>
+<h1>計測用の文書（HTML表示の候補の比較）</h1>
+<p>この文書は、Markdown Viewerの表示方法（#180）を、同じ条件で比較するための固定の原稿です。実際のREADMEや仕様書に近い構成（見出し、表、コード、図、alert、色付きの文字）を含みます。<code>make_fixture.py</code>が、HTMLと図の画像にします。</p>
+<h2>概要</h2>
+<p>text-compositorは、複数のテキストから文書を組み上げるツールです。Markdownの変換に加えて、Mermaid・PlantUML・D2・Graphvizなどの<strong>Diagrams as Code</strong>を、図として描画します。[[用語]]のような記法や、<span style="color:red">赤い文字</span>・<span style="font-size:10pt">小さい文字</span>のような装飾も使えます。</p>
+<ul>
+<li>単一のMarkdownを、PDFまたはHTMLにできます。</li>
+<li>図は、生成したSVGをキャッシュして再利用します。</li>
+<li>警告とエラーは、原稿の行つきで返します。</li>
+<li>Pythonの常駐ワーカーが、ビルドのあいだ、Mermaidのブラウザを使い回します。</li>
+</ul>
+<div class="alert alert-note">
+<p class="alert-title">Note</p>
+<p>計測では、この文書を全候補に同じ内容で表示させます。表示の忠実度も、この文書で確認します。</p>
+</div>
+<div class="alert alert-warning">
+<p class="alert-title">Warning</p>
+<p>生のHTMLは、PDFと同じく、捨てて警告します。</p>
+</div>
+<h2>図</h2>
+<h3>フローチャート</h3>
+<div class="diagram diagram-mermaid"><img src="assets/mermaid_264d1b33ef2691d9.svg" alt="mermaid diagram"></div>
+<h3>シーケンス図</h3>
+<div class="diagram diagram-mermaid"><img src="assets/mermaid_62f5fd7a68b62ce4.svg" alt="mermaid diagram"></div>
+<h3>クラス図</h3>
+<div class="diagram diagram-mermaid"><img src="assets/mermaid_00e3e88678293481.svg" alt="mermaid diagram"></div>
+<h3>図とテキストの2カラム</h3>
+<table class="layout layout-right"><tbody><tr><td style="width:40.0%">
+<p>左側に説明文を置き、右側に図を置きます。2カラムのレイアウトは、CSSの表で近似しています。</p>
+<ul>
+<li>箇条書き1</li>
+<li>箇条書き2</li>
+<li>箇条書き3</li>
+</ul>
+</td><td style="width:60.0%">
+<div class="diagram diagram-svg"><img src="assets/svg_8c6833b0224dc6f6.svg" alt="svg diagram"></div>
+</td></tr></tbody></table>
+<h2>表</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">候補</th>
+<th style="text-align:right">起動</th>
+<th style="text-align:right">メモリ</th>
+<th style="text-align:center">表示の忠実度</th>
+<th style="text-align:left">備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">WebView2（標準）</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:center">高い</td>
+<td style="text-align:left">Windows専用</td>
+</tr>
+<tr>
+<td style="text-align:left">WebView2（調整版）</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:center">高い</td>
+<td style="text-align:left">ブラウザ引数で調整</td>
+</tr>
+<tr>
+<td style="text-align:left">Tauri（wry）</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:center">高い</td>
+<td style="text-align:left">Rust</td>
+</tr>
+<tr>
+<td style="text-align:left">ブラウザ＋ローカルサーバ</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:center">高い</td>
+<td style="text-align:left">専用ウィンドウではない</td>
+</tr>
+<tr>
+<td style="text-align:left">軽量HTMLエンジン</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:center">未確認</td>
+<td style="text-align:left">JSなし</td>
+</tr>
+<tr>
+<td style="text-align:left">Electron</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:right">未計測</td>
+<td style="text-align:center">高い</td>
+<td style="text-align:left">基準</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">層</th>
+<th style="text-align:center">状態</th>
+<th style="text-align:left">説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Harness</td>
+<td style="text-align:center;background:#d9f2d9">実装済み</td>
+<td style="text-align:left">常駐ワーカーとJSON行の通信</td>
+</tr>
+<tr>
+<td style="text-align:left">Loop</td>
+<td style="text-align:center;background:#fff2cc;border:1px dashed currentColor">検討中</td>
+<td style="text-align:left">ファイル監視と自動更新</td>
+</tr>
+<tr>
+<td style="text-align:left">Render</td>
+<td style="text-align:center;background:#f5f5f5">未着手</td>
+<td style="text-align:left">表示方法の決定待ち</td>
+</tr>
+</tbody>
+</table>
+<h2>コード</h2>
+<pre><code class="language-python">from text_compositor import Session
+
+with Session() as session:
+    result = session.render_html(&quot;doc.md&quot;)
+    if result.ok:
+        print(result.html_path)
+    for d in result.diagnostics:
+        print(d.severity, d.message, d.file, d.line)
+</code></pre>
+<pre><code class="language-bash">python -m text_compositor.worker
+</code></pre>
+<pre><code class="language-yaml">document:
+  title: 仕様書
+  toc: true
+plugins:
+  mermaid: true
+  plantuml: false
+</code></pre>
+<h2>本文（長めの文章）</h2>
+<p>Markdown Viewerに求められるのは、余計な機能を持たずに、原稿を素早く読めることです。エディタ機能はなく、ファイルを保存して再読み込みすると、表示が更新されます。既存の汎用Markdown Viewerには、Diagrams as Codeの図を描画できるものが見当たらないため、text-compositorの中核を使って、図つきのMarkdownを表示できるViewerを作ります。</p>
+<p>表示の方法は、軽さ、安定性、見た目、実装の手間で比較します。Electronのように重いものが多いため、起動時間、メモリ、プロセス数、配布サイズを、実測で確認します。WebView2は、標準の使い方では重い印象がありますが、起動方法を調整すると軽くなる可能性もあります。</p>
+<p>原稿の変更を検知して、表示を自動で更新する機能は、別のissueで扱います。ここでは、ファイルを書き換えて再読み込みするまでの時間だけを測ります。図の生成には、Mermaidのブラウザ、PlantUMLのJava、D2のバイナリが要りますが、生成済みのSVGを表示するだけなら、表示側にJavaScriptは要りません。</p>
+<p>長い文書でも、スクロールが滑らかで、再読み込みのときに位置が飛ばないことが望まれます。この文書は、計測のために、ある程度の長さを持たせています。以下の段落は、文字数を増やすための、同じ内容の繰り返しです。</p>
+<p>Markdown Viewerに求められるのは、余計な機能を持たずに、原稿を素早く読めることです。エディタ機能はなく、ファイルを保存して再読み込みすると、表示が更新されます。既存の汎用Markdown Viewerには、Diagrams as Codeの図を描画できるものが見当たらないため、text-compositorの中核を使って、図つきのMarkdownを表示できるViewerを作ります。</p>
+<p>表示の方法は、軽さ、安定性、見た目、実装の手間で比較します。Electronのように重いものが多いため、起動時間、メモリ、プロセス数、配布サイズを、実測で確認します。WebView2は、標準の使い方では重い印象がありますが、起動方法を調整すると軽くなる可能性もあります。</p>
+<p>原稿の変更を検知して、表示を自動で更新する機能は、別のissueで扱います。ここでは、ファイルを書き換えて再読み込みするまでの時間だけを測ります。図の生成には、Mermaidのブラウザ、PlantUMLのJava、D2のバイナリが要りますが、生成済みのSVGを表示するだけなら、表示側にJavaScriptは要りません。</p>
+<h2>画像と装飾</h2>
+<p><img src="assets/photo.png" alt="中央の画像" style="width:240pt;display:block;margin-left:auto;margin-right:auto"></p>
+<p><span style="color:#0000ff">青い文字</span>、<span style="color:green">緑の文字</span>、<s>取り消し線</s>、<code>インラインコード</code>、<a href="https://example.com">リンク</a>。</p>
+<ol>
+<li>順序つきリストの1番目</li>
+<li>2番目
+<ul>
+<li>入れ子の項目</li>
+<li>もう一つの項目</li>
+</ul>
+</li>
+<li>3番目</li>
+</ol>
+<ul class="contains-task-list">
+<li class="task-list-item"><input type="checkbox" disabled checked> 完了したタスク</li>
+<li class="task-list-item"><input type="checkbox" disabled> 未完了のタスク</li>
+</ul>
+<hr />
+<h2>2列の文章</h2>
+<div class="columns" style="column-count:2">
+<p>これは2列に分けて表示する文章です。列の分割は、CSSの<code>column-count</code>で近似しています。表示側のエンジンが、この指定に対応しているかを確認するための段落です。これは2列に分けて表示する文章です。列の分割は、CSSの<code>column-count</code>で近似しています。表示側のエンジンが、この指定に対応しているかを確認するための段落です。</p>
+</div>
+<p>おわり。</p>
+</main>
+</body>
+</html>
