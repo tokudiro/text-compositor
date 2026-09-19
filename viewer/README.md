@@ -63,6 +63,9 @@ The window size and position are remembered too (also maximized state). If the s
 
 Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%\Obunzu` on Windows). A missing or broken file, or an unexpected value, falls back to the defaults, so the app always starts.
 
+## Distribution (Windows)
+
+`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 162 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with only the packages HTML output needs, and the third-party notices (`licenses/`). `typst` (PDF only) and `playwright` (Mermaid) are not bundled, so **Mermaid diagrams do not render in the ZIP yet** (#207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md).
 ## Environment variables
 
 | Variable | Meaning |
@@ -88,6 +91,10 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
 | `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |
 | `scripts/check-window-state.js` | Checks that the window size, position and maximized state come back after a restart (manual, Windows only) |
+| `scripts/build-dist.js` | Builds the Windows portable ZIP (Electron + embeddable Python + minimal packages + notices) |
+| `scripts/check-dist.js` | Runs the unpacked distribution with Python hidden from the environment and checks it (manual, Windows only) |
+| `scripts/check-embed-dependencies.py` | Checks that the embedded Python needs only bundled or standard Windows DLLs (needs `pefile`; manual) |
+| `dist-requirements.txt` | Python packages bundled in the distribution (pinned; `typst` and `playwright` are left out) |
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |
