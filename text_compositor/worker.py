@@ -13,12 +13,17 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
 依頼: {"id": <任意の値。応答にそのまま返る>, "method": <メソッド名>, "params": {...}}
   - `build`  : Markdownをビルドする。params: `path`（必須）・`output`・`template`・`plugins`・
                `document`・`variables`・`config`・`keep_temp`（意味は、`Session.build`と同じ）。
+  - `render_html`: Markdown（または図の単体ファイル）をHTMLにする（実験的、#161）。params: `path`（必須）・
+               `output`・`plugins`・`variables`・`config`（意味は、`Session.render_html`と同じ）。
   - `ping`   : 生きているかの確認。
   - `shutdown`: 応答を返した後、Mermaidのブラウザ等を片付けて、終了する。
 
 応答（`build`）: {"id": ..., "ok": true|false, "pdf": "...", "diagnostics": [...], "timings_ms": {...}}
   `ok`は、ビルドの成否。失敗（`ok: false`）でも、`diagnostics`に、エラーの位置つきの内容が入る。
   診断1件: {"severity": "error|warning|hint|info", "message": ..., "file": ..., "line": ..., "detail": ...}
+応答（`render_html`）: {"id": ..., "ok": true|false, "html": "...", "diagnostics": [...], "timings_ms": {...}}
+  `html`は、生成したHTMLの絶対パス（図・画像は、そこからの相対パスで参照される）。他は、`build`と同じ。
+  プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
 プロトコルの誤り（JSONでない、未知のメソッド、引数の不足）: {"id": ..., "ok": false, "error": {"code": ..., "message": ...}}
   `error`キーがあれば、依頼が処理されていない。
@@ -40,6 +45,7 @@ from text_compositor.api import Session
 PROTOCOL_VERSION = 1
 
 _BUILD_PARAMS = ("output", "template", "plugins", "document", "variables", "config", "keep_temp")
+_HTML_PARAMS = ("output", "plugins", "variables", "config")
 
 
 def _write(out: TextIO, obj: Dict[str, Any]) -> None:
@@ -65,6 +71,19 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
         return {"id": request_id, "ok": True, "result": {"pong": True}}
     if method == "shutdown":
         return {"id": request_id, "ok": True, "result": {}, "_shutdown": True}
+    if method == "render_html":
+        path = params.get("path")
+        if not isinstance(path, str) or not path:
+            return _protocol_error(request_id, "bad_request", "'params.path' (a string) is required.")
+        unknown = sorted(set(params) - set(_HTML_PARAMS) - {"path"})
+        if unknown:
+            return _protocol_error(request_id, "bad_request", f"Unknown params: {', '.join(unknown)}.")
+        options = {k: params[k] for k in _HTML_PARAMS if k in params}
+        output = options.pop("output", None)
+        result = session.render_html(path, output, **options)
+        response = result.to_dict()
+        response["id"] = request_id
+        return response
     if method == "build":
         path = params.get("path")
         if not isinstance(path, str) or not path:

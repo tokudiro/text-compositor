@@ -67,6 +67,37 @@ class BuildResult:
         }
 
 
+@dataclass
+class HtmlResult:
+    """1回のHTML出力の結果（#161、実験的）。
+
+    ok: HTMLを生成できたか。
+    html_path: 生成したHTMLの絶対パス（失敗時はNone）。図・画像は、このファイルからの相対パスで参照される。
+    diagnostics: 出た順の診断。PDFにだけ意味を持つ指定（用紙サイズ・改ページ等）は、`info`になる。
+    timings_ms: 所要時間（ミリ秒）。total（全体）・render（変換。図の描画を含む）。
+    """
+    ok: bool
+    html_path: Optional[str] = None
+    diagnostics: List[Diagnostic] = field(default_factory=list)
+    timings_ms: Dict[str, float] = field(default_factory=dict)
+
+    @property
+    def errors(self) -> List[Diagnostic]:
+        return [d for d in self.diagnostics if d.severity == "error"]
+
+    @property
+    def warnings(self) -> List[Diagnostic]:
+        return [d for d in self.diagnostics if d.severity == "warning"]
+
+    def to_dict(self) -> dict:
+        return {
+            "ok": self.ok,
+            "html": self.html_path,
+            "diagnostics": [d.to_dict() for d in self.diagnostics],
+            "timings_ms": {k: round(v, 1) for k, v in self.timings_ms.items()},
+        }
+
+
 # Sessionのbuild()が受け取れる、文書の設定の上書き。config全体（deep_updateで重ねる）も渡せる。
 def _single_markdown_config(markdown_path: str, template: str, plugins: Optional[Mapping[str, Any]],
                             document: Optional[Mapping[str, Any]], variables: Optional[Mapping[str, Any]],
@@ -143,6 +174,29 @@ class Session:
         return BuildResult(ok=ok, pdf_path=pdf_path if ok else None, diagnostics=list(collected.items),
                            timings_ms=timings)
 
+    def render_html(self, markdown_path: str, output_html: Optional[str] = None, *,
+                    plugins: Optional[Mapping[str, Any]] = None,
+                    variables: Optional[Mapping[str, Any]] = None,
+                    config: Optional[Mapping[str, Any]] = None) -> HtmlResult:
+        """Markdownファイル（または、図の単体ファイル`.mmd`・`.puml`・`.d2`）を、HTMLにする（#161、実験的）。
+        失敗しても例外は出さず、`ok=False`の結果を返す。
+
+        図（Mermaid・PlantUML・D2・svg）は、PDFと同じ仕組みでSVGにし（キャッシュも共通）、HTMLから`<img>`で
+        参照する。Graphviz・`typst-exec`・生のHTMLは、内容を消さずにコードブロックで表示し、警告を出す。
+        PDFにだけ意味を持つ指定（用紙サイズ・改ページ・ヘッダ等）は、無視して、`info`の診断にする。
+
+        markdown_path: 対象のファイル。画像等の相対パスは、このファイルの場所が基準。
+        output_html: 出力先。省略時は、原稿の隣の`.text-compositor/preview.html`。
+        plugins・variables・config: `build`と同じ（`config`は、config全体への上書き。上級者向け）。
+        """
+        started = time.perf_counter()
+        timings: Dict[str, float] = {}
+        with self._lock, diagnostics.collect() as collected:
+            ok, html_path = self._render_html_locked(markdown_path, output_html, plugins, variables, config, timings)
+        timings["total"] = (time.perf_counter() - started) * 1000.0
+        return HtmlResult(ok=ok, html_path=html_path if ok else None, diagnostics=list(collected.items),
+                          timings_ms=timings)
+
     def close(self) -> None:
         """使い回している資源（Mermaidのブラウザ）を片付ける。何度呼んでもよい。"""
         with self._lock:
@@ -205,6 +259,66 @@ class Session:
                 self._mermaid.close()
 
 
+    def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings):
+        from text_compositor import build as _build
+        from text_compositor.html_output import HtmlRenderer
+
+        if self._closed:
+            diagnostics.error("The session is closed.")
+            return False, None
+        md_path = os.path.abspath(markdown_path)
+        if not os.path.isfile(md_path):
+            diagnostics.error(f"File not found: {md_path}", file=md_path)
+            return False, None
+
+        project_dir = os.path.dirname(md_path)
+        out_html = os.path.abspath(output_html) if output_html else os.path.join(
+            project_dir, ".text-compositor", "preview.html")
+        started = time.perf_counter()
+        renderer = None
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                config = _single_markdown_config(md_path, "template", plugins, None, variables, overrides)
+                plugins_config = config.get("plugins") or {}
+                if self._mermaid is None:
+                    self._mermaid = _build.MermaidBrowser()
+                renderer = HtmlRenderer(
+                    project_dir,
+                    mermaid_enabled=bool(plugins_config.get("mermaid", True)),
+                    mermaid_auto_download=bool(plugins_config.get("mermaid_auto_download", False)),
+                    plantuml_enabled=bool(plugins_config.get("plantuml", True)),
+                    plantuml_auto_download=bool(plugins_config.get("plantuml_auto_download", True)),
+                    d2_enabled=bool(plugins_config.get("d2", True)),
+                    d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
+                    variables=_build._resolve_variables(config),
+                    mermaid_browser=self._mermaid)
+                document = renderer.render_file(md_path, out_html)
+            _write_text_atomically(out_html, document)
+            timings["render"] = (time.perf_counter() - started) * 1000.0
+            return True, out_html
+        except SystemExit as e:
+            if not diagnostics_has_error():
+                diagnostics.error(f"The conversion was aborted (exit code {e.code}).")
+            return False, None
+        except Exception as e:  # 想定外の例外でも、常駐プロセスを落とさない
+            diagnostics.error(f"Unexpected error: {type(e).__name__}: {e}", detail=traceback.format_exc())
+            return False, None
+        finally:
+            if renderer is not None:
+                renderer.close()  # ブラウザは、Sessionが持つため、ここでは片付かない
+            if self._mermaid is not None and self._mermaid.page is None:
+                self._mermaid.close()
+
+
+def _write_text_atomically(path: str, text: str) -> None:
+    """一時ファイルへ書いてから置き換える（読む側が、書きかけのHTMLを見ない）。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
 def diagnostics_has_error() -> bool:
     """現在の`collect()`に、エラーが入っているか。"""
     collector = diagnostics._collector.get()
@@ -215,3 +329,9 @@ def build_markdown(markdown_path: str, output_pdf: Optional[str] = None, **optio
     """Markdownファイルを1回だけPDFにする（内部で、使い捨てのSessionを作る）。引数は、`Session.build`と同じ。"""
     with Session() as session:
         return session.build(markdown_path, output_pdf, **options)
+
+
+def render_html(markdown_path: str, output_html: Optional[str] = None, **options: Any) -> HtmlResult:
+    """Markdownファイルを1回だけHTMLにする（実験的、#161）。引数は、`Session.render_html`と同じ。"""
+    with Session() as session:
+        return session.render_html(markdown_path, output_html, **options)

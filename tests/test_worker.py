@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from text_compositor import worker
-from text_compositor.api import BuildResult
+from text_compositor.api import BuildResult, HtmlResult
 from text_compositor.diagnostics import Diagnostic
 
 # 子プロセスが、pipインストールしていない環境（クローンして直接使う場合）でも、このリポジトリの
@@ -26,6 +26,10 @@ class FakeSession:
     def build(self, path, output=None, **options):
         self.calls.append((path, output, options))
         return self.result
+
+    def render_html(self, path, output=None, **options):
+        self.html_calls = getattr(self, "html_calls", []) + [(path, output, options)]
+        return HtmlResult(ok=True, html_path="/x/o.html", timings_ms={"total": 1.0})
 
     def close(self):
         self.closed = True
@@ -51,6 +55,30 @@ class TestHandleRequest:
             "variables": {"K": "v"}, "config": {"x": 1}, "keep_temp": True})]
         assert response["id"] == "abc" and response["ok"] is True and response["pdf"] == "/x/o.pdf"
         assert "error" not in response
+
+    def test_render_html_passes_the_parameters_and_echoes_the_id(self):
+        session = FakeSession()
+        response = worker.handle_request(session, {
+            "id": "h1", "method": "render_html",
+            "params": {"path": "a.md", "output": "o.html", "plugins": {"mermaid": False},
+                       "variables": {"K": "v"}, "config": {"x": 1}}})
+        assert session.html_calls == [("a.md", "o.html", {
+            "plugins": {"mermaid": False}, "variables": {"K": "v"}, "config": {"x": 1}})]
+        assert response == {"id": "h1", "ok": True, "html": "/x/o.html", "diagnostics": [],
+                            "timings_ms": {"total": 1.0}}
+
+    @pytest.mark.parametrize("params", [
+        None,
+        {"path": ""},
+        {"path": "a.md", "template": "paper"},  # buildにあって、render_htmlに無い引数
+        {"path": "a.md", "keep_temp": True},
+    ])
+    def test_render_html_rejects_bad_parameters(self, params):
+        request = {"id": 1, "method": "render_html"}
+        if params is not None:
+            request["params"] = params
+        response = worker.handle_request(FakeSession(), request)
+        assert response["ok"] is False and response["error"]["code"] == "bad_request"
 
     def test_a_failed_build_is_not_a_protocol_error(self):
         failed = BuildResult(ok=False, diagnostics=[Diagnostic("error", "boom", file="a.md", line=3)])
@@ -178,6 +206,32 @@ class TestProcess:
             failed = self.receive(proc)
             assert failed["ok"] is False and failed["id"] == 2
             assert failed["diagnostics"][0]["line"] == 3 and failed["diagnostics"][0]["file"] == str(md)
+            self.send(proc, {"id": 3, "method": "shutdown"})
+            self.receive(proc)
+            assert proc.wait(timeout=20) == 0
+        finally:
+            proc.kill()
+            proc.stdout.close()
+            proc.stderr.close()
+            proc.stdin.close()
+
+    def test_renders_html_over_stdio_and_keeps_working_after_a_failure(self, tmp_path):
+        md = tmp_path / "日本語の原稿.md"
+        md.write_text("# 見出し\n\n本文。\n", encoding="utf-8")
+        out = tmp_path / "出力" / "結果.html"
+        plugins = {"mermaid": False, "plantuml": False, "d2": False}
+        proc = self.start()
+        try:
+            assert self.receive(proc)["event"] == "ready"
+            self.send(proc, {"id": 1, "method": "render_html", "params": {
+                "path": str(md), "output": str(out), "plugins": plugins}})
+            response = self.receive(proc)
+            assert response["ok"] is True, response
+            assert response["html"] == str(out) and "<h1>見出し</h1>" in out.read_text(encoding="utf-8")
+            # 失敗（存在しないファイル）でも、ワーカーは、同じまま動き続ける
+            self.send(proc, {"id": 2, "method": "render_html", "params": {"path": str(tmp_path / "none.md")}})
+            failed = self.receive(proc)
+            assert failed["ok"] is False and "error" not in failed and failed["diagnostics"][0]["severity"] == "error"
             self.send(proc, {"id": 3, "method": "shutdown"})
             self.receive(proc)
             assert proc.wait(timeout=20) == 0

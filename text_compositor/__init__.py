@@ -4,6 +4,8 @@
 （`import text_compositor`自体は軽く、markdown-itやtypstを読み込まない）。
 
     from text_compositor import Session, build_markdown, BuildResult, Diagnostic
+
+HTML出力（#161、実験的）は、`render_html`・`HtmlResult`。
 """
 import importlib.metadata as _metadata
 
@@ -12,7 +14,8 @@ try:
 except _metadata.PackageNotFoundError:  # pipインストールせず、クローンして直接使っている場合
     __version__ = "0+unknown"
 
-_API_NAMES = {"Session": "api", "build_markdown": "api", "BuildResult": "api", "Diagnostic": "diagnostics"}
+_API_NAMES = {"Session": "api", "build_markdown": "api", "BuildResult": "api", "Diagnostic": "diagnostics",
+              "render_html": "api", "HtmlResult": "api"}
 
 __all__ = sorted(_API_NAMES) + ["__version__"]
 

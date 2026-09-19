@@ -1403,10 +1403,10 @@ class TypstRenderer:
             return f'#align(center)[#image("{root_rel_path}"{width_arg}{height_arg})]\n\n'
         return f'#align(center)[#fit-image("{root_rel_path}")]\n\n'
 
-    def _render_svg(self, code, width=None, height=None):
-        """```svgフェンスの内容をTypstのimage呼び出しに変換する。mermaid/plantumlと異なりSVGは
-        既にテキストで完結したベクター画像フォーマットのため、外部レンダリングエンジンは呼ばず、
-        コードをそのままキャッシュ用の.svgファイルへ書き出すだけでよい（#91）。"""
+    def _svg_fence_path(self, code):
+        """```svgフェンスの内容を、キャッシュ用の.svgファイルへ書き出し、そのパスを返す。mermaid/plantumlと
+        異なりSVGは既にテキストで完結したベクター画像フォーマットのため、外部レンダリングエンジンは
+        呼ばず、コードをそのまま書き出すだけでよい（#91）。"""
         cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
         os.makedirs(cache_dir, exist_ok=True)
         digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
@@ -1415,7 +1415,11 @@ class TypstRenderer:
         if not os.path.exists(svg_path):
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(code)
+        return svg_path
 
+    def _render_svg(self, code, width=None, height=None):
+        """```svgフェンスの内容をTypstのimage呼び出しに変換する（#91）。"""
+        svg_path = self._svg_fence_path(code)
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
@@ -1438,11 +1442,23 @@ class TypstRenderer:
     def _render_mermaid(self, code, width=None, height=None):
         """mermaidブロックをヘッドレスブラウザ上のmermaid.render()でSVG化し、Typstのimage呼び出しに
         変換する。外部APIへの通信は行わず、ローカルのブラウザで完結させる（仕様書10章・11章、#35）。"""
+        svg_path = self._mermaid_svg_path(code)
+        if svg_path is None:
+            return f"```mermaid\n{code}```\n\n"
+        # fit-image() は templates/slide.typ 側で定義されているため、image() の相対パス解決基準は
+        # base_dir ではなく templates/ になってしまう。ファイルの置き場所に依存しない
+        # ルート絶対パス（--root 起点の "/..." 形式）にして、どこから呼んでも解決できるようにする。
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _mermaid_svg_path(self, code):
+        """mermaidの図のSVG（キャッシュ）のパスを返す。無ければ、ヘッドレスブラウザで描画して作る。
+        plugins.mermaid: falseなら、何も作らずNoneを返す（呼び出し側が、素のコード表示にフォールバックする）。"""
         if not self.mermaid_enabled:
             if not self._mermaid_disabled_warned:
                 _log_info(f"plugins.mermaid is disabled; leaving ```mermaid fences as plain code (first seen in {self.current_file}).")
                 self._mermaid_disabled_warned = True
-            return f"```mermaid\n{code}```\n\n"
+            return None
 
         # 固定済みmermaid.min.jsのSHA256をバージョンとして使う（バンドルが変われば別キーになる）
         svg_path, digest = self._diagram_cache_path("mermaid", MERMAID_JS_SHA256, code)
@@ -1466,12 +1482,7 @@ class TypstRenderer:
                 f.write(svg)
         else:
             _log_verbose(f"Reusing cached mermaid diagram: {os.path.basename(svg_path)}")
-
-        # fit-image() は templates/slide.typ 側で定義されているため、image() の相対パス解決基準は
-        # base_dir ではなく templates/ になってしまう。ファイルの置き場所に依存しない
-        # ルート絶対パス（--root 起点の "/..." 形式）にして、どこから呼んでも解決できるようにする。
-        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
-        return self._render_sized_image(root_rel_path, width, height)
+        return svg_path
 
     def _ensure_plantuml_tools(self):
         """PlantUML実行に必要なjava実行ファイルとplantuml.jarを遅延解決する（初回のみ）。
@@ -1500,11 +1511,20 @@ class TypstRenderer:
         外部バイナリに依存しない）でSVG化し、Typstのimage呼び出しに変換する。外部APIへの通信は
         行わない（仕様書10章・11章、#22）。コードは実際のPlantUML構文どおり@startuml/@enduml
         込みで書く必要がある（暗黙の補完はしない。9章の決定論的出力・明示性の方針に沿う）。"""
+        svg_path = self._plantuml_svg_path(code)
+        if svg_path is None:
+            return f"```plantuml\n{code}```\n\n"
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _plantuml_svg_path(self, code):
+        """plantumlの図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのjava+plantuml.jarで作る。
+        plugins.plantuml: falseなら、何も作らずNoneを返す。"""
         if not self.plantuml_enabled:
             if not self._plantuml_disabled_warned:
                 _log_info(f"plugins.plantuml is disabled; leaving ```plantuml fences as plain code (first seen in {self.current_file}).")
                 self._plantuml_disabled_warned = True
-            return f"```plantuml\n{code}```\n\n"
+            return None
 
         svg_path, _ = self._diagram_cache_path("plantuml", PLANTUML_JAR_SHA256, code)
 
@@ -1531,9 +1551,7 @@ class TypstRenderer:
                 f.write(result.stdout)
         else:
             _log_verbose(f"Reusing cached PlantUML diagram: {os.path.basename(svg_path)}")
-
-        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
-        return self._render_sized_image(root_rel_path, width, height)
+        return svg_path
 
     def _ensure_d2_bin(self):
         """d2実行ファイルを遅延解決する（初回のみ）。システムのdコマンドがあればそのまま
@@ -1557,11 +1575,20 @@ class TypstRenderer:
         """```d2```ブロックをローカルのD2公式CLIバイナリでSVG化し、Typstのimage呼び出しに変換する。
         外部APIへの通信は行わない（仕様書10章・11章、#90）。`d2 - -`で標準入力から読み、標準出力へ
         SVGを書く（D2公式のstdin/stdout規約。ステータスメッセージは標準エラーへ出るため混ざらない）。"""
+        svg_path = self._d2_svg_path(code)
+        if svg_path is None:
+            return f"```d2\n{code}```\n\n"
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _d2_svg_path(self, code):
+        """d2の図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのD2で作る。
+        plugins.d2: falseなら、何も作らずNoneを返す。"""
         if not self.d2_enabled:
             if not self._d2_disabled_warned:
                 _log_info(f"plugins.d2 is disabled; leaving ```d2 fences as plain code (first seen in {self.current_file}).")
                 self._d2_disabled_warned = True
-            return f"```d2\n{code}```\n\n"
+            return None
 
         svg_path, _ = self._diagram_cache_path("d2", self._d2_version(), code)
 
@@ -1588,9 +1615,7 @@ class TypstRenderer:
                 f.write(result.stdout)
         else:
             _log_verbose(f"Reusing cached d2 diagram: {os.path.basename(svg_path)}")
-
-        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
-        return self._render_sized_image(root_rel_path, width, height)
+        return svg_path
 
     def escape_typst(self, text, at_line_start=False):
         text = text.replace('\\', '\\\\')
