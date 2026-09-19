@@ -129,6 +129,18 @@ Other flags control runtime behavior only (not document content, which stays ent
 
 `--clean` deletes the output PDF and the intermediate files under `.text-compositor/` (`temp_build.typ`, `_template.typ`, `_common.typ`) without building. `--clean-cache` additionally deletes the diagram cache (`.text-compositor/cache/`). Input files and the config are never deleted.
 
+### Python API
+
+`text_compositor.Session` and `build_markdown()` turn a single Markdown file into a PDF without a `config.yaml`, and return warnings and errors as structured diagnostics (Markdown file and line included) instead of printing them. A resident worker (`python -m text_compositor.worker`) exposes the same over JSON lines on stdin/stdout, for GUI viewers. See the usage guide chapter "Using from Python" and section 14 of [doc/spec.md](doc/spec.md).
+
+```python
+from text_compositor import Session
+
+with Session() as session:  # reuses the Mermaid browser and the Typst compiler across builds
+    result = session.build("doc.md", "out/doc.pdf")
+    print(result.ok, result.pdf_path, [d.message for d in result.diagnostics])
+```
+
 See [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) for how to write the config file, and the [usage guide](doc/usage/) for details on `document:`/`plugins:`, front matter, Marp directives, and more. The Markdown files listed in `chapters` are concatenated in order to produce the PDF.
 
 ## Trying the sample

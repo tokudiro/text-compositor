@@ -35,3 +35,4 @@ chapters:
   - "10_custom_template.md"
   - "11_troubleshooting.md"
   - "12_github_actions.md"
+  - "13_python_api.md"
