@@ -1,0 +1,9 @@
+# 配布物（組込版Python）に同梱する、Pythonの依存パッケージ（#168）。
+#
+# Viewerが使うのは、HTML出力（render_html）だけである。PDF専用の`typst`（約59 MB）と、Mermaid用の`playwright`
+# （約106 MB。ブラウザを起動して描画する）は、同梱しない。
+# 版は、リポジトリ直下のpyproject.tomlの`dependencies`と、そろえる（tests/test_viewer_dist_requirements.pyが確認する）。
+markdown-it-py==3.0.0
+mdit-py-plugins==0.6.1
+PyYAML==6.0.2
+platformdirs==4.3.6

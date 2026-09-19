@@ -399,6 +399,7 @@ with Session() as session:                              # 繰り返すなら（M
 | 未対応（警告） | 生のHTML | PDFと同じく、捨てて警告する。許可リスト方式は、[#184](https://github.com/tokudiro/text-compositor/issues/184) |
 
 * **PDFとの違い**: (1)画像が見つからないとき、PDFはFail-fastで止まるが、HTMLは警告して、他の部分を表示する（確認用の表示のため）。(2)`:::`ブロックの中身が不正（図が無い等）なときは、PDFと同じくエラーで止まる。(3)Typstにない単位（`px`）も、CSSとして通す。
+* **`typst`なしで動く**（[#168](https://github.com/tokudiro/text-compositor/issues/168)）: `typst`（PDF用のコンパイラ）は、Typstをコンパイルするときに、初めて`import`する。HTML出力と、それを使うViewerの配布物は、`typst`と`playwright`を、同梱しない（[viewer-distribution.md](viewer-distribution.md)）。`tests/test_distribution.py`が、この2つを`import`できない状態で、HTML出力が成功することを確認する。`typst`がないままPDFを作ろうとすると、`typst`が要ることを示すエラーになる。
 * **セキュリティ**: 原稿の文字は、すべてエスケープする。生のHTMLは通さず、`javascript:`のリンクはリンクにしない。`style`に入れる値（色・寸法・サイズ）は、CSSの構文を壊さない形だけを通す。JavaScriptは、出力しない。念のため、出力するHTMLに、スクリプトとプラグインを禁止するCSP（`script-src 'none'; object-src 'none'; base-uri 'none'`）を入れる（Viewerは、ドロップの受け口のために、JavaScriptを有効にしたビューで開くため。#190）。
 * **範囲外**: `config.yaml`由来の機能（章立て・目次・表紙・改版履歴・巻末用語索引など）と、複数ファイルの出力・ファイル間リンクの変換（[#185](https://github.com/tokudiro/text-compositor/issues/185)）、数式（[#183](https://github.com/tokudiro/text-compositor/issues/183)）。CLIの`--format html`は、単一ファイルのCLI（#179）の後に扱う。
 * **レイアウトブロックのHTML**は、表示側のエンジン（[#180](https://github.com/tokudiro/text-compositor/issues/180)）が決まったあとに、見直す可能性がある。

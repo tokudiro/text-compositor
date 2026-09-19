@@ -8,12 +8,14 @@
   "scripts": {
     "start": "electron .",
     "build-icons": "electron scripts/build-icons.js",
+    "build-dist": "node scripts/build-dist.js",
     "test": "node --test \"test/**/*.test.js\""
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "44.4.3"
   }
 }

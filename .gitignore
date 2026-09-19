@@ -37,3 +37,6 @@ temp/
 
 # Viewer（Electron）の依存パッケージ（#190）
 viewer/node_modules/
+
+# Viewerの配布物のビルド成果物・取得物（#168）
+viewer/dist/

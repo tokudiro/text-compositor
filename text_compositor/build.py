@@ -31,8 +31,24 @@ from mdit_py_plugins.tasklists import tasklists_plugin
 # （spans=Trueでspan_open/span_closeトークンとして出力される。既定では無効なので明示的に有効化）。
 from mdit_py_plugins.attrs import attrs_plugin
 # PyPIの typst パッケージ(typst-py)はコンパイラ本体をプラットフォーム別ホイールに同梱しているため、
-# tools/typst.exe のような実行バイナリをリポジトリに持たずに済む（pipがOSごとに正しい版を入れてくれる）
-import typst as typst_lib
+# tools/typst.exe のような実行バイナリをリポジトリに持たずに済む（pipがOSごとに正しい版を入れてくれる）。
+# PDFを作るとき（Typstのコンパイル）にだけ必要なため、初めて使うときに読み込む（#168）。HTML出力（render_html）と、
+# それを使うViewerは、typstを入れなくても動く。
+
+
+class _LazyTypst:
+    """`typst`モジュールの代わり。属性に初めて触れたときに、importする。"""
+
+    def __getattr__(self, name):
+        try:
+            import typst
+        except ImportError as e:
+            raise ImportError("The 'typst' package is required to build PDFs (pip install typst==0.15.0). "
+                              "It is not needed for HTML output.") from e
+        return getattr(typst, name)
+
+
+typst_lib = _LazyTypst()
 # エラー・警告・ヒントの出し先（#167）。CLIでは従来どおり標準出力、Python APIでは呼び出し側へ返す。
 from text_compositor import diagnostics
 
