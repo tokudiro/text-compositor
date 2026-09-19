@@ -44,6 +44,10 @@ _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
 
+# 出力するHTMLは、スクリプトを含まない（原稿の文字は、すべてエスケープする）。念のため、スクリプトとプラグインを、
+# ブラウザ側でも禁止する。Viewerは、この文書を、JavaScriptを有効にしたビューで開く（ドロップの受け口のため。#190）。
+CONTENT_SECURITY_POLICY = "script-src 'none'; object-src 'none'; base-uri 'none'"
+
 DOCUMENT_CSS = """\
 :root { color-scheme: light dark; --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code-bg: #f6f8fa; --link: #0969da; }
 @media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --muted: #9198a1; --line: #3d444d; --code-bg: #151b23; --link: #4493f8; } }
@@ -221,6 +225,7 @@ class HtmlRenderer(TypstRenderer):
         title = (self._title or os.path.splitext(os.path.basename(md_path))[0]).strip()
         return (
             "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n"
+            f"<meta http-equiv=\"Content-Security-Policy\" content=\"{CONTENT_SECURITY_POLICY}\">\n"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
             f"<title>{escapeHtml(title)}</title>\n<style>\n{DOCUMENT_CSS}</style>\n</head>\n"
             f"<body>\n<main>\n{body}</main>\n</body>\n</html>\n"

@@ -34,3 +34,6 @@ benchmarks/html-view/wry/target/
 
 # 作業用の一時ファイル置き場
 temp/
+
+# Viewer（Electron）の依存パッケージ（#190）
+viewer/node_modules/

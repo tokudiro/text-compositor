@@ -49,7 +49,9 @@ class TestApi:
         assert html.startswith("<!DOCTYPE html>")
         assert "<title>見出し</title>" in html
         assert "<h1>見出し</h1>" in html
-        assert "<script" not in html and "http-equiv" not in html
+        assert "<script" not in html
+        # スクリプトは、ブラウザ側でも禁止する（Viewerは、JavaScriptを有効にしたビューで開く）
+        assert "script-src 'none'" in html and "object-src 'none'" in html
         assert set(result.timings_ms) >= {"render", "total"}
 
     def test_the_title_falls_back_to_the_file_name(self, tmp_path):
