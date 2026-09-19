@@ -11,3 +11,12 @@ config.json
 sample/**/*.pdf
 doc/usage/*.pdf
 doc/test_spec/*.pdf
+
+# viewer-csharp/ (.NET) と viewer-rust/ (Cargo) のビルド成果物（#99）
+viewer-csharp/bin/
+viewer-csharp/obj/
+viewer-rust/target/
+
+# 組込版Python（embeddable Python）の検証用一時展開先・配布物（#102）
+viewer-csharp/python-embed/
+viewer-csharp/*.zip
