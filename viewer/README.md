@@ -1,12 +1,14 @@
-# text-compositor Viewer
+# Obunzu
 
 English | [日本語](README-ja.md)
 
-A read-only Markdown viewer for text-compositor, built with Electron. Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, `svg`) as images. There is no editor and no PDF output.
+A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, `svg`) as images. There is no editor and no PDF output.
 
 The display engine was chosen by measurement: see [doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md). Electron with `--disable-gpu --in-process-gpu` felt the fastest, so those flags are applied by default (set `VIEWER_GPU=1` to turn them off).
 
 This directory is a separate Node.js project from the Python package on PyPI. Nothing here is included in the sdist or wheel.
+
+The version shown in the window title is `version` in `package.json`. It is kept the same as the text-compositor version in `pyproject.toml` (`tests/test_viewer_version.py` checks this), so bump both together, including `package-lock.json`.
 
 ## Run
 

@@ -16,6 +16,13 @@ const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, classifyNavigation, fileFromArg
 const { FileWatcher } = require('./watcher');
 const { WorkerClient } = require('./worker-client');
 
+// アプリケーション名（#194）。Observe（観察する）+ 文図（文章と図）の造語。
+// AppUserModelIdは、Windowsのタスクバーの固定・通知が、このアプリとして扱われるための識別子。
+const APP_NAME = 'Obunzu';
+// ウィンドウのタイトルに、バージョン（package.jsonのversion）を添える。
+const APP_TITLE = `${APP_NAME} ${app.getVersion()}`;
+app.setAppUserModelId('io.github.tokudiro.obunzu');
+
 // #180で調整した起動引数。GPUを使わず、GPU処理をブラウザのプロセスに統合する（メモリが約35%減り、体感で最速だった）。
 // 環境変数 VIEWER_GPU=1 で、標準の動作に戻せる。
 if (process.env.VIEWER_GPU !== '1') {
@@ -92,7 +99,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1000,
     height: 800,
-    title: 'text-compositor Viewer',
+    title: APP_TITLE,
     backgroundColor: background,
     autoHideMenuBar: true,
     webPreferences: {
@@ -220,7 +227,7 @@ async function renderOnce(file) {
     const total = result.timings_ms.total;
     const warnings = state.diagnostics.warnings > 0 ? ` ／ 警告 ${state.diagnostics.warnings} 件` : '';
     state.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}${warnings}`;
-    win?.setTitle(`${path.basename(file)} - text-compositor Viewer`);
+    win?.setTitle(`${path.basename(file)} - ${APP_TITLE}`);
     trace('content-shown');
   } else {
     // 失敗しても、直前に成功した表示を残す。ファイル名も、表示中の文書に戻す。

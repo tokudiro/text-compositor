@@ -1,8 +1,9 @@
 {
-  "name": "text-compositor-viewer",
-  "version": "0.0.0",
+  "name": "obunzu",
+  "productName": "Obunzu",
+  "version": "0.3.0",
   "private": true,
-  "description": "Markdown viewer for text-compositor (Electron). Diagrams as Code are shown as images.",
+  "description": "A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code (Electron, built on text-compositor).",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
