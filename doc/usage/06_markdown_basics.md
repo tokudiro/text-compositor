@@ -68,7 +68,7 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 - `[text]{color=...}`はPandoc由来のブラケット+属性記法です。GitHubの生表示では特別扱いされず、`{color=red}`がそのまま文字として見えます。
 - `<span style="color:...">`はGitHub上でもそのまま正しく色付き表示されます。ただし対応するのはこの1パターンのみで、他のHTMLタグ・他のCSSプロパティは今までどおり非対応（警告）です。
 - 色の指定は、Typstが認識する色名（`red`、`blue`等の英単語）か `"#rrggbb"` 形式のいずれかです。
-- `color`/`size`以外の属性（`[text]{class=foo}`等）は無視され、見た目には反映されません。
+- `color`/`size`/`bg`/`border`以外の属性（`[text]{class=foo}`等）は無視され、見た目には反映されません。`bg`/`border`はテーブルのセル専用です（次の「テーブルのセルの背景色・枠線」の章）。
 - `<span>`を閉じ忘れた場合はビルドを止めず、自動的に閉じたうえで警告を出します。
 
 ## フォントサイズ指定
@@ -84,6 +84,26 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 - サイズは`10pt`のように数値+`pt`単位で指定します（front-matterの`font_size`と同じ形式）。不正な値（単位なし・`pt`以外の単位等）は無視され、警告を出したうえでサイズ指定なしとして扱います。
 - `color`と`size`は同時に指定できます（`[text]{color=... size=...}`）。
 - ページ単位でフォントサイズを変えたい場合は、この記法ではなく`document.font_size`/`chapters[].font_size`（front-matterの`font_size`）を使ってください。
+
+## テーブルのセルの背景色・枠線
+
+Markdownテーブルの本文セルごとに、背景色と枠線（実線・破線・点線）を指定できます（[#89](https://github.com/tokudiro/text-compositor/issues/89)）。行×列の比較表で、セルの状態を塗り分けたいときに使います。セルの中身全体を、文字色指定と同じブラケット+属性記法で包みます。
+
+```markdown
+| 層 | Chat coding | Vibe coding | Agentic |
+| --- | --- | --- | --- |
+| Harness | [実務あり]{bg="#d9f2d9"} | [名前は無いが実務あり]{bg="#fff2cc" border=dashed} | []{bg="#eeeeee" border=dashed} |
+| Loop | [—]{bg="#f5f5f5"} | [**強調** と通常]{border=solid} | [白抜き]{bg=black color=white} |
+```
+
+- **`bg`**: セルの背景色。色名（`red`等）か `"#rrggbb"` 形式で指定します。
+- **`border`**: セルの枠線。`solid`（実線）・`dashed`（破線）・`dotted`（点線）・`none`のいずれかです。それ以外の値は警告を出して無視します。太さと色は、表の既定の枠線（1pt・黒）に揃えます。
+- **値の引用符**: `"#rrggbb"` のように`#`で始まる値は、引用符で囲んでください（`{bg=#f5f5f5}`は属性として解釈されません。文字色指定と同じです）。
+- **セル全体を包む**: セルの中身全体が、1つの `[...]{...}` である場合だけ、セルの装飾になります。中身が空のセルは `[]{bg="#eeeeee"}` と書きます。文字の一部だけを包んだ場合（`前の[背景]{bg=red}後ろ`）や、表の外に書いた場合は、警告を出して無視します。
+- **併用**: 同じ `{...}` に `color`/`size` を書くと、セル内の文字に適用されます（上の例の白抜き）。太字などのインライン記法も、`[...]`の中に書けます。
+- **ヘッダ行**: ヘッダのセルにも書けます。`document.table_header.background`より、セルごとの指定が優先されます。
+- **隣り合うセルの枠線**: 2つのセルが共有する辺は、両方が枠線を指定していると、下・右のセルの指定が優先されます（Typstの規則）。`border=none`も、隣のセルが枠線を引く辺は消せません。破線のセルを目立たせたいときは、隣のセルに`border=solid`を指定しないでください。
+- CSVファイル（`.csv`）とaggregateの表には、この記法はありません。
 
 ## alert: 注意書きの囲み
 
