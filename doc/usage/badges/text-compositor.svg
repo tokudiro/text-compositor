@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="131" height="22" viewBox="0 0 131 22" role="img" aria-label="text-compositor">
-  <title>text-compositor: 本ツール独自の拡張記法。text-compositor（PDF出力）で使える</title>
+  <title>text-compositor: text-compositorの拡張記法。または、上の記法のうち、PDF出力できるもの</title>
   <rect width="131" height="22" rx="11" fill="#1a7f37"/>
   <text x="65.5" y="15" fill="#ffffff" font-family="-apple-system, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="middle" textLength="111" lengthAdjust="spacingAndGlyphs">text-compositor</text>
 </svg>

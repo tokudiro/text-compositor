@@ -11,11 +11,11 @@ import sys
 
 # (ファイル名, 表示する文字, 背景色, 意味)
 BADGES = [
-    ("commonmark", "CommonMark", "#57606a", "標準のMarkdown記法（text-compositor・Obunzuの両方で使える）"),
-    ("gfm", "GFM", "#953800", "GitHub Flavored Markdown（GitHub）の記法（text-compositor・Obunzuの両方で使える）"),
-    ("text-compositor", "text-compositor", "#1a7f37", "本ツール独自の拡張記法。text-compositor（PDF出力）で使える"),
-    ("obunzu", "Obunzu", "#0078d4", "上の拡張記法が、Obunzu（Viewer・HTML出力）でも使える"),
-    ("marp", "Marp", "#8250df", "Marp互換の記法"),
+    ("commonmark", "CommonMark", "#57606a", "標準のMarkdown記法"),
+    ("gfm", "GFM", "#953800", "GitHub Flavored Markdown記法"),
+    ("text-compositor", "text-compositor", "#1a7f37", "text-compositorの拡張記法。または、上の記法のうち、PDF出力できるもの"),
+    ("obunzu", "Obunzu", "#0078d4", "Obunzuの拡張記法。または、上の記法のうち、HTML出力（Obunzu）できるもの"),
+    ("marp", "Marp", "#8250df", "Marp記法"),
 ]
 
 HEIGHT = 22

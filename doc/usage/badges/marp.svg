@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="50" height="22" viewBox="0 0 50 22" role="img" aria-label="Marp">
-  <title>Marp: Marp互換の記法</title>
+  <title>Marp: Marp記法</title>
   <rect width="50" height="22" rx="11" fill="#8250df"/>
   <text x="25" y="15" fill="#ffffff" font-family="-apple-system, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" text-anchor="middle" textLength="30" lengthAdjust="spacingAndGlyphs">Marp</text>
 </svg>
