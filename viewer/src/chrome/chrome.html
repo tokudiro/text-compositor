@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>text-compositor Viewer</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'">
+  <link rel="stylesheet" href="chrome.css">
+</head>
+<body>
+  <div id="top">
+    <div id="toolbar">
+      <button id="open" class="accent" title="Markdownファイルを開く（Ctrl+O）">開く…</button>
+      <button id="reload" title="もう一度変換する（F5）" disabled>再読み込み</button>
+      <span class="sep"></span>
+      <button id="zoom-out" title="縮小（Ctrl+−）">−</button>
+      <span id="zoom">100%</span>
+      <button id="zoom-in" title="拡大（Ctrl++）">＋</button>
+      <span class="sep"></span>
+      <span id="file"></span>
+      <span class="spacer"></span>
+      <span id="busy" hidden><span class="bar"></span>変換中…</span>
+      <span id="status"></span>
+    </div>
+    <div id="banner" hidden>
+      <span id="banner-text"></span>
+      <span id="banner-toggle">詳細</span>
+    </div>
+    <div id="details" hidden></div>
+  </div>
+  <div id="empty">
+    <p class="title">Markdownファイルを開いてください</p>
+    <p class="hint">ここへドラッグ＆ドロップ、または Ctrl+O</p>
+  </div>
+  <script src="chrome.js"></script>
+</body>
+</html>

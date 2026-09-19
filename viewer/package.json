@@ -1,0 +1,17 @@
+{
+  "name": "text-compositor-viewer",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Markdown viewer for text-compositor (Electron). Diagrams as Code are shown as images.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "44.4.3"
+  }
+}

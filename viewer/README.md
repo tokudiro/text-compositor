@@ -1,0 +1,77 @@
+# text-compositor Viewer
+
+English | [日本語](README-ja.md)
+
+A read-only Markdown viewer for text-compositor, built with Electron. Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, `svg`) as images. There is no editor and no PDF output.
+
+The display engine was chosen by measurement: see [doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md). Electron with `--disable-gpu --in-process-gpu` felt the fastest, so those flags are applied by default (set `VIEWER_GPU=1` to turn them off).
+
+This directory is a separate Node.js project from the Python package on PyPI. Nothing here is included in the sdist or wheel.
+
+## Run
+
+Requirements: [Node.js](https://nodejs.org/) 20 or later, and a Python that can import `text_compositor` with its dependencies.
+
+```bash
+cd viewer
+npm install
+npm start -- path/to/file.md
+```
+
+The worker's Python is searched in this order:
+
+1. The `TEXT_COMPOSITOR_PYTHON` environment variable (full path to the Python executable)
+2. `python-embed/` next to the app (reserved for the distribution package, #168)
+3. `python`, `python3` or `py` on `PATH`
+
+When you run from a repository checkout without installing the package, set `TEXT_COMPOSITOR_PYTHONPATH` to the repository root. It is prepended to the worker's `PYTHONPATH`.
+
+If no Python is found, the window still opens and explains what to do.
+
+## Usage
+
+| Action | How |
+| --- | --- |
+| Open a file | `Ctrl+O`, drag and drop a file onto the window, or pass it as a command-line argument. Opening a file while the viewer is running shows it in the existing window. |
+| Reload | `F5` / `Ctrl+R` / the **再読み込み** button. The scroll position is kept. |
+| Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%) |
+| Show or hide error details | Click the error/warning bar |
+
+Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, `.puml`, `.d2`; `.dot` is shown as code with a warning until Graphviz is supported in HTML output, #181).
+
+While a conversion runs, a "変換中…" indicator is shown. If it fails, the last successful display stays on screen and the cause (with the Markdown line, when known) is listed under the toolbar. Web links in a document open in the default browser; a link or dropped file that points to a Markdown file opens in the viewer. Nothing else can navigate the viewer away from the document.
+
+Automatic reload on file changes is not included yet (#170).
+
+## Environment variables
+
+| Variable | Meaning |
+| --- | --- |
+| `TEXT_COMPOSITOR_PYTHON` | Python executable for the worker |
+| `TEXT_COMPOSITOR_PYTHONPATH` | Added to the worker's `PYTHONPATH` (repository checkout without `pip install`) |
+| `VIEWER_GPU=1` | Use the standard Chromium GPU settings instead of `--disable-gpu --in-process-gpu` |
+| `VIEWER_TRACE=1` | Print startup timings to stderr |
+| `VIEWER_DEBUG=1` | Add a "toggle developer tools" item to the View menu |
+
+## Structure
+
+| Path | Contents |
+| --- | --- |
+| `src/main.js` | Main process: window, menu, conversion flow, navigation rules |
+| `src/worker-client.js` | Client for the Python worker (JSON lines over stdin/stdout) |
+| `src/python.js` | Finds the Python for the worker |
+| `src/diagnostics.js` | Turns the worker's diagnostics into what the window shows |
+| `src/targets.js` | Which files can be opened; how links and drops are handled |
+| `src/chrome/` | The toolbar, the error bar and the diagnostics list |
+| `test/` | `node --test` tests (a fake worker covers crashes, timeouts and restarts) |
+
+## Test
+
+```bash
+cd viewer
+npm test
+```
+
+## Third-party components
+
+Electron (MIT) and its bundled Chromium. The full list of notices for the distribution package is handled in #168.

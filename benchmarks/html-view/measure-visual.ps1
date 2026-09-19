@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('wv2', 'wv2-tuned', 'wv2-defer', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer', 'arto', 'shiba', 'mdhero', 'marktext', 'ghostwriter', 'mo')]
+    [ValidateSet('viewer', 'wv2', 'wv2-tuned', 'wv2-defer', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer', 'arto', 'shiba', 'mdhero', 'marktext', 'ghostwriter', 'mo')]
     [string]$Tool,
     [int]$Runs = 10,
     [string]$ToolsDir = "",
@@ -32,12 +32,21 @@ $ElectronExe = Join-Path $ToolsDir "electron\electron.exe"
 $ElectronApp = Join-Path $Here "electron"
 $WryExe = Join-Path $Here "wry\target\release\wry-bench.exe"
 $EdgeExe = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+# viewer: 本物のViewer（#190）。Pythonのワーカーで、原稿（fixture.md）をHTMLにして表示するまでを測る。
+$ViewerDir = Join-Path $RepoRoot "viewer"
+$ViewerExe = Join-Path $ViewerDir "node_modules\electron\dist\electron.exe"
+$ViewerMd = Join-Path $Here "fixture\fixture.md"
+if ($Tool -eq "viewer") {
+    if (-not $env:TEXT_COMPOSITOR_PYTHON) { $env:TEXT_COMPOSITOR_PYTHON = Join-Path $RepoRoot ".venv-dev\Scripts\python.exe" }
+    if (-not $env:TEXT_COMPOSITOR_PYTHONPATH) { $env:TEXT_COMPOSITOR_PYTHONPATH = $RepoRoot }
+}
 $MoPort = 6299
 $CdpPort = 9334
 $Tuned = "--disable-gpu --in-process-gpu"
 
 function Get-Launch([string]$Tool) {
     switch ($Tool) {
+        'viewer'         { return @($ViewerExe, "`"$ViewerDir`" `"$ViewerMd`"") }
         'wv2'            { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`"") }
         'wv2-tuned'      { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`" --args `"$Tuned`"") }
         'wv2-defer'      { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`" --args `"$Tuned`" --defer-show") }
