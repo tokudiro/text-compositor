@@ -48,7 +48,6 @@ const state = {
   zoomPercent: 100,
   autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
   hasDocument: false,    // 内容を表示しているか
-  fullScreen: false,     // 全画面表示のとき、ツールバーを隠す（#200）
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
   settings: { ...DEFAULTS },
   diagnostics: summarize([]),
@@ -147,9 +146,7 @@ function createWindow() {
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
   contents.on('did-finish-load', () => contents.setZoomLevel(zoomLevel));
 
-  win.on('resize', () => { layout(); scheduleFullScreenSync(); });
-  win.on('enter-full-screen', scheduleFullScreenSync);
-  win.on('leave-full-screen', scheduleFullScreenSync);
+  win.on('resize', layout);
   handleEscape(win.webContents);
   handleEscape(contents);
   nativeTheme.on('updated', applyBackground);
@@ -169,52 +166,15 @@ function layout() {
     : { x: 0, y, width: 0, height: 0 });
 }
 
-// -- 全画面表示（#200）。ブラウザと同じく、F11で切り替え、EscまたはF11で戻す --------------
-
-function toggleFullScreen() {
-  if (win) win.setFullScreen(!win.isFullScreen());
-}
-
-let fullScreenTimer = null;
-
-/**
- * 全画面のとき、ツールバーを隠す。エラーの帯は、見落とさないように、隠さない。
- * 全画面の出入りでは、イベントとサイズの変化が、続けて届き、その時点の`isFullScreen()`が、まだ古いことがある
- * （入るときも、戻るときも、実測で確認した）。1回ごとの値を信じず、落ち着いてから、最新の状態に合わせる。
- * 戻ったのに、ツールバーが消えたままになる不具合（#200）の対策。
- */
-function scheduleFullScreenSync() {
-  clearTimeout(fullScreenTimer);
-  fullScreenTimer = setTimeout(syncFullScreen, 150);
-}
-
-function syncFullScreen() {
-  if (!win || win.isDestroyed()) return;
-  const fullScreen = win.isFullScreen();
-  if (fullScreen === state.fullScreen) return;
-  state.fullScreen = fullScreen;
-  trace(`full-screen ${fullScreen}`);
-  push();
-  layout();
-}
-
-/**
- * どちらのビューにフォーカスがあっても、Escで、全画面から戻る。全画面でなければ、設定画面を閉じる
- * （文書の側は、キーを受けないため、メインプロセスで受ける）。
- */
+/** Escで、設定画面を閉じる（設定画面のときは、文書の側は、隠れていてキーを受けないため、メインプロセスで受ける）。 */
 function handleEscape(webContents) {
   webContents.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown' || input.key !== 'Escape') return;
-    if (win?.isFullScreen()) {
-      event.preventDefault();
-      win.setFullScreen(false);
-    } else if (state.settingsOpen) {
+    if (input.type === 'keyDown' && input.key === 'Escape' && state.settingsOpen) {
       event.preventDefault();
       setSettingsOpen(false);
     }
   });
 }
-
 // -- 設定（#200） -------------------------------------------------------------
 
 function applyTheme() {
@@ -456,7 +416,6 @@ function buildMenu() {
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
-        { label: '全画面表示', accelerator: 'F11', click: toggleFullScreen },
         { label: '設定…', accelerator: 'CommandOrControl+,', click: () => setSettingsOpen(!state.settingsOpen) },
         ...(process.env.VIEWER_DEBUG ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
       ],

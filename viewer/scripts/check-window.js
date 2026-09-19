@@ -1,10 +1,8 @@
 'use strict';
-// 全画面（F11・Esc）と、設定画面の開閉を、実際のキー操作で確認する（手動。Windowsのみ。#200）。
+// 設定画面の開閉を、実際のキー操作で確認する（手動。Windowsのみ。#200）。
 //   TEXT_COMPOSITOR_PYTHON=<python> TEXT_COMPOSITOR_PYTHONPATH=<repo> node scripts/check-window.js
 //
 // 確認すること:
-//   - F11で全画面になり、Escまたは F11で戻る。戻ったあとに、ツールバーが消えたままにならない
-//     （全画面の出入りは、イベントとサイズの変化が、続けて届くため、待つ時間を変えて、繰り返す）。
 //   - 設定画面は、Ctrl+,・歯車・「戻る」・Esc で閉じられ、ファイルを開く・再読み込みでも閉じる。
 // キーは、SendKeysで、前面のウィンドウへ送る。実行中は、ほかのウィンドウを操作しないこと。
 
@@ -53,27 +51,7 @@ async function main() {
   try {
     await sleep(6500);
     const evaluate = await connect();
-    let wait = 2000;
-
-    const fullScreen = async (label, keys, expected) => {
-      if (keys) sendKeys(keys);
-      await sleep(wait);
-      const state = JSON.parse(await evaluate("JSON.stringify({ full: document.body.classList.contains('fullscreen'), "
-        + "toolbar: getComputedStyle(document.getElementById('toolbar')).display })"));
-      const ok = state.full === expected && (state.toolbar === 'none') === expected;
-      if (!ok) failures += 1;
-      console.log(`${ok ? 'OK  ' : 'NG  '} ${label}${ok ? '' : `  ${JSON.stringify(state)}`}`);
-    };
-    await fullScreen('起動時は、ツールバーが出ている', null, false);
-    for (const w of [2000, 900, 400, 600]) {
-      wait = w;
-      await fullScreen(`F11で全画面（${w} ms待つ）`, '{F11}', true);
-      await fullScreen(`Escで戻り、ツールバーが出る（${w} ms）`, '{ESC}', false);
-      await fullScreen(`F11で全画面（${w} ms）`, '{F11}', true);
-      await fullScreen(`F11で戻り、ツールバーが出る（${w} ms）`, '{F11}', false);
-    }
-
-    wait = 1000;
+    const wait = 1000;
     const settings = async (label, action, expectedOpen) => {
       if (action.startsWith('{') || action.startsWith('^')) sendKeys(action);
       else await evaluate(action);

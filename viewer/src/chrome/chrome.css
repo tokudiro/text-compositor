@@ -18,8 +18,6 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); o
   font: 13px/1.4 "Segoe UI", "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif; user-select: none; }
 #top { position: relative; z-index: 1; background: var(--bar); }
 #toolbar { display: flex; align-items: center; gap: 2px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-height: 40px; }
-/* 全画面では、ツールバーを隠す。エラーの帯・詳細の一覧は、残す */
-.fullscreen #toolbar { display: none; }
 /* ツールバーを下にする設定（#200）。帯・一覧も、ツールバーの側にまとめ、ツールバーが、いちばん端に来る */
 .toolbar-bottom #top { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column-reverse; }
 .toolbar-bottom #toolbar, .toolbar-bottom #details { border-bottom: 0; border-top: 1px solid var(--line); }

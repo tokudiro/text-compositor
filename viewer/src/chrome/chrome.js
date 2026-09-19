@@ -33,7 +33,6 @@ function render(state) {
   const previousErrors = lastState?.diagnostics.hasError;
   lastState = state;
   const d = state.diagnostics;
-  document.body.classList.toggle('fullscreen', state.fullScreen);
   document.body.classList.toggle('toolbar-bottom', state.settings.toolbarPosition === 'bottom');
   $('settings').hidden = !state.settingsOpen;
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
