@@ -22,6 +22,8 @@ button { font: inherit; color: var(--fg); background: var(--button); border: 0; 
 button:hover:not(:disabled) { filter: brightness(0.95); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.accent { background: var(--accent); color: var(--accent-fg); }
+#auto { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
+#auto input { accent-color: var(--accent); margin: 0; }
 .sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; }
 .spacer { flex: 1; }
 #zoom { min-width: 40px; text-align: center; }

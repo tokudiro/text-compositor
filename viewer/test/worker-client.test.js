@@ -33,6 +33,7 @@ describe('WorkerClient', () => {
     assert.equal(result.html, 'a.md.html');
     assert.deepEqual(result.diagnostics.map((d) => [d.severity, d.line]), [['warning', 7]]);
     assert.equal(result.timings_ms.total, 1.5);
+    assert.deepEqual(result.dependencies, ['a.md.png']);
     assert.equal(await client.ping(), true);
   });
 

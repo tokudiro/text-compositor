@@ -379,10 +379,10 @@ with Session() as session:                              # 繰り返すなら（M
 ```
 
 * **`Session.render_html(markdown_path, output_html=None, *, plugins=None, variables=None, config=None) -> HtmlResult`**: `plugins`・`variables`・`config`は、`build`と同じ。`template`・`document`・`keep_temp`は、意味がないため、無い。失敗しても例外は出さず、`ok=False`で返す。標準出力へは何も書かない。
-* **`HtmlResult`**: `ok`・`html_path`（成功時のHTMLの絶対パス）・`diagnostics`・`timings_ms`（`total`・`render`）。`errors`・`warnings`・`to_dict()`を持つ（`to_dict()`は、`html_path`を`html`キーにする）。Typstもフォントも使わないため、`build`より、初回が速い。
+* **`HtmlResult`**: `ok`・`html_path`（成功時のHTMLの絶対パス）・`diagnostics`・`timings_ms`（`total`・`render`）・`dependencies`（原稿が参照している、ローカルのファイル（画像など）の絶対パス。昇順。成功時のみ。存在しないファイルも含み、原稿自体は含まない。変更を検知して、自動で更新する側（Viewer、[#170](https://github.com/tokudiro/text-compositor/issues/170)）が使う）。`errors`・`warnings`・`to_dict()`を持つ（`to_dict()`は、`html_path`を`html`キーにする）。Typstもフォントも使わないため、`build`より、初回が速い。
 * **対象のファイル**: `.md`・`.markdown`と、図の単体ファイル（`.mmd`・`.puml`・`.d2`。`.dot`・`.gv`は、下記のとおり未対応）。それ以外は、エラー。
 * **出力**: 外部のCSS・JavaScriptを使わない、1ファイルで完結したHTML文書。`<title>`は、最初の見出し（無ければ、ファイル名）。HTMLは、一時ファイルへ書いてから置き換える。図・画像は、HTMLの置き場所からの相対URLで参照する。図のSVGは、PDFと同じキャッシュ（`.text-compositor/cache/`）に置く。
-* **常駐ワーカー**: メソッド`render_html`（`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`）。応答は、`{"id", "ok", "html", "diagnostics", "timings_ms"}`。プロトコルのバージョンは、1のまま（メソッドの追加）。
+* **常駐ワーカー**: メソッド`render_html`（`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`）。応答は、`{"id", "ok", "html", "diagnostics", "timings_ms", "dependencies"}`。プロトコルのバージョンは、1のまま（メソッドの追加）。
 
 **Markdown記法の扱い**（PDFとは別の変換処理。Markdownの解釈は、`TypstRenderer`の部品を共有する。実装は`html_output.py`）:
 

@@ -21,8 +21,9 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
 応答（`build`）: {"id": ..., "ok": true|false, "pdf": "...", "diagnostics": [...], "timings_ms": {...}}
   `ok`は、ビルドの成否。失敗（`ok: false`）でも、`diagnostics`に、エラーの位置つきの内容が入る。
   診断1件: {"severity": "error|warning|hint|info", "message": ..., "file": ..., "line": ..., "detail": ...}
-応答（`render_html`）: {"id": ..., "ok": true|false, "html": "...", "diagnostics": [...], "timings_ms": {...}}
-  `html`は、生成したHTMLの絶対パス（図・画像は、そこからの相対パスで参照される）。他は、`build`と同じ。
+応答（`render_html`）: {"id": ..., "ok": true|false, "html": "...", "diagnostics": [...], "timings_ms": {...}, "dependencies": [...]}
+  `html`は、生成したHTMLの絶対パス（図・画像は、そこからの相対パスで参照される）。`dependencies`は、原稿が参照している
+  ローカルのファイル（画像など）の絶対パスで、変更を検知して自動で更新するために使う（成功時のみ）。他は、`build`と同じ。
   プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
 プロトコルの誤り（JSONでない、未知のメソッド、引数の不足）: {"id": ..., "ok": false, "error": {"code": ..., "message": ...}}

@@ -44,6 +44,7 @@ if (mode === 'no-ready') {
           id: request.id, ok: true, html: `${p}.html`,
           diagnostics: [{ severity: 'warning', message: 'w', file: p, line: 7, detail: null }],
           timings_ms: { total: 1.5 },
+          dependencies: [`${p}.png`],
         });
       }
     };

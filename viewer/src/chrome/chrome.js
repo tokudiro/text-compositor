@@ -10,6 +10,7 @@ $('open').addEventListener('click', () => api.openDialog());
 $('reload').addEventListener('click', () => api.reload());
 $('zoom-in').addEventListener('click', () => api.zoomIn());
 $('zoom-out').addEventListener('click', () => api.zoomOut());
+$('auto-reload').addEventListener('change', (event) => api.setAutoReload(event.target.checked));
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
 
 // ドラッグ＆ドロップ。ファイルへ、ページが遷移してしまわないように、既定の動作を止める。
@@ -29,6 +30,7 @@ function render(state) {
   $('file').textContent = state.file ? state.file : '';
   $('file').title = state.file ?? '';
   $('zoom').textContent = `${state.zoomPercent}%`;
+  $('auto-reload').checked = state.autoReload;
   $('reload').disabled = !state.file || state.busy;
   $('busy').hidden = !state.busy;
   $('status').textContent = state.busy ? '' : state.status;
