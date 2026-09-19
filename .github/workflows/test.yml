@@ -2,6 +2,7 @@ name: Test
 
 # テスト対象（text_compositor/・tests/・依存関係）を変更したpush/PRでのみpytestを実行する（#97）。
 # doc/やsample/等の無関係な変更ではCIを起動しない。
+# viewer/package.jsonは、Viewerのバージョンをtext-compositorと揃える確認（tests/test_viewer_version.py）のために含める（#194）。
 #
 # push: masterブランチのみを対象にする。作業ブランチへの毎pushも対象にすると、PRを開いた
 # 時点で同じコミットにpull_requestイベントも発火し、同一コミットへの重複実行になるため。
@@ -16,6 +17,7 @@ on:
       - "build.py"
       - "tests/**"
       - "requirements*.txt"
+      - "viewer/package.json"
       - ".github/workflows/test.yml"
   pull_request:
     paths:
@@ -23,6 +25,7 @@ on:
       - "build.py"
       - "tests/**"
       - "requirements*.txt"
+      - "viewer/package.json"
       - ".github/workflows/test.yml"
 
 jobs:

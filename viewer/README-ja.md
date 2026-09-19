@@ -1,12 +1,14 @@
-# text-compositor Viewer
+# Obunzu（お文図）
 
 [English](README.md) | 日本語
 
-text-compositorの、閲覧専用のMarkdown Viewerです（Electron製）。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・`svg`）を、画像として表示します。エディタもPDF出力もありません。
+Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・`svg`）を、画像として表示します。エディタもPDF出力もありません。
 
 表示エンジンは、計測で決めました（[doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md)）。Electronに`--disable-gpu --in-process-gpu`を付けた構成が、体感で最速だったため、既定で、この引数を使います（`VIEWER_GPU=1`で、無効にできます）。
 
 このディレクトリは、PyPIのPythonパッケージとは別のNode.jsプロジェクトです。sdist・wheelには含まれません。
+
+ウィンドウのタイトルに出るバージョンは、`package.json`の`version`です。`pyproject.toml`のtext-compositorのバージョンと、同じ値にそろえます（`tests/test_viewer_version.py`が確認します）。版上げのときは、`package-lock.json`も含めて、あわせて上げます。
 
 ## 実行
 
