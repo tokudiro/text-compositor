@@ -31,6 +31,8 @@ from mdit_py_plugins.attrs import attrs_plugin
 # PyPIの typst パッケージ(typst-py)はコンパイラ本体をプラットフォーム別ホイールに同梱しているため、
 # tools/typst.exe のような実行バイナリをリポジトリに持たずに済む（pipがOSごとに正しい版を入れてくれる）
 import typst as typst_lib
+# エラー・警告・ヒントの出し先（#167）。CLIでは従来どおり標準出力、Python APIでは呼び出し側へ返す。
+from text_compositor import diagnostics
 
 try:
     import yaml
@@ -73,13 +75,25 @@ SYSTEM_BROWSER_COMMANDS = [
 _QUIET = False
 _VERBOSE = False
 
+# エラー・警告・ヒント。text_compositor.diagnostics.collect()の外（CLI）では、従来どおり
+# `[Error] ...`等を標準出力へ出す。中（Python API）では、標準出力へは出さず、構造化して集める（#167）。
+_error = diagnostics.error
+_warn = diagnostics.warning
+_hint = diagnostics.hint
+
 def _log_info(msg):
-    if not _QUIET:
-        print(f"[Info] {msg}")
+    # APIは、-qの影響を受けず、常に集める（呼び出し側が重大度で絞れる）
+    if diagnostics.active() or not _QUIET:
+        diagnostics.info(msg)
 
 def _log_verbose(msg):
-    if _VERBOSE:
+    if _VERBOSE and not diagnostics.active():
         print(f"[Verbose] {msg}")
+
+def _log_success(msg):
+    """CLI専用の完了表示。Python APIは、結果オブジェクト（BuildResult）で成否を返すため出さない。"""
+    if not diagnostics.active():
+        print(f"[Success] {msg}")
 
 def _user_cache_dir():
     """フォント/JRE/PlantUMLの取得物を置くアプリ専用のキャッシュディレクトリを返す。
@@ -177,7 +191,7 @@ def check_typst_version(repo_root):
     無い場合は何もしない（将来pipインストール化された場合等を想定）。"""
     installed_version, pinned_version = _typst_version_info(repo_root)
     if installed_version and pinned_version and installed_version != pinned_version:
-        print(f"[Warning] Installed typst version ({installed_version}) does not match "
+        _warn(f"Installed typst version ({installed_version}) does not match "
               f"the version pinned in requirements.txt ({pinned_version}). Output may differ "
               f"from what's expected (see spec ch.9, deterministic output). "
               f"Run: pip install typst=={pinned_version}")
@@ -343,6 +357,120 @@ def _print_check_results(results):
         counts[r.status] += 1
     print(f"\nSummary: {counts['OK']} OK, {counts['WARN']} WARN, {counts['NG']} NG")
 
+class MermaidBrowser:
+    """Mermaid描画用のヘッドレスブラウザとページ（遅延起動）。
+
+    ビルドごとに起動・終了すると、図1つあたり約1.3秒かかる（ブラウザの起動）。常駐するPython API
+    （api.Session、#167）は、1つを使い回し、2回目以降は約18 msにする。CLIのように使い回さない場合は、
+    TypstRendererが自分で持ち、ビルドの終わりに片付ける。
+    """
+
+    def __init__(self):
+        self.page = None
+        self.browser = None
+        self.playwright = None
+        self.chrome_proc = None
+        self.profile_dir = None
+
+    def ensure_page(self, mermaid_enabled, mermaid_auto_download):
+        """Mermaidレンダリング用のヘッドレスブラウザ・ページを遅延起動する（初回のみ）。
+        Node.js/npxを介さず、mermaid.min.js（実測約3.4MB）を直接ヘッドレスブラウザへ読み込ませて
+        mermaid.render()を呼ぶ（仕様書11章、#35。mermaid-cli丸ごとの約396MBを回避する）。
+        既存のシステムChrome/Edge（#34の検出ロジック）が見つかればPlaywrightのCDP接続で繋ぐだけで、
+        ブラウザの追加ダウンロードは発生しない。見つからない場合、plugins.mermaid_auto_downloadが
+        trueならPlaywright自身のChromium（実測約700MB）をその場で取得して使う。既定はfalseで、
+        Fail-fastでエラー終了する（#22の設計議論。700MBは#34/#35がまさに避けた規模のため、
+        既定で自動取得はしない）。"""
+        if self.page is not None:
+            try:
+                if not self.page.is_closed() and self.browser.is_connected():
+                    return self.page
+            except Exception:
+                pass
+            # 常駐して使い回す間に、ブラウザが落ちた場合（#167）。片付けてから、起動し直す
+            _log_info("Mermaid browser is no longer available; restarting it.")
+            self.close()
+
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            _error("The 'playwright' package is required for mermaid rendering (plugins.mermaid: true). "
+                  "Install it with: pip install playwright==1.62.0")
+            sys.exit(1)
+
+        browser_path = find_system_browser()
+        self.playwright = sync_playwright().start()
+
+        if browser_path:
+            _log_info(f"Reusing system browser for mermaid rendering: {browser_path}")
+            self.profile_dir = tempfile.mkdtemp(prefix="cc-mermaid-")
+            self.chrome_proc, port = _launch_headless_chrome(browser_path, self.profile_dir)
+            try:
+                self.browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
+            except Exception as e:
+                _error(f"Failed to connect to headless browser for mermaid rendering: {e}")
+                diag = _check_mermaid(mermaid_enabled, mermaid_auto_download)
+                if diag.status != "OK":
+                    _hint(f"[{diag.status}] {diag.name}: {diag.message}")
+                sys.exit(1)
+        elif mermaid_auto_download:
+            _log_info("No system Chrome/Edge found; plugins.mermaid_auto_download is true, so Playwright "
+                      "will download its own Chromium (one-time; approx. 700MB; cached under Playwright's "
+                      "browser cache, typically ~/.cache/ms-playwright)...")
+            try:
+                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+            except (subprocess.CalledProcessError, OSError) as e:
+                _error(f"Failed to download Playwright's Chromium: {e}")
+                sys.exit(1)
+            try:
+                self.browser = self.playwright.chromium.launch(headless=True)
+            except Exception as e:
+                _error(f"Failed to launch the downloaded Chromium for mermaid rendering: {e}")
+                sys.exit(1)
+        else:
+            _error("No system Chrome/Edge found; required to render mermaid diagrams locally. "
+                  "Install Google Chrome or Microsoft Edge, or set plugins.mermaid_auto_download: true "
+                  "(downloads Playwright's own Chromium, approx. 700MB), or set plugins.mermaid: false.")
+            sys.exit(1)
+
+        mermaid_js_path = ensure_mermaid_js()
+
+        context = self.browser.contexts[0] if self.browser.contexts else self.browser.new_context()
+        page = context.new_page()
+        page.set_content("<div id='container'></div>")
+        with open(mermaid_js_path, "r", encoding="utf-8") as f:
+            page.add_script_tag(content=f.read())
+        # Typstのraw SVGレンダラーは<foreignObject>内のHTMLを描画できないため、mermaid既定の
+        # HTMLラベルを無効化し、通常のSVG<text>要素で出力させる（トップレベルとflowchart配下
+        # 両方に指定する必要がある。PoCで確認済み）
+        page.evaluate("mermaid.initialize({ startOnLoad: false, htmlLabels: false, flowchart: { htmlLabels: false } })")
+        self.page = page
+        return page
+
+    def close(self):
+        """ensure_pageで起動したヘッドレスブラウザを片付ける（一度も起動していなければ何もしない）。
+        何度呼んでも安全で、片付けた後は再びensure_pageで起動できる。"""
+        if self.browser is not None:
+            try:
+                self.browser.close()
+            except Exception:
+                pass
+        if self.playwright is not None:
+            try:
+                self.playwright.stop()
+            except Exception:
+                pass
+        if self.chrome_proc is not None:
+            self.chrome_proc.terminate()
+            try:
+                self.chrome_proc.wait(timeout=5)
+            except Exception:
+                self.chrome_proc.kill()
+        if self.profile_dir and os.path.exists(self.profile_dir):
+            shutil.rmtree(self.profile_dir, ignore_errors=True)
+        self.page = self.browser = self.playwright = self.chrome_proc = self.profile_dir = None
+
+
 class TypstRenderer:
     """
     markdown-it-py が生成したAST（構文木）を走査し、
@@ -479,7 +607,8 @@ class TypstRenderer:
 
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
-                 glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None):
+                 glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
+                 mermaid_browser=None):
         # 見出しレベルのオフセット（#68）。section配下の章で、Markdown本来のH1をH2以下へずらし、
         # sectionの章見出し（H1）の配下に入れるために使う。章ごとに_render_markdown_chapterが設定する。
         self.heading_offset = 0
@@ -492,6 +621,7 @@ class TypstRenderer:
                    .use(tasklists_plugin)
                    .use(attrs_plugin, spans=True, span_after="link", allowed=["color", "size", "bg", "border"]))
         self.list_stack = []
+        self._block_line = None
         self.current_file = ""
         self.current_dir = ""
         # base_dir: プロジェクト側の基準ディレクトリ（画像・mermaidキャッシュの相対パス解決に使う）
@@ -513,11 +643,8 @@ class TypstRenderer:
         # Mermaidレンダリング用ヘッドレスブラウザのライフサイクル状態。最初のmermaid図を描画する
         # ときに遅延起動し、ビルド終了時にclose()で片付ける（複数の図で1つのブラウザ・ページを
         # 使い回し、図ごとに起動し直さない）。
-        self._mermaid_page = None
-        self._mermaid_browser = None
-        self._mermaid_playwright = None
-        self._mermaid_chrome_proc = None
-        self._mermaid_profile_dir = None
+        self._mermaid = mermaid_browser if mermaid_browser is not None else MermaidBrowser()
+        self._owns_mermaid = mermaid_browser is None
         # document.table_header / chapters[].table_headerのマージ結果（#45）。
         # _render_markdown_chapterが章ごとに設定する。bold/background/colorいずれも
         # 未指定なら従来どおり無装飾（キーが無ければ何もしない）。
@@ -635,7 +762,7 @@ class TypstRenderer:
 
         result = self.PLACEHOLDER_RE.sub(replace, text)
         if undefined:
-            print("[Error] Undefined placeholder(s); define them under 'variables:' in the config, "
+            _error("Undefined placeholder(s); define them under 'variables:' in the config, "
                   "or write \\{{KEY}} to output the text literally:")
             for entry in undefined:
                 print(f"  {entry}")
@@ -656,15 +783,15 @@ class TypstRenderer:
         # csv.readerに任せる。
         rows = list(csv.reader(io.StringIO(text)))
         if not rows:
-            print(f"[Error] {self.current_file} is an empty CSV file.")
+            self._error_here(f"{self.current_file} is an empty CSV file.")
             sys.exit(1)
 
         header, *body = rows
         cols = len(header)
         for row_no, row in enumerate(body, start=2):
             if len(row) != cols:
-                print(f"[Error] {self.current_file}:{row_no}: expected {cols} columns (from the header row), "
-                      f"got {len(row)}.")
+                self._error_here(f"{self.current_file}:{row_no}: expected {cols} columns (from the header row), "
+                                 f"got {len(row)}.", line=row_no)
                 sys.exit(1)
 
         open_wrap, close_wrap = self._table_header_open_close()
@@ -812,7 +939,7 @@ class TypstRenderer:
         block_name = 'layout-left' if flip else 'layout-right'
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
-            print(f"[Error] '{block_name}' block in {self.current_file} must contain exactly one "
+            self._error_here(f"'{block_name}' block in {self.current_file} must contain exactly one "
                   "```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fence or a standalone image.")
             sys.exit(1)
         surrounding_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
@@ -837,7 +964,7 @@ class TypstRenderer:
         各図の直前にあるテキスト（キャプション）は、その図と同じ列にまとめて配置する。"""
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if len(matches) != 2:
-            print(f"[Error] 'layout-compare' block in {self.current_file} must contain exactly two "
+            self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
                   f"```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
@@ -889,7 +1016,7 @@ class TypstRenderer:
         図/画像の抽出はlayout-right/layout-compareと同じDIAGRAM_OR_IMAGE_REを再利用する（#77）。"""
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
-            print(f"[Error] 'layout-feature' block in {self.current_file} must contain exactly one "
+            self._error_here(f"'layout-feature' block in {self.current_file} must contain exactly one "
                   "```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fence or a standalone image.")
             sys.exit(1)
         catchcopy_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
@@ -1030,23 +1157,23 @@ class TypstRenderer:
             return text, {}
         meta = {}
         if yaml is None:
-            print(f"[Warning] PyYAML is not installed; front-matter in {self.current_file} is ignored.")
+            self._warn_here(f"PyYAML is not installed; front-matter in {self.current_file} is ignored.")
         else:
             try:
                 loaded = yaml.safe_load(m.group(1))
                 if isinstance(loaded, dict):
                     meta = loaded
                 else:
-                    print(f"[Warning] Front-matter in {self.current_file} is not a mapping; ignored.")
+                    self._warn_here(f"Front-matter in {self.current_file} is not a mapping; ignored.")
             except Exception as e:
-                print(f"[Warning] Failed to parse front-matter in {self.current_file}: {e}")
+                self._warn_here(f"Failed to parse front-matter in {self.current_file}: {e}")
         for key in meta:
             if key not in self.MARP_ONLY_KEYS and key not in ('title', 'subtitle', 'author', 'date',
                                                               'paper_size', 'landscape', 'font_size',
                                                               'header', 'footer', 'paginate'):
-                print(f"[Warning] Unknown front-matter key '{key}' in {self.current_file}")
+                self._warn_here(f"Unknown front-matter key '{key}' in {self.current_file}")
         if 'font_size' in meta and not self.FONT_SIZE_RE.match(str(meta['font_size'])):
-            print(f"[Warning] front-matter 'font_size' in {self.current_file} should look like '16pt'; got {meta['font_size']!r}. Ignoring.")
+            self._warn_here(f"front-matter 'font_size' in {self.current_file} should look like '16pt'; got {meta['font_size']!r}. Ignoring.")
             del meta['font_size']
         # 除去した行数ぶん改行を残し、以降の警告メッセージの行番号がずれないようにする
         return '\n' * m.group(0).count('\n') + text[m.end():], meta
@@ -1075,6 +1202,8 @@ class TypstRenderer:
         i = start
         while i < len(tokens):
             t = tokens[i]
+            if t.map:
+                self._block_line = t.map[0] + 1
             if t.type == 'heading_open':
                 self._emit_srcmap(result, t)
                 level = int(t.tag[1:]) + self.heading_offset
@@ -1140,7 +1269,7 @@ class TypstRenderer:
                 info = t.info.strip()
                 if info == 'typst-exec':
                     if not self.allow_exec:
-                        print(f"[Error] Security: 'typst-exec' is allowed only under a 'reviewed/' directory ({self.current_file}).")
+                        self._error_here(f"Security: 'typst-exec' is allowed only under a 'reviewed/' directory ({self.current_file}).")
                         sys.exit(1)
                     result.append(f"{t.content}\n\n")
                 else:
@@ -1173,9 +1302,24 @@ class TypstRenderer:
             i += 1
         return "".join(result)
         
+    def _line_of(self, t):
+        """トークンtの、原稿での行番号（1始まり）。インライントークンは行を持たないため、直近のブロックの
+        開始行で近似する。分からなければNone。"""
+        if t is not None and t.map:
+            return t.map[0] + 1
+        return self._block_line
+
+    def _warn_here(self, message, line=None):
+        """現在処理中の原稿（current_file）の位置つきで警告を出す（Python APIの診断のfile/line、#167）。"""
+        _warn(message, file=self.current_file or None, line=line)
+
+    def _error_here(self, message, line=None):
+        """現在処理中の原稿（current_file）の位置つきでエラーを出す（呼び出し側が、sys.exitで止める）。"""
+        _error(message, file=self.current_file or None, line=line)
+
     def _warn_html(self, t):
-        line_no = t.map[0] + 1 if t.map else '?'
-        print(f"[Warning] HTML tag detected at {self.current_file}:{line_no} : {t.content.strip()}. HTML is not supported and will be ignored in Typst output.")
+        line_no = self._line_of(t)
+        self._warn_here(f"HTML tag detected at {self.current_file}:{line_no if line_no else '?'} : {t.content.strip()}. HTML is not supported and will be ignored in Typst output.", line=line_no)
 
     def _task_checkbox_glyph(self, html):
         """tasklists_pluginが出力する<input class="task-list-item-checkbox" ...>だけを認識し、
@@ -1233,97 +1377,20 @@ class TypstRenderer:
         abs_path = os.path.normpath(os.path.join(self.current_dir, src))
         # 仕様9章: 画像パス欠損はフォールバックせず即エラー (Fail-fast)
         if not os.path.exists(abs_path):
-            print(f"[Error] Image not found: {abs_path} (referenced from {self.current_file})")
+            self._error_here(f"Image not found: {abs_path} (referenced from {self.current_file})")
             sys.exit(1)
         root_rel_path = "/" + os.path.relpath(abs_path, self.typst_root).replace(os.sep, '/')
         return escape_string_literal(root_rel_path)
 
     def _ensure_mermaid_page(self):
-        """Mermaidレンダリング用のヘッドレスブラウザ・ページを遅延起動する（初回のみ）。
-        Node.js/npxを介さず、mermaid.min.js（実測約3.4MB）を直接ヘッドレスブラウザへ読み込ませて
-        mermaid.render()を呼ぶ（仕様書11章、#35。mermaid-cli丸ごとの約396MBを回避する）。
-        既存のシステムChrome/Edge（#34の検出ロジック）が見つかればPlaywrightのCDP接続で繋ぐだけで、
-        ブラウザの追加ダウンロードは発生しない。見つからない場合、plugins.mermaid_auto_downloadが
-        trueならPlaywright自身のChromium（実測約700MB）をその場で取得して使う。既定はfalseで、
-        Fail-fastでエラー終了する（#22の設計議論。700MBは#34/#35がまさに避けた規模のため、
-        既定で自動取得はしない）。"""
-        if self._mermaid_page is not None:
-            return self._mermaid_page
-
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            print("[Error] The 'playwright' package is required for mermaid rendering (plugins.mermaid: true). "
-                  "Install it with: pip install playwright==1.62.0")
-            sys.exit(1)
-
-        browser_path = find_system_browser()
-        self._mermaid_playwright = sync_playwright().start()
-
-        if browser_path:
-            _log_info(f"Reusing system browser for mermaid rendering: {browser_path}")
-            self._mermaid_profile_dir = tempfile.mkdtemp(prefix="cc-mermaid-")
-            self._mermaid_chrome_proc, port = _launch_headless_chrome(browser_path, self._mermaid_profile_dir)
-            try:
-                self._mermaid_browser = self._mermaid_playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
-            except Exception as e:
-                print(f"[Error] Failed to connect to headless browser for mermaid rendering: {e}")
-                diag = _check_mermaid(self.mermaid_enabled, self.mermaid_auto_download)
-                if diag.status != "OK":
-                    print(f"[Hint] [{diag.status}] {diag.name}: {diag.message}")
-                sys.exit(1)
-        elif self.mermaid_auto_download:
-            _log_info("No system Chrome/Edge found; plugins.mermaid_auto_download is true, so Playwright "
-                      "will download its own Chromium (one-time; approx. 700MB; cached under Playwright's "
-                      "browser cache, typically ~/.cache/ms-playwright)...")
-            try:
-                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
-            except (subprocess.CalledProcessError, OSError) as e:
-                print(f"[Error] Failed to download Playwright's Chromium: {e}")
-                sys.exit(1)
-            try:
-                self._mermaid_browser = self._mermaid_playwright.chromium.launch(headless=True)
-            except Exception as e:
-                print(f"[Error] Failed to launch the downloaded Chromium for mermaid rendering: {e}")
-                sys.exit(1)
-        else:
-            print("[Error] No system Chrome/Edge found; required to render mermaid diagrams locally. "
-                  "Install Google Chrome or Microsoft Edge, or set plugins.mermaid_auto_download: true "
-                  "(downloads Playwright's own Chromium, approx. 700MB), or set plugins.mermaid: false.")
-            sys.exit(1)
-
-        mermaid_js_path = ensure_mermaid_js()
-
-        context = self._mermaid_browser.contexts[0] if self._mermaid_browser.contexts else self._mermaid_browser.new_context()
-        page = context.new_page()
-        page.set_content("<div id='container'></div>")
-        with open(mermaid_js_path, "r", encoding="utf-8") as f:
-            page.add_script_tag(content=f.read())
-        # Typstのraw SVGレンダラーは<foreignObject>内のHTMLを描画できないため、mermaid既定の
-        # HTMLラベルを無効化し、通常のSVG<text>要素で出力させる（トップレベルとflowchart配下
-        # 両方に指定する必要がある。PoCで確認済み）
-        page.evaluate("mermaid.initialize({ startOnLoad: false, htmlLabels: false, flowchart: { htmlLabels: false } })")
-        self._mermaid_page = page
-        return page
+        """Mermaid描画用のブラウザ・ページを返す（初回のみ起動。詳細はMermaidBrowser.ensure_page）。"""
+        return self._mermaid.ensure_page(self.mermaid_enabled, self.mermaid_auto_download)
 
     def close(self):
-        """ビルド終了時に呼び出し、_ensure_mermaid_pageで起動したヘッドレスブラウザを片付ける
-        （mermaidを一度も描画していなければ何もしない）。"""
-        if self._mermaid_browser is not None:
-            try:
-                self._mermaid_browser.close()
-            except Exception:
-                pass
-        if self._mermaid_playwright is not None:
-            self._mermaid_playwright.stop()
-        if self._mermaid_chrome_proc is not None:
-            self._mermaid_chrome_proc.terminate()
-            try:
-                self._mermaid_chrome_proc.wait(timeout=5)
-            except Exception:
-                self._mermaid_chrome_proc.kill()
-        if self._mermaid_profile_dir and os.path.exists(self._mermaid_profile_dir):
-            shutil.rmtree(self._mermaid_profile_dir, ignore_errors=True)
+        """ビルド終了時に呼び出す。Mermaid用のブラウザは、このレンダラーが持つ場合だけ片付ける。
+        外から渡された（api.Sessionが使い回す）ものは、渡した側が片付ける。"""
+        if self._owns_mermaid:
+            self._mermaid.close()
 
     def _render_sized_image(self, root_rel_path, width, height):
         """事前レンダリング済み画像（mermaid/plantumlのSVG）をTypstコードへ変換する。
@@ -1393,7 +1460,7 @@ class TypstRenderer:
                 )
             except Exception as e:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                print(f"[Error] mermaid rendering failed for {self.current_file}:\n{e}")
+                self._error_here(f"mermaid rendering failed for {self.current_file}:\n{e}")
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(svg)
@@ -1419,7 +1486,7 @@ class TypstRenderer:
             elif self.plantuml_auto_download:
                 java_bin = ensure_temurin_jre()
             else:
-                print("[Error] No local Java 11+ found; required to render PlantUML diagrams. "
+                _error("No local Java 11+ found; required to render PlantUML diagrams. "
                       "Install Java 11+, or set plugins.plantuml_auto_download: true "
                       "(downloads Eclipse Temurin JRE, approx. 50MB), or set plugins.plantuml: false.")
                 sys.exit(1)
@@ -1449,16 +1516,16 @@ class TypstRenderer:
                     [java_bin, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
                     input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)
             except OSError as e:
-                print(f"[Error] Failed to run PlantUML for {self.current_file}:\n{e}")
+                self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
                 # 隔離環境（venv/pipx）外での実行が原因の可能性が高い（#113、ファイルが
                 # 存在するように見えてもサブプロセスから見えない既知の問題）ため優先して案内する。
                 for diag in (_check_isolated_env(), _check_plantuml(self.plantuml_enabled, self.plantuml_auto_download)):
                     if diag.status != "OK":
-                        print(f"[Hint] [{diag.status}] {diag.name}: {diag.message}")
+                        _hint(f"[{diag.status}] {diag.name}: {diag.message}")
                 sys.exit(1)
             if result.returncode != 0:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                print(f"[Error] PlantUML rendering failed for {self.current_file}:\n{result.stderr}")
+                self._error_here(f"PlantUML rendering failed for {self.current_file}:\n{result.stderr}")
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
@@ -1479,7 +1546,7 @@ class TypstRenderer:
             elif self.d2_auto_download:
                 d2_bin = ensure_d2_binary()
             else:
-                print("[Error] No local D2 found; required to render d2 diagrams. "
+                _error("No local D2 found; required to render d2 diagrams. "
                       "Install D2 (https://d2lang.com), or set plugins.d2_auto_download: true "
                       "(downloads the D2 CLI binary, approx. 13MB), or set plugins.d2: false.")
                 sys.exit(1)
@@ -1506,16 +1573,16 @@ class TypstRenderer:
                     [d2_bin, "-", "-"],
                     input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)
             except OSError as e:
-                print(f"[Error] Failed to run D2 for {self.current_file}:\n{e}")
+                self._error_here(f"Failed to run D2 for {self.current_file}:\n{e}")
                 # 隔離環境（venv/pipx）外での実行が原因の可能性が高い（#113、ファイルが
                 # 存在するように見えてもサブプロセスから見えない既知の問題）ため優先して案内する。
                 for diag in (_check_isolated_env(), _check_d2(self.d2_enabled, self.d2_auto_download)):
                     if diag.status != "OK":
-                        print(f"[Hint] [{diag.status}] {diag.name}: {diag.message}")
+                        _hint(f"[{diag.status}] {diag.name}: {diag.message}")
                 sys.exit(1)
             if result.returncode != 0:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                print(f"[Error] d2 rendering failed for {self.current_file}:\n{result.stderr}")
+                self._error_here(f"d2 rendering failed for {self.current_file}:\n{result.stderr}")
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
@@ -1651,13 +1718,15 @@ class TypstRenderer:
                 attrs = dict(t.attrs)
                 if ('bg' in attrs or 'border' in attrs) and not t.meta.get('cell_style'):
                     # セル全体を包むspanは、_table_cell_openが既にtable.cell()へ変換して印を付けている
-                    print(f"[Warning] Ignoring bg/border in {self.current_file}: they apply only to a span that "
-                          f"wraps the entire table cell, e.g. | [text]{{bg=\"#eeeeee\"}} |.")
+                    self._warn_here(f"Ignoring bg/border in {self.current_file}: they apply only to a span that "
+                                    f"wraps the entire table cell, e.g. | [text]{{bg=\"#eeeeee\"}} |.",
+                                    line=self._line_of(t))
                 color = attrs.get('color')
                 size = attrs.get('size')
                 if size is not None and not self.FONT_SIZE_RE.match(str(size)):
-                    line_no = t.map[0] + 1 if t.map else '?'
-                    print(f"[Warning] Ignoring invalid size {size!r} in {self.current_file}:{line_no}; expected e.g. '10pt'.")
+                    line_no = self._line_of(t)
+                    self._warn_here(f"Ignoring invalid size {size!r} in {self.current_file}:{line_no if line_no else '?'}; expected e.g. '10pt'.",
+                                    line=line_no)
                     size = None
                 text_args = []
                 if color:
@@ -1692,13 +1761,13 @@ class TypstRenderer:
                     else:
                         self._warn_html(t)
             else:
-                line_no = t.map[0] + 1 if t.map else '?'
-                print(f"[Warning] Unhandled inline token '{t.type}' at {self.current_file}:{line_no}")
+                line_no = self._line_of(t)
+                self._warn_here(f"Unhandled inline token '{t.type}' at {self.current_file}:{line_no if line_no else '?'}", line=line_no)
             # 改行直後のテキストのみ行頭エスケープの対象にする
             at_line_start = t.type in ['softbreak', 'hardbreak']
         if html_span_depth > 0:
             # 壊れたTypstコード（閉じ角括弧の不足）を生成しないよう自動で閉じ、書き忘れに気付けるよう警告する
-            print(f"[Warning] Unclosed <span style=\"color:...\"> in {self.current_file}; closing it automatically.")
+            self._warn_here(f"Unclosed <span style=\"color:...\"> in {self.current_file}; closing it automatically.")
             res.append(']' * html_span_depth)
         return "".join(res)
         
@@ -1756,7 +1825,7 @@ class TypstRenderer:
         if border:
             stroke = self.CELL_BORDER_STROKES.get(str(border).lower())
             if stroke is None:
-                print(f"[Warning] Ignoring invalid border {border!r} in {self.current_file}; "
+                self._warn_here(f"Ignoring invalid border {border!r} in {self.current_file}; "
                       f"expected one of {', '.join(self.CELL_BORDER_STROKES)}.")
             else:
                 args.append(f'stroke: {stroke}')
@@ -1879,15 +1948,15 @@ def ensure_fonts():
                 data = zf.read(name)
                 digest = hashlib.sha256(data).hexdigest()
                 if digest != NOTO_SANS_JP_FILES[name]:
-                    print(f"[Error] Checksum mismatch for {name}: expected {NOTO_SANS_JP_FILES[name]}, got {digest}")
+                    _error(f"Checksum mismatch for {name}: expected {NOTO_SANS_JP_FILES[name]}, got {digest}")
                     sys.exit(1)
                 with open(os.path.join(font_dir, name), "wb") as f:
                     f.write(data)
     except zipfile.BadZipFile as e:
-        print(f"[Error] Failed to download fonts (bad zip): {e}")
+        _error(f"Failed to download fonts (bad zip): {e}")
         sys.exit(1)
     except OSError as e:
-        print(f"[Error] Failed to download fonts: {e}")
+        _error(f"Failed to download fonts: {e}")
         sys.exit(1)
     finally:
         if os.path.exists(zip_path):
@@ -1915,14 +1984,14 @@ def ensure_mermaid_js():
     try:
         urllib.request.urlretrieve(MERMAID_JS_URL, js_path)
     except OSError as e:
-        print(f"[Error] Failed to download mermaid.min.js: {e}")
+        _error(f"Failed to download mermaid.min.js: {e}")
         sys.exit(1)
 
     with open(js_path, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     if digest != MERMAID_JS_SHA256:
         os.remove(js_path)
-        print(f"[Error] Checksum mismatch for mermaid.min.js: expected {MERMAID_JS_SHA256}, got {digest}")
+        _error(f"Checksum mismatch for mermaid.min.js: expected {MERMAID_JS_SHA256}, got {digest}")
         sys.exit(1)
 
     return js_path
@@ -1979,7 +2048,7 @@ def ensure_temurin_jre():
     key = _temurin_platform_key()
     asset = TEMURIN_JRE_ASSETS.get(key)
     if asset is None:
-        print(f"[Error] No Eclipse Temurin JRE build available for this platform ({key[0]}/{key[1]}). "
+        _error(f"No Eclipse Temurin JRE build available for this platform ({key[0]}/{key[1]}). "
               "Install Java 11+ manually and ensure it is on PATH, or set plugins.plantuml: false.")
         sys.exit(1)
     filename, sha256, archive_type, java_rel_parts = asset
@@ -1996,14 +2065,14 @@ def ensure_temurin_jre():
     try:
         urllib.request.urlretrieve(TEMURIN_JRE_BASE_URL + filename, archive_path)
     except OSError as e:
-        print(f"[Error] Failed to download Eclipse Temurin JRE: {e}")
+        _error(f"Failed to download Eclipse Temurin JRE: {e}")
         sys.exit(1)
 
     with open(archive_path, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     if digest != sha256:
         os.remove(archive_path)
-        print(f"[Error] Checksum mismatch for {filename}: expected {sha256}, got {digest}")
+        _error(f"Checksum mismatch for {filename}: expected {sha256}, got {digest}")
         sys.exit(1)
 
     if archive_type == "zip":
@@ -2015,7 +2084,7 @@ def ensure_temurin_jre():
     os.remove(archive_path)
 
     if not os.path.exists(java_bin_path):
-        print(f"[Error] Eclipse Temurin JRE extraction did not produce the expected binary: {java_bin_path}")
+        _error(f"Eclipse Temurin JRE extraction did not produce the expected binary: {java_bin_path}")
         sys.exit(1)
     if key[0] != "win32":
         os.chmod(java_bin_path, 0o755)
@@ -2043,14 +2112,14 @@ def ensure_plantuml_jar():
     try:
         urllib.request.urlretrieve(PLANTUML_JAR_URL, jar_path)
     except OSError as e:
-        print(f"[Error] Failed to download plantuml.jar: {e}")
+        _error(f"Failed to download plantuml.jar: {e}")
         sys.exit(1)
 
     with open(jar_path, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     if digest != PLANTUML_JAR_SHA256:
         os.remove(jar_path)
-        print(f"[Error] Checksum mismatch for plantuml.jar: expected {PLANTUML_JAR_SHA256}, got {digest}")
+        _error(f"Checksum mismatch for plantuml.jar: expected {PLANTUML_JAR_SHA256}, got {digest}")
         sys.exit(1)
 
     return jar_path
@@ -2093,7 +2162,7 @@ def ensure_d2_binary():
     key = _temurin_platform_key()
     asset = D2_ASSETS.get(key)
     if asset is None:
-        print(f"[Error] No D2 CLI build available for this platform ({key[0]}/{key[1]}). "
+        _error(f"No D2 CLI build available for this platform ({key[0]}/{key[1]}). "
               "Install D2 manually (https://d2lang.com) and ensure it is on PATH, or set plugins.d2: false.")
         sys.exit(1)
     filename, sha256 = asset
@@ -2109,14 +2178,14 @@ def ensure_d2_binary():
     try:
         urllib.request.urlretrieve(D2_BASE_URL + filename, archive_path)
     except OSError as e:
-        print(f"[Error] Failed to download D2 CLI: {e}")
+        _error(f"Failed to download D2 CLI: {e}")
         sys.exit(1)
 
     with open(archive_path, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     if digest != sha256:
         os.remove(archive_path)
-        print(f"[Error] Checksum mismatch for {filename}: expected {sha256}, got {digest}")
+        _error(f"Checksum mismatch for {filename}: expected {sha256}, got {digest}")
         sys.exit(1)
 
     with tarfile.open(archive_path, "r:gz") as tf:
@@ -2124,7 +2193,7 @@ def ensure_d2_binary():
     os.remove(archive_path)
 
     if not os.path.exists(d2_bin_path):
-        print(f"[Error] D2 CLI extraction did not produce the expected binary: {d2_bin_path}")
+        _error(f"D2 CLI extraction did not produce the expected binary: {d2_bin_path}")
         sys.exit(1)
     if key[0] != "win32":
         os.chmod(d2_bin_path, 0o755)
@@ -2155,19 +2224,19 @@ def _launch_headless_chrome(browser_path, user_data_dir):
         time.sleep(0.25)
 
     proc.terminate()
-    print("[Error] Headless browser did not become ready in time (needed for mermaid rendering).")
+    _error("Headless browser did not become ready in time (needed for mermaid rendering).")
     sys.exit(1)
 
 def load_config_file(config_path):
     """指定された1ファイル(yaml/json)から設定を読み込む。存在しなければFail-fast。"""
     config = default_config()
     if not os.path.exists(config_path):
-        print(f"[Error] Config file not found: {config_path}")
+        _error(f"Config file not found: {config_path}")
         sys.exit(1)
     with open(config_path, "r", encoding="utf-8") as f:
         if config_path.endswith(('.yaml', '.yml')):
             if yaml is None:
-                print("[Error] PyYAML is not installed; cannot read a .yaml config file.")
+                _error("PyYAML is not installed; cannot read a .yaml config file.")
                 sys.exit(1)
             loaded = yaml.safe_load(f) or {}
         else:
@@ -2188,35 +2257,35 @@ def _resolve_variables(config):
     if raw is None:
         return None
     if not isinstance(raw, dict):
-        print("[Error] 'variables' must be a mapping of KEY: value.")
+        _error("'variables' must be a mapping of KEY: value.")
         sys.exit(1)
     variables = {}
     for key, spec in raw.items():
         if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', str(key)):
-            print(f"[Error] variables.{key}: the key must consist of letters, digits and '_' "
+            _error(f"variables.{key}: the key must consist of letters, digits and '_' "
                   f"(and not start with a digit).")
             sys.exit(1)
         if isinstance(spec, dict):
             unknown = set(spec) - {"env", "default"}
             if "env" not in spec or unknown:
-                print(f"[Error] variables.{key}: a mapping value must have 'env' (and optionally 'default'); "
+                _error(f"variables.{key}: a mapping value must have 'env' (and optionally 'default'); "
                       f"got keys {sorted(map(str, spec))}.")
                 sys.exit(1)
             value = os.environ.get(str(spec["env"]))
             if value is None:
                 if "default" not in spec:
-                    print(f"[Error] variables.{key}: environment variable {spec['env']} is not set "
+                    _error(f"variables.{key}: environment variable {spec['env']} is not set "
                           f"and no 'default' is given.")
                     sys.exit(1)
                 value = spec["default"]
         elif isinstance(spec, (list, tuple)):
-            print(f"[Error] variables.{key}: a list is not supported; use a scalar or {{env: NAME}}.")
+            _error(f"variables.{key}: a list is not supported; use a scalar or {{env: NAME}}.")
             sys.exit(1)
         else:
             value = spec
         value = "" if value is None else str(value)
         if "\n" in value or "\r" in value:
-            print(f"[Error] variables.{key}: the value must be a single line.")
+            _error(f"variables.{key}: the value must be a single line.")
             sys.exit(1)
         variables[str(key)] = value
     return variables
@@ -2239,7 +2308,7 @@ def _resolve_project_image_path(path, base_dir, typst_root, label):
         return None
     abs_path = os.path.normpath(os.path.join(base_dir, path))
     if not os.path.exists(abs_path):
-        print(f"[Error] {label} image not found: {abs_path}")
+        _error(f"{label} image not found: {abs_path}")
         sys.exit(1)
     return "/" + os.path.relpath(abs_path, typst_root).replace(os.sep, '/')
 
@@ -2380,7 +2449,7 @@ def _load_project_config(config_path):
     else:
         config_path = find_config_in_cwd()
         if not config_path:
-            print("[Error] --config not specified, and no text-compositor.config.yaml/.json found in the current directory.")
+            _error("--config not specified, and no text-compositor.config.yaml/.json found in the current directory.")
             sys.exit(1)
     project_dir = os.path.dirname(config_path)
     config = load_config_file(config_path)
@@ -2388,14 +2457,17 @@ def _load_project_config(config_path):
     chapters = config.get("chapters", [])
     # 【修正】章が空の場合は正常終了せずFail-fastでエラー終了させる
     if not chapters:
-        print("[Error] No chapters configured in config.yaml. Aborting.")
+        _error("No chapters configured in config.yaml. Aborting.")
         sys.exit(1)
     return project_dir, config, chapters
 
-def _resolve_project_dirs(project_dir, config):
-    """出力先・入力元・作業ディレクトリと、それらを跨ぐ--root（typst_root）を解決する。"""
+def _resolve_project_dirs(project_dir, config, create_outputs=True):
+    """出力先・入力元・作業ディレクトリと、それらを跨ぐ--root（typst_root）を解決する。
+    create_outputs=False（Python API、#167）なら、出力先ディレクトリを作らず、--rootにも含めない
+    （PDFは呼び出し側が指定した場所へ、作業ディレクトリから移すため。原稿の隣に`outputs/`を作らない）。"""
     outputs_dir = os.path.normpath(os.path.join(project_dir, config["output"]["dir"]))
-    os.makedirs(outputs_dir, exist_ok=True)
+    if create_outputs:
+        os.makedirs(outputs_dir, exist_ok=True)
     # 【修正】ハードコードをやめ config の inputs.dir を実際に使用する
     inputs_dir = os.path.normpath(os.path.join(project_dir, config.get("inputs", {}).get("dir") or "inputs"))
 
@@ -2404,7 +2476,8 @@ def _resolve_project_dirs(project_dir, config):
 
     # project_dir・inputs_dir・outputs_dir・work_dirすべてを跨いでtypstから参照できるよう、
     # それら全ての共通の親ディレクトリを --root にする（tool_dirは含めない）
-    typst_root = os.path.commonpath([project_dir, inputs_dir, outputs_dir, work_dir])
+    roots = [project_dir, inputs_dir, work_dir] + ([outputs_dir] if create_outputs else [])
+    typst_root = os.path.commonpath(roots)
     return outputs_dir, inputs_dir, work_dir, typst_root
 
 # 同梱テンプレート・アダプタが共有する補助関数のファイル名（templates/配下、work_dirへも同名でコピー）。
@@ -2419,7 +2492,7 @@ def _prepare_template(config, tool_dir, project_dir, work_dir, typst_root):
     ため、テンプレートは元の置き場所に関わらずwork_dir（--rootの内側）へコピーしてから参照する。"""
     template_abs_path = resolve_template_path(config["template"]["path"], tool_dir, project_dir)
     if not os.path.exists(template_abs_path):
-        print(f"[Error] Template not found: {template_abs_path}")
+        _error(f"Template not found: {template_abs_path}")
         sys.exit(1)
     template_copy_path = os.path.join(work_dir, "_template" + os.path.splitext(template_abs_path)[1])
     shutil.copyfile(template_abs_path, template_copy_path)
@@ -2444,23 +2517,23 @@ def _resolve_revision_history(doc_config):
     if raw is None:
         return None
     if not isinstance(raw, list):
-        print("[Error] document.revision_history must be a list of mappings "
+        _error("document.revision_history must be a list of mappings "
               "(version / date / description / author).")
         sys.exit(1)
     entries = []
     for i, item in enumerate(raw, start=1):
         if not isinstance(item, dict):
-            print(f"[Error] document.revision_history[{i}] must be a mapping "
+            _error(f"document.revision_history[{i}] must be a mapping "
                   f"(version / date / description / author), got {item!r}.")
             sys.exit(1)
         unknown = [k for k in item if k not in REVISION_HISTORY_KEYS]
         if unknown:
-            print(f"[Error] document.revision_history[{i}]: unknown key(s) {unknown} "
+            _error(f"document.revision_history[{i}]: unknown key(s) {unknown} "
                   f"(allowed: {', '.join(REVISION_HISTORY_KEYS)}).")
             sys.exit(1)
         entry = {k: ("" if item.get(k) is None else str(item[k])) for k in REVISION_HISTORY_KEYS}
         if not any(v.strip() for v in entry.values()):
-            print(f"[Error] document.revision_history[{i}] is empty.")
+            _error(f"document.revision_history[{i}] is empty.")
             sys.exit(1)
         entries.append(entry)
     return entries or None
@@ -2477,7 +2550,7 @@ def _resolve_abstract(doc_config):
     if raw is None:
         return None
     if not isinstance(raw, str):
-        print(f"[Error] document.abstract must be a string (got {type(raw).__name__}).")
+        _error(f"document.abstract must be a string (got {type(raw).__name__}).")
         sys.exit(1)
     return raw.strip() or None
 
@@ -2528,7 +2601,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
         cover_mode = 'template' if cover_mode else 'none'
     cover_mode = str(cover_mode).lower()
     if cover_mode not in ('template', 'replace', 'markdown', 'none'):
-        print(f"[Error] Invalid document.cover: {cover_mode!r} (expected template / replace / markdown / none)")
+        _error(f"Invalid document.cover: {cover_mode!r} (expected template / replace / markdown / none)")
         sys.exit(1)
     # template/replaceのときだけ引数を渡さず、cover引数を持たない既存テンプレートとの互換を保つ
     cover_arg = '' if cover_mode in ('template', 'replace') else '  cover: false,\n'
@@ -2586,7 +2659,7 @@ def _parse_chapter_entry(ch):
     if isinstance(ch, str):
         return ch, {}, "file"
     if not isinstance(ch, dict):
-        print(f"[Error] Invalid chapter entry (must be a string or a mapping): {ch!r}")
+        _error(f"Invalid chapter entry (must be a string or a mapping): {ch!r}")
         sys.exit(1)
     if "aggregate" in ch:
         ch_file = ch["aggregate"]
@@ -2595,7 +2668,7 @@ def _parse_chapter_entry(ch):
         ch_file = ch.get("file")
         ch_type = "file"
     if not ch_file:
-        print(f"[Error] Invalid chapter entry (no 'file' or 'aggregate' key): {ch!r}")
+        _error(f"Invalid chapter entry (no 'file' or 'aggregate' key): {ch!r}")
         sys.exit(1)
     return ch_file, ch, ch_type
 
@@ -2608,7 +2681,7 @@ def _parse_heading_offset(value, where):
     """heading_offset（見出しレベルをずらす段数）を検証して返す。0以上の整数のみ。上限5は、
     MarkdownのH1〜H6を最大でH11相当まで下げても意味を成さないため、明らかな誤記を弾く目的。"""
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 5:
-        print(f"[Error] {where}: heading_offset must be an integer from 0 to 5 (got {value!r}).")
+        _error(f"{where}: heading_offset must be an integer from 0 to 5 (got {value!r}).")
         sys.exit(1)
     return value
 
@@ -2625,15 +2698,15 @@ def _expand_chapters(chapters, root_defaults, project_dir, typst_root):
         if isinstance(ch, dict) and "section" in ch:
             title = ch["section"]
             if not isinstance(title, str) or not title.strip():
-                print(f"[Error] Invalid section (the heading must be a non-empty string): {ch!r}")
+                _error(f"Invalid section (the heading must be a non-empty string): {ch!r}")
                 sys.exit(1)
             if "file" in ch or "aggregate" in ch:
-                print(f"[Error] section {title!r}: 'section' cannot be combined with 'file'/'aggregate'; "
+                _error(f"section {title!r}: 'section' cannot be combined with 'file'/'aggregate'; "
                       f"list the files under 'chapters:'.")
                 sys.exit(1)
             children = ch.get("chapters")
             if not isinstance(children, list) or not children:
-                print(f"[Error] section {title!r}: 'chapters' must be a non-empty list.")
+                _error(f"section {title!r}: 'chapters' must be a non-empty list.")
                 sys.exit(1)
             offset = _parse_heading_offset(ch.get("heading_offset", 1), f"section {title!r}")
             table_header = dict(root_defaults.table_header)
@@ -2653,7 +2726,7 @@ def _expand_chapters(chapters, root_defaults, project_dir, typst_root):
             entries.append(("section", title, defaults))
             for child in children:
                 if isinstance(child, dict) and "section" in child:
-                    print(f"[Error] section {title!r}: nested sections are not supported "
+                    _error(f"section {title!r}: nested sections are not supported "
                           f"(found section {child['section']!r} inside it).")
                     sys.exit(1)
                 _check_chapter_heading_offset(child)
@@ -2733,7 +2806,7 @@ def _render_aggregate_chapter(ch_dict, ch_file, inputs_dir, renderer, current_la
                     else:
                         tc_data = yaml.safe_load(f) or {}
                 except Exception as e:
-                    print(f"[Warning] Failed to parse {tc_file}: {e}")
+                    _warn(f"Failed to parse {tc_file}: {e}")
                     continue
 
             tc_id = renderer.escape_typst(str(tc_data.get("id", "")))
@@ -2751,7 +2824,7 @@ def _render_aggregate_chapter(ch_dict, ch_file, inputs_dir, renderer, current_la
         typst_code += ')\n\n#pagebreak(weak: true)\n'
     else:
         # 仕様9章: 入力欠損は黙って飛ばさず即エラー (Fail-fast)
-        print(f"[Error] Aggregate directory not found: {agg_path}")
+        _error(f"Aggregate directory not found: {agg_path}")
         sys.exit(1)
 
     return typst_code, current_landscape, current_paper, current_header, current_footer, current_paginate, current_background, current_logo
@@ -2767,7 +2840,7 @@ def _render_markdown_chapter(ch_dict, ch_file, inputs_dir, renderer, current_lan
     更新後のcurrent_logo)。"""
     md_path = os.path.join(inputs_dir, ch_file)
     if not os.path.exists(md_path):
-        print(f"[Error] Chapter file not found: {md_path}")
+        _error(f"Chapter file not found: {md_path}")
         sys.exit(1)
 
     # テーブルヘッダのスタイル（#45）。chapters[].table_headerはdocument.table_headerに対する
@@ -2833,7 +2906,7 @@ def _resolve_line_mapping(config):
     なる場合）でも例外を出さないよう、`or {}`でNoneをdictに読み替える。"""
     line_mapping = (config.get("document", {}).get("diagnostics") or {}).get("line_mapping", "block")
     if line_mapping not in ("off", "block"):
-        print(f"[Warning] document.diagnostics.line_mapping: {line_mapping!r} is not supported yet; falling back to 'block'.")
+        _warn(f"document.diagnostics.line_mapping: {line_mapping!r} is not supported yet; falling back to 'block'.")
         line_mapping = "block"
     return line_mapping
 
@@ -2877,10 +2950,64 @@ def _annotate_typst_error(error_text, src_map):
             hints.append(f"[Hint] temp_build.typ:{typst_line} corresponds to around {md_file}:{md_line}")
     return error_text + "\n" + "\n".join(hints) if hints else error_text
 
+def _first_error_location(error_text, src_map):
+    """Typstの診断中の最初の`temp_build.typ:行:列`を、#27のsrc_mapで元のMarkdownの(ファイル, 行番号)へ
+    逆引きする。分からなければNone（Python APIが、診断にfile/lineを付けるために使う。#167）。"""
+    for m in TYPST_ERROR_LOC_RE.finditer(error_text):
+        resolved = _resolve_srcmap(src_map, int(m.group(1)))
+        if resolved:
+            return resolved
+    return None
+
+def _write_pdf_atomically(out_pdf, data):
+    """PDFを、同じディレクトリの一時ファイルへ書いてから置き換える。読む側（GUI）が、書きかけの
+    PDFを見ないようにするため（#167）。Windowsでは、読み込み中のファイルへの置き換えが失敗する
+    ことがあるため、短く再試行してから、PermissionErrorを返す。"""
+    out_dir = os.path.dirname(os.path.abspath(out_pdf))
+    os.makedirs(out_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp-", suffix=".pdf", dir=out_dir)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        for attempt in range(10):
+            try:
+                os.replace(tmp_path, out_pdf)
+                return
+            except PermissionError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.1)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
+def _compile_with_reused_compiler(temp_typ_path, out_pdf, typst_root, font_dir, compiler_cache, src_map):
+    """typst.Compilerを使い回してコンパイルし、Typstの警告を診断として出す（Python API、#167）。
+    コンパイラは、(コンパイル対象, --root, フォント)ごとに作り、compiler_cacheへ残す。同じ
+    temp_build.typを毎回書き換えてコンパイルしても、内容の変更は反映される（実測）。コンパイル自体は、
+    毎回`typst.compile()`を呼ぶ場合の約23 msが、約7 msになる。"""
+    key = (temp_typ_path, typst_root, font_dir)
+    compiler = compiler_cache.get(key)
+    if compiler is None:
+        compiler = typst_lib.Compiler(temp_typ_path, root=typst_root, font_paths=[font_dir],
+                                       ignore_system_fonts=True)
+        compiler_cache[key] = compiler
+    pdf_bytes, warnings = compiler.compile_with_warnings(format="pdf")
+    for w in warnings:
+        text = getattr(w, "diagnostic", None) or str(w)
+        location = _first_error_location(text, src_map)
+        _warn(f"Typst: {getattr(w, 'message', None) or w}",
+              file=location[0] if location else None, line=location[1] if location else None,
+              detail=_annotate_typst_error(text, src_map))
+    _write_pdf_atomically(out_pdf, pdf_bytes)
+
 def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, font_dir, template_copy_path, repo_root,
-                          keep_temp=False):
+                          keep_temp=False, *, compiler_cache=None, out_pdf=None):
     """temp_build.typへ書き出してtypstコンパイルし、成功時は使い捨ての中間ファイルを削除する。
-    keep_temp=True（--keep-temp、#52）なら成功時も削除せず残す（失敗時は元々常に残る）。"""
+    keep_temp=True（--keep-temp、#52）なら成功時も削除せず残す（失敗時は元々常に残る）。
+    compiler_cache（Python API、#167）を渡すと、typst.Compilerを使い回し、PDFを原子的に書き出す。
+    out_pdfを渡すと、出力先をそこにする（省略時は、config.output.dir/filename）。"""
     temp_typ_path = os.path.join(work_dir, "temp_build.typ")
     with open(temp_typ_path, "w", encoding="utf-8") as f:
         f.write(typst_code)
@@ -2888,7 +3015,8 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
     # コンパイル失敗時にTypst側の行番号を元のMarkdownへ逆引きするための対応表（#27）。
     src_map = _build_srcmap(typst_code)
 
-    out_pdf = os.path.join(outputs_dir, config["output"]["filename"])
+    if out_pdf is None:
+        out_pdf = os.path.join(outputs_dir, config["output"]["filename"])
 
     try:
         # ignore_system_fonts=True（#71）。テンプレート（template.typ/slide.typ）は本文フォントを
@@ -2899,23 +3027,33 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
         # 前提が崩れる）。デフォルトで常に有効にし、config.yaml側に設定項目は設けない（このツールの
         # 「明示性優先」方針に合わせ、フォントを変えたい場合は独自テンプレート（template.path）で
         # 対応する）。
-        typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=[font_dir],
-                           ignore_system_fonts=True)
-        print(f"[Success] Generated PDF: {out_pdf}")
+        if compiler_cache is None:
+            typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=[font_dir],
+                               ignore_system_fonts=True)
+        else:
+            _compile_with_reused_compiler(temp_typ_path, out_pdf, typst_root, font_dir, compiler_cache, src_map)
+        _log_success(f"Generated PDF: {out_pdf}")
     except typst_lib.TypstError as e:
         # str(e)はe.message（例: "unknown variable: foo"）のみで位置情報を持たない。
         # ファイル:行:列を含む整形済み診断（`┌─ temp_build.typ:32:1`形式）はe.diagnosticに
         # 別途入っている（実機確認で判明。#27の行番号マッピングはこちらが無いと機能しない）。
         diagnostic_text = getattr(e, "diagnostic", None) or str(e)
-        print(f"[Error] Compile failed:\n{_annotate_typst_error(diagnostic_text, src_map)}")
+        annotated = _annotate_typst_error(diagnostic_text, src_map)
+        location = _first_error_location(diagnostic_text, src_map)
+        _error(f"Compile failed: {e}", file=location[0] if location else None,
+               line=location[1] if location else None, detail=annotated,
+               cli_text=f"Compile failed:\n{annotated}")
+        sys.exit(1)
+    except PermissionError as e:
+        _error(f"Cannot write the PDF (is it open in another program?): {out_pdf} ({e})")
         sys.exit(1)
     except Exception as e:
-        print(f"[Error] Execution failed: {e}")
+        _error(f"Execution failed: {e}")
         # 原因が記述ミスではなく環境不備（typstのバージョン不一致等）の可能性があるため、
         # 関連するチェックだけを再実行して診断ヒントを出す（#37。全項目は--check-env参照）。
         diag = _check_typst_env(repo_root)
         if diag.status != "OK":
-            print(f"[Hint] [{diag.status}] {diag.name}: {diag.message}")
+            _hint(f"[{diag.status}] {diag.name}: {diag.message}")
         sys.exit(1)
 
     # ビルド成功後、使い捨ての中間ファイルを削除する（12章、#20）。
@@ -2933,7 +3071,7 @@ def _config_paths_from_args(args):
     if args.config_list:
         config_paths = _read_config_list(args.config_list)
         if not config_paths:
-            print(f"[Error] --config-list {args.config_list} に有効なconfigパスがありません。")
+            _error(f"--config-list {args.config_list} に有効なconfigパスがありません。")
             sys.exit(1)
         return config_paths
     return [args.config]
@@ -2993,7 +3131,7 @@ def _clean_one(config_path, include_cache):
         os.rmdir(work_dir)
     except OSError:
         pass
-    print(f"[Success] Cleaned {removed} item(s): {project_dir}")
+    _log_success(f"Cleaned {removed} item(s): {project_dir}")
 
 def _clean_all(config_paths, include_cache):
     for config_path in config_paths:
@@ -3027,7 +3165,7 @@ def build():
     if args.config_list:
         config_paths = _read_config_list(args.config_list)
         if not config_paths:
-            print(f"[Error] --config-list {args.config_list} に有効なconfigパスがありません。")
+            _error(f"--config-list {args.config_list} に有効なconfigパスがありません。")
             sys.exit(1)
         if args.watch:
             _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=args.keep_temp)
@@ -3040,7 +3178,7 @@ def build():
     elif args.watch:
         config_path = os.path.abspath(args.config) if args.config else find_config_in_cwd()
         if not config_path:
-            print("[Error] --config not specified, and no text-compositor.config.yaml/.json found in the current directory.")
+            _error("--config not specified, and no text-compositor.config.yaml/.json found in the current directory.")
             sys.exit(1)
         _watch(tool_dir, repo_root, font_dir, [config_path], keep_temp=args.keep_temp)
     else:
@@ -3119,7 +3257,7 @@ def _build_guarded(tool_dir, repo_root, font_dir, config_path, keep_temp):
     except SystemExit as e:
         return e.code in (0, None)
     except Exception as e:
-        print(f"[Error] Build crashed: {e}")
+        _error(f"Build crashed: {e}")
         return False
 
 def _watch(tool_dir, repo_root, font_dir, config_paths, keep_temp=False):
@@ -3175,6 +3313,21 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False, if_c
             _log_info(f"Skipped (up to date): {out_pdf}")
             return
 
+    _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters, keep_temp=keep_temp)
+
+def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters, keep_temp=False, *,
+                   mermaid_browser=None, compiler_cache=None, out_pdf=None, timings=None):
+    """読み込み済みのconfig・chaptersから、1つのPDFをビルドする（CLIの`_build_one`と、Python API
+    （api.py、#167）が共有する本体）。
+
+    mermaid_browser / compiler_cache / out_pdfは、常駐するPython API用の指定で、CLIでは渡さない。
+      mermaid_browser: 使い回すMermaidBrowser。渡すと、このビルドでは片付けない（渡した側が片付ける）。
+      compiler_cache: 使い回すtypst.Compilerを入れる辞書。渡すと、コンパイラを使い回し、PDFを原子的に書く。
+      out_pdf: 出力先PDFのパス。渡すと、config.outputは使わず、出力先ディレクトリも作らない。
+      timings: 渡した辞書へ、所要時間（ミリ秒）を入れる。render（Markdown→Typstコード。図表の描画を含む）と、
+        compile（Typstコンパイル・PDFの書き出し・中間ファイルの削除）。
+    """
+    started = time.perf_counter()
     # plugins: Graphviz/PlantUML/Mermaid/D2の有効・無効切り替え（6章、#21、#90）。未指定時は
     # 既存動作を維持する既定値（graphviz/mermaid/plantuml/d2はいずれも常時有効）。
     # *_auto_download は、システムに必要なツール（ブラウザ/Java/D2）が無い場合の振る舞いを制御する
@@ -3198,7 +3351,8 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False, if_c
     # などの誤りを、長い描画処理を始める前にFail-fastで報告する。
     variables = _resolve_variables(config)
 
-    outputs_dir, inputs_dir, work_dir, typst_root = _resolve_project_dirs(project_dir, config)
+    outputs_dir, inputs_dir, work_dir, typst_root = _resolve_project_dirs(
+        project_dir, config, create_outputs=out_pdf is None)
     template_copy_path, template_root_rel_path = _prepare_template(config, tool_dir, project_dir, work_dir, typst_root)
 
     (typst_code, global_landscape, global_paper, cover_mode, global_table_header,
@@ -3215,7 +3369,8 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False, if_c
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
-                              marp_compat=marp_compat, variables=variables)
+                              marp_compat=marp_compat, variables=variables,
+                              mermaid_browser=mermaid_browser)
     current_landscape, current_paper = global_landscape, global_paper
     current_header, current_footer, current_paginate = effective_global_header, global_footer, global_paginate
     current_background = global_background
@@ -3279,8 +3434,13 @@ def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False, if_c
     if glossary_enabled and renderer.glossary_terms:
         typst_code += _build_glossary_section(renderer.glossary_terms)
 
+    compile_started = time.perf_counter()
+    if timings is not None:
+        timings["render"] = (compile_started - started) * 1000.0
     _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, font_dir, template_copy_path, repo_root,
-                         keep_temp=keep_temp)
+                         keep_temp=keep_temp, compiler_cache=compiler_cache, out_pdf=out_pdf)
+    if timings is not None:
+        timings["compile"] = (time.perf_counter() - compile_started) * 1000.0
 
 if __name__ == "__main__":
     build()

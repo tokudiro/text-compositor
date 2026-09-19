@@ -77,6 +77,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **`--clean`の削除対象**: 出力PDF（`output.dir`/`output.filename`）と、`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`。ビルド失敗時やデバッグ用の`--keep-temp`で残ったもの）。`.text-compositor/`が空になれば、そのディレクトリも削除する。入力ファイル・configは削除しない。
   * **`--clean-cache`**: 上記に加えて、図表SVGのキャッシュ（`.text-compositor/cache/`）も削除する。再生成コストが高い（Mermaid・PlantUML・D2の描画）ため、`--clean`とは別オプションにした。単独で指定しても`--clean`を含む。キャッシュキーの仕様変更（#26）で残った古いキーのファイルの掃除にも使える。
   * ユーザーキャッシュ（フォント・`mermaid.min.js`・PlantUML・JRE・D2。2章）は対象外。ツール全体で共有される資産で、プロジェクト単位の生成物ではないため。
+* **Python APIと常駐ワーカー**（[#167](https://github.com/tokudiro/text-compositor/issues/167)）: 単一のMarkdownを、config.yamlなしでPDFにするAPI（`text_compositor.Session`・`build_markdown`）と、標準入出力のJSON行で依頼を受ける常駐ワーカー（`python -m text_compositor.worker`）がある。GUI版Viewer（[#165](https://github.com/tokudiro/text-compositor/issues/165)）が使う。CLIには、`text-compositor file.md`の形は追加していない（#25）。詳細は14章。
 * 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定等の文書内容に関わる上書き）は存在しない。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
 * **終了コード**: 成功 `0` / 失敗 `1`。入力欠損・画像欠損・コンパイルエラーは即時失敗する（Fail-fast、10章）。`--check-env`はNGが1件でもあれば`1`。引数の指定誤り（`-q`と`-v`の同時指定等）は`argparse`標準の`2`。
 
@@ -288,3 +289,88 @@ A. 要らなくなるのではなく、このツールが解決している2つ�
 **Q. 見積書・請求書・申請書のような帳票（フォーム）にも使えるか？**
 
 A. 対象外である。技術的な難しさが理由ではない。帳票は宛先欄・金額欄・印鑑欄のような固定位置の記入欄が主構造であり、「文章が連続して流れる」通常の文書とは構造が異なる。より本質的な理由は目的（1章）とのズレにある。帳票はデータをフィールドへ流し込む対象であり、AIと人間が協業して「書く」対象ではない。このツールの核心はテキスト（Model）とレイアウト（View）の分離にあり、帳票対応まで範囲を広げると、この核心が薄まる。
+
+## 14. Python APIと常駐ワーカー
+
+GUI版Viewer（[#165](https://github.com/tokudiro/text-compositor/issues/165)）から、単一のMarkdownを繰り返しPDFにするための、Pythonの公開APIと常駐ワーカーである（[#167](https://github.com/tokudiro/text-compositor/issues/167)）。連携方式は、GUIがPythonを常駐サブプロセスとして起動し、標準入出力のJSON行で依頼する（[#166](https://github.com/tokudiro/text-compositor/issues/166)、`doc/gui-viewer-design.md`）。
+
+### 公開API（`text_compositor.api`）
+
+```python
+from text_compositor import Session, build_markdown, BuildResult, Diagnostic
+
+with Session() as session:                      # 常駐する間、使い回す
+    result = session.build("doc.md", "out/doc.pdf")
+    if result.ok:
+        print(result.pdf_path)
+    for d in result.diagnostics:                # 警告・エラー・ヒント・情報
+        print(d.severity, d.message, d.file, d.line)
+
+result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
+```
+
+`import text_compositor`自体は軽く、`Session`等は、使うまで読み込まない（`markdown-it`や`typst`を、ここでは読み込まない）。
+
+* **`Session.build(markdown_path, output_pdf=None, *, template="template", plugins=None, document=None, variables=None, config=None, keep_temp=False) -> BuildResult`**:
+  * **設定は既定値で動く**: 単一のMarkdownを1章とするconfigを、メモリ上で組み立てる。`template`は同梱テンプレートの名前（`template`・`slide`・`paper`）か、Markdownの隣からの`.typ`ファイルのパス。`plugins`（例: `{"mermaid": False}`）・`document`（例: `{"toc": True}`）・`variables`は、config.yamlの同名の設定と同じ形式で上書きする。`config`は、config全体への上書きで、最後に重ねる（上級者向け）。
+  * **既定の`document`**: `title`はファイル名（拡張子なし）、`subtitle`・`author`・`date`は空、`toc`は`false`、`cover`は**`markdown`**（テンプレートの表紙を出さず、Markdownの先頭のH1もそのまま出す）。CLIの既定の`cover: none`は、先頭のタイトルを落とすため、プレビューには向かない。
+  * **出力先**: `output_pdf`を指定する。省略時は、原稿の隣の`.text-compositor/preview.pdf`。
+  * **副作用**: 原稿の隣に、作業用の`.text-compositor/`（図表のキャッシュ・中間ファイル）を作る。`outputs/`は作らない。成功すると、中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`）は削除される。
+  * **標準出力へは何も書かない**: ビルド中の標準出力への書き込みは、標準エラーへ回す。診断は、`BuildResult.diagnostics`で返す。
+  * **失敗しても例外は出さない**: `ok=False`の結果を返す。想定外の例外も、エラーの診断（`detail`にトレースバック）にして返す。`sys.exit()`で止まる既存の処理は、この中で捕まえる。
+  * **PDFの書き出し**: 同じディレクトリの一時ファイルへ書いてから、置き換える（原子的）。読む側が、書きかけのPDFを見ない。失敗したビルドは、既存のPDFを壊さない。**Windowsでは、開いたままのPDFへは置き換えられない**（0.1秒間隔で10回再試行してから、エラーにする）。読む側は、PDFを全体を読んで閉じるか、ビルドごとに別の出力先を指定する。
+* **`BuildResult`**: `ok`（成否）・`pdf_path`（成功時のPDFの絶対パス）・`diagnostics`（出た順の診断）・`timings_ms`（`total`・`render`・`compile`。`render`はMarkdown→Typstコード（図表の描画を含む）、`compile`はTypstコンパイル・PDFの書き出し・中間ファイルの削除。失敗した段階以降は入らない）。`errors`・`warnings`・`to_dict()`（JSONにできる辞書）を持つ。
+* **`Diagnostic`**: `severity`（`error`・`warning`・`hint`・`info`）・`message`（要約）・`file`・`line`（元のMarkdownの位置。**分かる場合だけ**入る）・`detail`（Typstが整形したコンパイルエラー全文など、長い補足）。
+* **`Session`**: スレッドセーフだが、ビルドは1つずつ直列に実行する。`close()`（または`with`）で、使い回している資源を片付ける。閉じた後の`build()`は、エラーを返す。
+
+### 診断の構造化
+
+* **診断の受け皿**（`text_compositor.diagnostics`）: `build.py`の`[Error]`・`[Warning]`・`[Hint]`の出力は、`_error()`・`_warn()`・`_hint()`を通す。`collect()`の外（CLI）では、従来どおり標準出力へ`[Error] ...`の形式で出す（**CLIの出力は変わらない**。全ページ画像の一致で確認した）。中（Python API）では、標準出力へは出さず、`Diagnostic`として集める。`contextvars`で持つため、スレッドをまたいでも混ざらない。
+* **`file`・`line`が入る場合**: (1)Typstのコンパイルエラーと警告: `temp_build.typ`の行を、#27のsrcmapで元のMarkdownの位置へ逆引きする（最初の位置を`file`・`line`にし、整形済みの全文を`detail`に入れる）。(2)レンダラーが出す、原稿に紐づく警告とエラー: `file`は処理中の原稿。`line`は、トークンの行、またはインライン要素（HTML等）では、直近のブロックの開始行（近似）。(3)それ以外（環境の不備等）: どちらもNone。
+* **CLIの警告の位置**: 上記の近似を取り入れたため、インラインHTMLの警告の位置表示が、`:?`から、直近のブロックの行番号に変わった（唯一のCLI出力の変更。原稿の位置が分かる場合だけ）。
+* **`info`**: `[Info]`の出力（図表の描画の開始等）も、`info`として集める。`-q`の影響は受けない（呼び出し側が重大度で絞る）。`[Verbose]`と`[Success]`は、CLI専用で、集めない。
+
+### 使い回す状態（常駐）
+
+`Session`は、呼び出しをまたいで、次の2つを使い回す。
+
+* **Mermaid用のヘッドレスブラウザ**（`build.MermaidBrowser`）: CLIは、ビルドごとに起動・終了するため、図1つあたり約1.3秒かかる。使い回すと、2回目以降は約18 msになる。使い回している間にブラウザが落ちた（ページが閉じた・接続が切れた）場合は、片付けてから、起動し直す。ビルドが途中で失敗して、起動が中途半端に残った場合も、ビルドの直後に片付ける。`Session.close()`で、ブラウザのプロセスが終了する（ゾンビを残さない。実機のテストで確認した）。`TypstRenderer`は、外から`mermaid_browser=`を渡されない限り、自分で持ち、ビルドの終わりに片付ける（CLIの従来の動作）。
+* **`typst.Compiler`**: (コンパイル対象, `--root`, フォント)ごとに作り、使い回す。内容を書き換えても、更新は反映される（テストで、画像を同じパスで差し替えた場合も含めて確認した）。
+
+**効果**（`benchmarks/api_latency.py`、Windows 11、2回目以降の平均。値は、実行のたびに、10〜30%程度ばらつく）:
+
+| シナリオ | `Session`（常駐） | 参考: CLIの`_build_one`（#166の計測） |
+| --- | --- | --- |
+| 最小 | 43 ms | 31 ms |
+| 標準（5節・表・dot図） | 43〜66 ms | 35 ms |
+| 大きな文書（約30ページ） | 87 ms | 62 ms |
+| Mermaid・図を毎回変更 | **71 ms**（初回は約1.9秒） | 1,815 ms |
+
+* **Mermaidの常駐化は、大きく効く**（1.8秒 → 71 ms）。
+* **通常の文書は、CLIより数十ms遅い**: 常駐APIは、`typst.Compiler`を使い回すが、その効果は、単体の計測（23 msから7 ms）より小さかった。中間ファイル（`_template.typ`・`_common.typ`）を毎回作り直す流れでの、コンパイルの実測は、使い回しで約34 msから約11〜20 msだった（ばらつきが大きい）。それ以上に、次のものが上乗せされる: 診断の集約、PDFの原子的な書き出し（一時ファイルへ書いてから置き換え）、Typstの警告の取得（`compile_with_warnings`）。**標準的な文書で50 ms以内という目標は、達成していない**（平均43〜66 ms）。数十msの差は、GUI側のデバウンス（100 ms程度）に比べて小さいため、現時点では、追加の最適化はしない。
+* **`render`の内訳**: `_build_project`の開始から、コンパイルの直前まで。Markdown→Typstコードの変換のほか、テンプレートのコピー・`TypstRenderer`の生成（正規表現の準備等）を含む。
+
+### 常駐ワーカー（`python -m text_compositor.worker`）
+
+標準入力へ、1行に1つのJSONオブジェクトを書く。標準出力へ、1行に1つのJSONオブジェクトが返る（UTF-8）。依頼は、1つずつ順に処理する。
+
+* **起動時のイベント**: `{"event": "ready", "protocol": 1, "version": "0.3.0"}`。
+* **依頼**: `{"id": <任意。応答に返る>, "method": <名前>, "params": {...}}`。
+  * `build`: `params`は、`path`（必須）・`output`・`template`・`plugins`・`document`・`variables`・`config`・`keep_temp`（`Session.build`と同じ意味）。未知のキーは、プロトコルエラー。
+  * `ping`: 生存確認。`{"id": ..., "ok": true, "result": {"pong": true}}`。
+  * `shutdown`: 応答の後、Mermaidのブラウザ等を片付けて、終了する（終了コード0）。標準入力が閉じられた場合も、同じく片付けて終了する。
+* **`build`の応答**: `{"id": ..., "ok": true|false, "pdf": "...", "diagnostics": [{"severity", "message", "file", "line", "detail"}, ...], "timings_ms": {...}}`。`ok`はビルドの成否で、**失敗（`ok: false`）でも、`error`キーは付かない**。
+* **プロトコルエラー**（JSONでない・JSONオブジェクトでない・未知のメソッド・`path`の欠落・未知の`params`）: `{"id": ..., "ok": false, "error": {"code": "bad_json|bad_request|unknown_method|internal_error", "message": "..."}}`。**`error`キーがあれば、依頼は処理されていない**。ワーカーは、次の依頼を受け付ける。
+* **通信路の保護**: 標準出力は、通信専用にする。起動時に、元の標準出力を複製して通信に使い、標準出力そのもの（fd 1）は、標準エラーへ付け替える。ビルド中にライブラリが`print`しても、外部プロセス（`playwright install`等）がfd 1へ書いても、通信路は壊れない（テストで確認した）。文字コードは、Windowsの既定（cp932等）に左右されないよう、UTF-8で読み書きする。
+* **取り消し・並行実行**: プロトコル1にはない。最新の1件だけを依頼する（途中の依頼は、GUI側で捨てる）のは、GUI側の責務（#170）。
+
+### CLIとの関係（#25）
+
+* `text-compositor file.md`（複数ファイル・ディレクトリの直接指定、[#25](https://github.com/tokudiro/text-compositor/issues/25)）は、**本章では追加しない**。出力先の決め方・オプションの体系が、#25で未決のため。APIは、CLIから同じ関数を呼べる形（configなしで、単一のMarkdownからPDFを作る）にしてあるため、#25で決めた後に、薄く追加できる。
+* 既存のCLI（`--config`等）は、内部の`_build_project`を共有するが、動作は変えていない（全テストとサンプルの出力で確認した）。
+
+### 制約
+
+* 作業ディレクトリ（`.text-compositor/`）は、原稿の隣に作る。読み取り専用の場所にある原稿は、扱えない。
+* `variables`が環境変数（`env`）を参照する場合、環境変数の値は、ワーカーの起動時のもの。
+* 対象は、単一のMarkdownファイル。`config.yaml`対応（複数章）は、#165のフォローアップ候補。

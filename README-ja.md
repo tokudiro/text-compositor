@@ -129,6 +129,18 @@ python /path/to/text-compositor/build.py
 
 `--clean`は、ビルドせずに出力PDFと`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`）を削除します。`--clean-cache`は、加えて図表キャッシュ（`.text-compositor/cache/`）も削除します。入力ファイルとconfigは削除しません。
 
+### Python API
+
+`text_compositor.Session`と`build_markdown()`で、`config.yaml`なしに、単一のMarkdownをPDFにできます。警告とエラーは、標準出力へ出さず、構造化した診断（Markdownのファイル・行つき）として返します。GUIのビューアなどからは、常駐ワーカー（`python -m text_compositor.worker`）を、標準入出力のJSON行で使えます。使い方ガイドの「Pythonから使う」と、[doc/spec.md](doc/spec.md)の14章を参照してください。
+
+```python
+from text_compositor import Session
+
+with Session() as session:  # ビルドをまたいで、Mermaidのブラウザ・Typstコンパイラを使い回す
+    result = session.build("doc.md", "out/doc.pdf")
+    print(result.ok, result.pdf_path, [d.message for d in result.diagnostics])
+```
+
 設定ファイルの書き方は [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) を、`document:`/`plugins:`/front-matter/Marpディレクティブ等の詳しい説明は[使い方ガイド](doc/usage/)を参照してください。`chapters` に列挙したMarkdownファイルを順に結合してPDFを生成します。
 
 ## サンプルを試す
