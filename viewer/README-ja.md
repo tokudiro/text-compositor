@@ -73,8 +73,21 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `src/targets.js` | 開けるファイルの判定と、リンク・ドロップの扱い |
 | `src/watcher.js` | 開いているファイルと、参照するファイルを監視する |
 | `scripts/check-auto-reload.js` | Viewerを起動して、自動更新を確認する（手動） |
+| `scripts/build-icons.js` | `assets/icon.svg`から、`assets/icon.ico`と`assets/icon.png`を書き出す |
+| `assets/` | アプリのアイコン（元のSVGと、書き出した`.ico`・`.png`） |
 | `src/chrome/` | ツールバー・エラーの帯・診断の一覧 |
 | `test/` | `node --test`のテスト（偽のワーカーで、異常終了・時間切れ・再起動を確認） |
+
+## アイコン
+
+空色の角丸の四角に、文書のページと、小さな図（2つのノードを矢印でつなぐ）を重ねた絵です。Obunzuが表示する、文章と図を、いっしょに表します。元は`assets/icon.svg`です。自作で、リポジトリのライセンス（MIT）に従います。第三者の絵や、キャラクターの絵は、使っていません。
+
+`assets/icon.svg`を変えたら、書き出し直して、結果をコミットします。`icon.ico`には、16・24・32・48・64・128・256 pxを入れます。SVGの描画は、Electronが行うため、追加のパッケージは要りません。
+
+```bash
+cd viewer
+npm run build-icons
+```
 
 ## テスト
 

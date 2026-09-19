@@ -73,8 +73,21 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 | `src/targets.js` | Which files can be opened; how links and drops are handled |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
+| `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |
 | `test/` | `node --test` tests (a fake worker covers crashes, timeouts and restarts) |
+
+## Icon
+
+The icon shows a document page with a small diagram (two nodes joined by an arrow) on a sky-blue rounded square: text and diagrams together, which is what Obunzu shows. `assets/icon.svg` is the source. It is original work and follows the repository's license (MIT). It does not use any third-party or character artwork.
+
+After changing `assets/icon.svg`, export again and commit the results. `icon.ico` holds 16, 24, 32, 48, 64, 128 and 256 px. Electron renders the SVG, so no extra packages are needed.
+
+```bash
+cd viewer
+npm run build-icons
+```
 
 ## Test
 

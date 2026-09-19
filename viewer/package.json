@@ -7,6 +7,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "build-icons": "electron scripts/build-icons.js",
     "test": "node --test \"test/**/*.test.js\""
   },
   "engines": {

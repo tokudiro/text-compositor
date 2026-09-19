@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>Obunzu</title>
+  <desc>A document page with a small diagram (two nodes joined by an arrow) on a sky-blue rounded square.</desc>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="#3f9be0"/>
+  <path d="M36 18h40l20 20v72a4 4 0 0 1-4 4H36a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z" fill="#ffffff"/>
+  <path d="M76 18v16a4 4 0 0 0 4 4h16z" fill="#bfdcf5"/>
+  <rect x="42" y="46" width="34" height="6" rx="3" fill="#8ec1ee"/>
+  <rect x="40" y="66" width="20" height="16" rx="3" fill="#1f5fa8"/>
+  <circle cx="80" cy="96" r="9" fill="#f08a2c"/>
+  <path d="M60 74h10a10 10 0 0 1 10 10v3" fill="none" stroke="#1f5fa8" stroke-width="4" stroke-linecap="round"/>
+</svg>
