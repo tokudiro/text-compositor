@@ -9,18 +9,30 @@
 <body>
   <div id="top">
     <div id="toolbar">
-      <button id="open" class="accent" title="Markdownファイルを開く（Ctrl+O）">開く…</button>
-      <button id="reload" title="もう一度変換する（F5）" disabled>再読み込み</button>
-      <label id="auto" title="ファイルを保存したら、自動で更新する"><input type="checkbox" id="auto-reload" checked>自動で更新</label>
+      <!-- 左: ファイルに関する操作と、ファイルの場所。アイコンは、線の太さ・角の丸みを、アプリのアイコンに合わせる。 -->
+      <button id="open" class="icon" title="Markdownファイルを開く（Ctrl+O）" aria-label="開く">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>
+      </button>
+      <button id="reload" class="icon" title="もう一度変換する（F5）" aria-label="再読み込み" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11.5a7.5 7.5 0 0 1 13-4.6M19.5 4.5v4.5H15"/><path d="M19.5 12.5a7.5 7.5 0 0 1-13 4.6M4.5 19.5V15H9"/></svg>
+      </button>
+      <button id="auto-reload" class="icon toggle" role="switch" aria-checked="true" aria-label="保存したら自動で更新">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5 5.5 13.5h5.5l-1 7 7.5-10h-5.5z"/></svg>
+      </button>
       <span class="sep"></span>
-      <button id="zoom-out" title="縮小（Ctrl+−）">−</button>
-      <span id="zoom">100%</span>
-      <button id="zoom-in" title="拡大（Ctrl++）">＋</button>
-      <span class="sep"></span>
-      <span id="file"></span>
+      <span id="file"><span id="file-name"></span><span id="file-dir"></span></span>
       <span class="spacer"></span>
+      <!-- 右: 状態と、拡大縮小 -->
       <span id="busy" hidden><span class="bar"></span>変換中…</span>
       <span id="status"></span>
+      <span class="sep"></span>
+      <button id="zoom-out" class="icon" title="縮小（Ctrl+−）" aria-label="縮小">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
+      </button>
+      <button id="zoom" class="zoom" title="実寸に戻す（Ctrl+0）" aria-label="実寸に戻す">100%</button>
+      <button id="zoom-in" class="icon" title="拡大（Ctrl++）" aria-label="拡大">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>
+      </button>
     </div>
     <div id="banner" hidden>
       <span id="banner-text"></span>

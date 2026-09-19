@@ -30,6 +30,11 @@ if (process.env.VIEWER_GPU !== '1') {
   app.commandLine.appendSwitch('in-process-gpu');
 }
 
+// 環境変数 VIEWER_THEME=light|dark で、OSの設定に関わらず、配色を固定する（画面の確認用。#192）。
+if (process.env.VIEWER_THEME === 'light' || process.env.VIEWER_THEME === 'dark') {
+  nativeTheme.themeSource = process.env.VIEWER_THEME;
+}
+
 // 環境変数 VIEWER_TRACE=1 で、起動の各段階の時刻（プロセスの開始から）を、標準エラーへ出す。
 const trace = process.env.VIEWER_TRACE
   ? (label) => process.stderr.write(`[viewer] ${label} +${Math.round(process.uptime() * 1000)}ms\n`)
@@ -356,4 +361,5 @@ ipcMain.on('open-dialog', () => openWithDialog());
 ipcMain.on('reload', reload);
 ipcMain.on('auto-reload', (_event, value) => setAutoReload(value));
 ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
+ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') openFile(filePath); });

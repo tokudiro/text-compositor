@@ -43,7 +43,7 @@ Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, 
 
 While a conversion runs, a "変換中…" indicator is shown. If it fails, the last successful display stays on screen and the cause (with the Markdown line, when known) is listed under the toolbar. Web links in a document open in the default browser; a link or dropped file that points to a Markdown file opens in the viewer. Nothing else can navigate the viewer away from the document.
 
-**Automatic reload**: saving the open Markdown file, or an image it references, refreshes the display (about 0.18 s after the save; the scroll position is kept). The **保存したら自動で更新** check box in the toolbar (and the View menu) turns it off. Details:
+**Automatic reload**: saving the open Markdown file, or an image it references, refreshes the display (about 0.18 s after the save; the scroll position is kept). The lightning-bolt toggle in the toolbar (highlighted while on; and the View menu) turns it off. Details:
 
 - The directories of the watched files are watched, not the files, so an editor's atomic save (write a temp file, then rename over) is detected. Files that do not exist yet (an image that is created later) are watched too.
 - Changes are merged: the conversion starts 150 ms after the last change. A save during a conversion queues one more conversion.
@@ -61,6 +61,7 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 | `VIEWER_GPU=1` | Use the standard Chromium GPU settings instead of `--disable-gpu --in-process-gpu` |
 | `VIEWER_TRACE=1` | Print startup timings to stderr |
 | `VIEWER_DEBUG=1` | Add a "toggle developer tools" item to the View menu |
+| `VIEWER_THEME=light` / `dark` | Fix the color scheme regardless of the OS setting (for checking both looks) |
 
 ## Structure
 
