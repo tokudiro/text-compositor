@@ -89,7 +89,7 @@ using (Py.GIL())
         }
     }
 
-    dynamic buildModule = Py.Import("build");
+    dynamic buildModule = Py.Import("text_compositor.build");
     dynamic renderer = buildModule.TypstRenderer();
     typstCode = renderer.render(SampleMarkdown, filepath: "", drop_leading_title: false);
 }

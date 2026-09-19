@@ -1,6 +1,6 @@
 # viewer-rust（Issue #99 スパイク）
 
-Rust + [PyO3](https://pyo3.rs/) で、`build.py` の `TypstRenderer.render()`（Markdown文字列→
+Rust + [PyO3](https://pyo3.rs/) で、`text_compositor.build` の `TypstRenderer.render()`（Markdown文字列→
 Typstコード文字列の変換）を埋め込み呼び出しできるかを確認するだけの最小疎通確認（スパイク）。
 ファイル監視・Typstコンパイル・PDF表示・GUI本体は範囲外。詳細は
 [Issue #99](https://github.com/tokudiro/context-compositor/issues/99) を参照。
@@ -8,7 +8,7 @@ Typstコード文字列の変換）を埋め込み呼び出しできるかを確
 ## 前提
 
 - リポジトリ直下の `requirements.txt` の依存パッケージ（`markdown-it-py` 等）がインストール済みの
-  Pythonが必要（`build.py` を `import` するため）。
+  Pythonが必要（`text_compositor.build` を `import` するため）。
 - PyO3はビルド時に `PYO3_PYTHON` 環境変数（未指定時はPATH上の `python3`）が指す Python の
   ヘッダ・共有ライブラリ情報を使ってリンクする。実行時も同じPythonのインタプリタが埋め込まれる。
 
@@ -99,3 +99,19 @@ PyO3はビルド時にPythonの開発用インポートライブラリ（`.lib`�
 ## 次のステップ（本issueの範囲外）
 
 Issue #99本文の「次のステップ」を参照。
+
+## masterへの追従の確認（#173、2026-09-19）
+
+v0.3.0時点のmasterで動作を確認した。スパイクのままでは、次の2点で動かなかった。
+
+1. **モジュール名**: リポジトリ直下の`build.py`は、パッケージ化（#111）の後は`build()`関数だけを
+   公開する薄いラッパーである。`TypstRenderer`は`text_compositor.build`にある。スパイクの
+   `import build`は、`AttributeError: module 'build' has no attribute 'TypstRenderer'`になる。
+   `text_compositor.build`をimportするよう直した（`src/main.rs`の`py.import_bound("text_compositor.build")`）。
+2. **同梱Pythonの`site-packages`**: 手作業で組み立てているため、`requirements.txt`に依存が
+   増えても追従しない。今回は`platformdirs`が無く、`ModuleNotFoundError`になった。
+   exeと同じフォルダ（`target/release/site-packages/`）に、`pip install --target`で不足分を補った。
+
+修正後は、`TypstRenderer.render()`の呼び出しと戻り値の表示が成功し、プロセスは正常終了した
+（exit code 0）。呼び出し先は、Typstコンパイルを含まない`render()`だけである。PDF生成までの
+確認は、[#167](https://github.com/tokudiro/text-compositor/issues/167)で行う。

@@ -1,6 +1,6 @@
 # viewer-csharp（Issue #99 スパイク）
 
-C#（.NET） + [pythonnet](https://github.com/pythonnet/pythonnet) で、`build.py` の
+C#（.NET） + [pythonnet](https://github.com/pythonnet/pythonnet) で、`text_compositor.build` の
 `TypstRenderer.render()`（Markdown文字列→Typstコード文字列の変換）を埋め込み呼び出しできるかを
 確認するだけの最小疎通確認（スパイク）。ファイル監視・Typstコンパイル・PDF表示・GUI本体は範囲外。
 詳細は [Issue #99](https://github.com/tokudiro/context-compositor/issues/99) を参照。
@@ -8,7 +8,7 @@ C#（.NET） + [pythonnet](https://github.com/pythonnet/pythonnet) で、`build.
 ## 前提
 
 - リポジトリ直下の `requirements.txt` の依存パッケージ（`markdown-it-py` 等）がインストール済みの
-  Pythonが必要（`build.py` を `import` するため）。
+  Pythonが必要（`text_compositor.build` を `import` するため）。
 - .NET 8 SDK。
 
 ```bash
@@ -250,3 +250,21 @@ Issue #99本文の「次のステップ」を参照。終了時ハングは「�
 節の対策で解消済み。組込版Python同梱・ライセンス対応は [Issue #102](https://github.com/tokudiro/context-compositor/issues/102)
 の完了条件を満たしたため対応済み。`._pth`編集やsite-packages vendoringの自動化（現状は
 手動手順）は、本実装（GUI本体作成）に着手する際に改めて検討する。
+
+## masterへの追従の確認（#173、2026-09-19）
+
+v0.3.0時点のmasterで動作を確認した。スパイクのままでは、次の2点で動かなかった。
+
+1. **モジュール名**: リポジトリ直下の`build.py`は、パッケージ化（#111）の後は`build()`関数だけを
+   公開する薄いラッパーである。`TypstRenderer`は`text_compositor.build`にある。スパイクの
+   `import build`は、`AttributeError: module 'build' has no attribute 'TypstRenderer'`になる。
+   `text_compositor.build`をimportするよう直した（`Program.cs`の`Py.Import("text_compositor.build")`）。
+2. **同梱Pythonの`site-packages`**: 手作業で組み立てているため、`requirements.txt`に依存が
+   増えても追従しない。今回は`platformdirs`が無く、`ModuleNotFoundError`になった。
+   `dotnet build`は`python-embed/`を出力フォルダへコピーするため、再ビルドで更新される。
+   `python-embed/site-packages/`の側を`requirements.txt`に合わせて更新してから、再ビルドする
+   （`pip install --target`で不足分を補う。手順は「検証結果（Windows実機・組込版Python）」の節）。
+
+修正後は、`TypstRenderer.render()`の呼び出しと戻り値の表示が成功し、プロセスは正常終了した
+（exit code 0）。呼び出し先は、Typstコンパイルを含まない`render()`だけである。PDF生成までの
+確認は、[#167](https://github.com/tokudiro/text-compositor/issues/167)で行う。

@@ -59,7 +59,7 @@ fn main() -> PyResult<()> {
         let sys_path = py.import_bound("sys")?.getattr("path")?;
         sys_path.call_method1("insert", (0, root.to_str().unwrap()))?;
 
-        let build_module = py.import_bound("build")?;
+        let build_module = py.import_bound("text_compositor.build")?;
         let renderer_class = build_module.getattr("TypstRenderer")?;
         let renderer = renderer_class.call0()?;
 
