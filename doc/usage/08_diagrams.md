@@ -39,7 +39,7 @@ A -> B
 | `plantuml` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `d2` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
-| `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) | 未対応です。コードブロックとして表示し、警告を出します（[#181](https://github.com/tokudiro/text-compositor/issues/181)） |
+| `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（Viz.js。初回に、約1.3 MBを取得します）。PDF出力とは、レイアウトエンジンが違うため、線や配置が、少し違う場合があります。長い日本語のラベルは、箱の幅を、自動で合わせます（`record`形のノードを除く） |
 
 レイアウトのブロック（`::: layout-...`・`::: align`）も、PDF出力とObunzuの両方で使えます。Obunzuでは、CSSで近似するため、見た目が、PDF出力と少し違う場合があります。
 

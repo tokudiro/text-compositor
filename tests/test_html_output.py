@@ -33,6 +33,30 @@ def convert(tmp_path, markdown, name="doc.md", plugins=PLAIN, output=None, **opt
     return result, html
 
 
+class FakeGraphvizHost:
+    """ViewerのElectronの代わりに、Graphvizの描画を引き受ける。"""
+
+    svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>graphviz from the host</text></svg>'
+
+    def __init__(self):
+        self.calls = []
+        self.error = None
+
+    def __call__(self, diagram_id, code, js_path):
+        self.calls.append({"diagram_id": diagram_id, "code": code, "js": js_path})
+        if self.error:
+            raise RuntimeError(self.error)
+        return self.svg
+
+
+@pytest.fixture
+def graphviz_host(monkeypatch):
+    host = FakeGraphvizHost()
+    monkeypatch.setattr(build, "_graphviz_host_renderer", host)
+    monkeypatch.setattr(build, "ensure_viz_js", lambda: "fake-viz-global.js")
+    return host
+
+
 def body(html):
     """<main>の中だけ（CSSを含まない）。"""
     return html.split("<main>", 1)[1].split("</main>", 1)[0]
@@ -292,11 +316,54 @@ class TestFences:
         assert not result.warnings
 
     @pytest.mark.parametrize("lang", ["dot", "graphviz"])
-    def test_graphviz_is_shown_as_code_with_a_warning(self, tmp_path, lang):
+    def test_graphviz_without_a_host_is_shown_as_code_with_a_warning(self, tmp_path, lang):
+        # Viewer（Electron）以外には、Graphvizを描く手段がない（#181）
         result, html = convert(tmp_path, f"a\n\n```{lang}\ndigraph {{ a -> b }}\n```\n")
         assert f'<code class="language-{lang}">digraph {{ a -&gt; b }}' in html
         warning = result.warnings[0]
-        assert "#181" in warning.message and warning.line == 3
+        assert "Viewer" in warning.message and warning.line == 3
+
+    def test_graphviz_is_disabled_by_the_plugin_setting_without_a_warning(self, tmp_path, graphviz_host):
+        result, html = convert(tmp_path, "```dot\ndigraph { a -> b }\n```\n", plugins={**PLAIN, "graphviz": False})
+        assert 'class="language-dot"' in html and not result.warnings
+        assert graphviz_host.calls == []
+
+    @pytest.mark.parametrize("lang", ["dot", "graphviz"])
+    def test_graphviz_with_a_host_becomes_a_cached_img(self, tmp_path, graphviz_host, lang):
+        result, html = convert(tmp_path, f"a\n\n```{lang} {{width=300pt}}\ndigraph {{ a -> b }}\n```\n")
+        assert result.ok and not result.warnings
+        m = re.search(r'<img src="([^"]+)" alt="' + lang + r' diagram" style="width:300pt">', html)
+        assert m, html
+        cached = tmp_path / ".text-compositor" / m.group(1)
+        assert cached.read_text(encoding="utf-8") == graphviz_host.svg
+        assert [c["code"] for c in graphviz_host.calls] == ["digraph { a -> b }\n"]
+        assert graphviz_host.calls[0]["js"] == "fake-viz-global.js"
+        assert graphviz_host.calls[0]["diagram_id"].startswith("graphviz-")
+
+    def test_a_graphviz_result_is_cached_and_the_cache_key_follows_the_viz_version(self, tmp_path, graphviz_host, monkeypatch):
+        doc = "```dot\ndigraph { a -> b }\n```\n"
+        convert(tmp_path, doc)
+        convert(tmp_path, doc)
+        assert len(graphviz_host.calls) == 1   # 2回目は、キャッシュ
+        monkeypatch.setattr(build, "VIZ_JS_SHA256", "0" * 64)   # Viz.jsが変われば、描き直す
+        convert(tmp_path, doc)
+        assert len(graphviz_host.calls) == 2
+        monkeypatch.setattr(build, "GRAPHVIZ_FIT_REVISION", 99)   # 文字幅の補正が変わっても、描き直す
+        convert(tmp_path, doc)
+        assert len(graphviz_host.calls) == 3
+
+    def test_a_graphviz_error_from_the_host_is_a_diagnostic_with_the_fence_line(self, tmp_path, graphviz_host):
+        graphviz_host.error = "syntax error in line 1 near '}'"
+        result, _ = convert(tmp_path, "a\n\n```dot\ngraph { a -- b -- }\n```\n")
+        assert not result.ok
+        error = result.errors[0]
+        assert error.message == "Graphviz diagram failed to render"
+        assert error.line == 3 and "syntax error in line 1" in error.detail
+
+    def test_a_graphviz_source_file_is_a_page_with_that_diagram(self, tmp_path, graphviz_host):
+        result, html = convert(tmp_path, "digraph { a -> b }\n", name="g.gv")
+        assert result.ok and not result.warnings
+        assert 'class="diagram diagram-graphviz"' in body(html) and 'alt="graphviz diagram"' in body(html)
 
     def test_typst_exec_is_shown_as_code_and_never_executed(self, tmp_path):
         # reviewed/ の外でも、実行しないため、エラーにならない
@@ -318,9 +385,10 @@ class TestFences:
         assert result.ok
         assert "<title>flow</title>" in html and "language-mermaid" in body(html)  # プラグイン無効: コード表示
 
-    def test_a_graphviz_source_file_warns(self, tmp_path):
+    def test_a_graphviz_source_file_without_a_host_warns(self, tmp_path):
         result, html = convert(tmp_path, "digraph { a -> b }\n", name="g.dot")
-        assert result.ok and any("#181" in m for m in messages(result, "warning"))
+        assert result.ok and any("Viewer" in m for m in messages(result, "warning"))
+        assert 'class="language-graphviz"' in body(html)
 
 
 def _luminance(hex_color):

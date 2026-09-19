@@ -8,6 +8,7 @@
 //   - 日本語のファイル名・フォルダ名の原稿も、表示できる。
 //   - Mermaidの図が、playwrightもシステムのブラウザもなしで、ElectronのChromiumで描画され、表示される（#207）。
 //   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
+//   - Graphviz（dot・graphviz）が、システムのGraphvizなしで、ElectronのChromiumで描画され、構文エラーは、原稿の行つきで出る（#181）。
 //   - 同梱しないもの（typst・playwright）が、なくても、HTML出力は成功する。
 
 const { execFileSync, spawn } = require('node:child_process');
@@ -114,6 +115,27 @@ async function main() {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
     check('構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('error.md:5'), JSON.stringify(item.head));
     check('Mermaidのエラーの内容が、詳細に出る', /Parse error/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
+
+  // Graphviz（#181）。システムの`dot`を使わず、Viz.jsを、ElectronのChromiumで動かして描画する。
+  const graphvizDoc = '# Graphviz\n\n```dot\ndigraph { rankdir=LR; 開始 -> 処理 -> 終了 }\n```\n\n```graphviz\ngraph { a -- b }\n```\n';
+  await runCase('Graphvizの図', graphvizDoc, path.join(work, 'graphviz.md'), async (state, _pythons, { content }) => {
+    check('Graphvizを含む文書が、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('2つのGraphvizの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
+    console.log(`   初回の変換（Graphviz 2図、準備を含む）: ${state.status}`);
+  }, 12000);
+  const vizFetchCheck = 'import hashlib, os, tempfile; from text_compositor import build\n'
+    + 'p = os.path.join(tempfile.mkdtemp(), "v.js"); build._download(build.VIZ_JS_URL, p)\n'
+    + 'print(hashlib.sha256(open(p, "rb").read()).hexdigest() == build.VIZ_JS_SHA256)';
+  const vizFetched = execFileSync(path.join(appDir, 'python-embed', 'python.exe'), ['-c', vizFetchCheck], {
+    encoding: 'utf8', env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
+      APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` } });
+  check('組込版Pythonが、HTTPSで、viz-global.jsを取得でき、SHA256が一致する（初回の取得）', vizFetched.trim() === 'True', vizFetched.trim());
+  await runCase('Graphvizの構文エラー', '# エラー\n\n本文。\n\n```dot\ngraph { a -- b -- }\n```\n', path.join(work, 'dot-error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('Graphvizの構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('dot-error.md:5'), JSON.stringify(item.head));
+    check('Graphvizのエラーの内容が、詳細に出る', /syntax error/.test(item.detail), item.detail.split('\n')[0]);
   }, 12000);
 
   fs.rmSync(work, { recursive: true, force: true });

@@ -26,10 +26,12 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
   `html`は、生成したHTMLの絶対パス（図・画像は、そこからの相対パスで参照される）。`dependencies`は、原稿が参照している
   ローカルのファイル（画像など）の絶対パスで、変更を検知して自動で更新するために使う（成功時のみ）。他は、`build`と同じ。
   プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
-Mermaidの描画の依頼（ワーカーから、呼び出し元へ）。環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`で起動されたときだけ、
+図の描画の依頼（ワーカーから、呼び出し元へ）。環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`で起動されたときだけ、
 Mermaidの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207）に描画してもらう。
+同時に、Graphvizの図（HTML出力のみ）も、呼び出し元に描画してもらう（#181。この経路がなければ、Graphvizは、コード表示）。
 依頼（`build`・`render_html`）の処理中に、標準出力へ、1行のイベントを出し、標準入力で、応答を1行待つ。
   ワーカー → 呼び出し元: {"event": "render_mermaid", "callback": <番号>, "diagram_id": ..., "code": "...", "js": "<mermaid.min.jsのパス>"}
+                         {"event": "render_graphviz", "callback": <番号>, "diagram_id": ..., "code": "...", "js": "<viz-global.jsのパス>"}
   呼び出し元 → ワーカー: {"callback": <同じ番号>, "ok": true, "svg": "..."} または {"callback": <同じ番号>, "ok": false, "error": "..."}
   待っている間に届いた、番号の違う行は、読み捨てる。呼び出し元が、標準入力を閉じたときは、描画の失敗になる。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
@@ -111,22 +113,28 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
     return _protocol_error(request_id, "unknown_method", f"Unknown method: {method!r}.")
 
 
-class HostMermaid:
-    """Mermaidの描画を、呼び出し元（ViewerのElectron）に、標準入出力で依頼する（#207）。依頼は、1つずつ順に処理される。"""
+class HostRenderer:
+    """図の描画を、呼び出し元（ViewerのElectron）に、標準入出力で依頼する（Mermaid: #207、Graphviz: #181）。依頼は、1つずつ順に処理される。"""
 
     def __init__(self, stdin: TextIO, out: TextIO) -> None:
         self._stdin = stdin
         self._out = out
         self._next = 0
 
-    def render(self, diagram_id: str, code: str, js_path: str) -> str:
+    def render_mermaid(self, diagram_id: str, code: str, js_path: str) -> str:
+        return self._request("render_mermaid", "Mermaid", diagram_id, code, js_path)
+
+    def render_graphviz(self, diagram_id: str, code: str, js_path: str) -> str:
+        return self._request("render_graphviz", "Graphviz", diagram_id, code, js_path)
+
+    def _request(self, event: str, label: str, diagram_id: str, code: str, js_path: str) -> str:
         self._next += 1
         number = self._next
-        _write(self._out, {"event": "render_mermaid", "callback": number, "diagram_id": diagram_id, "code": code, "js": js_path})
+        _write(self._out, {"event": event, "callback": number, "diagram_id": diagram_id, "code": code, "js": js_path})
         while True:
             line = self._stdin.readline()
             if not line:
-                raise RuntimeError("The host application closed the connection while rendering a Mermaid diagram.")
+                raise RuntimeError(f"The host application closed the connection while rendering a {label} diagram.")
             try:
                 reply = json.loads(line)
             except json.JSONDecodeError:
@@ -135,13 +143,16 @@ class HostMermaid:
                 continue   # 待っている応答ではない行は、読み捨てる
             if reply.get("ok") is True and isinstance(reply.get("svg"), str):
                 return reply["svg"]
-            raise RuntimeError(str(reply.get("error") or "The host application could not render the Mermaid diagram."))
+            raise RuntimeError(str(reply.get("error") or f"The host application could not render the {label} diagram."))
 
-def serve(stdin: TextIO, out: TextIO, host_mermaid: bool = False) -> int:
+
+def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     """依頼を1行ずつ読み、応答を1行ずつ書く。stdinが閉じられるか、`shutdown`を受けたら、終了する。"""
     session = Session()
-    if host_mermaid:
-        _build.set_mermaid_host_renderer(HostMermaid(stdin, out).render)
+    if host_renderer:
+        host = HostRenderer(stdin, out)
+        _build.set_mermaid_host_renderer(host.render_mermaid)
+        _build.set_graphviz_host_renderer(host.render_graphviz)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
         for line in stdin:
@@ -164,8 +175,9 @@ def serve(stdin: TextIO, out: TextIO, host_mermaid: bool = False) -> int:
                 break
         return 0
     finally:
-        if host_mermaid:
+        if host_renderer:
             _build.set_mermaid_host_renderer(None)
+            _build.set_graphviz_host_renderer(None)
         session.close()
 
 
@@ -178,7 +190,7 @@ def main() -> int:
     os.dup2(2, 1)
     sys.stdout = sys.stderr
     stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
-    return serve(stdin, protocol_out, host_mermaid=os.environ.get("TEXT_COMPOSITOR_MERMAID_HOST") == "1")
+    return serve(stdin, protocol_out, host_renderer=os.environ.get("TEXT_COMPOSITOR_MERMAID_HOST") == "1")
 
 
 if __name__ == "__main__":

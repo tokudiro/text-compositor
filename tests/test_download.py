@@ -182,3 +182,29 @@ class TestOtherDownloads:
         monkeypatch.setattr(build.urllib.request, "urlretrieve", flaky)
         path = build.ensure_mermaid_js()
         assert open(path, "rb").read() == content
+
+    def test_viz_js_is_verified_by_checksum_and_only_a_verified_file_is_kept(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(build, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(build.time, "sleep", lambda seconds: None)
+
+        def fetch(content):
+            def retrieve(url, filename):
+                with open(filename, "wb") as f:
+                    f.write(content)
+            return retrieve
+
+        monkeypatch.setattr(build, "VIZ_JS_SHA256", hashlib.sha256(b"viz-bundle").hexdigest())
+        monkeypatch.setattr(build.urllib.request, "urlretrieve", fetch(b"tampered"))
+        with pytest.raises(SystemExit):
+            build.ensure_viz_js()
+        assert list((tmp_path / "cache" / "viz").iterdir()) == []   # 検証に通らなければ、何も残らない
+
+        monkeypatch.setattr(build.urllib.request, "urlretrieve", fetch(b"viz-bundle"))
+        path = build.ensure_viz_js()
+        assert open(path, "rb").read() == b"viz-bundle"
+        # 取得済みなら、ネットワークを使わない
+        monkeypatch.setattr(build.urllib.request, "urlretrieve", lambda *a: pytest.fail("downloaded again"))
+        assert build.ensure_viz_js() == path
+
+    def test_the_pinned_viz_js_url_names_the_pinned_version(self):
+        assert f"@viz-js/viz@{build.VIZ_JS_VERSION}/" in build.VIZ_JS_URL

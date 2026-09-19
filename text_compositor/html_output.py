@@ -7,7 +7,7 @@ Markdownの解釈（属性・alert・`:::`ブロック・フェンスの属性�
 - 出力するHTMLは、外部のCSS・JavaScriptを使わない、1ファイルで完結した文書である。
 - レイアウトブロック（`:::`）は、CSS 2.1の表・`position`と、`column-count`だけで近似する。表示側のエンジンが
   対応しない場合は、見た目が崩れる（#180で確認する）。
-- 対象外（別issue）: Graphviz（#181）、`typst-exec`（#182）、数式（#183）、生のHTML（#184）。
+- 対象外（別issue）: `typst-exec`（#182）、数式（#183）、生のHTML（#184）。
   これらは内容を消さず、コードブロックにして、警告を出す。
 """
 from __future__ import annotations
@@ -23,6 +23,7 @@ from markdown_it.common.utils import escapeHtml
 from markdown_it.renderer import RendererHTML
 from markdown_it.utils import OptionsDict
 
+from text_compositor import build as _build
 from text_compositor import diagnostics
 from text_compositor.build import TypstRenderer
 
@@ -36,11 +37,9 @@ PAGE_ONLY_KEYS = ('paper_size', 'landscape', 'header', 'footer', 'paginate', 'fo
 
 ALERT_TITLES = {'note': 'Note', 'tip': 'Tip', 'important': 'Important', 'warning': 'Warning', 'caution': 'Caution'}
 
-# 図として表示するフェンスの言語。dot・graphvizは、Typst側で描画しているため、HTMLでは未対応（#181）。
-_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'svg')
+# 図として表示するフェンスの言語。dot・graphvizは、ViewerのElectron上でだけ描画できる（#181。それ以外は、コード表示と警告）。
+_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'svg', 'dot', 'graphviz')
 _UNSUPPORTED_FENCES = {
-    'dot': "Graphviz is not supported in HTML output yet (#181)",
-    'graphviz': "Graphviz is not supported in HTML output yet (#181)",
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
 
@@ -415,6 +414,14 @@ class HtmlRenderer(TypstRenderer):
             return self._plantuml_svg_path(code, line)
         if lang == 'd2':
             return self._d2_svg_path(code, line)
+        if lang in ('dot', 'graphviz'):
+            if not self.graphviz_enabled:
+                return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
+            if _build._graphviz_host_renderer is None:
+                # Graphvizは、Electron（Viewer）のChromiumで描く。Viewer以外（CLI・ライブラリ）では、描画する手段がない
+                self._warn_line("Graphviz can only be rendered in the Obunzu Viewer; showing the source as a code block.", line)
+                return None
+            return self._graphviz_svg_path(code, line)
         return self._svg_fence_path(code)
 
     def _diagram_html(self, lang: str, svg_path: str, width, height) -> str:

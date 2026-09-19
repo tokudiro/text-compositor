@@ -16,6 +16,7 @@ const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = re
 const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, OTHER_EXTENSIONS, checkOpenTarget, classifyNavigation, fileFromArgv } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { MermaidHost } = require('./mermaid-host');
+const { GraphvizHost } = require('./graphviz-host');
 const { WorkerClient } = require('./worker-client');
 
 // アプリケーション名（#194）。Observe（観察する）+ 文図（文章と図）の造語。
@@ -66,15 +67,15 @@ let shown = null;        // 表示中の文書 {md, html}
 let inFlight = false;
 let queued = null;
 let watcher = null;
-// Mermaidの描画（非表示のウィンドウ。最初の図で作る。#207）。ワーカーが、標準入出力で、依頼してくる。
-const mermaidHost = new MermaidHost({
-  createWindow: () => new BrowserWindow({
-    show: false,
-    width: 800,
-    height: 600,
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
-  }),
+// MermaidとGraphvizの描画（それぞれ、非表示のウィンドウ。最初の図で作る。#207・#181）。ワーカーが、標準入出力で、依頼してくる。
+const createHiddenWindow = () => new BrowserWindow({
+  show: false,
+  width: 800,
+  height: 600,
+  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
 });
+const mermaidHost = new MermaidHost({ createWindow: createHiddenWindow });
+const graphvizHost = new GraphvizHost({ createWindow: createHiddenWindow });
 
 // -- 起動 -----------------------------------------------------------------
 
@@ -111,6 +112,7 @@ let quitting = false;
 app.on('before-quit', (event) => {
   watcher?.close();
   mermaidHost.dispose();
+  graphvizHost.dispose();
   if (quitting || !worker) return;
   event.preventDefault();
   quitting = true;
@@ -165,7 +167,7 @@ function createWindow() {
   win.on('unmaximize', scheduleWindowSave);
   win.on('close', saveWindowNow);
   // 非表示のMermaidのウィンドウが残ると、'window-all-closed'が発火せず、アプリが終了しない
-  win.on('closed', () => mermaidHost.dispose());
+  win.on('closed', () => { mermaidHost.dispose(); graphvizHost.dispose(); });
   handleEscape(win.webContents);
   handleEscape(contents);
   nativeTheme.on('updated', applyBackground);
@@ -309,9 +311,14 @@ async function getWorker() {
   if (!worker) {
     // 見つからない場合は、キャッシュせず、次の依頼でも、探し直す（環境変数を直した後に、再試行できるように）
     const launch = resolveWorkerLaunch(appDirectory());
-    // Mermaidは、Pythonのplaywrightではなく、こちら（ElectronのChromium）で描画する（#207）
+    // Mermaidは、Pythonのplaywrightではなく、こちら（ElectronのChromium）で描画する（#207）。Graphvizも、こちらで描画する（#181）
     launch.env = { ...launch.env, TEXT_COMPOSITOR_MERMAID_HOST: '1' };
-    worker = new WorkerClient(launch, { services: { render_mermaid: (payload) => mermaidHost.render(payload) } });
+    worker = new WorkerClient(launch, {
+      services: {
+        render_mermaid: (payload) => mermaidHost.render(payload),
+        render_graphviz: (payload) => graphvizHost.render(payload),
+      },
+    });
   }
   return worker;
 }

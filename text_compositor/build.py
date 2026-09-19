@@ -426,6 +426,18 @@ def set_mermaid_host_renderer(renderer):
     global _mermaid_host_renderer
     _mermaid_host_renderer = renderer
 
+
+# Graphvizも、Mermaidと同じ仕組みで、呼び出し元（ViewerのElectron）に描画してもらえる（#181）。
+# HTML出力（Viewer）専用で、PDFは、Typst側のdiagraphが描く（この経路は、通らない）。
+_graphviz_host_renderer = None
+
+
+def set_graphviz_host_renderer(renderer):
+    """Graphvizの描画を、呼び出し元に任せるためのフックを設定する。renderer(diagram_id, code, js_path) -> SVG文字列。
+    None（既定）なら、HTML出力は、Graphvizの図を描かず、コードブロックで表示する（警告つき）。"""
+    global _graphviz_host_renderer
+    _graphviz_host_renderer = renderer
+
 class MermaidBrowser:
     """Mermaid描画用のヘッドレスブラウザとページ（遅延起動）。
 
@@ -677,7 +689,10 @@ class TypstRenderer:
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
-                 mermaid_browser=None, csv_header=True):
+                 mermaid_browser=None, csv_header=True, graphviz_enabled=True):
+        # plugins.graphviz（既定true）。PDFでは、Typst側のプリアンブルが使う。HTML出力では、falseなら、Graphvizの
+        # フェンスを、素のコードのまま表示する（他の図の、無効のときと同じ。#181）。
+        self.graphviz_enabled = graphviz_enabled
         # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
         # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
         self.csv_header_default = csv_header
@@ -1581,6 +1596,27 @@ class TypstRenderer:
             _log_verbose(f"Reusing cached mermaid diagram: {os.path.basename(svg_path)}")
         return svg_path
 
+    def _graphviz_svg_path(self, code, line=None):
+        """Graphvizの図のSVG（キャッシュ）のパスを返す。無ければ、呼び出し元（ViewerのElectronのChromium上のViz.js）で作る（#181）。
+        呼び出し側が、_graphviz_host_rendererの有無を確かめてから、呼ぶこと。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行（分かる場合）。"""
+        # キーには、Viz.jsのSHA256と、文字幅の補正（ホスト側）の版を入れる。どちらかが変われば、別のキーになる
+        svg_path, digest = self._diagram_cache_path("graphviz", f"{VIZ_JS_SHA256}+fit{GRAPHVIZ_FIT_REVISION}", code)
+
+        if not os.path.exists(svg_path):
+            _log_info(f"Rendering Graphviz diagram via the host application -> {os.path.basename(svg_path)}")
+            try:
+                svg = _graphviz_host_renderer(f"graphviz-{digest}", code, ensure_viz_js())
+            except Exception as e:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
+                self._diagram_error("Graphviz", str(e), line)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached Graphviz diagram: {os.path.basename(svg_path)}")
+        return svg_path
+
     def _ensure_plantuml_tools(self):
         """PlantUML実行に必要なjava実行ファイルとplantuml.jarを遅延解決する（初回のみ）。
         システムJava（11+）があればそのまま再利用する（2章の最小限のダウンロード）。無い場合、
@@ -2116,6 +2152,40 @@ def ensure_mermaid_js():
         _error(f"Checksum mismatch for mermaid.min.js: expected {MERMAID_JS_SHA256}, got {digest}")
         sys.exit(1)
 
+    return js_path
+
+# Graphvizは、Viz.js（MIT。Graphvizを、WebAssemblyにしたもの。Graphviz本体はEPL-2.0、ExpatはMIT）の
+# 単一ファイルだけを取得し、ViewerのElectronのChromiumで描画する（#181）。mermaid.min.jsと同様に、
+# バージョン・SHA256を固定し、初回にだけダウンロードして、キャッシュする。同梱は、しない。
+VIZ_JS_VERSION = "3.30.0"
+VIZ_JS_URL = f"https://cdn.jsdelivr.net/npm/@viz-js/viz@{VIZ_JS_VERSION}/dist/viz-global.js"
+VIZ_JS_SHA256 = "c857641af952c8f82ac7243917f8563959046e5cfc44d7e84eff9a2b470f5eab"
+# ホスト側（viewer/src/graphviz-host.js）が行う、文字幅の補正の版。補正の方法を変えたら、上げる（キャッシュの無効化）。
+GRAPHVIZ_FIT_REVISION = 1
+
+def ensure_viz_js():
+    """viz-global.jsがユーザーキャッシュディレクトリの viz/ になければダウンロードする（ensure_mermaid_jsと同じ）。"""
+    cache_dir = os.path.join(_user_cache_dir(), "viz")
+    os.makedirs(cache_dir, exist_ok=True)
+    js_path = os.path.join(cache_dir, f"viz-global-{VIZ_JS_VERSION}.js")
+    if os.path.exists(js_path):
+        return js_path
+
+    _log_info(f"Downloading viz-global.js (one-time; cached under {cache_dir})...")
+    tmp_path = js_path + ".download"
+    try:
+        _download(VIZ_JS_URL, tmp_path)
+    except OSError as e:
+        _error(f"Failed to download viz-global.js: {e}")
+        sys.exit(1)
+
+    with open(tmp_path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    if digest != VIZ_JS_SHA256:
+        os.remove(tmp_path)
+        _error(f"Checksum mismatch for viz-global.js: expected {VIZ_JS_SHA256}, got {digest}")
+        sys.exit(1)
+    os.replace(tmp_path, js_path)   # 検証に通ったものだけを、正式な名前にする
     return js_path
 
 # ローカルにJava 11+が見つからない場合のみ取得するEclipse Temurin JRE（Adoptium配布、

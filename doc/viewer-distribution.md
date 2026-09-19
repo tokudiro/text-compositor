@@ -49,6 +49,7 @@ Obunzu-0.3.0-win-x64/
 | Java（Eclipse Temurin JRE 21） | `plantuml`の図。システムにJava 11以上があれば、それを使う | 約49.7 MB（取得）、展開後 約144.5 MB | GitHub Releases（`adoptium/temurin21-binaries`） |
 | D2のCLI（v0.9.0） | `d2`の図。システムに`d2`があれば、それを使う | 約13 MB（取得）、展開後 約40.8 MB | GitHub Releases（`d2lang/d2`） |
 | `mermaid.min.js` | `mermaid`の図（取得は、組込版Python。描画は、Electron） | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
+| `viz-global.js`（Viz.js） | `dot`・`graphviz`の図（取得は、組込版Python。描画は、Electron。[#181](https://github.com/tokudiro/text-compositor/issues/181)） | 約1.3 MB | jsDelivr（npm `@viz-js/viz@3.30.0`） |
 | Noto Sans JP | **PDF専用**（Viewerは、HTML出力で、使わない） | 約8.8 MB | GitHub Releases（`notofonts/noto-cjk`） |
 
 サイズは、`build.py`の記載と、実際にキャッシュされたファイルの実測による。PlantUMLとD2は、初回の描画で、取得のために、数秒〜数十秒かかる（回線による）。
@@ -69,6 +70,17 @@ Obunzu-0.3.0-win-x64/
 - **配布物での確認**: `check-dist.js`が、`playwright`もシステムのブラウザもない配布物で、2つのMermaidの図が表示されること、構文エラーが原稿の行つきで帯・一覧に出ること、組込版Pythonが、HTTPSで`mermaid.min.js`を取得できること（SHA256が一致）を、確認する。
 - **Electronの外**（CLI・Python API）は、従来どおり、`playwright`を使う（環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`でワーカーを起動したときだけ、Electronに任せる）。
 - **配色**は、従来と同じ設定（`htmlLabels: false`。Mermaidの既定のテーマ）にした。そのため、ダークの文書では、図の線・矢印・ラベルが、暗い背景に溶けて、読みにくい（従来から同じ。#207の確認で気づき、[#209](https://github.com/tokudiro/text-compositor/issues/209)にした）。
+### Graphvizについて（Electronで描画する。#181）
+
+**Graphvizも、Electron自身のChromiumで描画する**。システムの`dot`は、要らない。仕組みは、Mermaidと同じ（ワーカーが、標準出力で依頼し、Electronが、非表示のウィンドウで、Viz.js（GraphvizのWebAssembly版）を動かして、SVGを返す）。
+
+- **取得**: `viz-global.js`は、初回に、jsDelivrから取得し、SHA256で確認して、ユーザーのキャッシュ（`%LOCALAPPDATA%\text-compositor\Cache\viz\`）に置く。同梱しないため、配布物の大きさは、変わらない。
+- **速さ**（実測。開発機。GPUなし）: 描画用のウィンドウの準備（`viz-global.js`の読み込みを含む）は、約0.2〜0.3秒（最初の図で、1回だけ）。Viz.jsのインスタンスの作成は、約12 ms。描画は、1〜11 ms。
+- **日本語の文字幅の補正**: Graphvizは、文字の幅を、内蔵の見積もり（Times系）で計算するため、日本語の長いラベルが、箱からはみ出す（20文字で、約2割）。Electronは、描いたSVGを、実際のフォントで測り、はみ出したノードだけに`width=`を足して、1回だけ描き直す（仕様書14章）。`record`形・HTMLラベル・多重の枠は、対象外。
+- **ライセンス**: Viz.jsは、MIT。中に含まれる、Graphvizは、EPL-2.0、Expatは、MIT。改変せずに、そのまま使い、同梱もしない（`THIRD-PARTY-NOTICES.md`の「初回に取得するもの」に、記載する）。
+- **Electronの外**（CLI・Python API）は、Graphvizを描かず、コードブロックと警告にする（PDF出力は、従来どおり、Typst側の`diagraph`）。
+- **PDFとの違い**: レイアウトエンジンが、PDF出力（`diagraph`）と、Viz.jsとで、違う。同じDOTでも、配置や線の形が、少し違う場合がある。
+
 ## ライセンス表記
 
 - 配布物の`licenses/`に、`THIRD-PARTY-NOTICES.md`（一覧）と、各ライセンスの全文を入れる。ビルドが、パッケージのメタデータ（`*.dist-info`）から、自動で作る。
@@ -103,6 +115,7 @@ node scripts/check-dist.js
 - ワーカーが、同梱の`python-embed/python.exe`で動いている。
 - 日本語のフォルダ名・ファイル名の原稿が、表示できる。
 - Mermaidの図が、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`mermaid.min.js`を取得できる。
+- Graphviz（`dot`・`graphviz`）の図が、システムのGraphvizなしで、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`viz-global.js`を取得できる。
 
 実測（2026-09-19、開発機）: すべて成功。起動（プロセスの開始から、文書の表示まで）は、5回で、0.82〜0.90秒。開発時（`npm start`）の0.86秒と、同じ範囲である。
 

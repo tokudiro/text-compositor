@@ -141,7 +141,7 @@ with Session() as session:  # ビルドをまたいで、Mermaidのブラウザ�
     print(result.ok, result.pdf_path, [d.message for d in result.diagnostics])
 ```
 
-`session.render_html("doc.md")`（実験的。[#161](https://github.com/tokudiro/text-compositor/issues/161)）は、PDFの代わりに、1ファイルで完結したHTMLを出力します。図（Mermaid・PlantUML・D2・`svg`）は、隣に画像として出します。Graphviz・`typst-exec`・生のHTMLは、まだ未対応で、警告つきでコードとして表示します。
+`session.render_html("doc.md")`（実験的。[#161](https://github.com/tokudiro/text-compositor/issues/161)）は、PDFの代わりに、1ファイルで完結したHTMLを出力します。図（Mermaid・PlantUML・D2・`svg`）は、隣に画像として出します。`typst-exec`・生のHTMLは、まだ未対応で、警告つきでコードとして表示します。Graphvizは、Obunzu Viewerでだけ図になり、それ以外では、警告つきでコードとして表示します。
 
 設定ファイルの書き方は [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) を、`document:`/`plugins:`/front-matter/Marpディレクティブ等の詳しい説明は[使い方ガイド](doc/usage/)を参照してください。`chapters` に列挙したMarkdownファイルを順に結合してPDFを生成します。
 
