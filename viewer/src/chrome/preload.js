@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('viewer', {
   ready: () => ipcRenderer.send('chrome-ready'),
   openDialog: () => ipcRenderer.send('open-dialog'),
   reload: () => ipcRenderer.send('reload'),
+  setAutoReload: (value) => ipcRenderer.send('auto-reload', value),
   zoomIn: () => ipcRenderer.send('zoom', 1),
   zoomOut: () => ipcRenderer.send('zoom', -1),
   openPath: (filePath) => ipcRenderer.send('open-path', filePath),

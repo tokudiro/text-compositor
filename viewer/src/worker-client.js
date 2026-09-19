@@ -65,7 +65,7 @@ class WorkerClient {
    * Markdown（または図の単体ファイル）をHTMLにする。ビルドの失敗は、結果（ok: false）で返す。
    * ワーカー自体の異常は、例外で返す。
    * @param {{path: string, output?: string, plugins?: object, variables?: object, config?: object}} params
-   * @returns {Promise<{ok: boolean, html: string|null, diagnostics: object[], timings_ms: object}>}
+   * @returns {Promise<{ok: boolean, html: string|null, diagnostics: object[], timings_ms: object, dependencies: string[]}>}
    */
   async renderHtml(params) {
     const response = await this._request('render_html', params);
@@ -75,6 +75,8 @@ class WorkerClient {
       html: response.html ?? null,
       diagnostics: response.diagnostics ?? [],
       timings_ms: response.timings_ms ?? {},
+      // 原稿が参照している、ローカルのファイル（画像など）。変更を検知して、自動で更新するために使う（#170）
+      dependencies: response.dependencies ?? [],
     };
   }
 

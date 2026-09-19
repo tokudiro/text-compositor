@@ -64,7 +64,7 @@ function Get-Launch([string]$Tool) {
     }
 }
 
-function Get-TouchPath() { if ($Tool -in 'wv2', 'wv2-tuned', 'wv2-defer', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer') { return $Html } else { return $Md } }
+function Get-TouchPath() { if ($Tool -eq 'viewer') { return $ViewerMd }; if ($Tool -in 'wv2', 'wv2-tuned', 'wv2-defer', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer') { return $Html } else { return $Md } }
 
 function Invoke-AppRun([int]$Index) {
     $launch = Get-Launch $Tool

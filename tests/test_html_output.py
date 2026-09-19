@@ -91,7 +91,7 @@ class TestApi:
         result, _ = convert(tmp_path, "# a\n")
         d = result.to_dict()
         assert d["ok"] is True and d["html"] == result.html_path
-        assert set(d) == {"ok", "html", "diagnostics", "timings_ms"}
+        assert set(d) == {"ok", "html", "diagnostics", "timings_ms", "dependencies"}
 
     def test_variables_are_substituted_and_an_undefined_one_fails(self, tmp_path):
         result, html = convert(tmp_path, "v={{VER}}\n", variables={"VER": "1.2"})
@@ -237,6 +237,45 @@ class TestImages:
         result, html = convert(tmp_path, "![x|width=3fr|align=diagonal](p.png)\n")
         assert "style=" not in body(html)
         assert len(result.warnings) == 2
+
+
+class TestDependencies:
+    """参照しているローカルのファイル（画像など）を返す。Viewerが、変更を検知して、自動で更新するために使う（#170）。"""
+
+    def test_referenced_images_are_returned_as_absolute_sorted_paths(self, tmp_path):
+        write(tmp_path / "b.png", "x")
+        write(tmp_path / "img" / "a.png", "x")
+        result, _ = convert(tmp_path, "![a](img/a.png)\n\n![b](b.png)\n\n![again](img/a.png)\n")
+        assert result.ok
+        assert result.dependencies == sorted([str(tmp_path / "b.png"), str(tmp_path / "img" / "a.png")])
+        assert all(os.path.isabs(p) for p in result.dependencies)
+
+    def test_the_markdown_itself_and_external_urls_are_not_included(self, tmp_path):
+        result, _ = convert(tmp_path, "# a\n\n![x](https://example.com/a.png)\n")
+        assert result.dependencies == []
+
+    def test_a_missing_image_is_included_so_that_creating_it_triggers_an_update(self, tmp_path):
+        result, _ = convert(tmp_path, "![x](missing.png)\n")
+        assert result.dependencies == [str(tmp_path / "missing.png")]
+
+    def test_layout_feature_images_are_included(self, tmp_path):
+        write(tmp_path / "p.png", "x")
+        result, _ = convert(tmp_path, "::: layout-feature\nキャッチ\n\n![](p.png)\n:::\n")
+        assert result.dependencies == [str(tmp_path / "p.png")]
+
+    def test_dependencies_do_not_leak_between_conversions(self, tmp_path):
+        write(tmp_path / "p.png", "x")
+        with Session() as session:
+            md = tmp_path / "doc.md"
+            write(md, "![x](p.png)\n")
+            first = session.render_html(str(md), plugins=PLAIN)
+            write(md, "# no images\n")
+            second = session.render_html(str(md), plugins=PLAIN)
+        assert first.dependencies and second.dependencies == []
+
+    def test_a_failed_conversion_returns_none(self, tmp_path):
+        result = render_html(str(tmp_path / "nope.md"))
+        assert not result.ok and result.dependencies == []
 
 
 class TestFences:

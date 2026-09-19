@@ -6,12 +6,14 @@
 //   - 内容のビュー: ワーカーが作ったHTMLを表示する。Chromiumが、再読み込みで、スクロール位置を保つ。
 // Markdownのファイルは、Pythonの常駐ワーカー（render_html）でHTMLにする。ワーカーが返した診断は、画面に出す。
 
+const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, classifyNavigation, fileFromArgv, isOpenable } = require('./targets');
+const { FileWatcher } = require('./watcher');
 const { WorkerClient } = require('./worker-client');
 
 // #180で調整した起動引数。GPUを使わず、GPU処理をブラウザのプロセスに統合する（メモリが約35%減り、体感で最速だった）。
@@ -31,6 +33,7 @@ const state = {
   busy: false,
   status: '',
   zoomPercent: 100,
+  autoReload: true,      // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）
   hasDocument: false,    // 内容を表示しているか
   diagnostics: summarize([]),
 };
@@ -43,6 +46,7 @@ let worker = null;
 let shown = null;        // 表示中の文書 {md, html}
 let inFlight = false;
 let queued = null;
+let watcher = null;
 
 // -- 起動 -----------------------------------------------------------------
 
@@ -61,6 +65,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     trace('app-ready');
     createWindow();
+    watcher = new FileWatcher({ onChange: onFilesChanged });
     Menu.setApplicationMenu(buildMenu());
     startWorker();
     const file = fileFromArgv(process.argv.slice(app.isPackaged ? 1 : 2));
@@ -72,6 +77,7 @@ app.on('window-all-closed', () => app.quit());
 
 let quitting = false;
 app.on('before-quit', (event) => {
+  watcher?.close();
   if (quitting || !worker) return;
   event.preventDefault();
   quitting = true;
@@ -210,10 +216,10 @@ async function renderOnce(file) {
 
   state.diagnostics = summarize(result.diagnostics);
   if (result.ok && result.html) {
-    await showHtml(file, result.html, sameDocument);
+    await showHtml(file, result.html, sameDocument, result.dependencies);
     const total = result.timings_ms.total;
     const warnings = state.diagnostics.warnings > 0 ? ` ／ 警告 ${state.diagnostics.warnings} 件` : '';
-    state.status = `${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}${warnings}`;
+    state.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}${warnings}`;
     win?.setTitle(`${path.basename(file)} - text-compositor Viewer`);
     trace('content-shown');
   } else {
@@ -222,11 +228,44 @@ async function renderOnce(file) {
     state.status = shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
   }
   state.busy = false;
+  updateWatch();
   push();
 }
 
+/**
+ * 監視するファイルを、表示中の原稿と、その参照ファイルにする。変換に失敗しても、原稿は監視し続ける
+ * （直して保存したときに、自動で更新できるように）。
+ */
+function updateWatch() {
+  if (!watcher || !state.file) return;
+  const dependencies = shown && shown.md === state.file ? shown.deps : [];
+  watcher.setFiles([state.file, ...dependencies]);
+}
+
+/** 監視しているファイルが、保存された。自動更新が有効なら、もう一度変換する。 */
+async function onFilesChanged(paths) {
+  trace(`changed ${paths.length}`);
+  if (!state.autoReload || !state.file) return;
+  const target = state.file;
+  // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
+  for (let i = 0; i < 10 && !fs.existsSync(target); i++) await new Promise((resolve) => setTimeout(resolve, 100));
+  if (state.file === target && fs.existsSync(target)) openFile(target);
+}
+
+function setAutoReload(value) {
+  state.autoReload = Boolean(value);
+  const item = Menu.getApplicationMenu()?.getMenuItemById('auto-reload');
+  if (item) item.checked = state.autoReload;
+  push();
+}
+
+function clock() {
+  const now = new Date();
+  return [now.getHours(), now.getMinutes(), now.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
-async function showHtml(md, html, sameDocument) {
+async function showHtml(md, html, sameDocument, dependencies = []) {
   const contents = contentView.webContents;
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
@@ -236,7 +275,7 @@ async function showHtml(md, html, sameDocument) {
   if (sameDocument && shown?.html === html) contents.reloadIgnoringCache();
   else contents.loadFile(html).catch(() => {});
   await loaded;
-  shown = { md, html };
+  shown = { md, html, deps: dependencies };
   if (!state.hasDocument) { state.hasDocument = true; layout(); }
   contents.focus();
 }
@@ -285,6 +324,7 @@ function buildMenu() {
         { label: '開く…', accelerator: 'CommandOrControl+O', click: () => openWithDialog() },
         { label: '再読み込み', accelerator: 'F5', click: reload },
         { label: '再読み込み', accelerator: 'CommandOrControl+R', click: reload, visible: false },
+        { id: 'auto-reload', label: '保存したら自動で更新', type: 'checkbox', checked: true, click: (item) => setAutoReload(item.checked) },
         { type: 'separator' },
         { label: '終了', accelerator: 'CommandOrControl+Q', click: () => app.quit() },
       ],
@@ -306,5 +346,6 @@ ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
 ipcMain.on('reload', reload);
+ipcMain.on('auto-reload', (_event, value) => setAutoReload(value));
 ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') openFile(filePath); });

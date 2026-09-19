@@ -75,11 +75,14 @@ class HtmlResult:
     html_path: 生成したHTMLの絶対パス（失敗時はNone）。図・画像は、このファイルからの相対パスで参照される。
     diagnostics: 出た順の診断。PDFにだけ意味を持つ指定（用紙サイズ・改ページ等）は、`info`になる。
     timings_ms: 所要時間（ミリ秒）。total（全体）・render（変換。図の描画を含む）。
+    dependencies: 原稿が参照している、ローカルのファイル（画像など）の絶対パス（昇順。成功時のみ）。存在しない
+        ファイルも含む。原稿自体は、含まない。変更を検知して、自動で更新する側（Viewer、#170）が使う。
     """
     ok: bool
     html_path: Optional[str] = None
     diagnostics: List[Diagnostic] = field(default_factory=list)
     timings_ms: Dict[str, float] = field(default_factory=dict)
+    dependencies: List[str] = field(default_factory=list)
 
     @property
     def errors(self) -> List[Diagnostic]:
@@ -95,6 +98,7 @@ class HtmlResult:
             "html": self.html_path,
             "diagnostics": [d.to_dict() for d in self.diagnostics],
             "timings_ms": {k: round(v, 1) for k, v in self.timings_ms.items()},
+            "dependencies": self.dependencies,
         }
 
 
@@ -192,10 +196,11 @@ class Session:
         started = time.perf_counter()
         timings: Dict[str, float] = {}
         with self._lock, diagnostics.collect() as collected:
-            ok, html_path = self._render_html_locked(markdown_path, output_html, plugins, variables, config, timings)
+            ok, html_path, dependencies = self._render_html_locked(
+                markdown_path, output_html, plugins, variables, config, timings)
         timings["total"] = (time.perf_counter() - started) * 1000.0
         return HtmlResult(ok=ok, html_path=html_path if ok else None, diagnostics=list(collected.items),
-                          timings_ms=timings)
+                          timings_ms=timings, dependencies=dependencies if ok else [])
 
     def close(self) -> None:
         """使い回している資源（Mermaidのブラウザ）を片付ける。何度呼んでもよい。"""
@@ -265,11 +270,11 @@ class Session:
 
         if self._closed:
             diagnostics.error("The session is closed.")
-            return False, None
+            return False, None, []
         md_path = os.path.abspath(markdown_path)
         if not os.path.isfile(md_path):
             diagnostics.error(f"File not found: {md_path}", file=md_path)
-            return False, None
+            return False, None, []
 
         project_dir = os.path.dirname(md_path)
         out_html = os.path.abspath(output_html) if output_html else os.path.join(
@@ -295,14 +300,14 @@ class Session:
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)
             timings["render"] = (time.perf_counter() - started) * 1000.0
-            return True, out_html
+            return True, out_html, sorted(renderer.dependencies)
         except SystemExit as e:
             if not diagnostics_has_error():
                 diagnostics.error(f"The conversion was aborted (exit code {e.code}).")
-            return False, None
+            return False, None, []
         except Exception as e:  # 想定外の例外でも、常駐プロセスを落とさない
             diagnostics.error(f"Unexpected error: {type(e).__name__}: {e}", detail=traceback.format_exc())
-            return False, None
+            return False, None, []
         finally:
             if renderer is not None:
                 renderer.close()  # ブラウザは、Sessionが持つため、ここでは片付かない

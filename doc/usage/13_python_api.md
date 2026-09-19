@@ -57,7 +57,7 @@ with Session() as session:                        # 繰り返す
     print(result.ok, result.html_path)
 ```
 
-- 引数は、`output_html`（出力先）・`plugins`・`variables`・`config`です（`template`・`document`は、ありません）。戻り値は、`HtmlResult`（`ok`・`html_path`・`diagnostics`・`timings_ms`）です。
+- 引数は、`output_html`（出力先）・`plugins`・`variables`・`config`です（`template`・`document`は、ありません）。戻り値は、`HtmlResult`（`ok`・`html_path`・`diagnostics`・`timings_ms`・`dependencies`）です。`dependencies`は、原稿が参照しているローカルのファイル（画像など）で、変更を検知して自動で更新する側が使います。
 - 出力は、外部のCSSやJavaScriptを使わない、1ファイルのHTMLです。画像と図は、HTMLからの相対パスで参照します。
 - **PDFとの違い**: 用紙サイズ・改ページ・ヘッダなど、ページにだけ意味を持つ指定は、無視します（診断は、警告ではなく`info`です）。画像が見つからなくても、警告にとどめて、続けます。`:::`のレイアウトブロックは、近い見た目のCSSで表示します。
 - **未対応**: Graphviz（`dot`）・`typst-exec`・生のHTMLは、内容をコードブロックで表示して、警告します。数式と、複数ファイルの出力は、ありません。

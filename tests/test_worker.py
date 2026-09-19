@@ -65,7 +65,7 @@ class TestHandleRequest:
         assert session.html_calls == [("a.md", "o.html", {
             "plugins": {"mermaid": False}, "variables": {"K": "v"}, "config": {"x": 1}})]
         assert response == {"id": "h1", "ok": True, "html": "/x/o.html", "diagnostics": [],
-                            "timings_ms": {"total": 1.0}}
+                            "timings_ms": {"total": 1.0}, "dependencies": []}
 
     @pytest.mark.parametrize("params", [
         None,

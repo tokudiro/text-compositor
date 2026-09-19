@@ -41,7 +41,14 @@ Openable files: Markdown (`.md`, `.markdown`) and single diagram files (`.mmd`, 
 
 While a conversion runs, a "変換中…" indicator is shown. If it fails, the last successful display stays on screen and the cause (with the Markdown line, when known) is listed under the toolbar. Web links in a document open in the default browser; a link or dropped file that points to a Markdown file opens in the viewer. Nothing else can navigate the viewer away from the document.
 
-Automatic reload on file changes is not included yet (#170).
+**Automatic reload**: saving the open Markdown file, or an image it references, refreshes the display (about 0.18 s after the save; the scroll position is kept). The **保存したら自動で更新** check box in the toolbar (and the View menu) turns it off. Details:
+
+- The directories of the watched files are watched, not the files, so an editor's atomic save (write a temp file, then rename over) is detected. Files that do not exist yet (an image that is created later) are watched too.
+- Changes are merged: the conversion starts 150 ms after the last change. A save during a conversion queues one more conversion.
+- If a conversion fails, the last successful display stays, the file is still watched, and fixing and saving it recovers automatically.
+- The referenced files come from the worker (`dependencies` of `render_html`).
+
+`node scripts/check-auto-reload.js` starts the viewer and checks these behaviors and the latency (it needs Electron and the Python worker; it is not part of `npm test`).
 
 ## Environment variables
 
@@ -62,6 +69,8 @@ Automatic reload on file changes is not included yet (#170).
 | `src/python.js` | Finds the Python for the worker |
 | `src/diagnostics.js` | Turns the worker's diagnostics into what the window shows |
 | `src/targets.js` | Which files can be opened; how links and drops are handled |
+| `src/watcher.js` | Watches the open file and the files it references |
+| `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |
 | `test/` | `node --test` tests (a fake worker covers crashes, timeouts and restarts) |
 

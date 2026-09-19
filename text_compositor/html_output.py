@@ -189,6 +189,9 @@ class HtmlRenderer(TypstRenderer):
         # 今変換している断片が、原稿の何行目から始まるか（0始まりの行数）。`:::`ブロックで原稿を区切って
         # 断片ごとにパースするため、トークンの行番号（断片の中の相対値）に足して、原稿の行番号にする。
         self._line_base = 0
+        # 原稿が参照している、ローカルのファイル（画像など）の絶対パス。Viewerが、変更を検知して自動で更新するために
+        # 使う（#170）。存在しないファイルも含める（あとから作られたときに、更新できるように）。
+        self.dependencies: set = set()
 
     def _abs_line(self, token) -> Optional[int]:
         """トークンの、原稿での行番号（1始まり）。行を持たないトークンは、None。"""
@@ -206,6 +209,7 @@ class HtmlRenderer(TypstRenderer):
         self._title = None
         self._pagebreaks = 0
         self._line_base = 0
+        self.dependencies = set()
         with open(md_path, "r", encoding="utf-8") as f:
             text = f.read()
 
@@ -339,6 +343,7 @@ class HtmlRenderer(TypstRenderer):
             abs_path = os.path.normpath(os.path.join(self.base_dir, raw.lstrip('/')))
         else:
             abs_path = os.path.normpath(os.path.join(self.current_dir, raw))
+        self.dependencies.add(abs_path)
         if not os.path.exists(abs_path):
             # PDFは、画像が無いとFail-fastで止める。HTMLは、確認用の表示なので、警告にとどめ、他の部分は表示する。
             self._warn_line(f"Image not found: {abs_path} (referenced from {self.current_file})")
