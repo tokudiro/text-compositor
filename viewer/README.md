@@ -65,7 +65,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 
 ## Distribution (Windows)
 
-`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 162 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with only the packages HTML output needs, and the third-party notices (`licenses/`). `typst` (PDF only) and `playwright` (Mermaid) are not bundled, so **Mermaid diagrams do not render in the ZIP yet** (#207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md).
+`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 162 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with only the packages HTML output needs, and the third-party notices (`licenses/`). `typst` (PDF only) and `playwright` are not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md).
 ## Environment variables
 
 | Variable | Meaning |
@@ -86,6 +86,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/python.js` | Finds the Python for the worker |
 | `src/diagnostics.js` | Turns the worker's diagnostics into what the window shows |
 | `src/targets.js` | Which files can be opened; how links and drops are handled |
+| `src/mermaid-host.js` | Renders Mermaid diagrams in a hidden window when the worker asks (#207) |
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |

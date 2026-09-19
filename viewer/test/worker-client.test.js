@@ -108,3 +108,40 @@ describe('WorkerClient', () => {
     await assert.rejects(client.renderHtml({ path: 'x.md' }), WorkerError);
   });
 });
+
+describe('WorkerClient services (render_mermaid, #207)', () => {
+  const reply = (result) => JSON.parse(result.diagnostics[0].message);
+
+  test('a callback from the worker is served and the svg goes back', async () => {
+    const calls = [];
+    const client = create('mermaid', {
+      services: { render_mermaid: async (payload) => { calls.push(payload); return '<svg>ok</svg>'; } },
+    });
+    const result = await client.renderHtml({ path: 'a.md' });
+    assert.deepEqual(calls, [{ diagram_id: 'mermaid-x', code: 'graph TD\n  A --> B', js: '/cache/mermaid.min.js' }]);
+    assert.deepEqual(reply(result), { callback: 41, ok: true, svg: '<svg>ok</svg>' });
+    assert.equal(result.ok, true);
+  });
+
+  test('a failing service is reported to the worker as ok: false with its message', async () => {
+    const client = create('mermaid', { services: { render_mermaid: async () => { throw new Error('Parse error on line 3'); } } });
+    const result = await client.renderHtml({ path: 'a.md' });
+    assert.deepEqual(reply(result), { callback: 41, ok: false, error: 'Parse error on line 3' });
+  });
+
+  test('an event without a service is answered with an error, so the worker does not wait forever', async () => {
+    const client = create('mermaid');
+    const result = await client.renderHtml({ path: 'a.md' });
+    assert.equal(reply(result).ok, false);
+    assert.match(reply(result).error, /未対応の依頼です: render_mermaid/);
+    const other = await create('mermaid', { services: { render_mermaid: async () => 'x' } }).renderHtml({ path: 'b.md', event: 'unknown_event' });
+    assert.match(reply(other).error, /未対応の依頼です: unknown_event/);
+  });
+
+  test('the worker keeps working after a callback (the queue is not blocked)', async () => {
+    const client = create('mermaid', { services: { render_mermaid: async () => '<svg/>' } });
+    await client.renderHtml({ path: 'a.md' });
+    const second = await client.renderHtml({ path: 'b.md' });
+    assert.equal(second.html, 'b.md.html');
+  });
+});

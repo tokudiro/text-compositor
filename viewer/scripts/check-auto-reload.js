@@ -129,7 +129,7 @@ const stats = (values) => {
     }
     check(`保存から表示の更新まで（本文の編集、${runs}回）`, times.every(Number.isFinite), stats(times));
 
-    // 1b. 図（Mermaid）を変更した場合。1回目は、Mermaid用のブラウザの起動を含み、2回目以降は、ブラウザを使い回す。
+    // 1b. 図（Mermaid）を変更した場合。1回目は、Mermaidの描画用のウィンドウの準備（ElectronのChromium。#207）を含み、2回目以降は、使い回す。
     const diagram = (label) => `\`\`\`mermaid\ngraph LR\n  A[${label}] --> B[終了]\n\`\`\`\n`;
     const diagramTimes = [];
     for (let i = 1; i <= 4; i++) {
@@ -139,7 +139,7 @@ const stats = (values) => {
       diagramTimes.push(t === null ? NaN : performance.now() - start);
       await sleep(400);
     }
-    console.log(`     図の変更: 1回目（ブラウザの起動を含む） ${Math.round(diagramTimes[0])} ms、2回目以降 ${stats(diagramTimes.slice(1))}`);
+    console.log(`     図の変更: 1回目（Mermaidの描画用のウィンドウの準備を含む） ${Math.round(diagramTimes[0])} ms、2回目以降 ${stats(diagramTimes.slice(1))}`);
     check('図（Mermaid）を変更しても、更新される', diagramTimes.every(Number.isFinite));
 
     // 2. スクロール位置の保持

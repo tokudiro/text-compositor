@@ -415,6 +415,17 @@ def _print_check_results(results):
         counts[r.status] += 1
     print(f"\nSummary: {counts['OK']} OK, {counts['WARN']} WARN, {counts['NG']} NG")
 
+# Mermaidの描画を、呼び出し元（Viewerの、Electron）に任せる口（#207）。設定されていれば、Playwrightと
+# システムのブラウザを使わず、`renderer(diagram_id, code, js_path)`が、SVGの文字列を返す（失敗は、例外）。
+# 常駐ワーカーが、環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`のときに、標準入出力で、依頼する形で設定する（worker.py）。
+_mermaid_host_renderer = None
+
+
+def set_mermaid_host_renderer(renderer):
+    """Mermaidの描画を任せる関数を設定する（`None`で解除）。"""
+    global _mermaid_host_renderer
+    _mermaid_host_renderer = renderer
+
 class MermaidBrowser:
     """Mermaid描画用のヘッドレスブラウザとページ（遅延起動）。
 
@@ -1531,16 +1542,21 @@ class TypstRenderer:
         svg_path, digest = self._diagram_cache_path("mermaid", MERMAID_JS_SHA256, code)
 
         if not os.path.exists(svg_path):
-            _log_info(f"Rendering mermaid diagram via headless browser -> {os.path.basename(svg_path)}")
-            page = self._ensure_mermaid_page()
+            host = _mermaid_host_renderer
+            _log_info(f"Rendering mermaid diagram via {'the host application' if host else 'headless browser'} -> {os.path.basename(svg_path)}")
             try:
-                svg = page.evaluate(
-                    """async ([id, code]) => {
-                        const { svg } = await mermaid.render(id, code);
-                        return svg;
-                    }""",
-                    [f"mermaid-{digest}", code],
-                )
+                if host:
+                    # 描画は、呼び出し元（ViewerのElectron）が行う。mermaid.min.jsの取得・検証は、こちらで行い、パスを渡す
+                    svg = host(f"mermaid-{digest}", code, ensure_mermaid_js())
+                else:
+                    page = self._ensure_mermaid_page()
+                    svg = page.evaluate(
+                        """async ([id, code]) => {
+                            const { svg } = await mermaid.render(id, code);
+                            return svg;
+                        }""",
+                        [f"mermaid-{digest}", code],
+                    )
             except Exception as e:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
                 # ブラウザの例外に付く、mermaid.jsの内部のスタック（"    at ..."の行）は、原因の理解に役立たないため省く
