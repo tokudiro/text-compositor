@@ -32,6 +32,7 @@
 | 仕様書（表紙・目次あり） | `cover: template` / `toc: true` |
 | 軽量メモ（表紙・目次なし、要点だけ） | 何も指定しない（既定のまま） |
 | テストケースの集約表 | `chapters`に`aggregate:`を指定（「chapters: 章の並び」の章を参照） |
+| 論文・査読レポート（2段組み） | `template.path: paper` / `cover: template` / `abstract`（下記「paper: 2段組みの論文形式」） |
 | マニュアル（注意書きを目立たせたい） | 本文中で`> [!NOTE]`等のalert記法を使う（「Markdownファイルの書き方」の章を参照）。`document:`側の追加設定は不要 |
 
 ### 軽量メモの例
