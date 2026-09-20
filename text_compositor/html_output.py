@@ -84,6 +84,11 @@ th { background: var(--code-bg); }
 hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
 img { max-width: 100%; }
 .diagram { text-align: center; margin: 1em 0; }
+/* 図のSVGは、ライト用の配色で描画される。ダークの背景に重ねると、線・矢印・辺のラベルが溶けて読めない（#209）ため、
+   ダークのときだけ、図の明暗を反転する（invert）。色相は、hue-rotate(180deg)で元に戻す（青は青のまま）。
+   PlantUML・D2のSVGは、不透明な白い背景を持ち、反転すると黒い四角になる。lightenで、ページの背景より暗い部分を、
+   背景の色に置き換えて、なじませる。再描画もキャッシュの二重化も要らず、すべての図（Mermaid・PlantUML・D2・SVG）に効く。 */
+@media (prefers-color-scheme: dark) { .diagram img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
 .alert { margin: 0 0 1em; padding: 0.5em 1em; border-left: 4px solid var(--alert, #0969da); background: var(--code-bg); }
 .alert p { margin: 0.4em 0; }
 .alert-title { font-weight: bold; color: var(--alert, #0969da); }

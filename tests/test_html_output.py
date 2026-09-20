@@ -547,6 +547,35 @@ class TestDarkColors:
         for kind, color in colors.items():
             assert _contrast(color, background) >= 4.5, f"{kind}: {color} on {background}"
 
+    def test_diagrams_are_inverted_only_in_the_dark_scheme(self):
+        """図のSVGは、ライト用の配色で描画される。ダークでは、明暗を反転して、背景になじませる（#209）。ライトは、変えない。"""
+        dark_only = re.search(r"@media \(prefers-color-scheme: dark\) \{ \.diagram img \{([^}]*)\} \}", DOCUMENT_CSS)
+        assert dark_only, "the dark scheme has no rule for .diagram img"
+        assert "filter: invert(1) hue-rotate(180deg)" in dark_only.group(1)
+        assert "mix-blend-mode: lighten" in dark_only.group(1)   # 不透明な白い背景が、黒い四角にならないように
+        without_dark_rule = DOCUMENT_CSS.replace(dark_only.group(0), "")
+        assert ".diagram img" not in without_dark_rule
+
+    @staticmethod
+    def _after_dark_filter(hex_color):
+        """`invert(1) hue-rotate(180deg)`が、色をどう変えるか（CSSの仕様の式。sRGBの値に、行列を掛ける）。"""
+        inverted = [1 - int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        matrix = [[-0.574, 1.430, 0.144], [0.426, 0.430, 0.144], [0.426, 1.430, -0.856]]
+        rgb = [min(1, max(0, sum(m * c for m, c in zip(row, inverted)))) for row in matrix]
+        return "#" + "".join(f"{round(c * 255):02x}" for c in rgb)
+
+    def test_the_default_text_colors_of_each_diagram_tool_are_readable_after_the_filter(self):
+        """各ツールが、既定で使う文字の色（実際のSVGから測った値）が、反転したあとも、ダークの背景の上で、4.5:1以上になること。"""
+        background = re.search(r"prefers-color-scheme: dark\) \{ :root \{[^}]*--bg: (#[0-9a-f]{6})", DOCUMENT_CSS).group(1)
+        for tool, color in {"mermaid": "#333333", "plantuml": "#000000", "d2 (label)": "#676c7e"}.items():
+            shown = self._after_dark_filter(color)
+            assert _contrast(shown, background) >= 4.5, f"{tool}: {color} -> {shown} on {background}"
+
+    def test_the_filter_keeps_black_and_white_as_the_inverse(self):
+        assert self._after_dark_filter("#000000") == "#ffffff"
+        assert self._after_dark_filter("#ffffff") == "#000000"
+
+
 class TestDiagramFailures:
     """図の描画に失敗したときの診断（#202）。messageは短い要約、ツールの出力はdetail、位置は原稿の行。
     外部ツールは、差し替えて、失敗を再現する。"""
