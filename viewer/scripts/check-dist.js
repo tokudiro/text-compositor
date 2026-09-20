@@ -116,8 +116,9 @@ from text_compositor.deps import ensure_fonts
 d = tempfile.mkdtemp()
 src = os.path.join(d, 'doc.typ')
 with open(src, 'w', encoding='utf-8') as f:
-    f.write('#import "@preview/diagraph:0.3.7": render\\n#import "@preview/note-me:0.6.0": note\\n'
-            '#set text(font: "Noto Sans JP")\\n#note[日本語の注記]\\n#render("digraph { あ -> い }")\\n')
+    f.write('#import "@preview/diagraph:0.3.7": render\\n#import "@preview/note-me:0.6.0": note\\n#import "@preview/kip:0.1.0": pikchr-plugin\\n'
+            '#set text(font: "Noto Sans JP")\\n#note[日本語の注記]\\n#render("digraph { あ -> い }")\\n'
+            '#image(pikchr-plugin.typst_pikchr(bytes("box \\\\"あ\\\\" fit")), format: "svg")\\n')
 fonts = ensure_fonts()
 pdf = typst_lib.compile(src, root=d, font_paths=[fonts], ignore_system_fonts=True, **typst_package_options())
 print(fonts)
@@ -135,10 +136,10 @@ function checkOfflineTypst(work) {
   const fonts = path.join(appDir, 'fonts');
   const packages = path.join(appDir, 'typst-packages');
   check('fonts/ に、Noto Sans JPのRegularとBoldがある', ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf'].every((name) => fs.existsSync(path.join(fonts, name))));
-  check('typst-packages/ に、diagraphとnote-meがある', ['diagraph/0.3.7', 'note-me/0.6.0'].every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
+  check('typst-packages/ に、diagraphとkipとnote-meがある', ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0'].every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
   try {
     const out = execFileSync(python, [script], { encoding: 'utf8', env: { ...baseEnv, TEXT_COMPOSITOR_FONT_DIR: fonts, TEXT_COMPOSITOR_TYPST_PACKAGES: packages } }).trim().split(/\r?\n/);
-    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・note-me・日本語）',
+    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・kip・note-me・日本語）',
       out[0] === fonts && out[1] === 'True', out.join(' / '));
   } catch (error) {
     check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる', false, String(error.stderr || error.message).split(/\r?\n/).filter(Boolean).slice(-2).join(' / '));
@@ -200,6 +201,17 @@ async function main() {
     const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
     check('2つのGraphvizの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
     console.log(`   初回の変換（Graphviz 2図、準備を含む）: ${state.status}`);
+  }, 12000);
+  // Pikchr（#213）。同梱のtypstとkip（PikchrのWASM）で描画する（ネットワークは、使わない）。
+  await runCase('Pikchrの図', '# Pikchr\n\n```pikchr\nbox "開始" fit; arrow; circle "終了"\n```\n', path.join(work, 'pikchr.md'), async (state, _pythons, { content }) => {
+    check('Pikchrを含む文書が、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('Pikchrの図が、画像として読み込まれている', images.length === 1 && images.every(Boolean), JSON.stringify(images));
+  }, 12000);
+  await runCase('Pikchrの構文エラー', '# エラー\n\n本文。\n\n```pikchr\nbox "ok"\nbox "unterminated\n```\n', path.join(work, 'pikchr-error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('Pikchrの構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('pikchr-error.md:7'), JSON.stringify(item.head));   // フェンスは5行目。Pikchrの2行目は、7行目
+    check('Pikchr自身のエラーの内容が、詳細に出る', /unrecognized token/.test(item.detail), item.detail.split('\n').slice(-1)[0]);
   }, 12000);
   await runCase('Graphvizの構文エラー', '# エラー\n\n本文。\n\n```dot\ngraph { a -- b -- }\n```\n', path.join(work, 'dot-error.md'), async (state, _pythons, { chrome }) => {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));

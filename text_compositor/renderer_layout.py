@@ -44,7 +44,7 @@ class LayoutMixin:
     # svgはmermaid/plantumlと異なりレンダリング不要（コードそのものが既に完成した画像）だが、
     # 「図/画像を1つ含む」という抽出対象としては同列に扱える（#91）。
     DIAGRAM_OR_IMAGE_RE = re.compile(
-        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
+        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2|pikchr)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
         r'|^[ \t]*(?P<image>!\[[^\]]*\]\([^)\n]+\))[ \t]*\r?$',
         re.MULTILINE | re.DOTALL)
 

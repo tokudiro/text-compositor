@@ -32,33 +32,37 @@ class GraphvizRenderError(Exception):
         self.dot_line = dot_line
 
 
+def wrapper_digest(wrapper: str) -> str:
+    return hashlib.sha256(wrapper.encode('utf-8')).hexdigest()[:8]
+
+
 def cache_version() -> str:
     """図のSVGのキャッシュキーに入れる、描画環境の版。diagraph・Typst・上のTypstコードのどれかが変われば、別のキーになる。"""
-    wrapper = hashlib.sha256(_WRAPPER.encode('utf-8')).hexdigest()[:8]
-    return f"diagraph{DIAGRAPH_VERSION}+typst{typst_lib.__version__}+w{wrapper}"
+    return f"diagraph{DIAGRAPH_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}"
 
 
 # Compiler（フォントの読み込みを含む準備は、初回だけ約40〜60 ms。以後は、図1つ14〜59 ms）を、使い回す。
+# Pikchr（pikchr_render.py）も、この仕組みを共有する（図の種類ごとに、Typstコード（wrapper）が違う）。
 _compilers = {}
 
 
-def _wrapper_path() -> str:
+def wrapper_path(wrapper: str, kind: str) -> str:
     """図のTypstコードのファイル（内容は、常に同じ）。ユーザーのキャッシュに置く（原稿のフォルダには、何も作らない。#258）。"""
-    digest = hashlib.sha256(_WRAPPER.encode('utf-8')).hexdigest()[:8]
-    directory = os.path.join(_user_cache_dir(), "graphviz")
+    directory = os.path.join(_user_cache_dir(), "graphviz" if kind == "diagraph" else kind)
     os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, f"diagraph-{digest}.typ")
+    path = os.path.join(directory, f"{kind}-{wrapper_digest(wrapper)}.typ")
     if not os.path.exists(path):
         tmp = f"{path}.{os.getpid()}.tmp"
         with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-            f.write(_WRAPPER)
+            f.write(wrapper)
         os.replace(tmp, path)   # 別のプロセスが、書きかけを読まないように
     return path
 
 
-def _compiler():
+def compiler_for(wrapper: str, kind: str):
+    """wrapper（Typstコード）を、`sys.inputs`を受けて図にする、使い回しのCompilerを返す。"""
     font_dir = ensure_fonts()
-    path = _wrapper_path()
+    path = wrapper_path(wrapper, kind)
     options = typst_package_options()
     key = (path, font_dir, tuple(sorted(options.items())))
     compiler = _compilers.get(key)
@@ -67,6 +71,10 @@ def _compiler():
                                       ignore_system_fonts=True, **options)
         _compilers[key] = compiler
     return compiler
+
+
+def _compiler():
+    return compiler_for(_WRAPPER, "diagraph")
 
 
 _DIAGRAPH_ERROR_RE = re.compile(r'Diagraph error:\s*(.+?)\s*$', re.MULTILINE)

@@ -10,7 +10,7 @@ const { fileURLToPath } = require('node:url');
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする（.yaml・.json・ソースコードの表示は、#218）。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
-const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.svg'];
+const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.svg'];
 const CSV_EXTENSIONS = ['.csv'];
 const TEXT_EXTENSIONS = ['.txt'];
 
@@ -22,7 +22,7 @@ const TEXT_EXTENSIONS = ['.txt'];
 const OPEN_FILE_KINDS = [
   { name: '文（Markdown・Text）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
   { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
-  { name: '図（Mermaid・PlantUML・D2・Graphviz・SVG）', extensions: DIAGRAM_EXTENSIONS },
+  { name: '図（Mermaid・PlantUML・D2・Graphviz・Pikchr・SVG）', extensions: DIAGRAM_EXTENSIONS },
   { name: 'CSV', extensions: CSV_EXTENSIONS },
 ];
 
