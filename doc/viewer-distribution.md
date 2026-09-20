@@ -45,8 +45,8 @@ Obunzu-0.3.5-win-x64/
 
 | もの | 使う場面 | サイズ | 取得元 |
 |------|----------|--------|--------|
-| PlantUMLの`plantuml-mit-1.2026.6.jar` | `plantuml`の図 | 約16.8 MB | GitHub Releases（`plantuml/plantuml`） |
-| Java（Eclipse Temurin JRE 21） | `plantuml`の図。システムにJava 11以上があれば、それを使う | 約49.7 MB（取得）、展開後 約144.5 MB | GitHub Releases（`adoptium/temurin21-binaries`） |
+| PlantUMLの`plantuml-mit-1.2026.8.jar` | `plantuml`の図 | 約16.9 MB | GitHub Releases（`plantuml/plantuml`） |
+| Java（Eclipse Temurin JRE 21） | `plantuml`の図。システムにJava 11以上があれば、それを使う | 約49.0 MB（取得）、展開後 約144.5 MB | GitHub Releases（`adoptium/temurin21-binaries`） |
 | D2のCLI（v0.9.0） | `d2`の図。システムに`d2`があれば、それを使う | 約13 MB（取得）、展開後 約40.8 MB | GitHub Releases（`d2lang/d2`） |
 | `mermaid.min.js` | `mermaid`の図（取得は、組込版Python。描画は、Electron） | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
 | `viz-global.js`（Viz.js） | `dot`・`graphviz`の図（取得は、組込版Python。描画は、Electron。[#181](https://github.com/tokudiro/text-compositor/issues/181)） | 約1.3 MB | jsDelivr（npm `@viz-js/viz@3.30.0`） |

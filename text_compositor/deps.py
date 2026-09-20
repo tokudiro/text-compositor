@@ -256,29 +256,29 @@ def ensure_viz_js():
 # GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統で安心度が高い）。CI
 # （GitHub Actions ubuntu-latest等）はJavaが標準搭載されているためこの取得は発生しない（#22）。
 # バージョン・プラットフォーム別にURL・SHA256を固定し、決定論的な取得結果にする（9章）。
-TEMURIN_JRE_RELEASE = "jdk-21.0.12+8"
-TEMURIN_JRE_BASE_URL = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/"
-TEMURIN_JRE_TOP_DIR = "jdk-21.0.12+8-jre"
+TEMURIN_JRE_RELEASE = "jdk-21.0.12.1+1"
+TEMURIN_JRE_BASE_URL = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/"
+TEMURIN_JRE_TOP_DIR = "jdk-21.0.12.1+1-jre"
 # キー: (sys.platform判定用キー, platform.machine()正規化キー)。
 # 値: (アーカイブファイル名, SHA256, アーカイブ形式, TEMURIN_JRE_TOP_DIR配下のjava実行ファイルへの相対パス)
 TEMURIN_JRE_ASSETS = {
-    ("win32", "x86_64"): ("OpenJDK21U-jre_x64_windows_hotspot_21.0.12_8.zip",
-                           "b8aa18fef5edb69bee8618f99677d66d0873d22cb40d974c15ac9ffcdecf73ba",
+    ("win32", "x86_64"): ("OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
+                           "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636",
                            "zip", ("bin", "java.exe")),
-    ("win32", "aarch64"): ("OpenJDK21U-jre_aarch64_windows_hotspot_21.0.12_8.zip",
-                            "a50ed83b6a88d3127d406713f5057d78f845c3412d59e201dac6db37714af85c",
+    ("win32", "aarch64"): ("OpenJDK21U-jre_aarch64_windows_hotspot_21.0.12.1_1.zip",
+                            "e82cc17e0bf89a25b0b0ed106d072f2ea420587d0a6870534b71b1dce3ae28c3",
                             "zip", ("bin", "java.exe")),
-    ("linux", "x86_64"): ("OpenJDK21U-jre_x64_linux_hotspot_21.0.12_8.tar.gz",
-                           "8a379a67c91a3ae61ffb33d46e0a40c7ba35e70713c4db31cfca30492f792eff",
+    ("linux", "x86_64"): ("OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+                           "2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500",
                            "tar.gz", ("bin", "java")),
-    ("linux", "aarch64"): ("OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12_8.tar.gz",
-                            "5f9c96b656827b9d14ebeda7739e25be554fa6d25669b03847c1df6e869c0679",
+    ("linux", "aarch64"): ("OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+                            "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2",
                             "tar.gz", ("bin", "java")),
-    ("darwin", "x86_64"): ("OpenJDK21U-jre_x64_mac_hotspot_21.0.12_8.tar.gz",
-                            "539706197baea8189c9a677aea5bf44671b74a71baa42dde436e312f2158fa3a",
+    ("darwin", "x86_64"): ("OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz",
+                            "6717ec641fd9ce0bb209ca083ee23b42202ac68cb6fcc5753496e0e4a0f41989",
                             "tar.gz", ("Contents", "Home", "bin", "java")),
-    ("darwin", "aarch64"): ("OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12_8.tar.gz",
-                             "36bb71d6fa5184e12a6483e7662783c2cbd383f5dca8034140f0a84dd5aa797d",
+    ("darwin", "aarch64"): ("OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz",
+                             "dec50fc6f9fcd4fe3ae8cabf5a5fa68f6afc48841f7698e468e9aa5d54beed84",
                              "tar.gz", ("Contents", "Home", "bin", "java")),
 }
 
@@ -352,15 +352,17 @@ def ensure_temurin_jre():
 # 分かったが、Markdown原稿（GitHub管理・AI生成）には絵文字が含まれ得るため、フル機能のmit版を
 # 採用する）。レイアウトエンジンはSmetana（純Java実装）を明示指定し、Graphviz(dot)実行ファイルへの
 # 依存を避ける（-Playout=smetana）。バージョン・SHA256を固定し、決定論的な取得結果にする（9章）。
-PLANTUML_JAR_URL = "https://github.com/plantuml/plantuml/releases/download/v1.2026.6/plantuml-mit-1.2026.6.jar"
-PLANTUML_JAR_SHA256 = "5814ab31dd569f3772747c3a0c1b52fd3bf2996b8132c62d17006d758c2d3fe3"
+PLANTUML_JAR_URL = "https://github.com/plantuml/plantuml/releases/download/v1.2026.8/plantuml-mit-1.2026.8.jar"
+PLANTUML_JAR_SHA256 = "3629c9cd017c7f73e6450396eea0040216c7e1eef8473ce33cc1aad469dab2f9"
 
 def ensure_plantuml_jar():
     """plantuml.jarがユーザーキャッシュディレクトリの plantuml/ になければダウンロードする。
     2回目以降のビルドはキャッシュを使い、ネットワークアクセスなしで完結する（#110）。"""
     cache_dir = os.path.join(_user_cache_dir(), "plantuml")
     os.makedirs(cache_dir, exist_ok=True)
-    jar_path = os.path.join(cache_dir, "plantuml-mit.jar")
+    # 版を含むファイル名（plantuml-mit-<版>.jar）で保存する。固定名にすると、版を上げても、取得済みの
+    # 古いjarが使われ続け、脆弱性の修正が利用者に届かない（#240）。
+    jar_path = os.path.join(cache_dir, os.path.basename(PLANTUML_JAR_URL))
     if os.path.exists(jar_path):
         return jar_path
 
