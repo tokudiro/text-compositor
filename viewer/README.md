@@ -58,7 +58,7 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 
 ## Settings
 
-The settings screen (gear button) has two items: the **toolbar position** (top or bottom; the error bar follows the toolbar) and the **color scheme** (follow the OS, light or dark). Changes apply at once. The automatic reload toggle is saved as well.
+The settings screen (gear button) has three items: the **toolbar position** (top or bottom; the error bar follows the toolbar), the **color scheme** (follow the OS, light or dark), and **where to open files** (the folder the `Ctrl+O` dialog starts in). The last one is one of: **OSにゆだねる** (leave it to the OS; no folder is given), **前回開いたフォルダ** (the default; the folder of the file you opened last), or **特定のフォルダ** (a folder chosen with the **フォルダを選ぶ…** button). If the last opened or specific folder is not set or no longer exists, the dialog starts in the Documents folder. Changes apply at once. The automatic reload toggle is saved as well.
 
 The window size and position are remembered too (also maximized state). If the saved position no longer fits on any screen, for example after unplugging a monitor, only the size is restored.
 

@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { describe, test } = require('node:test');
 
-const { checkOpenTarget, classifyNavigation, dialogDirectory, fileFromArgv, openDialogFilters } = require('../src/targets');
+const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('../src/targets');
 
 describe('openDialogFilters', () => {
   const filters = openDialogFilters();
@@ -32,20 +32,33 @@ describe('openDialogFilters', () => {
   });
 });
 
-describe('dialogDirectory', () => {
+describe('openDialogDirectory (#226)', () => {
   const fallback = path.resolve(path.sep, 'Users', 'me', 'Documents');
+  const last = path.resolve(path.sep, 'work', 'docs');
+  const fixed = path.resolve(path.sep, 'work', 'pinned');
   const statOf = (isDirectory) => () => ({ isDirectory: () => isDirectory });
   const missing = () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
+  const settings = (openDirectoryMode, extra = {}) => ({ openDirectoryMode, lastDirectory: last, fixedDirectory: fixed, ...extra });
 
-  test('the folder opened last is shown first', () => {
-    const last = path.resolve(path.sep, 'work', 'docs');
-    assert.equal(dialogDirectory(last, fallback, { statSync: statOf(true) }), last);
+  test('os leaves the start folder to the OS (no folder is given)', () => {
+    assert.equal(openDialogDirectory(settings('os'), fallback, { statSync: statOf(true) }), undefined);
   });
-  test('without a remembered folder, or when it is gone or not a folder, the fallback is used', () => {
-    const last = path.resolve(path.sep, 'work', 'docs');
-    for (const value of [null, undefined, '', 42]) assert.equal(dialogDirectory(value, fallback), fallback, String(value));
-    assert.equal(dialogDirectory(last, fallback, { statSync: missing }), fallback);
-    assert.equal(dialogDirectory(last, fallback, { statSync: statOf(false) }), fallback);
+  test('last starts in the folder opened last, and fixed in the chosen folder', () => {
+    assert.equal(openDialogDirectory(settings('last'), fallback, { statSync: statOf(true) }), last);
+    assert.equal(openDialogDirectory(settings('fixed'), fallback, { statSync: statOf(true) }), fixed);
+  });
+  test('an unset, gone or non-folder start folder falls back to the fallback', () => {
+    for (const mode of ['last', 'fixed']) {
+      for (const value of [null, undefined, '', 42]) {
+        assert.equal(openDialogDirectory(settings(mode, { lastDirectory: value, fixedDirectory: value }), fallback), fallback, `${mode} ${String(value)}`);
+      }
+      assert.equal(openDialogDirectory(settings(mode), fallback, { statSync: missing }), fallback, mode);
+      assert.equal(openDialogDirectory(settings(mode), fallback, { statSync: statOf(false) }), fallback, mode);
+    }
+  });
+  test('each mode reads only its own folder', () => {
+    assert.equal(openDialogDirectory(settings('fixed', { fixedDirectory: null }), fallback, { statSync: statOf(true) }), fallback);
+    assert.equal(openDialogDirectory(settings('last', { lastDirectory: null }), fallback, { statSync: statOf(true) }), fallback);
   });
 });
 

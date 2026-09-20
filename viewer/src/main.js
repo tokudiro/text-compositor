@@ -13,7 +13,7 @@ const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme,
 const { summarize } = require('./diagnostics');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
-const { checkOpenTarget, classifyNavigation, dialogDirectory, fileFromArgv, openDialogFilters } = require('./targets');
+const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { MermaidHost } = require('./mermaid-host');
 const { GraphvizHost } = require('./graphviz-host');
@@ -485,11 +485,24 @@ async function openWithDialog() {
   leaveSettings();
   const result = await dialog.showOpenDialog(win, {
     title: 'ファイルを開く',
-    defaultPath: dialogDirectory(state.settings.lastDirectory, app.getPath('documents')),
+    defaultPath: openDialogDirectory(state.settings, app.getPath('documents')),   // 'os'のときは、undefined（OSにゆだねる）
     properties: ['openFile'],
     filters: openDialogFilters(),
   });
   if (!result.canceled && result.filePaths[0]) openFile(result.filePaths[0]);
+}
+
+/** 設定画面の「フォルダを選ぶ」。選んだフォルダを、「特定のフォルダ」として保存する。キャンセルしたときは、変えない。 */
+async function chooseOpenDirectory() {
+  const result = await dialog.showOpenDialog(win, {
+    title: 'ファイルを開く場所',
+    defaultPath: state.settings.fixedDirectory ?? app.getPath('documents'),
+    properties: ['openDirectory'],
+  });
+  if (result.canceled || !result.filePaths[0]) return;
+  state.settings = normalizeSettings({ ...state.settings, fixedDirectory: result.filePaths[0] });
+  saveSettings(settingsFile, state.settings);
+  push();
 }
 
 // -- メニュー・IPC --------------------------------------------------------------
@@ -534,4 +547,5 @@ ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
+ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });

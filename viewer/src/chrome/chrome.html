@@ -77,6 +77,24 @@
           <label><input type="radio" name="theme" value="dark"><span>ダーク</span></label>
         </div>
       </div>
+      <div class="row">
+        <div class="text">
+          <div class="name" id="open-directory-name">ファイルを開く場所</div>
+          <div class="desc">「ファイルを開く」のダイアログが、最初に見せるフォルダを選びます。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="open-directory-name">
+          <label><input type="radio" name="openDirectoryMode" value="os"><span>OSにゆだねる</span></label>
+          <label><input type="radio" name="openDirectoryMode" value="last"><span>前回開いたフォルダ</span></label>
+          <label><input type="radio" name="openDirectoryMode" value="fixed"><span>特定のフォルダ</span></label>
+        </div>
+      </div>
+      <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->
+      <div class="row sub" id="fixed-directory-row" hidden>
+        <div class="text">
+          <div class="name" id="fixed-directory"></div>
+        </div>
+        <button id="choose-directory" class="primary">フォルダを選ぶ…</button>
+      </div>
       <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
     </div>
   </section>

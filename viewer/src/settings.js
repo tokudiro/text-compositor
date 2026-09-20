@@ -11,11 +11,13 @@ const DEFAULTS = Object.freeze({
   autoReload: true,         // 保存したら、自動で更新する（#170）
   csvHeader: true,          // .csvの1行目を、見出し行にする（#220）。ツールバーで切り替え、覚える
   window: null,             // 前回のウィンドウの大きさ・位置（#192）。設定画面では変えない
-  lastDirectory: null,      // 前回開いたファイルのフォルダ。ファイルを開くダイアログの、最初の場所にする。設定画面では変えない
+  openDirectoryMode: 'last', // ファイルを開くダイアログの、最初の場所（#226）。'os'（OSにゆだねる） | 'last'（前回開いたフォルダ） | 'fixed'（特定のフォルダ）
+  fixedDirectory: null,     // 'fixed'のときのフォルダ。設定画面の、フォルダを選ぶボタンで決める
+  lastDirectory: null,      // 前回開いたファイルのフォルダ。アプリが自動で保存する。設定画面では変えない
 });
 
-/** 設定画面から変えられる項目（ウィンドウの状態は、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader']);
+/** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'openDirectoryMode']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -23,6 +25,7 @@ const WINDOW_MAX = 20000;
 const CHOICES = Object.freeze({
   toolbarPosition: ['top', 'bottom'],
   theme: ['system', 'light', 'dark'],
+  openDirectoryMode: ['os', 'last', 'fixed'],
 });
 
 function integer(value, min, max) {
@@ -55,7 +58,9 @@ function normalizeSettings(value) {
   if (typeof source.autoReload === 'boolean') result.autoReload = source.autoReload;
   if (typeof source.csvHeader === 'boolean') result.csvHeader = source.csvHeader;
   result.window = normalizeWindow(source.window);
-  if (typeof source.lastDirectory === 'string' && path.isAbsolute(source.lastDirectory)) result.lastDirectory = source.lastDirectory;
+  for (const key of ['lastDirectory', 'fixedDirectory']) {
+    if (typeof source[key] === 'string' && path.isAbsolute(source[key])) result[key] = source[key];
+  }
   return result;
 }
 

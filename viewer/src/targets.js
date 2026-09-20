@@ -36,13 +36,19 @@ function openDialogFilters() {
 }
 
 /**
- * ファイルを開くダイアログが、最初に見せるフォルダ。前回開いたファイルのフォルダ。無い・消えているときは、`fallback`。
- * 指定しないと、場所はOS任せになり、開いている文書とは無関係な場所（例: 起動したフォルダ）から始まってしまう。
+ * ファイルを開くダイアログが、最初に見せるフォルダ（設定の`openDirectoryMode`、#226）。
+ *   os: 指定しない（`undefined`。OSの既定の動きになる）
+ *   last: 前回開いたファイルのフォルダ（`lastDirectory`）
+ *   fixed: 利用者が指定したフォルダ（`fixedDirectory`）
+ * 指定したフォルダが、未設定・消えている・フォルダでないときは、`fallback`（「ドキュメント」）にする。
+ * 何も指定しないと、場所はOS任せになり、開いている文書とは無関係な場所（例: 起動したフォルダ）から始まることがある。
  */
-function dialogDirectory(lastDirectory, fallback, { statSync = fs.statSync } = {}) {
-  if (typeof lastDirectory !== 'string' || !lastDirectory) return fallback;
+function openDialogDirectory(settings, fallback, { statSync = fs.statSync } = {}) {
+  if (settings.openDirectoryMode === 'os') return undefined;
+  const directory = settings.openDirectoryMode === 'fixed' ? settings.fixedDirectory : settings.lastDirectory;
+  if (typeof directory !== 'string' || !directory) return fallback;
   try {
-    return statSync(lastDirectory).isDirectory() ? lastDirectory : fallback;
+    return statSync(directory).isDirectory() ? directory : fallback;
   } catch {
     return fallback;
   }
@@ -100,4 +106,4 @@ function classifyNavigation(url) {
   return { type: 'ignore' };
 }
 
-module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, openDialogFilters, dialogDirectory };
+module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, openDialogFilters, openDialogDirectory };

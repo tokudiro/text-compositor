@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { DEFAULTS, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
+const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
 
 function temporaryFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-settings-'));
@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, window: null, lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, window: null, lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -78,6 +78,24 @@ test('csvHeader is a boolean setting that defaults to true and is kept when vali
   assert.equal(normalizeSettings({ csvHeader: false }).csvHeader, false);
   for (const bad of ['false', 0, null, undefined, [false]]) assert.equal(normalizeSettings({ csvHeader: bad }).csvHeader, true, String(bad));
 });
+test('openDirectoryMode is one of os, last and fixed, and defaults to last (#226)', () => {
+  assert.equal(normalizeSettings({}).openDirectoryMode, 'last');
+  for (const mode of ['os', 'last', 'fixed']) assert.equal(normalizeSettings({ openDirectoryMode: mode }).openDirectoryMode, mode);
+  for (const bad of ['', 'Last', 'documents', 1, null, ['os']]) assert.equal(normalizeSettings({ openDirectoryMode: bad }).openDirectoryMode, 'last', JSON.stringify(bad));
+});
+
+test('fixedDirectory is an absolute path or null; anything else is dropped', () => {
+  const absolute = path.resolve(path.sep, 'docs', 'notes');
+  assert.equal(normalizeSettings({}).fixedDirectory, null);
+  assert.equal(normalizeSettings({ fixedDirectory: absolute }).fixedDirectory, absolute);
+  for (const bad of ['', 'relative/dir', 42, null, [absolute], {}]) assert.equal(normalizeSettings({ fixedDirectory: bad }).fixedDirectory, null, JSON.stringify(bad));
+});
+
+test('the start folder mode can be changed from the settings screen, but the folders cannot (#226)', () => {
+  assert.ok(EDITABLE.includes('openDirectoryMode'));
+  assert.ok(!EDITABLE.includes('fixedDirectory') && !EDITABLE.includes('lastDirectory'));
+});
+
 test('lastDirectory is an absolute path or null; anything else is dropped', () => {
   const absolute = path.resolve(path.sep, 'docs', 'notes');
   assert.equal(normalizeSettings({}).lastDirectory, null);
