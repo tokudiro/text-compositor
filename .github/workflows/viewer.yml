@@ -43,16 +43,16 @@ jobs:
       # （準備の不備を、見逃さないため）。
       REQUIRE_WORKER_INTEGRATION: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"   # viewer/package.jsonの engines（>=22.12）
           cache: npm
           cache-dependency-path: viewer/package-lock.json
 
       # 配布物（組込版Python 3.12）と、同じ版のPythonで確認する。
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip

@@ -38,7 +38,7 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # `v<バージョン>`（text-compositorと同時のリリース）か、`obunzu-v<バージョン>`（Obunzuだけの例外）
       - name: Check that the tag matches the version in viewer/package.json
@@ -51,20 +51,20 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: viewer/package-lock.json
 
       # ビルド用のPython（組込版のパッケージを、pipで取得するために使う。build-dist.jsが、PATHのpythonを使う）
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       # build-dist.jsが取得する、組込版Python・ライセンス（SHA256を確認する）の保存先。バージョンが変わるまで、再取得しない。
       - name: Cache the downloads of build-dist.js
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: viewer/dist/.cache
           key: viewer-dist-${{ runner.os }}-${{ hashFiles('viewer/scripts/build-dist.js') }}
@@ -77,7 +77,7 @@ jobs:
         working-directory: viewer
         run: npm run build-dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: obunzu-win-x64
           path: viewer/dist/Obunzu-*-win-x64.zip
@@ -91,13 +91,13 @@ jobs:
     permissions:
       contents: write   # Releaseの作成と、ファイルの添付
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: obunzu-win-x64
           path: dist
 
       - name: Attach the ZIP to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/Obunzu-*-win-x64.zip
           # ViewerのReleaseが、text-compositor本体（PyPI）のReleaseの「Latest」表示を、奪わないようにする

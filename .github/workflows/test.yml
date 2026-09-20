@@ -35,9 +35,9 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
           cache: pip
@@ -48,7 +48,7 @@ jobs:
       # 一時的な失敗（GitHubのHTTP 500など）で、テストが落ちる。テンプレートやtext_compositor/のコードが変わったときは、
       # 新しいキーで保存し直す。それまでの保存は、restore-keysで引き継ぐ（取得済みのものは、再取得しない）。
       - name: Cache downloaded files (fonts, Typst packages)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/text-compositor
