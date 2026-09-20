@@ -1,0 +1,48 @@
+# 依存の更新を、週次で、PRにして知らせる（#240）。
+#
+# 同梱した部品（Electron・Chromium、組込版Python、JREなど）の更新は、こちらが新しい版を出すまで、利用者に届かない。
+# 更新を見逃さないための、検知の仕組みの1つである。Dependabotが見られるのは、npm・pip・GitHub Actionsだけ。
+# コードに直接書いた版（Mermaid・Viz.js・PlantUML・D2・JRE・組込版Python・Typstのパッケージ）は、別の仕組み
+# （週次の確認のワークフロー）で見る（#240の対策A-3）。
+#
+# 更新のPRは、CI（test.yml・viewer.yml）で確認してから、マージする。
+version: 2
+updates:
+  # Viewer（Obunzu）のnpm。Electronは、最新の安定版に追従する（Chromiumの修正が、最も頻繁なため）。
+  # Electronのメジャーの更新は、コードの変更が要ることがあるので、手元で確認する（viewer/scripts/check-dist.js）。
+  - package-ecosystem: npm
+    directory: /viewer
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - infrastructure
+
+  # Pythonのパッケージ。pyproject.toml・requirements.txt・viewer/dist-requirements.txtの版は、そろえる決まり
+  # （tests/test_distribution.py）。別々のPRになると、そろわずにテストが落ちるため、1つのPRにまとめる。
+  # viewer/dist-requirements.txtが、検出されるかは、未確認（マージ後に、PRの内容で確認する）。
+  - package-ecosystem: pip
+    directories:
+      - /
+      - /viewer
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - infrastructure
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions。Node 20の廃止に合わせて、更新した（#234）。同じことが、繰り返し起きるのを、早めに知る。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - infrastructure
