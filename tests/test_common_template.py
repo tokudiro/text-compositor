@@ -5,6 +5,9 @@ import re
 import pytest
 
 import text_compositor.build as build
+from text_compositor.changes import _is_up_to_date
+from text_compositor.config import _load_project_config
+from text_compositor.document import _prepare_template
 
 TOOL_DIR = os.path.dirname(os.path.abspath(build.__file__))
 TEMPLATES = os.path.join(TOOL_DIR, "templates")
@@ -59,7 +62,7 @@ class TestPrepareTemplate:
     def test_common_is_copied_next_to_template(self, env):
         project_dir, work_dir = env
         config = {"template": {"path": "template"}}
-        copy_path, _ = build._prepare_template(config, TOOL_DIR, str(project_dir), str(work_dir), str(project_dir))
+        copy_path, _ = _prepare_template(config, TOOL_DIR, str(project_dir), str(work_dir), str(project_dir))
         assert os.path.dirname(copy_path) == str(work_dir)
         assert (work_dir / "_common.typ").read_text(encoding="utf-8") == read("_common.typ")
 
@@ -68,7 +71,7 @@ class TestPrepareTemplate:
         project_dir, work_dir = env
         write(str(project_dir / "adapter.typ"), '#import "_common.typ": fit-image\n')
         config = {"template": {"path": "adapter.typ"}}
-        build._prepare_template(config, TOOL_DIR, str(project_dir), str(work_dir), str(project_dir))
+        _prepare_template(config, TOOL_DIR, str(project_dir), str(work_dir), str(project_dir))
         assert (work_dir / "_common.typ").exists()
 
 
@@ -84,12 +87,11 @@ class TestCleanRemovesCommon:
 
 
 class TestIfChangedDependsOnCommon:
-    def test_newer_common_makes_output_stale(self, tmp_path, monkeypatch):
+    def test_newer_common_makes_output_stale(self, tmp_path):
         """同梱の補助関数が更新（pip upgrade等）されたら、入力が同じでも再生成する。"""
         tool = tmp_path / "tool"
         for name in ("templates/template.typ", "templates/_common.typ", "build.py"):
             write(str(tool / name))
-        monkeypatch.setattr(build, "__file__", str(tool / "build.py"), raising=False)
         cfg = str(tmp_path / "proj" / "c.yaml")
         write(cfg, "chapters: [a.md]\n")
         pdf = str(tmp_path / "proj" / "outputs" / "System_Specification.pdf")
@@ -102,8 +104,8 @@ class TestIfChangedDependsOnCommon:
             mtime(p, 1000)
         mtime(str(tool / "templates" / "_common.typ"), 1000)
         mtime(pdf, 2000)
-        project_dir, config, _ = build._load_project_config(cfg)
-        assert build._is_up_to_date(str(tool), cfg, project_dir, config)[0] is True
+        project_dir, config, _ = _load_project_config(cfg)
+        assert _is_up_to_date(str(tool), cfg, project_dir, config)[0] is True
 
         mtime(str(tool / "templates" / "_common.typ"), 3000)
-        assert build._is_up_to_date(str(tool), cfg, project_dir, config)[0] is False
+        assert _is_up_to_date(str(tool), cfg, project_dir, config)[0] is False

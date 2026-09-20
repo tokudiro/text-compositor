@@ -7,7 +7,11 @@ import re
 
 import pytest
 
-import text_compositor.build as build
+import text_compositor.host_renderers as host_renderers_mod
+import text_compositor.renderer as renderer_mod
+from text_compositor.deps import find_system_browser
+from text_compositor.renderer import TypstRenderer
+import subprocess
 from text_compositor.api import HtmlResult, Session, render_html
 from text_compositor import html_output
 from text_compositor.html_output import DOCUMENT_CSS
@@ -52,8 +56,8 @@ class FakeGraphvizHost:
 @pytest.fixture
 def graphviz_host(monkeypatch):
     host = FakeGraphvizHost()
-    monkeypatch.setattr(build, "_graphviz_host_renderer", host)
-    monkeypatch.setattr(build, "ensure_viz_js", lambda: "fake-viz-global.js")
+    monkeypatch.setattr(host_renderers_mod, "_graphviz_host_renderer", host)
+    monkeypatch.setattr(renderer_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
     return host
 
 
@@ -345,10 +349,10 @@ class TestFences:
         convert(tmp_path, doc)
         convert(tmp_path, doc)
         assert len(graphviz_host.calls) == 1   # 2回目は、キャッシュ
-        monkeypatch.setattr(build, "VIZ_JS_SHA256", "0" * 64)   # Viz.jsが変われば、描き直す
+        monkeypatch.setattr(renderer_mod, "VIZ_JS_SHA256", "0" * 64)   # Viz.jsが変われば、描き直す
         convert(tmp_path, doc)
         assert len(graphviz_host.calls) == 2
-        monkeypatch.setattr(build, "GRAPHVIZ_FIT_REVISION", 99)   # 文字幅の補正が変わっても、描き直す
+        monkeypatch.setattr(renderer_mod, "GRAPHVIZ_FIT_REVISION", 99)   # 文字幅の補正が変わっても、描き直す
         convert(tmp_path, doc)
         assert len(graphviz_host.calls) == 3
 
@@ -553,9 +557,9 @@ class TestDiagramFailures:
         stderr = "err: syntax error at line 1\n"
 
     def test_a_failed_d2_diagram_reports_a_short_message_the_line_and_the_tool_output(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(build.TypstRenderer, "_ensure_d2_bin", lambda self: "d2")
-        monkeypatch.setattr(build.TypstRenderer, "_d2_version", lambda self: "v0")
-        monkeypatch.setattr(build.subprocess, "run", lambda *a, **k: self._Failed())
+        monkeypatch.setattr(TypstRenderer, "_ensure_d2_bin", lambda self: "d2")
+        monkeypatch.setattr(TypstRenderer, "_d2_version", lambda self: "v0")
+        monkeypatch.setattr(subprocess, "run", lambda *a, **k: self._Failed())
         result, _ = convert(tmp_path, "# T\n\n本文。\n\n```d2\nx -> \n```\n", plugins={"mermaid": False, "plantuml": False, "d2": True})
         assert not result.ok
         error = [d for d in result.diagnostics if d.severity == "error"][0]
@@ -568,7 +572,7 @@ class TestDiagramFailures:
             def evaluate(self, *args):
                 raise RuntimeError("Page.evaluate: Error: Parse error on line 3:\n  A --> \n    at Parser.parse (<anonymous>:1:1)\n    at fTe.parse (<anonymous>:2:2)")
 
-        monkeypatch.setattr(build.TypstRenderer, "_ensure_mermaid_page", lambda self: Page())
+        monkeypatch.setattr(TypstRenderer, "_ensure_mermaid_page", lambda self: Page())
         result, _ = convert(tmp_path, "```mermaid\ngraph TD\n  A --> \n```\n", plugins={"mermaid": True, "plantuml": False, "d2": False})
         assert not result.ok
         error = [d for d in result.diagnostics if d.severity == "error"][0]
@@ -576,7 +580,7 @@ class TestDiagramFailures:
         assert "Parse error on line 3" in error.detail and "Parser.parse" not in error.detail
 
     def test_the_cli_text_keeps_the_previous_wording(self, tmp_path, monkeypatch, capsys):
-        renderer = build.TypstRenderer.__new__(build.TypstRenderer)
+        renderer = TypstRenderer.__new__(TypstRenderer)
         renderer.current_file = "doc.md"
         renderer._diagram_error("d2", "boom\n", None)
         assert "[Error] d2 rendering failed for doc.md:\nboom" in capsys.readouterr().out
@@ -587,7 +591,7 @@ def _has_browser():
         import playwright  # noqa: F401
     except ImportError:
         return False
-    return build.find_system_browser() is not None
+    return find_system_browser() is not None
 
 
 @pytest.mark.skipif(not _has_browser(), reason="needs playwright and a system Chrome/Edge")

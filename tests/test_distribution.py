@@ -38,8 +38,8 @@ class TestWithoutTypstAndPlaywright:
 
     def test_a_pdf_build_without_typst_says_what_is_missing(self, tmp_path):
         code = self.BLOCK + (
-            "from text_compositor import build\n"
-            "try:\n    build.typst_lib.compile\nexcept ImportError as e:\n    print('IMPORTERROR', e)")
+            "from text_compositor.compiler import typst_lib\n"
+            "try:\n    typst_lib.compile\nexcept ImportError as e:\n    print('IMPORTERROR', e)")
         result = run_python(code, tmp_path)
         assert "IMPORTERROR" in result.stdout and "not needed for HTML output" in result.stdout
 

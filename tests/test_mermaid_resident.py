@@ -4,7 +4,11 @@ import sys
 
 import pytest
 
-import text_compositor.build as build
+import text_compositor.mermaid as mermaid_mod
+import text_compositor.project as project_mod
+from text_compositor.deps import ensure_fonts, find_system_browser
+from text_compositor.mermaid import MermaidBrowser
+from text_compositor.renderer import TypstRenderer
 from text_compositor import diagnostics
 from text_compositor.api import Session
 
@@ -32,7 +36,7 @@ class FakeBrowser:
 class TestOwnership:
     def test_renderer_owns_and_closes_its_own_browser(self, monkeypatch):
         closed = []
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         monkeypatch.setattr(renderer._mermaid, "close", lambda: closed.append(1))
         renderer.close()
         assert closed == [1]
@@ -40,36 +44,36 @@ class TestOwnership:
     def test_renderer_does_not_close_an_injected_browser(self):
         closed = []
 
-        class Injected(build.MermaidBrowser):
+        class Injected(MermaidBrowser):
             def close(self):
                 closed.append(1)
-        renderer = build.TypstRenderer(line_mapping="off", mermaid_browser=Injected())
+        renderer = TypstRenderer(line_mapping="off", mermaid_browser=Injected())
         renderer.close()
         renderer.close()
         assert closed == []
 
     def test_injected_browser_is_the_one_used(self):
-        shared = build.MermaidBrowser()
-        a = build.TypstRenderer(line_mapping="off", mermaid_browser=shared)
-        b = build.TypstRenderer(line_mapping="off", mermaid_browser=shared)
+        shared = MermaidBrowser()
+        a = TypstRenderer(line_mapping="off", mermaid_browser=shared)
+        b = TypstRenderer(line_mapping="off", mermaid_browser=shared)
         assert a._mermaid is shared and b._mermaid is shared
 
 
 class TestMermaidBrowserLifecycle:
     def test_close_without_starting_is_harmless_and_repeatable(self):
-        b = build.MermaidBrowser()
+        b = MermaidBrowser()
         b.close()
         b.close()
         assert b.page is None
 
     def test_close_resets_state_so_it_can_be_started_again(self):
-        b = build.MermaidBrowser()
+        b = MermaidBrowser()
         b.page, b.browser = FakePage(), FakeBrowser()
         b.close()
         assert b.page is None and b.browser is None and b.playwright is None
 
     def test_a_live_page_is_reused(self):
-        b = build.MermaidBrowser()
+        b = MermaidBrowser()
         page = FakePage()
         b.page, b.browser = page, FakeBrowser()
         assert b.ensure_page(True, False) is page
@@ -79,7 +83,7 @@ class TestMermaidBrowserLifecycle:
     def test_a_dead_browser_is_cleaned_up_and_restarted(self, monkeypatch, page, browser):
         """使い回している間にブラウザが落ちたら、片付けて、起動し直そうとする（ここでは、起動できない環境にして、
         エラーになることで、起動し直そうとしたことを確かめる）。"""
-        monkeypatch.setattr(build, "find_system_browser", lambda: None)
+        monkeypatch.setattr(mermaid_mod, "find_system_browser", lambda: None)
         fake_playwright = type(sys)("playwright.sync_api")
 
         class FakePlaywright:
@@ -88,7 +92,7 @@ class TestMermaidBrowserLifecycle:
         fake_playwright.sync_playwright = lambda: type("S", (), {"start": lambda self: FakePlaywright()})()
         monkeypatch.setitem(sys.modules, "playwright", type(sys)("playwright"))
         monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_playwright)
-        b = build.MermaidBrowser()
+        b = MermaidBrowser()
         b.page, b.browser = page, browser
         with diagnostics.collect() as c:
             with pytest.raises(SystemExit):
@@ -102,15 +106,15 @@ class TestSessionCleanup:
     def test_a_half_started_browser_is_cleaned_up_after_a_failed_build(self, tmp_path, monkeypatch):
         closed = []
 
-        class Half(build.MermaidBrowser):
+        class Half(MermaidBrowser):
             def close(self):
                 closed.append(1)
-        monkeypatch.setattr(build, "MermaidBrowser", Half)
+        monkeypatch.setattr(mermaid_mod, "MermaidBrowser", Half)
 
         def fail(*a, **k):
             diagnostics.error("browser failed")
             sys.exit(1)
-        monkeypatch.setattr(build, "_build_project", fail)
+        monkeypatch.setattr(project_mod, "_build_project", fail)
         md = tmp_path / "doc.md"
         md.write_text("# T\n", encoding="utf-8")
         with Session(font_dir="fonts") as s:
@@ -123,7 +127,7 @@ def _has_browser():
         import playwright  # noqa: F401
     except ImportError:
         return False
-    return build.find_system_browser() is not None
+    return find_system_browser() is not None
 
 
 @pytest.mark.skipif(not _has_browser(), reason="needs playwright and a system Chrome/Edge")
@@ -132,7 +136,7 @@ class TestRealBrowser:
         md = tmp_path / "doc.md"
         out = tmp_path / "o.pdf"
         plugins = {"plantuml": False, "d2": False}
-        with Session(font_dir=build.ensure_fonts()) as s:
+        with Session(font_dir=ensure_fonts()) as s:
             md.write_text("# T\n\n```mermaid\ngraph TD\n  A[one] --> B[two]\n```\n", encoding="utf-8")
             first = s.build(str(md), str(out), plugins=plugins)
             assert first.ok, first.diagnostics

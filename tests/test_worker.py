@@ -8,7 +8,9 @@ import threading
 
 import pytest
 
-from text_compositor import build, worker
+from text_compositor import worker
+import text_compositor.renderer as renderer_mod
+from text_compositor.host_renderers import _graphviz_host_renderer, _mermaid_host_renderer
 from text_compositor.api import BuildResult, HtmlResult
 from text_compositor.diagnostics import Diagnostic
 
@@ -287,8 +289,8 @@ class TestHostMermaid:
     def _drive(self, tmp_path, monkeypatch, on_event, doc=FENCE_DOC, requests=1):
         """ワーカー（serve）を、スレッドで動かし、render_htmlを`requests`回依頼する。`on_event(event, host_in)`が、描画の依頼に応える。
         戻り値: (各依頼の応答, 出たイベントの一覧)。"""
-        monkeypatch.setattr(build, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
-        monkeypatch.setattr(build, "ensure_viz_js", lambda: "fake-viz-global.js")
+        monkeypatch.setattr(renderer_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
+        monkeypatch.setattr(renderer_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
         md = tmp_path / "doc.md"
         md.write_text(doc, encoding="utf-8")
         stdin_r, stdin_w = os.pipe()
@@ -348,7 +350,7 @@ class TestHostMermaid:
         assert '<img src="' in html and 'alt="mermaid diagram"' in html
         cached = list((tmp_path / ".text-compositor" / "cache").glob("mermaid_*.svg"))
         assert len(cached) == 1 and cached[0].read_text(encoding="utf-8") == svg
-        assert build._mermaid_host_renderer is None   # 終わったら、外す
+        assert _mermaid_host_renderer is None   # 終わったら、外す
 
     def test_a_render_error_from_the_host_is_a_diagnostic_with_the_line(self, tmp_path, monkeypatch):
         def on_event(event, host_in):
@@ -383,9 +385,9 @@ class TestHostMermaid:
         assert "closed the connection" in error["detail"]
 
     def test_without_the_flag_the_host_hooks_are_not_installed(self, tmp_path):
-        assert build._mermaid_host_renderer is None and build._graphviz_host_renderer is None
+        assert _mermaid_host_renderer is None and _graphviz_host_renderer is None
         worker.serve(io.StringIO(""), io.StringIO())
-        assert build._mermaid_host_renderer is None and build._graphviz_host_renderer is None
+        assert _mermaid_host_renderer is None and _graphviz_host_renderer is None
 
 
 class TestHostGraphviz(TestHostMermaid):
@@ -414,7 +416,7 @@ class TestHostGraphviz(TestHostMermaid):
         assert 'alt="dot diagram"' in html
         cached = list((tmp_path / ".text-compositor" / "cache").glob("graphviz_*.svg"))
         assert len(cached) == 1 and cached[0].read_text(encoding="utf-8") == svg
-        assert build._graphviz_host_renderer is None   # 終わったら、外す
+        assert _graphviz_host_renderer is None   # 終わったら、外す
 
     def test_a_render_error_from_the_host_is_a_diagnostic_with_the_line(self, tmp_path, monkeypatch):
         def on_event(event, host_in):
@@ -457,8 +459,8 @@ class TestHostGraphviz(TestHostMermaid):
 
     def _drive_both(self, tmp_path, monkeypatch, doc, seen):
         """_driveは、1種類のイベントだけを扱うため、両方のイベントに応える版。出たイベントの名前を、seenへ入れる。"""
-        monkeypatch.setattr(build, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
-        monkeypatch.setattr(build, "ensure_viz_js", lambda: "fake-viz-global.js")
+        monkeypatch.setattr(renderer_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
+        monkeypatch.setattr(renderer_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
         md = tmp_path / "doc.md"
         md.write_text(doc, encoding="utf-8")
         stdin_r, stdin_w = os.pipe()

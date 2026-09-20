@@ -4,11 +4,11 @@
 TestFenceProtectionRegressionは、レイアウトブロック内に実際の図表フェンスを置くと常に
 検出失敗していた不具合（#127）の再現・修正確認を兼ねる。
 """
-import text_compositor.build as build
+from text_compositor.renderer import TypstRenderer
 
 
 def render(md_text):
-    return build.TypstRenderer(line_mapping="off").render(md_text)
+    return TypstRenderer(line_mapping="off").render(md_text)
 
 
 class TestLayoutRight:
@@ -44,7 +44,7 @@ class TestLayoutRight:
         img.write_bytes(b"\x89PNG\r\n")
         md_path = tmp_path / "doc.md"
         md = f"::: layout-right\nテキスト\n\n![alt]({img.name})\n:::\n"
-        renderer = build.TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
         out = renderer.render(md, filepath=str(md_path))
         # width/height未指定なのでfit-image()になる（#69）
         assert "#fit-image(" in out

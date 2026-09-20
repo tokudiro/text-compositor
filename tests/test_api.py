@@ -8,13 +8,16 @@ import zlib
 import pytest
 
 import text_compositor.build as build
+from text_compositor.deps import ensure_fonts
+import text_compositor.project as project_mod
+import time
 from text_compositor import diagnostics
 from text_compositor.api import BuildResult, Session, build_markdown
 
 
 @pytest.fixture(scope="module")
 def font_dir():
-    return build.ensure_fonts()
+    return ensure_fonts()
 
 
 @pytest.fixture
@@ -200,7 +203,7 @@ class TestFailures:
 
         def boom(*a, **k):
             raise RuntimeError("kaboom")
-        monkeypatch.setattr(build, "_build_project", boom)
+        monkeypatch.setattr(project_mod, "_build_project", boom)
         result = session.build(str(md), str(tmp_path / "o.pdf"))
         assert not result.ok
         assert "kaboom" in result.errors[0].message and "Traceback" in result.errors[0].detail
@@ -219,7 +222,7 @@ class TestFailures:
         def denied(src, dst):
             raise PermissionError("in use")
         monkeypatch.setattr(os, "replace", denied)
-        monkeypatch.setattr(build.time, "sleep", lambda s: None)
+        monkeypatch.setattr(time, "sleep", lambda s: None)
         result = session.build(str(md), str(tmp_path / "o.pdf"), plugins=PLAIN)
         assert not result.ok
         assert any("Cannot write the PDF" in d.message for d in result.errors)

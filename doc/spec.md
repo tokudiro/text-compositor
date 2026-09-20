@@ -14,7 +14,7 @@ Viewの既定値はテンプレートが持つ。個々の文書で既定値と�
 ## 2. 実行環境の要件
 実行環境に関する要件は本章に一本化する。他章で個別の依存関係（Typst、Mermaid等）に触れる際も、方針はここを参照する。
 
-* **Python中心・最小限のダウンロード**: コアはPython（`build.py`）のみで完結する。追加が必要なものも、その場でのダウンロードで完結させ、常駐サーバーやコンテナは要求しない。
+* **Python中心・最小限のダウンロード**: コアはPython（`text_compositor/`）のみで完結する。追加が必要なものも、その場でのダウンロードで完結させ、常駐サーバーやコンテナは要求しない。
   * Typstコンパイラ: バイナリを同梱せず、PyPIのホイール経由で取得する（3章）。
   * オプトインの図表プラグイン: Mermaidは`pip install playwright`とシステムにインストール済みのChrome/Edge（新規ダウンロードはしない）、PlantUMLはJREを、D2はD2公式CLIバイナリをその場取得する（11章、[#35](https://github.com/tokudiro/text-compositor/issues/35)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。
   * 日本語CJKフォント: リポジトリに同梱せず取得（ダウンロード）する方式とする。Noto Sans JP（Regular/Bold）を初回ビルド時にOS標準のユーザーキャッシュ領域（`platformdirs`経由。Windows: `%LOCALAPPDATA%\text-compositor\Cache`、Linux: `~/.cache/text-compositor`、macOS: `~/Library/Caches/text-compositor`）へダウンロード・キャッシュし、以降はキャッシュを使う（9章）。`tool_dir`（ツール本体のインストール場所）を使わないのは、「クローンして直接叩く」「pipインストール」いずれの実行方式でも同じ場所にキャッシュを置くため（[#50](https://github.com/tokudiro/text-compositor/issues/50)、[#110](https://github.com/tokudiro/text-compositor/issues/110)）。
@@ -26,7 +26,7 @@ Viewの既定値はテンプレートが持つ。個々の文書で既定値と�
 ## 3. ツールとドキュメントの分離
 ツール本体とドキュメントは役割を分離する。原稿は通常、章ごとに分割された複数のテキストファイル（それぞれが1つの独立した断片。1章）として、ツール外の任意の場所に存在する。原稿をツール側へコピーする運用は行わない。
 
-* **ツール本体（このリポジトリ）**: 変換エンジン（`build.py`）とテンプレート。書き換えずに使えるものだけを置く（フォントは同梱せず取得する方式。2章・9章）。
+* **ツール本体（このリポジトリ）**: 変換エンジン（`text_compositor/`）とテンプレート。書き換えずに使えるものだけを置く（フォントは同梱せず取得する方式。2章・9章）。
 * **ドキュメント（任意の場所）**: テキストファイル群（現状はMarkdownのみ。1章）、画像、設定ファイル。ツールのディレクトリ構成に従う必要はない。
   * 設定ファイルの推奨名は `text-compositor.config.yaml`。
   * `--config` で明示するか、省略時はカレントディレクトリ（ドキュメント側）直下のこのファイルを自動的に探す。ツール本体のディレクトリ（`tool_dir`）は探索しない。
@@ -38,13 +38,20 @@ Viewの既定値はテンプレートが持つ。個々の文書で既定値と�
 text-compositor/                         my-project/
  ├── build.py            # 後方互換ラッパー  ├── 01_intro.md
  ├── text_compositor/                     ├── 02_features.md
- │   ├── build.py        # 実装本体          ├── 03_architecture.md          # 複数ファイルを1冊に結合
- │   └── templates/      # 既定テンプレート  ├── text-compositor.config.yaml # --config で指定（既定推奨名）
+ │   ├── build.py        # CLIの入口         ├── 03_architecture.md          # 複数ファイルを1冊に結合
+ │   ├── *.py            # 実装（下記）      ├── text-compositor.config.yaml # --config で指定（既定推奨名）
+ │   └── templates/      # 既定テンプレート
  └── doc/spec.md                             ├── images/
                                               └── manual.pdf                  # 既定の出力先
 ```
 
-* **Typstコンパイラの入手方法**: バイナリを同梱しない（2章）。PyPIの `typst` パッケージ（[typst-py](https://github.com/messense/typst-py/)、`requirements.txt` で版固定）がOSごとのホイールにコンパイラ本体を含むため、`pip install -r requirements.txt` だけで済む。`build.py` は `typst.compile(input, output=, root=)` というPython APIを直接呼び出すだけで、バイナリの配置やOS判定コードを持たない。
+* **実装のモジュール構成**（[#157](https://github.com/tokudiro/text-compositor/issues/157)）: `text_compositor/`の実装は、責務ごとに次のモジュールへ分かれている。依存は下から上へ一方向で、循環しない。
+  * `build.py`: CLIの入口（引数の解析、`--clean`、`--watch`）。`text-compositor`コマンドと、リポジトリ直下の`build.py`ラッパーは、ここの`build()`を呼ぶ。
+  * `project.py`: 1つのconfigのビルド本体（`_build_one`・`_build_project`）。Python API（`api.py`）もこれを呼ぶ。
+  * `config.py`（configの読み込み・変数展開）、`document.py`（プリアンブル・改訂履歴・用語集・テンプレート）、`chapters.py`（章の展開と、章ごとのTypstコード）、`compiler.py`（Typstのコンパイルとエラー位置の対応づけ）、`changes.py`（`--watch`・`--if-changed`の変更検出）。
+  * `renderer.py`: Markdown（markdown-it-pyのAST）をTypstへ変換する`TypstRenderer`。`typst_literal.py`は、Typstの文字列リテラルの補助関数。
+  * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid用ブラウザ）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
+* **Typstコンパイラの入手方法**: バイナリを同梱しない（2章）。PyPIの `typst` パッケージ（[typst-py](https://github.com/messense/typst-py/)、`requirements.txt` で版固定）がOSごとのホイールにコンパイラ本体を含むため、`pip install -r requirements.txt` だけで済む。`compiler.py` は `typst.compile(input, output=, root=)` というPython APIを直接呼び出すだけで、バイナリの配置やOS判定コードを持たない。
 
 ## 4. 使い方（CLI 仕様）
 実行方法は2通りある（[#111](https://github.com/tokudiro/text-compositor/issues/111)、2章・3章参照）。どちらも同じ`build.py`のロジック（実体は`text_compositor/build.py`）を呼び出す。
@@ -71,7 +78,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * **`--if-changed`**（[#151](https://github.com/tokudiro/text-compositor/issues/151)）: makeのように、出力PDFが依存物より新しければビルドをスキップする（`[Info] Skipped (up to date): <PDF>`を出力して正常終了）。`--config-list`と併用した場合は、config単位で判定する。`--clean`・`--watch`とは同時指定できない。以下の決定事項に沿う。
   * **既定はオプトイン**: `--if-changed`を付けない限り、従来どおり毎回全章を再生成する。既定を変えると「入力は変えたのにPDFが古いまま」という事故を既存の利用者に起こし得るため。
   * **判定方法は更新日時のみ**（make方式。内容ハッシュは採用しない）: 出力PDFの更新日時が、依存物の最新の更新日時より**厳密に新しい**ときだけスキップする。出力PDFが無ければ再生成する。ハッシュ方式は、判定のたびに全入力を読む必要がある。しかも図表SVGのキャッシュキー（[#26](https://github.com/tokudiro/text-compositor/issues/26)）と違い、出力PDFに対応するハッシュの保存先という状態を新たに持つことになり、得られる利点に見合わないと判断した。
-  * **依存物**: `--watch`と同じ解決処理（`_watch_targets`/`_watch_snapshot`）を共有する。config自身、`project_dir`配下（`inputs.dir`が外にあればそれも）、`.typ`パス指定のテンプレートに加え、ツール自身（`build.py`）と同梱テンプレートを含める。text-compositor本体の更新（`pip upgrade`等）で、入力が同じでも出力が変わり得るため。`.`で始まるディレクトリ・ファイル（`.text-compositor`等）と、出力先（`output.dir`配下）は含めない。`.pdf`ファイルは（`.typ`テンプレート等として個別に指定されたものを除き）依存物から除外する。`project_dir`を共有する別configの出力PDFを入力とみなすと、`--config-list`で互いに常に再生成となるため。
+  * **依存物**: `--watch`と同じ解決処理（`_watch_targets`/`_watch_snapshot`）を共有する。config自身、`project_dir`配下（`inputs.dir`が外にあればそれも）、`.typ`パス指定のテンプレートに加え、ツール自身（`text_compositor/`直下の`.py`）と同梱テンプレートを含める。text-compositor本体の更新（`pip upgrade`等）で、入力が同じでも出力が変わり得るため。`.`で始まるディレクトリ・ファイル（`.text-compositor`等）と、出力先（`output.dir`配下）は含めない。`.pdf`ファイルは（`.typ`テンプレート等として個別に指定されたものを除き）依存物から除外する。`project_dir`を共有する別configの出力PDFを入力とみなすと、`--config-list`で互いに常に再生成となるため。
   * **判定に含まれないもの**: (1)Typstのバージョン（更新日時では検出できない。Typstを更新した後に再生成したいときは`--if-changed`を外して実行する）。(2)`project_dir`の外にある画像等（`--watch`と同じ制約）。(3)`variables`の`env`参照先の環境変数の値（環境変数を変えても、ファイルが変わらなければスキップされる）。
   * **CIでの扱い**: `actions/checkout`は全ファイルの更新日時を取得時刻にするため、`--if-changed`を付けるだけではCIでは常に再生成になる（PDFが無いか、入力より古いため）。CIで効果を出すには、出力先を`actions/cache`等で復元する必要がある。ただし復元されたPDFも復元時刻の更新日時になるので、`checkout`より後に復元した場合に限りスキップされる。実運用での有効性は未検証。CIでは、更新日時の代わりに`actions/cache`のキー（入力ファイルのハッシュ）でキャッシュの命中を判断する運用のほうが確実な可能性がある（推測）。
 * **`--clean`・`--clean-cache`**（[#151](https://github.com/tokudiro/text-compositor/issues/151)）: ビルドせず、生成物を削除して終了する（`make clean`相当）。Typstやフォントの取得は行わないため、環境不備があっても実行できる。`--config-list`と併用した場合は、全configを対象にする。`--check-env`・`--watch`・`--if-changed`とは同時指定できない。
@@ -239,10 +246,10 @@ python build.py --config <path/to/text-compositor.config.yaml>
 1. **Graphviz (dot)**: コミュニティ製Wasmプラグイン（`diagraph`）で、追加環境なしにローカル描画する。**（実装済み）** テンプレート側の `show raw.where(lang: "dot"/"graphviz")` が ```` ```dot ```` フェンスを自動的にレンダリングする。
 2. **PlantUML**: ローカルJava環境を要求し、純Javaレイアウトエンジン「Smetana」（`-Playout=smetana`）を採用してGraphviz(dot)等の外部バイナリへの依存を避ける。**（実装済み）**
    * **ライセンス**: 本体は`plantuml-mit-*.jar`（MIT）を採用する。`mit-light`版（DITAA等ごく一部を除き機能同等、約7.4MB）も検討した。しかし、jarの中身を比較した結果、差分は`stdlib/`配下のクラウドアイコン素材と絵文字データのみだった。原稿（Markdown、GitHub管理）には絵文字が含まれ得るため、フル機能の`mit`版（約17.6MB）を採用する（[#22](https://github.com/tokudiro/text-compositor/issues/22)）。
-   * **実行環境の前提**: `find_system_java()`（`build.py`）でシステムのJava（11以上。PlantUML最新版のクラスファイル要件）を検出して再利用する（2章）。GitHub-hosted runner（`ubuntu-latest`）にはJavaが標準搭載されているため、そのまま動く。見つからない場合の挙動は`plugins.plantuml_auto_download`（既定`true`）で制御する。`true`ならEclipse Temurin JRE（Adoptium配布、GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統）をバージョン・プラットフォーム別にURL・SHA256を固定して自動取得し（9章の決定論的出力）、`false`なら本章3のMermaid/Chrome（[#35](https://github.com/tokudiro/text-compositor/issues/35)）と同じFail-fastになる。既定を自動取得側にしたのは、Chromeと違いJavaは手元環境への標準搭載率が低く、「Java 11以上を入れて」という指示だけでは行き止まりになりやすい（配布元の選択肢が多く迷いやすい）ため、ローカル開発時の利便性を優先する設計判断による。ダウンロードされる実体が約49.7MB（Chromiumの約700MBの1桁下）に収まることも判断材料にした。
+   * **実行環境の前提**: `find_system_java()`（`deps.py`）でシステムのJava（11以上。PlantUML最新版のクラスファイル要件）を検出して再利用する（2章）。GitHub-hosted runner（`ubuntu-latest`）にはJavaが標準搭載されているため、そのまま動く。見つからない場合の挙動は`plugins.plantuml_auto_download`（既定`true`）で制御する。`true`ならEclipse Temurin JRE（Adoptium配布、GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統）をバージョン・プラットフォーム別にURL・SHA256を固定して自動取得し（9章の決定論的出力）、`false`なら本章3のMermaid/Chrome（[#35](https://github.com/tokudiro/text-compositor/issues/35)）と同じFail-fastになる。既定を自動取得側にしたのは、Chromeと違いJavaは手元環境への標準搭載率が低く、「Java 11以上を入れて」という指示だけでは行き止まりになりやすい（配布元の選択肢が多く迷いやすい）ため、ローカル開発時の利便性を優先する設計判断による。ダウンロードされる実体が約49.7MB（Chromiumの約700MBの1桁下）に収まることも判断材料にした。
    * **実装**: `plantuml.jar`をコンテンツのSHA256込みでOS標準のユーザーキャッシュ領域（2章のフォントと同じ`platformdirs`経由の場所）へ取得・キャッシュし、`java -jar plantuml.jar -tsvg -pipe -Playout=smetana`へ図のソースを標準入力で渡し、標準出力のSVGをそのまま使う。常駐プロセスを持つMermaidのヘッドレスブラウザとは異なり、図ごとにsubprocessを都度起動する（描画コストがMermaidほど大きくないため）。図の種別・`plantuml.jar`のSHA256・入力テキストの複合ハッシュをキー名として`project_dir/.text-compositor/cache/`にSVG結果をキャッシュする点（#26）、描画失敗（構文エラー等、終了コード非0）でテキストへフォールバックせず即エラー終了する点はMermaidと同じ方針。`@startuml`/`@enduml`の自動補完は行わない（明示性を優先）。
 3. **Mermaid**: ヘッドレスブラウザでの描画を要するため、別途環境構築を伴うオプトイン機能として扱う。**（実装済み）**
-   * **実行環境の前提**: `find_system_browser()`（`build.py`）でシステムにインストール済みのChrome/Edgeを検出して再利用する（2章）。GitHub-hosted runner（`ubuntu-latest`）には標準搭載のChromeがあるため、そのまま動く。見つからない場合の挙動は`plugins.mermaid_auto_download`（既定`false`）で制御する。既定ではFail-fastでエラー終了する（[#35](https://github.com/tokudiro/text-compositor/issues/35)。npm/npxに依存しなくなったため、npm経由の代替ダウンロードという選択肢が無い）。`true`にした場合のみ、`playwright install chromium`相当の呼び出しでPlaywright自身のChromium（実測約700MB）を取得し、`connect_over_cdp()`ではなく`chromium.launch()`で起動する。この約700MBはまさに#34/#35で避けた規模であるため既定はfalseのままとし、PlantUML側の`plugins.plantuml_auto_download`（既定`true`、JREは約49.7MB）とは意図的に非対称にしている（#22の設計議論）。
+   * **実行環境の前提**: `find_system_browser()`（`deps.py`）でシステムにインストール済みのChrome/Edgeを検出して再利用する（2章）。GitHub-hosted runner（`ubuntu-latest`）には標準搭載のChromeがあるため、そのまま動く。見つからない場合の挙動は`plugins.mermaid_auto_download`（既定`false`）で制御する。既定ではFail-fastでエラー終了する（[#35](https://github.com/tokudiro/text-compositor/issues/35)。npm/npxに依存しなくなったため、npm経由の代替ダウンロードという選択肢が無い）。`true`にした場合のみ、`playwright install chromium`相当の呼び出しでPlaywright自身のChromium（実測約700MB）を取得し、`connect_over_cdp()`ではなく`chromium.launch()`で起動する。この約700MBはまさに#34/#35で避けた規模であるため既定はfalseのままとし、PlantUML側の`plugins.plantuml_auto_download`（既定`true`、JREは約49.7MB）とは意図的に非対称にしている（#22の設計議論）。
    * **実装**: Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、UMD形式、全図種込み。実測約3.4MB）をOS標準のユーザーキャッシュ領域（2章のフォントと同じ`platformdirs`経由の場所）へバージョン・SHA256を固定してダウンロード・キャッシュし（9章）、Playwright（Python版）の`connect_over_cdp()`でシステムブラウザにCDP接続してブラウザ内で`mermaid.render()`を直接呼び出す（`mermaid-cli`丸ごとの導入は不要、Node.js自体が不要になった）。1回のビルドでヘッドレスブラウザ・ページは1つだけ起動し、複数のMermaid図で使い回す。図の種別・`mermaid.min.js`のSHA256・入力テキストの複合ハッシュをキー名として `project_dir/.text-compositor/cache/` にSVG結果をキャッシュする（[#26](https://github.com/tokudiro/text-compositor/issues/26)。レンダラが変わったときに古いSVGを使い回さないため）。mermaid既定のHTMLラベル（`<foreignObject>`）はTypstのraw SVGレンダラーが描画できないため、`flowchart.htmlLabels`とトップレベルの`htmlLabels`両方を`false`に指定し通常のSVG `<text>` 要素で出力する（トップレベルのみでは効かないことを実測で確認済み）。
    * **図とテキストのレイアウト**: `::: layout-right ... :::`（テキスト左・図右の2カラム）、`::: layout-compare ... :::`（2つの図を左右に並べる）という独自のMarkdown拡張記法を用意した。ASTの通常フローに入る前の生テキスト段階で正規表現により切り出し、個別にTypstの`grid`へ変換している。横長の図をlayout-compareで並べると縮小されすぎて読めなくなることを実測で確認済み。正方形に近い図でのみ使うこと。
    * **`layout-left`と比率指定（[#81](https://github.com/tokudiro/text-compositor/issues/81)）**: `layout-right`の左右反転版として`layout-left`（図を左・テキストを右）を追加した。共通の`_render_layout_block(inner_text, flip, ratio)`に統合し、`flip`で列の並び順（`[image, text]`か`[text, image]`）と`align`の左右を切り替える。数値の合計が100である必要はなく（`fr`は相対比率のため`{left=3 right=7}`と`{left=30 right=70}`は同じ見た目）、それ以上のバリデーションは行わない（`layout-columns`の`n`が列数の妥当性チェックをしていないことと方針を揃えた）。省略時の既定比率は`layout-right`がテキスト35:図65、`layout-left`が図65:テキスト35と左右対称にしている。
@@ -257,7 +264,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
 4. **D2**（[#90](https://github.com/tokudiro/text-compositor/issues/90)）: PlantUMLと同じ「ローカルの外部実行ファイルへsubprocessでソースを渡し、SVGを受け取る」方式を採る。**（実装済み）**
    * **検討経緯**: 当初PythonパッケージのD2ビルダーライブラリを検討した。しかし、これは「PythonオブジェクトからD2言語のコードを組み立てる」ためのものであり、原稿の```` ```d2 ````フェンス内にすでにD2言語で書かれたテキストをSVG化する（レンダリングする）機能を持たず、目的に合わないと判明した。Graphvizの`diagraph`のようなTypstパッケージ（Wasm等でローカル完結する描画）が無いかもPreviewレジストリで確認した。該当は無かったため、D2公式CLIバイナリを直接使う方式に決めた。
    * **ライセンス**: D2本体はMPL-2.0（Terrastruct Inc.）。PlantUMLのjar同梱と異なり、ツールのPyPI配布物には一切含めず、ユーザーの実行時に公式GitHub Releasesから取得するだけ（ソースの再配布は行わない）。
-   * **実行環境の前提**: `find_system_d2()`（`build.py`）でシステムの`d2`コマンドを検出して再利用する（2章）。PlantUMLのJavaと異なりバージョン下限のチェックは設けていない（D2側に相当する制約が無いため）。GitHub-hosted runner（`ubuntu-latest`）にはD2が標準搭載されていないため、CI上でも`plugins.d2_auto_download`（既定`true`）による自動取得が毎回発生する。ダウンロードされる実体は約13MB（Go製の単一実行ファイル、外部ランタイム不要）とPlantUMLのJRE（約49.7MB）よりさらに小さいため、既定を自動取得側にした（#22の設計議論と同じ判断基準）。
+   * **実行環境の前提**: `find_system_d2()`（`deps.py`）でシステムの`d2`コマンドを検出して再利用する（2章）。PlantUMLのJavaと異なりバージョン下限のチェックは設けていない（D2側に相当する制約が無いため）。GitHub-hosted runner（`ubuntu-latest`）にはD2が標準搭載されていないため、CI上でも`plugins.d2_auto_download`（既定`true`）による自動取得が毎回発生する。ダウンロードされる実体は約13MB（Go製の単一実行ファイル、外部ランタイム不要）とPlantUMLのJRE（約49.7MB）よりさらに小さいため、既定を自動取得側にした（#22の設計議論と同じ判断基準）。
    * **実装**: D2公式のGitHub Releases（バージョン`v0.9.0`固定）から、プラットフォーム別のtar.gzアセットをURL・SHA256込みで取得・キャッシュする（OS標準のユーザーキャッシュ領域、Eclipse Temurin JREと同じプラットフォーム判定ロジック`_temurin_platform_key()`を共用）。`d2 - -`（D2公式のstdin/stdout規約。ステータスメッセージは標準エラーへ出るため標準出力のSVGと混ざらない）へ図のソースを渡し、標準出力のSVGをそのまま使う。PlantUMLと同様、図ごとにsubprocessを都度起動し、図の種別・d2のバージョン・入力テキストの複合ハッシュをキー名として`project_dir/.text-compositor/cache/`にSVG結果をキャッシュし（d2のバージョンは、システムのd2があれば`d2 --version`の出力、無ければ自動取得対象の`v0.9.0`を使う。キャッシュヒット時にバイナリの取得は起こさない。#26）、描画失敗（終了コード非0）でテキストへフォールバックせず即エラー終了する。
    * **width/height・レイアウトブロックへの組み込み**（[#82](https://github.com/tokudiro/text-compositor/issues/82)、[#77](https://github.com/tokudiro/text-compositor/issues/77)）: Mermaid/PlantUMLと全く同じ`_render_sized_image()`を共用するため、既存の`DIAGRAM_OR_IMAGE_RE`・`_render_diagram_fence()`ディスパッチャーに`d2`を加えるだけで、`layout-right`/`layout-left`/`layout-compare`/`layout-feature`のいずれでも他の図種と同列に使える。
 5. **図表ソースファイルの直接指定**（[#53](https://github.com/tokudiro/text-compositor/issues/53)）: Graphviz・Mermaid・PlantUML・D2の図表ソースファイルそのものを`chapters`に直接指定できる（`.dot`/`.gv`→Graphviz、`.mmd`→Mermaid、`.puml`/`.plantuml`/`.pu`→PlantUML、`.d2`→D2。`.iuml`は`!include`で取り込む断片ファイル用の慣習であり単体の図として使われないため対象外）。**（実装済み）** 新しい描画ロジックは書かず、上記1〜4の既存の描画機構（Graphvizはテンプレート側の`show raw.where(lang: "dot")`、Mermaid/PlantUML/D2は`_render_mermaid()`/`_render_plantuml()`/`_render_d2()`）をそのまま呼び出すだけで実現している。1ファイル＝1章（見出しなし、図だけのページ）として扱われ、`plugins.*`の有効・無効判定もそれぞれの既存ロジックがそのまま適用される。

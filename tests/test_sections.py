@@ -4,19 +4,23 @@ import os
 import pytest
 
 import text_compositor.build as build
+import text_compositor.project as project_mod
+from text_compositor.chapters import ChapterDefaults, _expand_chapters, _render_section_heading
+from text_compositor.project import _build_one
+from text_compositor.renderer import TypstRenderer
 
-ROOT = build.ChapterDefaults(
+ROOT = ChapterDefaults(
     landscape=False, paper="a4", header="Doc", footer=None, paginate=True,
     background=None, logo=None, table_header={"bold": True}, heading_offset=0)
 
 
 def expand(chapters, root=ROOT):
-    return build._expand_chapters(chapters, root, "/proj", "/proj")
+    return _expand_chapters(chapters, root, "/proj", "/proj")
 
 
 class TestHeadingOffsetRendering:
     def render(self, md, offset):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         renderer.heading_offset = offset
         return renderer.render_chapter(md, filepath="a.md")
 
@@ -97,9 +101,9 @@ class TestValidation:
 
 class TestSectionHeading:
     def test_emits_h1_and_switches_page_settings_when_they_differ(self):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         d = ROOT._replace(header="Sec header", heading_offset=1)
-        out, *state = build._render_section_heading(
+        out, *state = _render_section_heading(
             "保守編", renderer, d, ROOT.landscape, ROOT.paper, ROOT.header, ROOT.footer, ROOT.paginate,
             ROOT.background, ROOT.logo)
         assert "#set page" in out
@@ -107,15 +111,15 @@ class TestSectionHeading:
         assert state[2] == "Sec header"
 
     def test_no_page_set_when_settings_are_unchanged(self):
-        renderer = build.TypstRenderer(line_mapping="off")
-        out, *_ = build._render_section_heading(
+        renderer = TypstRenderer(line_mapping="off")
+        out, *_ = _render_section_heading(
             "S", renderer, ROOT, ROOT.landscape, ROOT.paper, ROOT.header, ROOT.footer, ROOT.paginate,
             ROOT.background, ROOT.logo)
         assert out == "= S\n\n"
 
     def test_title_is_escaped(self):
-        renderer = build.TypstRenderer(line_mapping="off")
-        out, *_ = build._render_section_heading(
+        renderer = TypstRenderer(line_mapping="off")
+        out, *_ = _render_section_heading(
             "A #1 *x*", renderer, ROOT, ROOT.landscape, ROOT.paper, ROOT.header, ROOT.footer, ROOT.paginate,
             ROOT.background, ROOT.logo)
         assert "\\#1" in out and "\\*x\\*" in out
@@ -128,14 +132,14 @@ def project(tmp_path, monkeypatch):
     (tmp_path / "m1.md").write_text("# Mainte One\n\n## Detail\n\ntext\n", encoding="utf-8")
     (tmp_path / "m2.md").write_text("# Mainte Two\n", encoding="utf-8")
     captured = {}
-    monkeypatch.setattr(build, "_compile_and_cleanup", lambda typst_code, *a, **k: captured.setdefault("code", typst_code))
+    monkeypatch.setattr(project_mod, "_compile_and_cleanup", lambda typst_code, *a, **k: captured.setdefault("code", typst_code))
 
     def run(config_text):
         cfg = tmp_path / "text-compositor.config.yaml"
         cfg.write_text(config_text, encoding="utf-8")
         captured.clear()
         tool_dir = os.path.dirname(os.path.abspath(build.__file__))
-        build._build_one(tool_dir, str(tmp_path), "fonts", str(cfg))
+        _build_one(tool_dir, str(tmp_path), "fonts", str(cfg))
         return captured["code"]
 
     return run
