@@ -18,13 +18,14 @@ import os, sys, time
 sys.path.insert(0, r"%REPO%")
 t0 = time.perf_counter()
 import text_compositor.build as B
+from text_compositor import deps as D, project as P
 print("ready", flush=True)
-font_dir = B.ensure_fonts()
+font_dir = D.ensure_fonts()
 project = sys.argv[1]
 config = os.path.join(project, "text-compositor.config.yaml")
 import contextlib, io
 with contextlib.redirect_stdout(io.StringIO()):
-    B._build_one(os.path.dirname(B.__file__), r"%REPO%", font_dir, config)
+    P._build_one(os.path.dirname(B.__file__), r"%REPO%", font_dir, config)
 print("done", flush=True)
 import ctypes
 from ctypes import wintypes
