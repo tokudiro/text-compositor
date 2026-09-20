@@ -9,6 +9,7 @@
 //   - Mermaidの図が、playwrightもシステムのブラウザもなしで、ElectronのChromiumで描画され、表示される（#207）。
 //   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
 //   - Graphviz（dot・graphviz）が、システムのGraphvizなしで、ElectronのChromiumで描画され、構文エラーは、原稿の行つきで出る（#181）。
+//   - 同梱のワーカーが、package.jsonと同じ版を、`ready`で報告する（#235）。
 //   - 同梱しないもの（typst・playwright）が、なくても、HTML出力は成功する。
 
 const { execFileSync, spawn } = require('node:child_process');
@@ -82,6 +83,28 @@ async function runCase(name, markdown, file, expect, wait = 6000, extraEnv = {})
     try { fs.rmSync(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
   console.log(`   （${name}）`);
+}
+
+// 同梱のワーカーが、正しい版を報告すること（#235）。`dist-info`（最小のメタデータ）がないと、`ready`の版が`0+unknown`になる。
+// ワーカーは、標準入力が閉じると、`ready`を出して、終了する。
+function checkWorkerVersion() {
+  const python = path.join(appDir, 'python-embed', 'python.exe');
+  const expected = JSON.parse(fs.readFileSync(path.join(viewerDir, 'package.json'), 'utf8')).version;
+  const env = { SystemRoot: process.env.SystemRoot, windir: process.env.windir, TEMP: process.env.TEMP, TMP: process.env.TMP,
+    USERPROFILE: process.env.USERPROFILE, APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` };
+  try {
+    const out = execFileSync(python, ['-m', 'text_compositor.worker'], { input: '', encoding: 'utf8', env });
+    const ready = JSON.parse(out.split(/\r?\n/).find((line) => line.includes('"ready"')) || '{}');
+    check('同梱のワーカーが、package.jsonと同じ版を、`ready`で報告する（`0+unknown`ではない）', ready.version === expected, `${ready.version} / ${expected}`);
+  } catch (error) {
+    check('同梱のワーカーが、package.jsonと同じ版を、`ready`で報告する', false, String(error.stderr || error.message).split(/\r?\n/).filter(Boolean).slice(-2).join(' / '));
+  }
+  const sitePackages = path.join(appDir, 'python-embed', 'Lib', 'site-packages');
+  const infos = fs.readdirSync(sitePackages).filter((name) => /^text_compositor-.+\.dist-info$/.test(name));
+  check('site-packages/ に、text_compositor-<版>.dist-info/METADATA がある', infos.length === 1 && fs.existsSync(path.join(sitePackages, infos[0], 'METADATA')), infos.join(', '));
+  const notices = fs.readFileSync(path.join(appDir, 'licenses', 'THIRD-PARTY-NOTICES.md'), 'utf8');
+  check('THIRD-PARTY-NOTICES.md に、text-compositorの行が、1つだけある（dist-infoで二重にならない）',
+    notices.split(/\r?\n/).filter((line) => /^\| (Obunzu \/ )?text-compositor \|/i.test(line)).length === 1);
 }
 
 // 同梱の typst・フォント・Typstのパッケージだけで、ネットワークなしで、Typstを通した処理が動くこと（#263）。
@@ -162,6 +185,7 @@ async function main() {
     encoding: 'utf8', env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
       APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` } });
   check('組込版Pythonが、HTTPSで、mermaid.min.jsを取得でき、SHA256が一致する（初回の取得）', fetched.trim() === 'True', fetched.trim());
+  checkWorkerVersion();
   checkOfflineTypst(work);
   await runCase('Mermaidの構文エラー', '# エラー\n\n本文。\n\n```mermaid\ngraph TD\n  A --> \n  B[[[\n```\n', path.join(work, 'error.md'), async (state, _pythons, { chrome }) => {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));

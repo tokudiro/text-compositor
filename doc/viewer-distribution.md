@@ -93,6 +93,7 @@ Obunzu-0.3.6-win-x64/
 
 - 配布物の`licenses/`に、`THIRD-PARTY-NOTICES.md`（一覧）と、各ライセンスの全文を入れる。ビルドが、パッケージのメタデータ（`*.dist-info`）から、自動で作る。
 - 内訳: 本体（MIT）、Python（PSF）、OpenSSL（Apache-2.0。全文を同梱）、`markdown-it-py`・`mdit-py-plugins`・`mdurl`・`platformdirs`・`PyYAML`（MIT）。ElectronとChromiumは、`LICENSE`と`LICENSES.chromium.html`（Electronの配布物に含まれるもの）。
+- **`text_compositor`の`dist-info`**（[#235](https://github.com/tokudiro/text-compositor/issues/235)）: ビルドが、同梱の`text_compositor`に、最小の`text_compositor-<版>.dist-info/METADATA`（`Metadata-Version`・`Name`・`Version`だけ）を書く。版は、`pyproject.toml`から読む。これがないと、`text_compositor.__version__`（`importlib.metadata`で読む）が`0+unknown`になり、ワーカーの`ready`の版も同じになる。`pip install`でリポジトリを入れる方法は、ビルド用のパッケージの取得に依存し、`Scripts/`などの不要なファイルも入るため、採らない。ライセンスの一覧では、この`dist-info`を飛ばし、`Obunzu / text-compositor`の行を、二重にしない。`check-dist.js`が、ワーカーの`ready`の版が`package.json`と一致することを、確認する。
 - **未完の点**: 組込版Pythonに含まれる`libffi`・`expat`・`SQLite`・`LibTomMath`・Zstandardのバインディング（3.14で追加）・Microsoftの実行時ライブラリは、名前・ライセンス・参照先の記載に留め、全文は付けていない（python.orgの配布物と、同じ扱い）。厳密に全文を付ける必要があるかは、未確認。
 
 ## 作り方
