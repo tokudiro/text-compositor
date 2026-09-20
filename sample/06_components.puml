@@ -2,10 +2,14 @@
 class "build.py" as build {
   +build()
 }
+class "project.py" as project {
+  +_build_project()
+}
 class TypstRenderer {
   +render_chapter()
   +render_inline()
 }
-build --> TypstRenderer : uses
+build --> project : calls
+project --> TypstRenderer : uses
 TypstRenderer --> Typst : generates
 @enduml
