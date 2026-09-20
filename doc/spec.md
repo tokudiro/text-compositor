@@ -24,7 +24,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
    * 同梱するときは、そのライセンスの条件（全文・著作権表示・ソースの入手先の明記など）を、配布する側が満たす。本体（MIT）に、同じライセンスを課すもの（GPL・AGPLなどの強いコピーレフト）は、取り込まない。
 2. **ローカルで動作し、読み込む情報と出力する情報は、すべてローカルPC内に閉じる。**
    * 原稿・図・設定・生成物は、ローカルPC内だけで処理し、外部へ送らない。外部API・SaaS・テレメトリ・利用状況の送信は、行わない。
-   * 文書を開く・ビルドするだけで、外部への通信が起きないようにする。
+   * 文書を開く・ビルドするだけで、原稿や出力の内容が、外部へ出る通信（画像のURLの読み込みなど）が起きないようにする。ツールやフォントを取得するための通信は、方針（3）で扱う。
 3. **可能な限り、配布ファイルの中に全部入っており、ネットワークへ接続してインストールしなくてよい。**
    * 配布物（PyPIのパッケージ、ObunzuのZIP）に、動作に必要なものを、できる限り、すべて入れる。導入したあとに、追加の取得が要らない。
    * 大きさ・ライセンス・プラットフォームの違いで、入れるのが難しいものは、例外として、取得が要ることを明記する。
@@ -45,13 +45,15 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 
 取得するときも、原稿の内容は、外部へ送らない（ツールやフォントのダウンロードだけである）。取得したものは、SHA256で確認する（該当するもの）。
 
+他章と`viewer-distribution.md`にある、「同梱しない」「初回に取得する」という記述は、現状の実装の説明である。方針（3）との差は、上の表にある。
+
 * **Python中心・最小限のダウンロード（現状の実装）**: コアはPython（`text_compositor/`）のみで完結する。追加が必要なものは、その場でのダウンロードで賄い、常駐サーバーやコンテナは要求しない。上の方針（3）に向けて、この取得を減らしていく（現状と方針の差は、上の表）。
   * Typstコンパイラ: バイナリを同梱せず、PyPIのホイール経由で取得する（3章）。
   * オプトインの図表プラグイン: Mermaidは`pip install playwright`とシステムにインストール済みのChrome/Edge（新規ダウンロードはしない）、PlantUMLはJREを、D2はD2公式CLIバイナリをその場取得する（11章、[#35](https://github.com/tokudiro/text-compositor/issues/35)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。
   * 日本語CJKフォント: リポジトリに同梱せず取得（ダウンロード）する方式とする。Noto Sans JP（Regular/Bold）を初回ビルド時にOS標準のユーザーキャッシュ領域（`platformdirs`経由。Windows: `%LOCALAPPDATA%\text-compositor\Cache`、Linux: `~/.cache/text-compositor`、macOS: `~/Library/Caches/text-compositor`）へダウンロード・キャッシュし、以降はキャッシュを使う（9章）。`tool_dir`（ツール本体のインストール場所）を使わないのは、「クローンして直接叩く」「pipインストール」いずれの実行方式でも同じ場所にキャッシュを置くため（[#50](https://github.com/tokudiro/text-compositor/issues/50)、[#110](https://github.com/tokudiro/text-compositor/issues/110)）。
 * **取得の再試行**（[#189](https://github.com/tokudiro/text-compositor/issues/189)）: フォント・Mermaid用のJS・JRE・PlantUML・D2のダウンロードは、一時的な失敗（HTTPの5xx・408・429、接続エラー、時間切れ、途中で切れた転送）を、間隔を空けて（1秒、3秒）、合計3回まで再試行する。404などの恒久的な失敗、ディスクへの書き込みの失敗、チェックサムの不一致は、再試行せず、従来どおりエラー終了する。取得中は`.part`ファイルへ書き、成功したときだけ置き換える（途中で切れた書きかけが、取得済みとして使われない）。CIでは、取得物（`~/.cache/text-compositor`）とTypstのパッケージ（`~/.cache/typst`）を`actions/cache`で保存し、2回目以降は、ネットワーク取得をしない。Typstのパッケージ（`@preview/...`）の取得は、Typstコンパイラの内部で行われ、再試行はできないため、キャッシュで軽減する。
 * **外部サーバー・SaaS非依存**（上の方針（2））: どこかの外部サーバーやSaaSに依存しない。図表描画を含め、外部APIへの通信によるコンテンツ生成は一切行わず、常に完全ローカルで完結させる。これは絶対要件であり、11章のプラグインにも適用される。
-* **GitHub Actions上での完結**: 上記2点の帰結として、GitHub Actions（`ubuntu-latest` などのGitHub-hosted runner）上だけで、セルフホストサーバーなしに完結してビルドできる。
+* **GitHub Actions上での完結**: 「Python中心・最小限のダウンロード」と「外部サーバー・SaaS非依存」の帰結として、GitHub Actions（`ubuntu-latest` などのGitHub-hosted runner）上だけで、セルフホストサーバーなしに完結してビルドできる。
 * **ローカル環境（Windows/Linux/macOS）**: 同じ理由で、Python（および必要に応じてJRE等の軽量ランタイム）さえ用意すれば、Windows/Linux/macOSいずれでも同一の手順でビルドできる。
 
 ## 3. ツールとドキュメントの分離
