@@ -1,21 +1,30 @@
 name: Viewer release
 
-# Viewer（Obunzu）の配布物（Windows向けのポータブルZIP、#168）を作り、GitHub Releaseに添付する（#172）。
+# Viewer（Obunzu）の配布物（Windows向けのポータブルZIP、#168）を作る（#172）。
 #
-# タグ: `obunzu-v<バージョン>`（例: obunzu-v0.3.5）。`v`で始まらない名前にする。text-compositor本体の
-# release.yml（PyPIへの公開）は、`v*`のタグで動くため、`viewer-v0.3.5`のように、`v`で始まる名前にすると、
-# 一致して、PyPIへの公開が動いてしまう。バージョンは、viewer/package.jsonの`version`と、そろえる（そろっていなければ失敗する）。
+# 通常は、text-compositor本体と、同時にリリースする。Obunzuは、同じバージョンのtext_compositorを同梱し、
+# バージョンも、そろえる決まりのため（tests/test_viewer_version.py）。`v<バージョン>`のタグを、1つだけpushすると、
+# release.yml（使い方ガイドのPDFと、PyPIへの公開）が動き、その中の`build-viewer`が、このワークフローを呼び出して、ZIPを作る
+# （workflow_call）。ZIPは、release.ymlの`attach-viewer`が、同じReleaseに添付する（このワークフローは、添付しない）。
+#
+# Obunzuだけの修正を出す例外の場合は、`obunzu-v<バージョン>`のタグをpushする。このワークフローが、テスト → ビルド →
+# Releaseの作成と添付までを行う。text-compositor本体の版は、上がらない（PyPIへの公開も、動かない）。`v`で始まらない名前に
+# するのは、release.ymlが`v*`のタグで動くため（`viewer-v0.3.5`のような名前は、`v`で始まり、一致してしまう）。
+#
+# バージョン: viewer/package.jsonの`version`と、タグをそろえる（`v<バージョン>`か、`obunzu-v<バージョン>`。そろっていなければ、失敗する）。
 #
 # 手動実行（workflow_dispatch）: 配布物を作って、成果物（artifact）として保存するだけ。Releaseは、作らない。
 # タグを打つ前に、配布物のビルドが通ることを、確認するために使う。
 #
-# 権限: 既定は、読み取りだけ。Releaseへの添付（contents: write）は、releaseジョブだけに与える。
-# PyPIのTrusted Publishing（release.ymlの`pypi`環境）とは、関係しない（id-tokenの権限も、与えない）。
+# 権限: 既定は、読み取りだけ。Releaseへの添付（contents: write）は、この中のreleaseジョブ（例外の道）と、
+# release.ymlのattach-viewerジョブだけに与える。PyPIのTrusted Publishing（release.ymlの`pypi`環境）とは、関係しない
+# （id-tokenの権限は、与えない）。
 on:
   push:
     tags:
       - "obunzu-v*"
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -31,13 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `v<バージョン>`（text-compositorと同時のリリース）か、`obunzu-v<バージョン>`（Obunzuだけの例外）
       - name: Check that the tag matches the version in viewer/package.json
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           version=$(node -p "require('./viewer/package.json').version")
-          if [ "${GITHUB_REF_NAME}" != "obunzu-v${version}" ]; then
-            echo "::error::The tag ${GITHUB_REF_NAME} does not match viewer/package.json (version ${version}). Expected obunzu-v${version}."
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ] && [ "${GITHUB_REF_NAME}" != "obunzu-v${version}" ]; then
+            echo "::error::The tag ${GITHUB_REF_NAME} does not match viewer/package.json (version ${version}). Expected v${version} or obunzu-v${version}."
             exit 1
           fi
 

@@ -129,25 +129,42 @@ node scripts/check-dist.js
 残る不確かさは、Electron本体（Chromium）の動作環境（Windows 10以降）と、ウイルス対策ソフトや、SmartScreenの挙動である（どちらも、この環境では、確認できない）。クリーンな環境で問題が出た場合は、報告を受けて、直す。
 ## CIとリリース（[#172](https://github.com/tokudiro/text-compositor/issues/172)）
 
-text-compositor本体（PyPIへの公開。`test.yml`・`release.yml`）とは、別のワークフローにする。ツールも、成果物も、公開先も違うため（[gui-viewer-design.md](gui-viewer-design.md)）。
+### リリースの方針: text-compositor本体と、同時に出す
+
+Obunzuは、**同じバージョンのtext_compositorを同梱**する（`build-dist.js`が、ビルドしたときのリポジトリの`text_compositor`を、ZIPに写す）。バージョンも、text-compositorと同じ値にそろえる決まりがある（`tests/test_viewer_version.py`）。そのため、**`v<バージョン>`のタグを1つだけpushして、両方を同時にリリースする**。利用者からは、「v0.3.5」が1つのReleaseにあり、使い方ガイドのPDFと、Obunzuの ZIPが、同じ版とすぐ分かる。
+
+Obunzuだけの修正を出したいときも、原則は、**両方のパッチ版を上げる**（例: 0.3.5 → 0.3.6）。text-compositorは、中身が同じでも、新しい版がPyPIに出る（害は小さく、番号が1つで済む）。どうしても、Obunzuだけを出す場合の例外の道として、`obunzu-v<バージョン>`のタグも、残してある（下）。
+
+### ワークフロー
+
+text-compositor本体のテスト（`test.yml`）とは、別のワークフローにする。ツールも、成果物も違うため（[gui-viewer-design.md](gui-viewer-design.md)）。
 
 | ファイル | 起動 | 内容 |
 |---|---|---|
-| `.github/workflows/viewer.yml` | `viewer/`・`text_compositor/`・`pyproject.toml`の変更を含むPR・`master`へのpush。リリースからの呼び出し | Windowsで`npm test`（Node.jsのテスト）と、実際のPythonワーカーとの結合テストを実行する。権限は、読み取りだけ |
-| `.github/workflows/viewer-release.yml` | `obunzu-v*`のタグのpush。手動実行 | テスト → 配布物（ZIP）のビルド → Releaseへの添付。添付（`contents: write`）は、最後のジョブだけに与える |
+| `.github/workflows/viewer.yml` | `viewer/`・`text_compositor/`・`pyproject.toml`の変更を含むPR・`master`へのpush。ほかのワークフローからの呼び出し | Windowsで`npm test`（Node.jsのテスト）と、実際のPythonワーカーとの結合テストを実行する。権限は、読み取りだけ |
+| `.github/workflows/viewer-release.yml` | 呼び出し（`release.yml`から）、`obunzu-v*`のタグのpush、手動実行 | テスト → 配布物（ZIP）のビルド。`obunzu-v*`のときだけ、Releaseの作成と添付まで行う（例外の道） |
+| `.github/workflows/release.yml` | `v*`のタグのpush | 使い方ガイドのPDF（Releaseを作る）、PyPIへの公開、`build-viewer`（上の`viewer-release.yml`を呼び出す）、`attach-viewer`（ZIPを、同じReleaseに添付する） |
 
+- **順序**: Releaseは、`build-usage-guide`が作る。`build-viewer`は、これを待ち（`needs`）、`attach-viewer`が、そのあとで、ZIPを添付する。同じタグに、2つのジョブが同時にReleaseを作って、競合しないため。
+- **失敗したとき**: PDFとPyPIへの公開は、`build-viewer`を待たない。Obunzuのビルドが失敗しても、影響しない。失敗したジョブだけを、Actionsの「Re-run failed jobs」で、再実行できる。
 - **CIで確認するもの**: Node.jsのテストと、実際のPythonワーカーとの結合（`viewer/test/worker-integration.test.js`。Markdown・CSV（`csv_header`）・存在しないファイルの`render_html`の往復と、ワーカーの常駐）。ワーカーとの結合テストは、Pythonの準備がない手元では、飛ばし、CIでは（`REQUIRE_WORKER_INTEGRATION=1`）、飛ばさず、失敗にする。
 - **CIで確認しないもの**: ElectronのGUIの起動と、展開した配布物の起動（`check-dist.js`）。画面が要り、不安定になりやすいため、手元で行う。Mermaid・PlantUML・D2の実際の描画も、対象外（外部のツールや、ダウンロードが要る）。
-- **タグ**: `obunzu-v<バージョン>`（例: `obunzu-v0.3.5`）。`release.yml`は、`v*`のタグでPyPIへ公開するため、Viewerのタグは、`v`で始まらない名前にする（`viewer-v0.3.5`は、`v`で始まり、一致してしまう）。バージョンは、`viewer/package.json`の`version`と、そろえる（そろっていなければ、ビルドの前に失敗する）。
-- **PyPIとの分離**: PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいている。Viewerのワークフローには、`id-token`の権限も、`pypi`環境も、与えない。
-- **「Latest」**: ViewerのReleaseは、`make_latest: false`で作り、text-compositor本体のReleaseの「Latest」表示を、奪わない（**未検証**。初回のリリースで、確認する）。
+- **バージョンの確認**: タグは、`viewer/package.json`の`version`と、そろえる（`v<バージョン>`か、`obunzu-v<バージョン>`。そろっていなければ、ビルドの前に失敗する）。
+- **PyPIとの分離**: PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいている。`id-token`の権限は、`publish-pypi`だけが持つ。Viewerのビルド・添付のジョブ（`build-viewer`・`attach-viewer`）にも、`viewer-release.yml`にも、与えない。
+- **「Latest」・本文**: `v*`のReleaseの本文と「Latest」は、`build-usage-guide`が決めた結果のまま（`attach-viewer`は、ファイルを添付するだけ。**未検証**。初回のリリースで、確認する）。例外の道（`obunzu-v*`）は、`make_latest: false`で作り、text-compositor本体のReleaseの「Latest」表示を、奪わない。
 
-### リリースの手順
+### リリースの手順（通常）
 
-1. `viewer/package.json`と`viewer/package-lock.json`の`version`を上げる（text-compositorと同じ値。`tests/test_viewer_version.py`が確認する）。
+1. `pyproject.toml`と、`viewer/package.json`・`viewer/package-lock.json`の`version`を、同じ値に上げる（`tests/test_viewer_version.py`が確認する）。
 2. 事前に、Actionsの「Viewer release」を、手動で実行する。テストと、配布物のビルドが通り、成果物（`obunzu-win-x64`）として、ZIPを取得できる。Releaseは、作られない。
-3. タグ`obunzu-v<バージョン>`を、`master`に打って、pushする。テスト → ビルド → Releaseへの添付が、順に動く。
-4. Releaseの本文は、自動生成されたたたき台になる。公開後に、`gh release edit`で、英語と日本語の両方に、書き直す。
+3. text-compositor側の事前の確認（wheelの内容など）を行う。
+4. タグ`v<バージョン>`を、`master`に打って、pushする。`release.yml`が、PDFとPyPIと、Obunzuの ZIPを、順に、同じReleaseへ集める。
+5. Releaseの本文は、自動生成されたたたき台になる。公開後に、`gh release edit`で、英語と日本語の両方に、書き直す。
+
+### Obunzuだけを出す（例外）
+
+1. Obunzuだけの修正を入れ、`pyproject.toml`と、`viewer/package.json`・`viewer/package-lock.json`の`version`を、同じ値に上げる（バージョンを、そろえる決まりは、この場合も同じ）。`pyproject.toml`の版は、上がるが、PyPIには、公開されない（次の`v`のタグのときに、公開される）。
+2. タグ`obunzu-v<バージョン>`を、`master`に打って、pushする。`viewer-release.yml`が、テスト → ビルド → Releaseの作成と添付を、行う。
 
 ビルドで使う`tar`は、Windows標準の`System32\tar.exe`を、明示する。GitHub ActionsのWindowsのランナーは、PATHの先頭に、Gitに付属のGNU tar（zipを扱えない）があることがあるため。
 
