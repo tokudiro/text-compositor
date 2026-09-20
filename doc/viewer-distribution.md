@@ -89,7 +89,7 @@ Obunzu-0.3.0-win-x64/
 
 ## 作り方
 
-前提: Windows、Node.js 22.12以上、インターネット接続、pipが使えるPython（ビルド用。どの版でもよい。組込版Pythonの版と、配布物のパッケージは、`--platform`の指定で、決まる）。
+前提: Windows、Node.js 22.12以上、インターネット接続、pipが使えるPython（ビルド用。どの版でもよい。組込版Pythonの版と、配布物のパッケージは、`--platform`の指定で、決まる）。CIでも、同じ手順で作る（下の「CIとリリース」）。
 
 ```bash
 cd viewer
@@ -127,6 +127,30 @@ node scripts/check-dist.js
 2. **組込版Pythonが、必要とするDLLを、すべて解析した**（`scripts/check-embed-dependencies.py`。`pefile`が要る）。`python.exe`・`python312.dll`・`*.pyd`が読み込むDLLは、**フォルダに同梱のもの**（`vcruntime140.dll`・`libcrypto-3.dll`など）か、**Windowsに標準で入っているもの**（`kernel32`・`advapi32`・`ws2_32`・`crypt32`など、と、Universal CRTを含むAPIセット）だけだった。Microsoft Visual C++の再頒布可能パッケージを、別にインストールする必要は、ない。
 
 残る不確かさは、Electron本体（Chromium）の動作環境（Windows 10以降）と、ウイルス対策ソフトや、SmartScreenの挙動である（どちらも、この環境では、確認できない）。クリーンな環境で問題が出た場合は、報告を受けて、直す。
+## CIとリリース（[#172](https://github.com/tokudiro/text-compositor/issues/172)）
+
+text-compositor本体（PyPIへの公開。`test.yml`・`release.yml`）とは、別のワークフローにする。ツールも、成果物も、公開先も違うため（[gui-viewer-design.md](gui-viewer-design.md)）。
+
+| ファイル | 起動 | 内容 |
+|---|---|---|
+| `.github/workflows/viewer.yml` | `viewer/`・`text_compositor/`・`pyproject.toml`の変更を含むPR・`master`へのpush。リリースからの呼び出し | Windowsで`npm test`（Node.jsのテスト）と、実際のPythonワーカーとの結合テストを実行する。権限は、読み取りだけ |
+| `.github/workflows/viewer-release.yml` | `obunzu-v*`のタグのpush。手動実行 | テスト → 配布物（ZIP）のビルド → Releaseへの添付。添付（`contents: write`）は、最後のジョブだけに与える |
+
+- **CIで確認するもの**: Node.jsのテストと、実際のPythonワーカーとの結合（`viewer/test/worker-integration.test.js`。Markdown・CSV（`csv_header`）・存在しないファイルの`render_html`の往復と、ワーカーの常駐）。ワーカーとの結合テストは、Pythonの準備がない手元では、飛ばし、CIでは（`REQUIRE_WORKER_INTEGRATION=1`）、飛ばさず、失敗にする。
+- **CIで確認しないもの**: ElectronのGUIの起動と、展開した配布物の起動（`check-dist.js`）。画面が要り、不安定になりやすいため、手元で行う。Mermaid・PlantUML・D2の実際の描画も、対象外（外部のツールや、ダウンロードが要る）。
+- **タグ**: `obunzu-v<バージョン>`（例: `obunzu-v0.3.5`）。`release.yml`は、`v*`のタグでPyPIへ公開するため、Viewerのタグは、`v`で始まらない名前にする（`viewer-v0.3.5`は、`v`で始まり、一致してしまう）。バージョンは、`viewer/package.json`の`version`と、そろえる（そろっていなければ、ビルドの前に失敗する）。
+- **PyPIとの分離**: PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいている。Viewerのワークフローには、`id-token`の権限も、`pypi`環境も、与えない。
+- **「Latest」**: ViewerのReleaseは、`make_latest: false`で作り、text-compositor本体のReleaseの「Latest」表示を、奪わない（**未検証**。初回のリリースで、確認する）。
+
+### リリースの手順
+
+1. `viewer/package.json`と`viewer/package-lock.json`の`version`を上げる（text-compositorと同じ値。`tests/test_viewer_version.py`が確認する）。
+2. 事前に、Actionsの「Viewer release」を、手動で実行する。テストと、配布物のビルドが通り、成果物（`obunzu-win-x64`）として、ZIPを取得できる。Releaseは、作られない。
+3. タグ`obunzu-v<バージョン>`を、`master`に打って、pushする。テスト → ビルド → Releaseへの添付が、順に動く。
+4. Releaseの本文は、自動生成されたたたき台になる。公開後に、`gh release edit`で、英語と日本語の両方に、書き直す。
+
+ビルドで使う`tar`は、Windows標準の`System32\tar.exe`を、明示する。GitHub ActionsのWindowsのランナーは、PATHの先頭に、Gitに付属のGNU tar（zipを扱えない）があることがあるため。
+
 ## 更新の方法
 
 - **新しいZIPを取得して、展開し直す**（フォルダごと置き換える）。自動更新は、行わない（署名と、配布の基盤が要るため。必要になったら、別に検討する）。

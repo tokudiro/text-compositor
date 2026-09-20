@@ -101,7 +101,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `scripts/build-icons.js` | `assets/icon.svg`から、`assets/icon.ico`と`assets/icon.png`を書き出す |
 | `assets/` | アプリのアイコン（元のSVGと、書き出した`.ico`・`.png`） |
 | `src/chrome/` | ツールバー・エラーの帯・診断の一覧 |
-| `test/` | `node --test`のテスト（偽のワーカーで、異常終了・時間切れ・再起動を確認） |
+| `test/` | `node --test`のテスト（偽のワーカーで、異常終了・時間切れ・再起動を確認。実際のPythonワーカーとの結合も確認） |
 
 ## アイコン
 
@@ -120,6 +120,10 @@ npm run build-icons
 cd viewer
 npm test
 ```
+
+`test/worker-integration.test.js`は、実際のPythonワーカーを起動して、`render_html`の往復（MarkdownとCSV、存在しないファイル、ワーカーの常駐）を確認します。`dist-requirements.txt`のパッケージが入ったPythonが要り、無いときは飛ばします。環境変数`REQUIRE_WORKER_INTEGRATION=1`を付けると、飛ばさず、失敗にします。
+
+CI（`.github/workflows/viewer.yml`）は、`viewer/`や`text_compositor/`を変えたPR・pushで、Windowsで`npm test`を実行します。Electronは、起動しません。タグ`obunzu-v<バージョン>`をpushすると、ポータブルなZIPを作り、GitHub Releaseに添付します（`.github/workflows/viewer-release.yml`。[doc/viewer-distribution.md](../doc/viewer-distribution.md)）。
 
 ## サードパーティのコンポーネント
 

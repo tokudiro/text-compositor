@@ -1,0 +1,96 @@
+name: Viewer release
+
+# Viewer（Obunzu）の配布物（Windows向けのポータブルZIP、#168）を作り、GitHub Releaseに添付する（#172）。
+#
+# タグ: `obunzu-v<バージョン>`（例: obunzu-v0.3.5）。`v`で始まらない名前にする。text-compositor本体の
+# release.yml（PyPIへの公開）は、`v*`のタグで動くため、`viewer-v0.3.5`のように、`v`で始まる名前にすると、
+# 一致して、PyPIへの公開が動いてしまう。バージョンは、viewer/package.jsonの`version`と、そろえる（そろっていなければ失敗する）。
+#
+# 手動実行（workflow_dispatch）: 配布物を作って、成果物（artifact）として保存するだけ。Releaseは、作らない。
+# タグを打つ前に、配布物のビルドが通ることを、確認するために使う。
+#
+# 権限: 既定は、読み取りだけ。Releaseへの添付（contents: write）は、releaseジョブだけに与える。
+# PyPIのTrusted Publishing（release.ymlの`pypi`環境）とは、関係しない（id-tokenの権限も、与えない）。
+on:
+  push:
+    tags:
+      - "obunzu-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 配布物を作る前に、Viewerのテストを、同じ内容で実行する
+  test:
+    uses: ./.github/workflows/viewer.yml
+
+  dist:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches the version in viewer/package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version=$(node -p "require('./viewer/package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "obunzu-v${version}" ]; then
+            echo "::error::The tag ${GITHUB_REF_NAME} does not match viewer/package.json (version ${version}). Expected obunzu-v${version}."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+
+      # ビルド用のPython（組込版のパッケージを、pipで取得するために使う。build-dist.jsが、PATHのpythonを使う）
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # build-dist.jsが取得する、組込版Python・ライセンス（SHA256を確認する）の保存先。バージョンが変わるまで、再取得しない。
+      - name: Cache the downloads of build-dist.js
+        uses: actions/cache@v4
+        with:
+          path: viewer/dist/.cache
+          key: viewer-dist-${{ runner.os }}-${{ hashFiles('viewer/scripts/build-dist.js') }}
+
+      - name: Install Node packages
+        working-directory: viewer
+        run: npm ci
+
+      - name: Build the portable ZIP
+        working-directory: viewer
+        run: npm run build-dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obunzu-win-x64
+          path: viewer/dist/Obunzu-*-win-x64.zip
+          if-no-files-found: error
+
+  release:
+    needs: dist
+    # タグのpushのときだけ。手動実行では、Releaseを作らない
+    if: startsWith(github.ref, 'refs/tags/obunzu-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # Releaseの作成と、ファイルの添付
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: obunzu-win-x64
+          path: dist
+
+      - name: Attach the ZIP to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Obunzu-*-win-x64.zip
+          # ViewerのReleaseが、text-compositor本体（PyPI）のReleaseの「Latest」表示を、奪わないようにする
+          make_latest: false
+          # 本文は、たたき台として、自動生成する。公開後に、`gh release edit`で、書き直す（英日併記）
+          generate_release_notes: true
