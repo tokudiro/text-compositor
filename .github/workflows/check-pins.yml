@@ -1,0 +1,53 @@
+name: Check pinned versions
+
+# コードに直接書いた部品の版（Mermaid・Viz.js・PlantUML・D2・JRE・組込版Python・Typstのパッケージ・フォント）を、
+# 週次で、上流の最新版と比べる（#240）。Dependabotは、これらを見られない。
+# 差があれば、issue「同梱した部品の更新確認（自動）」を1つ作る（すでにあれば、本文を更新する）。
+# すべて最新になったら、そのissueを閉じる。
+#
+# Dependabot（月曜）の翌日に動かし、通知が同じ日に重ならないようにする。
+# 上流への通信は、CIの例外（ツール群の方針3。取得量は、JSON数件と、HEAD 1回だけ）。
+on:
+  schedule:
+    - cron: "0 0 * * 2"   # 毎週火曜 09:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  ISSUE_TITLE: 同梱した部品の更新確認（自動）
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      - name: Compare the pinned versions with upstream
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/scripts/check-pins.py --output report.md
+
+      - name: Create, update, or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_UPDATES: ${{ steps.check.outputs.has_updates }}
+        run: |
+          number=$(gh issue list --state open --label dependencies --search "\"$ISSUE_TITLE\" in:title" --json number --jq '.[0].number')
+          if [ "$HAS_UPDATES" = "true" ]; then
+            if [ -n "$number" ]; then
+              gh issue edit "$number" --body-file report.md
+              echo "Updated issue #$number"
+            else
+              gh issue create --title "$ISSUE_TITLE" --label dependencies --body-file report.md
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "すべての部品が、最新の版になりました（週次の確認）。"
+          fi

@@ -176,15 +176,48 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 
 ## 更新の方針
 
-同梱した部品の更新は、こちらの責任になる（ツール群の方針3。[#240](https://github.com/tokudiro/text-compositor/issues/240)）。部品ごとの方針は、次のとおり。この章は、#240の進行に合わせて、部品を加える。
+同梱した部品の更新は、こちらの責任になる（ツール群の方針3。[#240](https://github.com/tokudiro/text-compositor/issues/240)）。同梱した部品の脆弱性の修正は、こちらが新しい版を出すまで、利用者に届かない。
+
+### 検知（自動）
+
+| 対象 | 仕組み | 知らせ方 |
+|---|---|---|
+| Electron（Chromium）・npmのパッケージ（`viewer/`） | Dependabot（`.github/dependabot.yml`。週次・月曜） | PR |
+| PyPIのパッケージ（`pyproject.toml`・`requirements*.txt`・`viewer/dist-requirements.txt`） | Dependabot（1つのPRにまとめる） | PR |
+| GitHub Actions | Dependabot | PR |
+| 既知の脆弱性 | Dependabotのアラート・セキュリティ更新（リポジトリの設定で有効） | アラート・PR |
+| コードに直接書いた版（Mermaid・Viz.js・PlantUML・D2・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「同梱した部品の更新確認（自動）」（差があるときだけ。すべて最新になると、自動で閉じる） |
+
+- `check-pins.py`は、固定した版を、`text_compositor/deps.py`・`viewer/scripts/build-dist.js`・`text_compositor/templates/_common.typ`から、読み取る。読み取れなかったときは、ワークフローが失敗する（ソースの書き方を変えて、確認が空振りになるのを防ぐ。`tests/test_check_pins.py`が、読み取りを確かめる）。
+- 上流の最新版を取得できなかった部品は、報告に「確認できず」と書き、差には数えない。
+- **上の表に載らないもの**: 同梱した部品を、新しく加えたときは、`check-pins.py`にも加える。
+
+### 対応
+
+- **重大な脆弱性の修正が出たとき**: 早めに、パッチ版を出す。text-compositorとObunzuは、同じ版で出すため、両方のパッチ版になる（リリースの手順は、上の「CIとリリース」）。
+- **通常の更新**: 月1回程度、まとめて確認する（Dependabotのグループ化されたPRと、`check-pins`のissue）。
+- **メジャー更新**（`check-pins`が「メジャー更新」と示すもの、DependabotのメジャーのPR）: 互換性を確認してから、取り込む。図の描画が変わりうるもの（Mermaidなど）は、`check-dist.js`と、実際の文書での表示を確かめる。
+- **Electron**: 最新の安定版に追従する（Chromiumの修正が、最も頻繁なため）。
+- **組込版Python**: バイナリの配布が続く版に置く（次の節）。
+
+### 被害を小さくする設計
+
+- 文書のHTMLでは、スクリプトを無効にし（CSP）、サンドボックスを使う。
+- 外部の画像を読み込まない扱いは、[#238](https://github.com/tokudiro/text-compositor/issues/238)で検討している。
+
+### 利用者への知らせ
+
+- Obunzuは、自動更新をしない。READMEに、「セキュリティ修正は、新しい版として出す。最新版を使う」と書く。
+- **Releaseノート**には、セキュリティ更新（同梱した部品の更新を含む）があれば、その旨と、更新した部品・版を書く。
+- 起動時の更新の確認は、外部への通信になるため、今は入れない。入れる場合は、**既定で無効、利用者が有効にする**形にする（方針2との整合）。
 
 ### 組込版Python
 
 - **現在の版**: 3.14.7（[#239](https://github.com/tokudiro/text-compositor/issues/239)で、3.12.10から移した）。
 - **移した理由**: 3.12.10は、3.12系の最後のバイナリ配布で、以降の3.12.xは、ソースだけの配布になった。Windows用の組込版に、公式のセキュリティ更新が出ない。
-- **3.14を選んだ理由**: バイナリの配布が続いている版（3.13・3.14）のうち、サポートの終わり（EOL）が、より遠い。依存パッケージ（PyYAMLのC拡張を含む）は、3.12・3.13・3.14のすべてで、wheelが取得できた（2026-09-20に確認）。
+- **3.14を選んだ理由**: バイナリの配布が続いている版（3.13・3.14）のうち、サポートの終わり（EOL）が、より遠い。依存パッケージ（`PyYAML`のC拡張を含む）は、3.12・3.13・3.14のすべてで、wheelが取得できた（2026-09-20に確認）。
 - **サポートの終わり**: EOLは、2030-10（Python Developer's Guideによる）。ただし、**バイナリの配布は、通常のバグ修正の期間だけ**である。3.12の実績（2023-10に公開、2025-04に最後のバイナリ）から、3.14のバイナリの配布は、**2027年の後半に終わる**と見込む（推測）。
-- **次の移行**: バイナリの配布が終わる前に、次の版（3.15以降）へ移す。移行の手順は、#239の完了条件と同じ（uild-dist.jsのPYTHON、CIのpython-version、check-embed-dependencies.pyによるDLLの再確認）。
+- **次の移行**: バイナリの配布が終わる前に、次の版（3.15以降）へ移す。`check-pins`は、固定した系のパッチ版が、ソースだけの配布になると、報告に注記する。移行の手順は、#239の完了条件と同じ（`build-dist.js`の`PYTHON`、CIの`python-version`、`check-embed-dependencies.py`によるDLLの再確認）。
 
 ## 関連
 
