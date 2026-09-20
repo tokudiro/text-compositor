@@ -10,7 +10,7 @@
 //   1. @electron/packagerで、Electronのアプリを作る（アイコン・バージョン情報・asar）。
 //   2. python.orgの組込版Pythonを取得して（SHA256を確認）、python-embed/に展開する。
 //   3. dist-requirements.txtのパッケージを、ビルド用のPythonのpipで、組込版のsite-packagesへ入れる
-//      （--platform win_amd64・cp312・wheelのみ。ビルドするPythonの版に、依存しない）。
+//      （--platform win_amd64・cp314・wheelのみ。ビルドするPythonの版に、依存しない）。
 //   4. text_compositorのパッケージを、site-packagesへ写す。バイトコードを作る（起動を速くするため）。
 //   5. ライセンス表記（licenses/）を作る。
 //   6. ZIPにして、同梱物ごとのサイズを表示する。
@@ -30,10 +30,10 @@ const pkg = require(path.join(viewerDir, 'package.json'));
 
 // 組込版Python。版は固定し、SHA256を確認する（python.orgのftpには、SHA256の一覧がないため、初回に取得して、記録した値）。
 const PYTHON = {
-  version: '3.12.10',
-  url: 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip',
-  sha256: '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3',
-  tag: '312',
+  version: '3.14.7',
+  url: 'https://www.python.org/ftp/python/3.14.7/python-3.14.7-embed-amd64.zip',
+  sha256: 'd297e5ff019966817ad8502465176139f2d3d840fa4ed84b13bed399a6ab1f15',
+  tag: '314',
 };
 
 // Apache-2.0の全文。組込版Pythonに含まれるOpenSSL（libcrypto・libssl）のライセンスが、Apache-2.0のため、同梱する。
@@ -163,7 +163,7 @@ function writeLicenses(appDir, embed, sitePackages, apacheText) {
   // 組込版Pythonに含まれる、第三者のライブラリ。HTTPS（図のツールの取得）に使うOpenSSLは、Apache-2.0の全文を付ける。
   fs.copyFileSync(apacheText, path.join(dir, 'Apache-2.0.txt'));
   rows.push({ name: 'OpenSSL (libcrypto, libssl; in the Python package)', version: '3.x', license: 'Apache-2.0', url: 'https://www.openssl.org/', file: 'Apache-2.0.txt' });
-  rows.push({ name: 'libffi, expat, SQLite, Microsoft Visual C++ runtime (in the Python package)', version: '(as shipped by python.org)', license: 'MIT / MIT / public domain / Microsoft redistributable terms', url: 'https://docs.python.org/3.12/license.html', file: '(see the link; see also Python-LICENSE.txt)' });
+  rows.push({ name: 'libffi, expat, SQLite, LibTomMath, Zstandard bindings, Microsoft Visual C++ runtime (in the Python package)', version: '(as shipped by python.org)', license: 'MIT / MIT / public domain / public domain / BSD-3-Clause / Microsoft redistributable terms', url: `https://docs.python.org/${PYTHON.version.split('.').slice(0, 2).join('.')}/license.html`, file: '(see the link; see also Python-LICENSE.txt)' });
 
   for (const entry of fs.readdirSync(sitePackages).filter((name) => name.endsWith('.dist-info'))) {
     const info = path.join(sitePackages, entry);

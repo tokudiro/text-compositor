@@ -66,7 +66,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 
 ## Distribution (Windows)
 
-`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 162 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with only the packages HTML output needs, and the third-party notices (`licenses/`). `typst` (PDF only) and `playwright` are not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md).
+`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 164 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with only the packages HTML output needs, and the third-party notices (`licenses/`). `typst` (PDF only) and `playwright` are not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md).
 ## Environment variables
 
 | Variable | Meaning |

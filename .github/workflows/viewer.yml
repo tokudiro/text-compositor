@@ -51,10 +51,10 @@ jobs:
           cache: npm
           cache-dependency-path: viewer/package-lock.json
 
-      # 配布物（組込版Python 3.12）と、同じ版のPythonで確認する。
+      # 配布物（組込版Python 3.14）と、同じ版のPythonで確認する。
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: viewer/dist-requirements.txt
 
