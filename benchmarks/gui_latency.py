@@ -110,8 +110,8 @@ def run_scenario(B, font_dir, name, gen, slow, runs, tmp, index):
     tool_dir = os.path.dirname(os.path.abspath(B.__file__))
 
     acc = {"render": 0.0, "compile": 0.0}
-    orig_render = B.TypstRenderer.render
-    orig_compile = B.typst_lib.compile
+    orig_render = R.TypstRenderer.render
+    orig_compile = C.typst_lib.compile
 
     def timed_render(self, *a, **k):
         t = time.perf_counter()
@@ -127,8 +127,8 @@ def run_scenario(B, font_dir, name, gen, slow, runs, tmp, index):
         finally:
             acc["compile"] += time.perf_counter() - t
 
-    B.TypstRenderer.render = timed_render
-    B.typst_lib.compile = timed_compile
+    R.TypstRenderer.render = timed_render
+    C.typst_lib.compile = timed_compile
     rows = []
     try:
         for i in range(runs):
@@ -138,13 +138,13 @@ def run_scenario(B, font_dir, name, gen, slow, runs, tmp, index):
             acc["render"] = acc["compile"] = 0.0
             t = time.perf_counter()
             with contextlib.redirect_stdout(io.StringIO()):
-                B._build_one(tool_dir, REPO_ROOT, font_dir, config, keep_temp=(i == runs - 1))
+                P._build_one(tool_dir, REPO_ROOT, font_dir, config, keep_temp=(i == runs - 1))
             total = time.perf_counter() - t
             rows.append({"total": ms(total), "render": ms(acc["render"]), "compile": ms(acc["compile"]),
                          "other": ms(total - acc["render"] - acc["compile"])})
     finally:
-        B.TypstRenderer.render = orig_render
-        B.typst_lib.compile = orig_compile
+        R.TypstRenderer.render = orig_render
+        C.typst_lib.compile = orig_compile
     return project, rows
 
 
@@ -201,7 +201,7 @@ def bench_mermaid_resident(B, tmp, runs):
     project = os.path.join(tmp, "mermaid-resident")
     os.makedirs(project, exist_ok=True)
     md = os.path.join(project, "doc.md")
-    renderer = B.TypstRenderer(base_dir=project, typst_root=project)
+    renderer = R.TypstRenderer(base_dir=project, typst_root=project)
     times = []
     try:
         for i in range(runs):
@@ -275,8 +275,9 @@ def main():
 
     t = time.perf_counter()
     import text_compositor.build as B
+    from text_compositor import compiler as C, deps as D, project as P, renderer as R
     import_ms = ms(time.perf_counter() - t)
-    font_dir = B.ensure_fonts()
+    font_dir = D.ensure_fonts()
 
     result = {"import_ms": import_ms, "scenarios": {}}
     print(f"import text_compositor.build: {import_ms:.0f} ms\n")

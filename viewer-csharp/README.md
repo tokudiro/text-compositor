@@ -258,7 +258,7 @@ v0.3.0時点のmasterで動作を確認した。スパイクのままでは、�
 1. **モジュール名**: リポジトリ直下の`build.py`は、パッケージ化（#111）の後は`build()`関数だけを
    公開する薄いラッパーである。`TypstRenderer`は`text_compositor.build`にある。スパイクの
    `import build`は、`AttributeError: module 'build' has no attribute 'TypstRenderer'`になる。
-   `text_compositor.build`をimportするよう直した（`Program.cs`の`Py.Import("text_compositor.build")`）。
+   `text_compositor.build`をimportするよう直した（`Program.cs`の`Py.Import("text_compositor.build")`）。（#157で`build.py`を分割したあとは、`TypstRenderer`は`text_compositor.renderer`にあり、`Program.cs`も`Py.Import("text_compositor.renderer")`に直した。この変更は、.NETでのビルドと実行を、していない。）
 2. **同梱Pythonの`site-packages`**: 手作業で組み立てているため、`requirements.txt`に依存が
    増えても追従しない。今回は`platformdirs`が無く、`ModuleNotFoundError`になった。
    `dotnet build`は`python-embed/`を出力フォルダへコピーするため、再ビルドで更新される。

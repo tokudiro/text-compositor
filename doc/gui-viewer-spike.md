@@ -25,7 +25,7 @@ GUI版Markdown Viewerの本実装（[#165](https://github.com/tokudiro/text-comp
 
 v0.3.0時点のmasterで、両スパイクが動くことを確認した。ただし、そのままでは動かず、次の2点を直した。
 
-1. **モジュール名**: パッケージ化（#111）の後、リポジトリ直下の`build.py`は`build()`関数だけを公開する。`TypstRenderer`は`text_compositor.build`にある。`import build`を`import text_compositor.build`に直した。
+1. **モジュール名**: パッケージ化（#111）の後、リポジトリ直下の`build.py`は`build()`関数だけを公開する。`TypstRenderer`は`text_compositor.build`にある。`import build`を`import text_compositor.build`に直した。（#157で`build.py`を分割したあとは、`TypstRenderer`は`text_compositor.renderer`にある。）
 2. **同梱Pythonの`site-packages`**: 手作業で組み立てているため、`requirements.txt`に依存が増えても追従しない。今回は`platformdirs`が不足した。
 
 確認したのは`render()`の呼び出しまでで、Typstコンパイルは含まない。PDF生成までの確認は、[#167](https://github.com/tokudiro/text-compositor/issues/167)で行う。

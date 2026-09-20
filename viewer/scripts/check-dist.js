@@ -104,9 +104,9 @@ async function main() {
   }, 12000);
   // キャッシュがない環境（初めて使う人）: mermaid.min.js（約3.4 MB）を、組込版Pythonが、HTTPSで取得できること。
   // （キャッシュの場所は、環境変数ではなく、Windowsのフォルダ設定で決まるため、取得の処理を、直接呼んで確認する）
-  const fetchCheck = 'import hashlib, os, tempfile; from text_compositor import build\n'
-    + 'p = os.path.join(tempfile.mkdtemp(), "m.js"); build._download(build.MERMAID_JS_URL, p)\n'
-    + 'print(hashlib.sha256(open(p, "rb").read()).hexdigest() == build.MERMAID_JS_SHA256)';
+  const fetchCheck = 'import hashlib, os, tempfile; from text_compositor import deps\n'
+    + 'p = os.path.join(tempfile.mkdtemp(), "m.js"); deps._download(deps.MERMAID_JS_URL, p)\n'
+    + 'print(hashlib.sha256(open(p, "rb").read()).hexdigest() == deps.MERMAID_JS_SHA256)';
   const fetched = execFileSync(path.join(appDir, 'python-embed', 'python.exe'), ['-c', fetchCheck], {
     encoding: 'utf8', env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
       APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` } });
@@ -125,9 +125,9 @@ async function main() {
     check('2つのGraphvizの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
     console.log(`   初回の変換（Graphviz 2図、準備を含む）: ${state.status}`);
   }, 12000);
-  const vizFetchCheck = 'import hashlib, os, tempfile; from text_compositor import build\n'
-    + 'p = os.path.join(tempfile.mkdtemp(), "v.js"); build._download(build.VIZ_JS_URL, p)\n'
-    + 'print(hashlib.sha256(open(p, "rb").read()).hexdigest() == build.VIZ_JS_SHA256)';
+  const vizFetchCheck = 'import hashlib, os, tempfile; from text_compositor import deps\n'
+    + 'p = os.path.join(tempfile.mkdtemp(), "v.js"); deps._download(deps.VIZ_JS_URL, p)\n'
+    + 'print(hashlib.sha256(open(p, "rb").read()).hexdigest() == deps.VIZ_JS_SHA256)';
   const vizFetched = execFileSync(path.join(appDir, 'python-embed', 'python.exe'), ['-c', vizFetchCheck], {
     encoding: 'utf8', env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
       APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` } });
