@@ -126,6 +126,7 @@ class _TokenRenderer(RendererHTML):
             if token.map:
                 self.owner._block_line = self.owner._abs_line(token)  # 警告の行番号に使う（インラインは、直近のブロックで近似）
             if token.type == "inline":
+                self.owner._warn_unapplied_bold(token, self.owner._abs_line(token))
                 result += self.renderInline(token.children or [], options, env)
             elif token.type in self.rules:
                 result += self.rules[token.type](tokens, i, options, env)

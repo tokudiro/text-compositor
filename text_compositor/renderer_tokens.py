@@ -4,6 +4,7 @@
 """
 import re
 import sys
+from text_compositor.emphasis_lint import find_unapplied_bold, unapplied_bold_message
 from text_compositor.log import _error, _log_info, _warn
 
 
@@ -139,6 +140,7 @@ class TokenMixin:
             elif t.type == 'blockquote_close':
                 result.append(']\n\n')
             elif t.type == 'inline':
+                self._warn_unapplied_bold(t, self._line_of(t))
                 result.append(self.render_inline(t.children))
             # 【修正】ネストしたリストを階層のままインデント付きで出力する
             elif t.type in ['bullet_list_open', 'ordered_list_open']:
@@ -221,6 +223,12 @@ class TokenMixin:
         if t is not None and t.map:
             return t.map[0] + 1
         return self._block_line
+
+    def _warn_unapplied_bold(self, inline_token, first_line):
+        """効かずに、そのまま文字として残った太字（`**「重要」**です`など）を、警告する（#215）。PDFとHTML出力で共通。
+        first_line: 段落の1行目の、原稿での行（分からなければNone）。段落の中の行のずれは、ここで足す。"""
+        for offset, snippet in find_unapplied_bold(inline_token.children, inline_token.content):
+            self._warn_here(unapplied_bold_message(snippet), line=first_line + offset if first_line else None)
 
     def _warn_here(self, message, line=None):
         """現在処理中の原稿（current_file）の位置つきで警告を出す（Python APIの診断のfile/line、#167）。"""

@@ -187,6 +187,8 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * GitHub Wiki拡張: `[[用語]]`によるMarkdown内リンク記法。用語索引機能（[#47](https://github.com/tokudiro/text-compositor/issues/47)、**実装済み**。10章を参照）で利用する。
 * このスコープに含まれないもの: Obsidian固有の拡張（コールアウト・埋め込み・`==ハイライト==`等）。文字色指定（[#46](https://github.com/tokudiro/text-compositor/issues/46)、**実装済み**、10章）はGFM/GitHub Wikiどちらにも属さない例外として個別に採用した。それ以外のPandoc記法・生HTML全般は非対応のまま。
 
+**効かなかった太字の警告**（[#215](https://github.com/tokudiro/text-compositor/issues/215)、**実装済み**）: AIが書いたMarkdownでは、`これは**「重要」**です。`のように、`**`の内側の端が句読点・括弧で、外側に空白がない書き方が多い。CommonMarkの規則では、この`**`は、太字の開始・終了になれず、`**`が、そのまま本文に出る（エラーにならない）。そこで、パーサーの結果を調べ、`text`のトークンに`**...**`の対が残っているとき（＝太字が効かなかったとき）、警告する（`emphasis_lint.py`。PDF・HTML出力（Obunzu）で共通。行は、段落の中の行まで、原稿の行にする）。検出の対象は、`**`だけである。`__`は、識別子に現れやすく、誤検出が多いため、対象にしない。コードスパン・エスケープ（`\*\*`）・文字参照（`&ast;`）・開きの直後や閉じの直前が空白の`**`（`a ** b ** c`）は、対象外。本文は、直さない（`**`が、そのまま出る）。太字が入れ子に誤って解釈される場合（`**「A」**と**「B」**`）は、`**`が残らないため、検出できない。
+
 原稿は Marp 形式（`<!-- header: ... -->` ディレクティブ、`---` によるスライド区切り）で書かれている実績があるため、同一の Markdown が Marp でもこのツールでも通ることを要件とする。
 
 **方針の限界（意図的なスコープ）**: 「Marpでも通る」とは、Marp原稿を`chapters`にそのまま流し込んでもビルドが失敗したり不要な警告が出たりしない、という意味に限る。**インラインHTMLコメント形式のディレクティブ**（`<!-- header: X -->`等）や、`title`/`subtitle`/`author`/`date`といった一部front-matterキーの**値を実際に反映する**ことは要件にしていない（[#41](https://github.com/tokudiro/text-compositor/issues/41)）。Marpの`theme:`/`class:`/`backgroundColor:`やカスタムCSS等の見た目に関わる指定も`MARP_ONLY_KEYS`として同様に無視する。一方、front-matterの`header`/`footer`/`paginate`キー、および`config.yaml`の`chapters[].header`/`footer`/`paginate`は、ディレクティブとは別の仕組みとして値を反映する（[#42](https://github.com/tokudiro/text-compositor/issues/42)、10章）。
@@ -363,7 +365,7 @@ result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
 
 * **`Session.build(markdown_path, output_pdf=None, *, template="template", plugins=None, document=None, variables=None, config=None, keep_temp=False) -> BuildResult`**:
   * **設定は既定値で動く**: 単一のMarkdownを1章とするconfigを、メモリ上で組み立てる。`template`は同梱テンプレートの名前（`template`・`slide`・`paper`）か、Markdownの隣からの`.typ`ファイルのパス。`plugins`（例: `{"mermaid": False}`）・`document`（例: `{"toc": True}`）・`variables`は、config.yamlの同名の設定と同じ形式で上書きする。`config`は、config全体への上書きで、最後に重ねる（上級者向け）。
-  * **既定の`document`**: `title`はファイル名（拡張子なし）、`subtitle`・`author`・`date`は空、`toc`は`false`、`cover`は**`markdown`**（テンプレートの表紙を出さず、Markdownの先頭のH1もそのまま出す）。CLIの既定の`cover: none`は、先頭のタイトルを落とすため、プレビューには向かない。
+  * **既定の`document`**: `title`はファイル名（拡張子なし）、`subtitle`・`author`・`date`は空、`toc`は`false`、`cover`は **`markdown`** （テンプレートの表紙を出さず、Markdownの先頭のH1もそのまま出す）。CLIの既定の`cover: none`は、先頭のタイトルを落とすため、プレビューには向かない。
   * **出力先**: `output_pdf`を指定する。省略時は、原稿の隣の`.text-compositor/preview.pdf`。
   * **副作用**: 原稿の隣に、作業用の`.text-compositor/`（図表のキャッシュ・中間ファイル）を作る。`outputs/`は作らない。成功すると、中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`）は削除される。
   * **標準出力へは何も書かない**: ビルド中の標準出力への書き込みは、標準エラーへ回す。診断は、`BuildResult.diagnostics`で返す。
