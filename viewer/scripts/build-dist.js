@@ -154,10 +154,28 @@ function buildPythonEnvironment(appDir, embedZip) {
     recursive: true,
     filter: (source) => !source.includes('__pycache__'),
   });
+  writeDistInfo(sitePackages);
 
   // 起動を速くするため、バイトコードを作る（組込版のPython自身で）
   run(path.join(embed, 'python.exe'), ['-m', 'compileall', '-q', sitePackages]);
   return { embed, sitePackages };
+}
+
+/**
+ * 同梱した`text_compositor`に、最小の`dist-info`（パッケージのメタデータ）を作る（#235）。`text_compositor.__version__`は、
+ * `importlib.metadata.version("text-compositor")`で読むため、メタデータがないと、ワーカーが版を`0+unknown`と報告する。
+ * 版は、`pyproject.toml`から読む（`viewer/package.json`と同じ値にそろえる決まり。`tests/test_viewer_version.py`）。
+ * pipでリポジトリを入れる方法は、ビルド用のパッケージの取得に依存し、不要なファイルも入るため、採らない。
+ */
+function writeDistInfo(sitePackages) {
+  const pyproject = fs.readFileSync(path.join(repoDir, 'pyproject.toml'), 'utf8');
+  const version = (pyproject.match(/^version\s*=\s*"([^"]+)"/m) || [])[1];
+  if (!version) throw new Error('pyproject.tomlから、versionを読めませんでした。');
+  const info = path.join(sitePackages, `text_compositor-${version}.dist-info`);
+  fs.rmSync(info, { recursive: true, force: true });
+  fs.mkdirSync(info, { recursive: true });
+  fs.writeFileSync(path.join(info, 'METADATA'), `Metadata-Version: 2.1\nName: text-compositor\nVersion: ${version}\n`);
+  return info;
 }
 
 /**
@@ -222,6 +240,8 @@ function writeLicenses(appDir, embed, sitePackages, apacheText, extraRows = []) 
   for (const entry of fs.readdirSync(sitePackages).filter((name) => name.endsWith('.dist-info'))) {
     const info = path.join(sitePackages, entry);
     const meta = readMetadata(info);
+    // 自分自身（writeDistInfoが作った、最小のメタデータ）は、下の`Obunzu / text-compositor`の行と、二重にしない（#235）
+    if (meta.name === 'text-compositor') continue;
     const files = [];
     for (const candidate of [info, path.join(info, 'licenses')]) {
       if (!fs.existsSync(candidate)) continue;
