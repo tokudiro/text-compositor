@@ -11,16 +11,16 @@ license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
     "typst==0.15.0",
-    "markdown-it-py==3.0.0",
+    "markdown-it-py==4.2.0",
     "mdit-py-plugins==0.6.1",
-    "PyYAML==6.0.2",
-    "platformdirs==4.3.6",
+    "PyYAML==6.0.3",
+    "platformdirs==4.11.9",
 ]
 
 # plugins.mermaid: true（既定）を使う場合のみ必要（11章）。
 # `pip install text-compositor[mermaid]` でまとめて導入できる。
 [project.optional-dependencies]
-mermaid = ["playwright==1.62.0"]
+mermaid = ["playwright==1.63.0"]
 
 [project.urls]
 Repository = "https://github.com/tokudiro/text-compositor"
