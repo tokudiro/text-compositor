@@ -9,37 +9,9 @@ from text_compositor.document import COMMON_TEMPLATE_NAME
 from text_compositor.env_check import _check_typst_env
 from text_compositor.log import _error, _hint, _log_info, _log_success, _warn
 from text_compositor.renderer import TypstRenderer
+from text_compositor.typst_runtime import TYPST_PACKAGES_ENV, typst_lib, typst_package_options  # noqa: F401（テスト・ベンチマークが、ここから参照する）
 
-# PyPIの typst パッケージ(typst-py)はコンパイラ本体をプラットフォーム別ホイールに同梱しているため、
-# tools/typst.exe のような実行バイナリをリポジトリに持たずに済む（pipがOSごとに正しい版を入れてくれる）。
-# PDFを作るとき（Typstのコンパイル）にだけ必要なため、初めて使うときに読み込む（#168）。HTML出力（render_html）と、
-# それを使うViewerは、typstを入れなくても動く。
-
-
-class _LazyTypst:
-    """`typst`モジュールの代わり。属性に初めて触れたときに、importする。"""
-
-    def __getattr__(self, name):
-        try:
-            import typst
-        except ImportError as e:
-            raise ImportError("The 'typst' package is required to build PDFs (pip install typst==0.15.0). "
-                              "It is not needed for HTML output.") from e
-        return getattr(typst, name)
-
-
-typst_lib = _LazyTypst()
-
-# 呼び出し元が、同梱したTypstのパッケージ（`preview/<名前>/<版>/`の形）のフォルダを教える環境変数（#263）。ViewerのZIPは、
-# テンプレートが使うパッケージを同梱しており、Electronが、この変数で、ワーカーに教える。あれば、`package_cache_path`に
-# 渡し、初回のダウンロードなしで、`@preview/...`のimportが解決できる。CLIは、この変数を使わない（従来どおり、取得して、キャッシュする）。
-TYPST_PACKAGES_ENV = "TEXT_COMPOSITOR_TYPST_PACKAGES"
-
-
-def typst_package_options():
-    """`typst.compile`・`typst.Compiler`に渡す、パッケージの置き場所の引数。環境変数が、存在するフォルダを指すときだけ、値がある。"""
-    path = os.environ.get(TYPST_PACKAGES_ENV)
-    return {"package_cache_path": path} if path and os.path.isdir(path) else {}
+# `typst`の遅延読み込みと、同梱パッケージの置き場所は、typst_runtime.py（HTML出力のGraphvizと共有。#264）。
 
 # TypstRenderer._emit_srcmapが生成コードへ挿し込む目印行（`// @srcmap {mdファイル}:{md行番号}`）
 # を検出する正規表現（#27）。ファイルパス自体にコロンを含みうる（Windowsの絶対パス`C:\...`）ため、

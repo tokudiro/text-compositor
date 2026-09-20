@@ -9,7 +9,7 @@ import zipfile
 
 import pytest
 
-from text_compositor.deps import DOWNLOAD_ATTEMPTS, VIZ_JS_URL, VIZ_JS_VERSION, _download, ensure_fonts, ensure_mermaid_js, ensure_viz_js
+from text_compositor.deps import DOWNLOAD_ATTEMPTS, _download, ensure_fonts, ensure_mermaid_js
 import text_compositor.deps as deps_mod
 import time
 import urllib.request
@@ -185,32 +185,6 @@ class TestOtherDownloads:
         monkeypatch.setattr(urllib.request, "urlretrieve", flaky)
         path = ensure_mermaid_js()
         assert open(path, "rb").read() == content
-
-    def test_viz_js_is_verified_by_checksum_and_only_a_verified_file_is_kept(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
-        monkeypatch.setattr(time, "sleep", lambda seconds: None)
-
-        def fetch(content):
-            def retrieve(url, filename):
-                with open(filename, "wb") as f:
-                    f.write(content)
-            return retrieve
-
-        monkeypatch.setattr(deps_mod, "VIZ_JS_SHA256", hashlib.sha256(b"viz-bundle").hexdigest())
-        monkeypatch.setattr(urllib.request, "urlretrieve", fetch(b"tampered"))
-        with pytest.raises(SystemExit):
-            ensure_viz_js()
-        assert list((tmp_path / "cache" / "viz").iterdir()) == []   # 検証に通らなければ、何も残らない
-
-        monkeypatch.setattr(urllib.request, "urlretrieve", fetch(b"viz-bundle"))
-        path = ensure_viz_js()
-        assert open(path, "rb").read() == b"viz-bundle"
-        # 取得済みなら、ネットワークを使わない
-        monkeypatch.setattr(urllib.request, "urlretrieve", lambda *a: pytest.fail("downloaded again"))
-        assert ensure_viz_js() == path
-
-    def test_the_pinned_viz_js_url_names_the_pinned_version(self):
-        assert f"@viz-js/viz@{VIZ_JS_VERSION}/" in VIZ_JS_URL
 
     def test_plantuml_jar_cached_by_an_older_version_is_not_reused(self, tmp_path, monkeypatch):
         """版を上げたとき、取得済みの古いjar（固定名plantuml-mit.jar）が使われ続けると、修正が届かない（#240）。"""

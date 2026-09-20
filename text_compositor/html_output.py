@@ -24,7 +24,7 @@ from markdown_it.renderer import RendererHTML
 from markdown_it.utils import OptionsDict
 
 from text_compositor import diagnostics
-from text_compositor import host_renderers
+from text_compositor import graphviz_render
 from text_compositor.renderer import TypstRenderer
 
 # CSSに、そのまま書いてよい値だけを通す（原稿の値が、CSSの構文を壊したり、別の宣言を足したりしないように）。
@@ -37,7 +37,7 @@ PAGE_ONLY_KEYS = ('paper_size', 'landscape', 'header', 'footer', 'paginate', 'fo
 
 ALERT_TITLES = {'note': 'Note', 'tip': 'Tip', 'important': 'Important', 'warning': 'Warning', 'caution': 'Caution'}
 
-# 図として表示するフェンスの言語。dot・graphvizは、ViewerのElectron上でだけ描画できる（#181。それ以外は、コード表示と警告）。
+# 図として表示するフェンスの言語。dot・graphvizは、Typstのdiagraphで描く（#264。PDFと同じ経路）。
 _DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'svg', 'dot', 'graphviz')
 _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
@@ -349,7 +349,7 @@ class HtmlRenderer(TypstRenderer):
 
     def _diagram_source_html(self, kind: str, code: str) -> str:
         """図の単体ファイル（.mmd・.puml・.d2）の中身を、図1つのページにする。"""
-        return self._fenced_html(kind, code, None, None)
+        return self._fenced_html(kind, code, None, None, code_line=1)
 
     # -- Markdown -----------------------------------------------------------
 
@@ -398,21 +398,23 @@ class HtmlRenderer(TypstRenderer):
         if info == 'typst-exec':
             lang = 'typst-exec'
         width, height = self._parse_size_attrs(attrs)
-        return self._fenced_html(lang, t.content, width, height, line=self._abs_line(t))
+        line = self._abs_line(t)
+        return self._fenced_html(lang, t.content, width, height, line=line, code_line=line + 1 if line else None)
 
-    def _fenced_html(self, lang: str, code: str, width, height, line=None) -> str:
-        """フェンス1つ分。図は`<img>`に、それ以外（未対応・無効な図を含む）は、コードブロックにする。"""
+    def _fenced_html(self, lang: str, code: str, width, height, line=None, code_line=None) -> str:
+        """フェンス1つ分。図は`<img>`に、それ以外（未対応・無効な図を含む）は、コードブロックにする。
+        code_line: コードの1行目の、原稿での行（Graphvizの警告・エラーを、原稿の行にするため。分からなければ、None）。"""
         if lang in _DIAGRAM_LANGS:
-            svg_path = self._diagram_svg_path(lang, code, line)
+            svg_path = self._diagram_svg_path(lang, code, line, code_line)
             if svg_path is not None:
                 return self._diagram_html(lang, svg_path, width, height)
         elif lang in _UNSUPPORTED_FENCES:
             self._warn_line(f"{_UNSUPPORTED_FENCES[lang]}; showing the source as a code block.", line)
         return self._code_block(code, lang)
 
-    def _diagram_svg_path(self, lang: str, code: str, line=None) -> Optional[str]:
+    def _diagram_svg_path(self, lang: str, code: str, line=None, code_line=None) -> Optional[str]:
         """図のSVGファイルのパス。無効なプラグインの図は、Noneを返す（呼び出し側が、コード表示にする）。
-        line: 描画に失敗したとき、診断に付ける、原稿でのフェンスの行。"""
+        line: 描画に失敗したとき、診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。"""
         if lang == 'mermaid':
             return self._mermaid_svg_path(code, line)
         if lang == 'plantuml':
@@ -422,12 +424,22 @@ class HtmlRenderer(TypstRenderer):
         if lang in ('dot', 'graphviz'):
             if not self.graphviz_enabled:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
-            if host_renderers._graphviz_host_renderer is None:
-                # Graphvizは、Electron（Viewer）のChromiumで描く。Viewer以外（CLI・ライブラリ）では、描画する手段がない
-                self._warn_line("Graphviz can only be rendered in the Obunzu Viewer; showing the source as a code block.", line)
-                return None
-            return self._graphviz_svg_path(code, line)
+            # diagraphで描けない記法は、エラーにならず、黙って見た目が変わるため、警告する（#264）
+            self._warn_graphviz_limits(code, code_line, line)
+            return self._graphviz_svg_path(code, line, code_line)
         return self._svg_fence_path(code)
+
+    def _warn_graphviz_limits(self, code: str, code_line, line=None) -> None:
+        """diagraphで描けない記法（record・図全体のlabel）を、警告にする。エラーにならず、黙って見た目が変わるため（#264）。
+        キャッシュの有無にかかわらず、変換のたびに出す。"""
+        for kind, dot_line in graphviz_render.find_unsupported(code):
+            at = code_line + dot_line - 1 if code_line else line
+            if kind == 'record':
+                self._warn_line("Graphviz: shape=record/Mrecord is not supported by diagraph; the record syntax is drawn as plain text "
+                                "in a single box. Use an HTML-like label or separate nodes instead.", at)
+            else:
+                self._warn_line("Graphviz: the graph-level label (and labelloc) is not drawn by diagraph. "
+                                "Put the title in the Markdown text, or use a cluster label.", at)
 
     def _diagram_html(self, lang: str, svg_path: str, width, height) -> str:
         return (f'<div class="diagram diagram-{lang}"><img src="{escapeHtml(self._url_for(svg_path))}" '

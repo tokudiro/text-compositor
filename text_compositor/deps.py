@@ -1,4 +1,4 @@
-"""外部ツールと取得物（フォント・Mermaid・Viz.js・JRE・PlantUML・D2）の、検出・ダウンロード・キャッシュ。"""
+"""外部ツールと取得物（フォント・Mermaid・JRE・PlantUML・D2）の、検出・ダウンロード・キャッシュ。"""
 import os
 import re
 import sys
@@ -228,40 +228,6 @@ def ensure_mermaid_js():
         _error(f"Checksum mismatch for mermaid.min.js: expected {MERMAID_JS_SHA256}, got {digest}")
         sys.exit(1)
 
-    return js_path
-
-# Graphvizは、Viz.js（MIT。Graphvizを、WebAssemblyにしたもの。Graphviz本体はEPL-2.0、ExpatはMIT）の
-# 単一ファイルだけを取得し、ViewerのElectronのChromiumで描画する（#181）。mermaid.min.jsと同様に、
-# バージョン・SHA256を固定し、初回にだけダウンロードして、キャッシュする。同梱は、しない。
-VIZ_JS_VERSION = "3.30.0"
-VIZ_JS_URL = f"https://cdn.jsdelivr.net/npm/@viz-js/viz@{VIZ_JS_VERSION}/dist/viz-global.js"
-VIZ_JS_SHA256 = "c857641af952c8f82ac7243917f8563959046e5cfc44d7e84eff9a2b470f5eab"
-# ホスト側（viewer/src/graphviz-host.js）が行う、文字幅の補正の版。補正の方法を変えたら、上げる（キャッシュの無効化）。
-GRAPHVIZ_FIT_REVISION = 1
-
-def ensure_viz_js():
-    """viz-global.jsがユーザーキャッシュディレクトリの viz/ になければダウンロードする（ensure_mermaid_jsと同じ）。"""
-    cache_dir = os.path.join(_user_cache_dir(), "viz")
-    os.makedirs(cache_dir, exist_ok=True)
-    js_path = os.path.join(cache_dir, f"viz-global-{VIZ_JS_VERSION}.js")
-    if os.path.exists(js_path):
-        return js_path
-
-    _log_info(f"Downloading viz-global.js (one-time; cached under {cache_dir})...")
-    tmp_path = js_path + ".download"
-    try:
-        _download(VIZ_JS_URL, tmp_path)
-    except OSError as e:
-        _error(f"Failed to download viz-global.js: {e}")
-        sys.exit(1)
-
-    with open(tmp_path, "rb") as f:
-        digest = hashlib.sha256(f.read()).hexdigest()
-    if digest != VIZ_JS_SHA256:
-        os.remove(tmp_path)
-        _error(f"Checksum mismatch for viz-global.js: expected {VIZ_JS_SHA256}, got {digest}")
-        sys.exit(1)
-    os.replace(tmp_path, js_path)   # 検証に通ったものだけを、正式な名前にする
     return js_path
 
 # ローカルにJava 11+が見つからない場合のみ取得するEclipse Temurin JRE（Adoptium配布、

@@ -1,6 +1,6 @@
 name: Check pinned versions
 
-# コードに直接書いた部品の版（Mermaid・Viz.js・PlantUML・D2・JRE・組込版Python・Typstのパッケージ・フォント）を、
+# コードに直接書いた部品の版（Mermaid・PlantUML・D2・JRE・組込版Python・Typstのパッケージ・フォント）を、
 # 週次で、上流の最新版と比べる（#240）。Dependabotは、これらを見られない。
 # 差があれば、issue「同梱した部品の更新確認（自動）」を1つ作る（すでにあれば、本文を更新する）。
 # すべて最新になったら、そのissueを閉じる。
