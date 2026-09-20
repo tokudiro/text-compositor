@@ -7,7 +7,7 @@ import re
 import sys
 import subprocess
 import hashlib
-from text_compositor import graphviz_render, host_renderers, pikchr_render
+from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
@@ -58,6 +58,8 @@ class DiagramMixin:
             return self._render_d2(code, width, height)
         elif lang == 'pikchr':
             return self._render_pikchr(code, width, height)
+        elif lang in cetz_render.KINDS:
+            return self._render_figure(lang, code, width, height)
         return self._render_graphviz(lang, code, width, height)
 
     def _render_diagram_or_image_match(self, m):
@@ -92,6 +94,23 @@ class DiagramMixin:
                 '  if not out.trim().starts-with("<svg") { panic("Pikchr error: " + out) }\n'
                 f'  {body}\n'
                 '}]\n\n')
+
+    def _render_figure(self, kind, code, width=None, height=None):
+        """```cetz・```fletcherフェンスの内容を、Typstのcetz・fletcherで描くコードへ変換する（#236）。
+        原稿のコードは、`eval`へ文字列として渡し、ファイルを読む関数と`import`・`include`を禁じる（cetz_render.pyの先頭を参照）。
+        `import`・`include`は、生成の前に検出して、Fail-fastでエラーにする。
+        plugins.cetz・plugins.fletcher: falseなら、素のコード表示にする。
+        テンプレートの補助関数にしない（`_render_pikchr`と同じ理由: カスタムテンプレートを壊さないため）。"""
+        if not self.figure_enabled[kind]:
+            return self._render_raw_text(code, kind)
+        try:
+            cetz_render.check_code(code)
+        except cetz_render.FigureCodeError as e:
+            # 直近のブロック（このフェンス）の開始行に、コードの中の行を足す。layoutの中など、分からなければ、行なし
+            at = self._block_line + e.code_line if (self._block_line and e.code_line) else None
+            self._diagram_error(cetz_render.LABELS[kind], str(e), at)
+            sys.exit(1)
+        return cetz_render.pdf_source(kind, code, width, height)
 
     def _diagram_error(self, tool, output, line=None):
         """図の描画の失敗を、エラーとして出す（呼び出し側が、sys.exitで止める）。
@@ -269,6 +288,39 @@ class DiagramMixin:
                 f.write(svg)
         else:
             _log_verbose(f"Reusing cached Pikchr diagram: {os.path.basename(svg_path)}")
+        return svg_path
+
+    def _figure_svg_path(self, kind, code, line=None, code_line=None):
+        """CeTZ・Fletcherの図のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージで作る（#236）。PDFと同じ経路。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。
+        Typstのエラーは、`eval`の中の位置を含まないため、行は、`import`・`include`の検出（コードの中の行が分かる）を除き、フェンスの行にする。"""
+        label = cetz_render.LABELS[kind]
+        try:
+            version = cetz_render.cache_version(kind)
+        except ImportError as e:   # typstが入っていない（HTML出力のCeTZ・Fletcherは、Typstを通す）
+            self._diagram_error(label, str(e), line)
+            sys.exit(1)
+        svg_path, _ = self._diagram_cache_path(kind, version, code)
+
+        if not os.path.exists(svg_path):
+            _log_info(f"Rendering {label} diagram via Typst -> {os.path.basename(svg_path)}")
+            try:
+                svg = cetz_render.render_svg(kind, code)
+            except cetz_render.FigureCodeError as e:
+                at = code_line + e.code_line - 1 if (code_line and e.code_line) else line
+                self._diagram_error(label, str(e), at)
+                sys.exit(1)
+            except cetz_render.FigureRenderError as e:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
+                self._diagram_error(label, str(e), line)
+                sys.exit(1)
+            except Exception as e:   # typstの読み込みの失敗など
+                self._diagram_error(label, f"{type(e).__name__}: {e}", line)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached {label} diagram: {os.path.basename(svg_path)}")
         return svg_path
 
     def _ensure_plantuml_tools(self):

@@ -87,7 +87,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
-                 mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True):
+                 mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
+                 cetz_enabled=True, fletcher_enabled=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
@@ -96,6 +97,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         self.graphviz_enabled = graphviz_enabled
         # plugins.pikchr（既定true。#213）。falseなら、```pikchrフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
         self.pikchr_enabled = pikchr_enabled
+        # plugins.cetz・plugins.fletcher（既定true。#236）。falseなら、そのフェンスを、素のコード表示にする。
+        self.figure_enabled = {'cetz': cetz_enabled, 'fletcher': fletcher_enabled}
         # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
         # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
         self.csv_header_default = csv_header

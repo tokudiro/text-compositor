@@ -309,6 +309,8 @@ class Session:
                     d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
                     graphviz_enabled=bool(plugins_config.get("graphviz", True)),
                     pikchr_enabled=bool(plugins_config.get("pikchr", True)),
+                    cetz_enabled=bool(plugins_config.get("cetz", True)),
+                    fletcher_enabled=bool(plugins_config.get("fletcher", True)),
                     variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header, cache_dir=cache_dir)
                 document = renderer.render_file(md_path, out_html)
