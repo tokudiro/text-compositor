@@ -211,3 +211,21 @@ class TestOtherDownloads:
 
     def test_the_pinned_viz_js_url_names_the_pinned_version(self):
         assert f"@viz-js/viz@{VIZ_JS_VERSION}/" in VIZ_JS_URL
+
+    def test_plantuml_jar_cached_by_an_older_version_is_not_reused(self, tmp_path, monkeypatch):
+        """版を上げたとき、取得済みの古いjar（固定名plantuml-mit.jar）が使われ続けると、修正が届かない（#240）。"""
+        cache = tmp_path / "cache"
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(cache))
+        monkeypatch.setattr(time, "sleep", lambda seconds: None)
+        (cache / "plantuml").mkdir(parents=True)
+        (cache / "plantuml" / "plantuml-mit.jar").write_bytes(b"old-version")
+
+        def retrieve(url, filename):
+            with open(filename, "wb") as f:
+                f.write(b"new-version")
+
+        monkeypatch.setattr(deps_mod, "PLANTUML_JAR_SHA256", hashlib.sha256(b"new-version").hexdigest())
+        monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
+        path = deps_mod.ensure_plantuml_jar()
+        assert open(path, "rb").read() == b"new-version"
+        assert os.path.basename(path) == os.path.basename(deps_mod.PLANTUML_JAR_URL)
