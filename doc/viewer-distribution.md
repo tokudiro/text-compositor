@@ -39,13 +39,13 @@ Obunzu-0.3.6-win-x64/
 
 ### Typstを通す処理のための同梱（#263。#237で決めた）
 
-- **なぜ同梱するか**: Typstを通す図・機能（Graphviz・Pikchr・CeTZ・数式など。[#237](https://github.com/tokudiro/text-compositor/issues/237)）を、Obunzuでも、PDFと同じ経路で扱えるようにするため。ツール群の方針3（配布物に、可能な限り、全部入り）に沿って、ネットワークなしで動くようにする。この段階では、同梱だけで、Typstを通す機能は、まだ加えていない。
+- **なぜ同梱するか**: Typstを通す図・機能（Graphviz・Pikchr・CeTZ・数式など。[#237](https://github.com/tokudiro/text-compositor/issues/237)）を、Obunzuでも、PDFと同じ経路で扱えるようにするため。ツール群の方針3（配布物に、可能な限り、全部入り）に沿って、ネットワークなしで動くようにする。Typstを通す機能は、Graphvizが最初である（[#264](https://github.com/tokudiro/text-compositor/issues/264)。下の「Graphvizについて」）。Pikchr・CeTZ・数式は、まだ加えていない。
 - **フォント**: `fonts/`に、Noto Sans JP（RegularとBold。CLIと同じ版・SHA256）と、そのライセンス（OFL-1.1）。Typstは、`ignore_system_fonts=True`と`font_paths`で、このフォントだけを使う（CLIのPDFと同じ見た目）。
 - **パッケージ**: `typst-packages/preview/<名前>/<版>/`に、**実際に使う版だけ**（`text_compositor/templates/_common.typ`が`@preview/...`で読む版）。Typstの`package_cache_path`で指すため、初回のダウンロードは要らない。CeTZ（LGPL-3.0以降）は、同梱していない（[#236](https://github.com/tokudiro/text-compositor/issues/236)で判断する）。
 - **ワーカーへの伝え方**: Electronが、ワーカーを起動するとき、`fonts/`と`typst-packages/`があれば、環境変数`TEXT_COMPOSITOR_FONT_DIR`・`TEXT_COMPOSITOR_TYPST_PACKAGES`で教える（`viewer/src/python.js`）。ワーカー（Python）は、`ensure_fonts()`が、そのフォルダのフォントを使い（ダウンロードしない）、Typstのコンパイルが、そのフォルダを`package_cache_path`に渡す。CLIは、この環境変数を使わず、従来どおり（取得して、キャッシュ）。
 - **ライセンス**: `typst`（Apache-2.0）は、Pythonのパッケージのライセンスとして、`licenses/`に入る。Noto Sans JPは`fonts/LICENSE`、Typstのパッケージは、それぞれのフォルダの`LICENSE`（MIT）。`licenses/THIRD-PARTY-NOTICES.md`が、一覧にする。
 - **確認**（`check-dist.js`）: 使い捨ての空のユーザーフォルダと、遮断したネットワーク（使えないプロキシ）で、同梱の`typst`が、同梱のフォントとパッケージだけで、`diagraph`と`note-me`と日本語を使った文書を、コンパイルできる。対照として、パッケージのフォルダを教えないと、同じ環境で失敗する（ユーザーのキャッシュに頼っていない証拠）。`check-embed-dependencies.py`は、`typst`の拡張モジュール（`_typst.pyd`）も調べる（Windows標準の`bcryptprimitives.dll`・`combase.dll`・`secur32.dll`を、許可リストに加えた）。
-- **`typst`の`import`**: `build.py`は、`typst`を、初めて使うとき（Typstのコンパイル）に、`import`する（`_LazyTypst`。#168）。そのため、HTML出力（`render_html`）は、`typst`を`import`しない（起動が速い）。pipで入れる場合の、`typst`なしでもHTML出力が動くこと（`tests/test_distribution.py`）は、変わらない。
+- **`typst`の`import`**: `build.py`は、`typst`を、初めて使うとき（Typstのコンパイル）に、`import`する（`_LazyTypst`。#168。今は`typst_runtime.py`）。そのため、Graphvizを含まないHTML出力は、`typst`を`import`しない（起動が速い）。Graphvizは、Typstの`diagraph`で描くため（#264）、`typst`が要る。pipで入れる場合も、`typst`は必須の依存である。`typst`なしで、Graphviz以外のHTML出力が動くこと（`tests/test_distribution.py`）は、変わらない。
 - 配布物の依存は、`viewer/dist-requirements.txt`に、版を固定して書く。`pyproject.toml`の依存と、ずれていないことを、テストで確認する。フォントとパッケージの版が、ツール本体（`deps.py`・テンプレート）と、ずれていないことも、テストで確認する（`tests/test_bundled_typst_assets.py`）。
 
 ## 同梱しないもの（必要になったときに、取得・案内する）
@@ -58,7 +58,6 @@ Obunzu-0.3.6-win-x64/
 | Java（Eclipse Temurin JRE 21） | `plantuml`の図。システムにJava 11以上があれば、それを使う | 約49.0 MB（取得）、展開後 約144.5 MB | GitHub Releases（`adoptium/temurin21-binaries`） |
 | D2のCLI（v0.9.0） | `d2`の図。システムに`d2`があれば、それを使う | 約13 MB（取得）、展開後 約40.8 MB | GitHub Releases（`d2lang/d2`） |
 | `mermaid.min.js` | `mermaid`の図（取得は、組込版Python。描画は、Electron） | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
-| `viz-global.js`（Viz.js） | `dot`・`graphviz`の図（取得は、組込版Python。描画は、Electron。[#181](https://github.com/tokudiro/text-compositor/issues/181)） | 約1.3 MB | jsDelivr（npm `@viz-js/viz@3.30.0`） |
 
 サイズは、`build.py`の記載と、実際にキャッシュされたファイルの実測による。PlantUMLとD2は、初回の描画で、取得のために、数秒〜数十秒かかる（回線による）。
 
@@ -78,16 +77,20 @@ Obunzu-0.3.6-win-x64/
 - **配布物での確認**: `check-dist.js`が、`playwright`もシステムのブラウザもない配布物で、2つのMermaidの図が表示されること、構文エラーが原稿の行つきで帯・一覧に出ること、組込版Pythonが、HTTPSで`mermaid.min.js`を取得できること（SHA256が一致）を、確認する。
 - **Electronの外**（CLI・Python API）は、従来どおり、`playwright`を使う（環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`でワーカーを起動したときだけ、Electronに任せる）。
 - **配色**は、従来と同じ設定（`htmlLabels: false`。Mermaidの既定のテーマ）にした。そのため、ダークの文書では、図の線・矢印・ラベルが、暗い背景に溶けて、読みにくい（従来から同じ。#207の確認で気づき、[#209](https://github.com/tokudiro/text-compositor/issues/209)にした）。
-### Graphvizについて（Electronで描画する。#181）
 
-**Graphvizも、Electron自身のChromiumで描画する**。システムの`dot`は、要らない。仕組みは、Mermaidと同じ（ワーカーが、標準出力で依頼し、Electronが、非表示のウィンドウで、Viz.js（GraphvizのWebAssembly版）を動かして、SVGを返す）。
+### Graphvizについて（同梱のtypstと`diagraph`で描く。#264）
 
-- **取得**: `viz-global.js`は、初回に、jsDelivrから取得し、SHA256で確認して、ユーザーのキャッシュ（`%LOCALAPPDATA%\text-compositor\Cache\viz\`）に置く。同梱しないため、配布物の大きさは、変わらない。
-- **速さ**（実測。開発機。GPUなし）: 描画用のウィンドウの準備（`viz-global.js`の読み込みを含む）は、約0.2〜0.3秒（最初の図で、1回だけ）。Viz.jsのインスタンスの作成は、約12 ms。描画は、1〜11 ms。
-- **日本語の文字幅の補正**: Graphvizは、文字の幅を、内蔵の見積もり（Times系）で計算するため、日本語の長いラベルが、箱からはみ出す（20文字で、約2割）。Electronは、描いたSVGを、実際のフォントで測り、はみ出したノードだけに`width=`を足して、1回だけ描き直す（仕様書14章）。`record`形・HTMLラベル・多重の枠は、対象外。
-- **ライセンス**: Viz.jsは、MIT。中に含まれる、Graphvizは、EPL-2.0、Expatは、MIT。改変せずに、そのまま使い、同梱もしない（`THIRD-PARTY-NOTICES.md`の「初回に取得するもの」に、記載する）。
-- **Electronの外**（CLI・Python API）は、Graphvizを描かず、コードブロックと警告にする（PDF出力は、従来どおり、Typst側の`diagraph`）。
-- **PDFとの違い**: レイアウトエンジンが、PDF出力（`diagraph`）と、Viz.jsとで、違う。同じDOTでも、配置や線の形が、少し違う場合がある。
+**Graphvizは、Typstのパッケージ`diagraph`で描く**。PDFと同じ経路のため、Obunzu・PDF・CLI（Python API）で、同じ図になる。システムの`dot`は、要らない。以前は、Electronの非表示のウィンドウで、Viz.js（GraphvizのWebAssembly版。約1.3 MB。初回に取得）を動かしていた（[#181](https://github.com/tokudiro/text-compositor/issues/181)）。
+
+- **仕組み**: ワーカー（Python）が、同梱の`typst`で、`diagraph`を実行して、SVGにする（`text_compositor/graphviz_render.py`）。Electronには、依頼しない（`render_graphviz`のイベントは、ない）。`typst.Compiler`は、ワーカーの間、使い回す。フォントとパッケージは、同梱の`fonts/`・`typst-packages/`を使うため、ネットワークは要らない。
+- **取得**: なし。Viz.jsの取得（`viz-global.js`）は、なくなった。配布物の大きさも、変わらない（`typst`・フォント・`diagraph`は、#263で同梱済み）。
+- **速さ**（実測。開発機。[#264](https://github.com/tokudiro/text-compositor/issues/264)）: `Compiler`の準備は、最初の1回だけ約40〜60 ms。図1つは、14〜29 ms（25ノード・約40辺で59 ms）。実アプリで、Graphvizの単体ファイルを開いてから、表示までは、約120〜170 ms（`check-open-files.js`）。
+- **日本語のラベル**: 箱の幅が、文字に合う。文字幅の補正の処理（`viewer/src/graphviz-host.js`）は、要らなくなり、削除した。
+- **SVGの扱い**: 文字は、輪郭（`<use>`）で、フォントに依存しない。ライト・ダークの両方で、`<img>`として表示できる（ダーク配色の反転も、効く。#209）。大きさは、`pt`。
+- **ライセンス**: `diagraph`は、MIT。`typst-packages/`に、`LICENSE`つきで同梱している（#263）。Viz.js・Graphviz・Expatの表記は、`THIRD-PARTY-NOTICES.md`の「初回に取得するもの」から、外した。
+- **制限**: `diagraph`は、Graphvizの一部の記法を、描けない（`shape=record`・`Mrecord`、図全体の`label`、HTMLラベルのはみ出し、ラテン文字のノード名の字体）。PDFも同じ。`record`と図全体の`label`は、警告する（仕様書14章。使い方は、`doc/usage/08_diagrams.md`）。
+- **構文エラー**: `diagraph`の`Diagraph error: syntax error in line N`を、原稿の行（フェンスの開始行＋N）にして、診断にする。Viz.jsより、位置の情報が、少ない。
+- **環境変数`TEXT_COMPOSITOR_MERMAID_HOST`**: Mermaidだけの意味になった（Graphvizは、Electronに任せない）。名前は、互換のため、据え置いた。
 
 ## ライセンス表記
 
@@ -124,7 +127,7 @@ node scripts/check-dist.js
 - ワーカーが、同梱の`python-embed/python.exe`で動いている。
 - 日本語のフォルダ名・ファイル名の原稿が、表示できる。
 - Mermaidの図が、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`mermaid.min.js`を取得できる。
-- Graphviz（`dot`・`graphviz`）の図が、システムのGraphvizなしで、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`viz-global.js`を取得できる。
+- Graphviz（`dot`・`graphviz`）の図が、システムのGraphvizなしで、同梱の`typst`と`diagraph`で描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る（ネットワークは、使わない）。
 
 実測（2026-09-19、開発機）: すべて成功。起動（プロセスの開始から、文書の表示まで）は、5回で、0.82〜0.90秒。開発時（`npm start`）の0.86秒と、同じ範囲である。
 
@@ -195,7 +198,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 | PyPIのパッケージ（`pyproject.toml`・`requirements*.txt`・`viewer/dist-requirements.txt`） | Dependabot（1つのPRにまとめる） | PR |
 | GitHub Actions | Dependabot | PR |
 | 既知の脆弱性 | Dependabotのアラート・セキュリティ更新（リポジトリの設定で有効） | アラート・PR |
-| コードに直接書いた版（Mermaid・Viz.js・PlantUML・D2・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「同梱した部品の更新確認（自動）」（差があるときだけ。すべて最新になると、自動で閉じる） |
+| コードに直接書いた版（Mermaid・PlantUML・D2・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「同梱した部品の更新確認（自動）」（差があるときだけ。すべて最新になると、自動で閉じる） |
 
 - `check-pins.py`は、固定した版を、`text_compositor/deps.py`・`viewer/scripts/build-dist.js`・`text_compositor/templates/_common.typ`から、読み取る。読み取れなかったときは、ワークフローが失敗する（ソースの書き方を変えて、確認が空振りになるのを防ぐ。`tests/test_check_pins.py`が、読み取りを確かめる）。
 - 上流の最新版を取得できなかった部品は、報告に「確認できず」と書き、差には数えない。

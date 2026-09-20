@@ -30,10 +30,9 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
   プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
 図の描画の依頼（ワーカーから、呼び出し元へ）。環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`で起動されたときだけ、
 Mermaidの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207）に描画してもらう。
-同時に、Graphvizの図（HTML出力のみ）も、呼び出し元に描画してもらう（#181。この経路がなければ、Graphvizは、コード表示）。
+（Graphvizは、呼び出し元に任せず、ワーカーが、Typstのdiagraphで描く。#264）
 依頼（`build`・`render_html`）の処理中に、標準出力へ、1行のイベントを出し、標準入力で、応答を1行待つ。
   ワーカー → 呼び出し元: {"event": "render_mermaid", "callback": <番号>, "diagram_id": ..., "code": "...", "js": "<mermaid.min.jsのパス>"}
-                         {"event": "render_graphviz", "callback": <番号>, "diagram_id": ..., "code": "...", "js": "<viz-global.jsのパス>"}
   呼び出し元 → ワーカー: {"callback": <同じ番号>, "ok": true, "svg": "..."} または {"callback": <同じ番号>, "ok": false, "error": "..."}
   待っている間に届いた、番号の違う行は、読み捨てる。呼び出し元が、標準入力を閉じたときは、描画の失敗になる。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
@@ -119,7 +118,7 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
 
 
 class HostRenderer:
-    """図の描画を、呼び出し元（ViewerのElectron）に、標準入出力で依頼する（Mermaid: #207、Graphviz: #181）。依頼は、1つずつ順に処理される。"""
+    """Mermaidの描画を、呼び出し元（ViewerのElectron）に、標準入出力で依頼する（#207）。依頼は、1つずつ順に処理される。"""
 
     def __init__(self, stdin: TextIO, out: TextIO) -> None:
         self._stdin = stdin
@@ -128,9 +127,6 @@ class HostRenderer:
 
     def render_mermaid(self, diagram_id: str, code: str, js_path: str) -> str:
         return self._request("render_mermaid", "Mermaid", diagram_id, code, js_path)
-
-    def render_graphviz(self, diagram_id: str, code: str, js_path: str) -> str:
-        return self._request("render_graphviz", "Graphviz", diagram_id, code, js_path)
 
     def _request(self, event: str, label: str, diagram_id: str, code: str, js_path: str) -> str:
         self._next += 1
@@ -157,7 +153,6 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     if host_renderer:
         host = HostRenderer(stdin, out)
         _host_renderers.set_mermaid_host_renderer(host.render_mermaid)
-        _host_renderers.set_graphviz_host_renderer(host.render_graphviz)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
         for line in stdin:
@@ -182,7 +177,6 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     finally:
         if host_renderer:
             _host_renderers.set_mermaid_host_renderer(None)
-            _host_renderers.set_graphviz_host_renderer(None)
         session.close()
 
 

@@ -7,8 +7,8 @@ import re
 import sys
 import subprocess
 import hashlib
-from text_compositor import host_renderers
-from text_compositor.deps import D2_RELEASE, GRAPHVIZ_FIT_REVISION, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, VIZ_JS_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_temurin_jre, ensure_viz_js, find_system_d2, find_system_java
+from text_compositor import graphviz_render, host_renderers
+from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
 from text_compositor.typst_literal import escape_string_literal
@@ -188,20 +188,28 @@ class DiagramMixin:
             _log_verbose(f"Reusing cached mermaid diagram: {os.path.basename(svg_path)}")
         return svg_path
 
-    def _graphviz_svg_path(self, code, line=None):
-        """Graphvizの図のSVG（キャッシュ）のパスを返す。無ければ、呼び出し元（ViewerのElectronのChromium上のViz.js）で作る（#181）。
-        呼び出し側が、_graphviz_host_rendererの有無を確かめてから、呼ぶこと。
-        line: 失敗したときの診断に付ける、原稿でのフェンスの行（分かる場合）。"""
-        # キーには、Viz.jsのSHA256と、文字幅の補正（ホスト側）の版を入れる。どちらかが変われば、別のキーになる
-        svg_path, digest = self._diagram_cache_path("graphviz", f"{VIZ_JS_SHA256}+fit{GRAPHVIZ_FIT_REVISION}", code)
+    def _graphviz_svg_path(self, code, line=None, code_line=None):
+        """Graphvizの図のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージ`diagraph`で作る（#264）。PDFと同じ経路。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行（分かる場合）。
+        code_line: DOTの1行目の、原稿での行（フェンスの次の行。図の単体ファイルなら1）。構文エラーの行を、原稿の行に直すために使う。"""
+        try:
+            version = graphviz_render.cache_version()
+        except ImportError as e:   # typstが入っていない（HTML出力のGraphvizは、Typstを通す）
+            self._diagram_error("Graphviz", str(e), line)
+            sys.exit(1)
+        svg_path, _ = self._diagram_cache_path("graphviz", version, code)
 
         if not os.path.exists(svg_path):
-            _log_info(f"Rendering Graphviz diagram via the host application -> {os.path.basename(svg_path)}")
+            _log_info(f"Rendering Graphviz diagram via diagraph (Typst) -> {os.path.basename(svg_path)}")
             try:
-                svg = host_renderers._graphviz_host_renderer(f"graphviz-{digest}", code, ensure_viz_js())
-            except Exception as e:
-                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                self._diagram_error("Graphviz", str(e), line)
+                svg = graphviz_render.render_svg(code)
+            except graphviz_render.GraphvizRenderError as e:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー。diagraphが返すDOTの行を、原稿の行にする
+                at = code_line + e.dot_line - 1 if (code_line and e.dot_line) else line
+                self._diagram_error("Graphviz", str(e), at)
+                sys.exit(1)
+            except Exception as e:   # typstの読み込みの失敗など
+                self._diagram_error("Graphviz", f"{type(e).__name__}: {e}", line)
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(svg)

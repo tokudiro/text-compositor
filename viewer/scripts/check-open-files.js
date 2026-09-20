@@ -123,7 +123,7 @@ async function main() {
   check('.puml（PlantUML）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   r = await open(write('graph.d2', 'A -> B: hello\n'), 12000);
   check('.d2（D2）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
-  // Graphviz（#181）。Viz.jsは、初回に取得する（キャッシュがあれば、すぐ）。ElectronのChromium上で描画する。
+  // Graphviz（#264）。同梱のtypstとdiagraph（Typstのパッケージ）で描画する。
   for (const name of ['g.dot', 'g.gv']) {
     r = await open(write(name, 'digraph { 開始 -> 処理 -> 終了 }\n'), 9000);
     check(`${name}（Graphviz）が、図として表示される`, r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);

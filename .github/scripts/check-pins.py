@@ -1,6 +1,6 @@
 """コードに直接書いた部品の版を、上流の最新版と比べて、差を報告する（#240）。
 
-Dependabotが見られるのは、npm・pip・GitHub Actionsの一部だけである。Mermaid・Viz.js・PlantUML・D2・JRE・
+Dependabotが見られるのは、npm・pip・GitHub Actionsの一部だけである。Mermaid・PlantUML・D2・JRE・
 組込版Python・Typstのパッケージ・フォントは、ソースコードに版を直接書いているため、このスクリプトで確認する。
 
 使い方（標準ライブラリだけで動く）:
@@ -39,7 +39,6 @@ def read_pins():
     common = read("text_compositor/templates/_common.typ")
     pins = {
         "Mermaid": find(deps, r"npm/mermaid@([\d.]+)/"),
-        "Viz.js": find(deps, r'VIZ_JS_VERSION = "([\d.]+)"'),
         "PlantUML": find(deps, r"download/v([\d.]+)/plantuml-mit"),
         "D2": find(deps, r'D2_RELEASE = "v([\d.]+)"'),
         "Temurin JRE 21": find(deps, r'TEMURIN_JRE_RELEASE = "jdk-([\d.]+\+\d+)"'),
@@ -139,7 +138,6 @@ def latest_versions(pins):
     """部品名 -> (最新版, 注記) または、取得に失敗したときは、例外を値にして返す。"""
     fetchers = {
         "Mermaid": lambda: (latest_npm("mermaid"), ""),
-        "Viz.js": lambda: (latest_npm("@viz-js/viz"), ""),
         "PlantUML": lambda: (latest_github_release("plantuml/plantuml", "v"), ""),
         "D2": lambda: (latest_github_release("d2lang/d2", "v"), ""),
         "Temurin JRE 21": lambda: (latest_github_release("adoptium/temurin21-binaries", "jdk-"), ""),

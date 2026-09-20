@@ -76,6 +76,24 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 
 対応するスコープの詳しい経緯は[doc/spec.md](../spec.md)を参照してください。
 
+## 太字が効かないとき
+
+![CommonMark](badges/commonmark.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
+`これは**「重要」**です。`のように、`**`の内側の端が、括弧・句読点・記号（`「」`・`（）`・`：`・`%`など）で、`**`の外側（前か後）に空白がないと、Markdownの規則（CommonMark）では、太字になりません。`**`が、そのまま表示されます。AIが書いた文章では、この書き方が多く見られます。
+
+text-compositorとObunzuは、太字が効かなかった箇所を、警告で示します（原稿の行つき）。
+
+```text
+[Warning] doc.md:5: Bold markup '**「重要」**' was not applied and is shown as plain text: ...
+```
+
+直し方は、`**`の前と後に、空白を入れます（例: `これは **「重要」** です。`）。日本語の文章で、空白を入れたくないときは、`**`の内側の端を、文字にする方法もあります（例: `これは「**重要**」です。`）。
+
+- 警告の対象は、`**`だけです。`__太字__`は、対象外です。
+- コードスパン（`` `**x**` ``）・エスケープ（`\*\*`）・空白で挟んだ`**`（`a ** b ** c`）は、警告しません。
+- 警告は、本文を直しません（`**`が、そのまま出ます）。
+
 ## 文字色指定
 
 ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
