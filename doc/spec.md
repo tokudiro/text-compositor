@@ -40,7 +40,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 | D2（バイナリ 約13 MB） | 初回の描画で取得する（11章） | 方針（3）: 同上 |
 | Mermaid（PDF・CLI） | `playwright`（任意の依存）と、システムのChrome/Edge。なければ、Chromium（約700 MB）を取得する。`mermaid.min.js`（約3.4 MB）も取得する | 方針（3）: 同上 |
 | Obunzuの図（Mermaid・Graphviz） | `mermaid.min.js`・`viz-global.js`（約1.3 MB）を、初回に取得する。PlantUML・D2も、上と同じ | 方針（3）: 同上 |
-| 外部の画像（`![](https://...)`） | HTML出力・Obunzuは、URLのまま`<img>`にする（CSPは、画像を制限していない）。文書を開くだけで、外部へ通信が起きうる | **方針（2）**: 外部の画像は、読み込まない（警告を出す）ようにする |
+| 外部の画像（`![](https://...)`） | HTML出力・Obunzuは、URLのまま`<img>`にする（CSPは、画像を制限していない）。文書を開くだけで、外部へ通信が起きうる | **方針（2）**: 通信が起きないようにする。扱いは、[#238](https://github.com/tokudiro/text-compositor/issues/238)で決める（PDFは、Typstが取得できず、エラーになるので、通信は起きない） |
 
 取得するときも、原稿の内容は、外部へ送らない（ツールやフォントのダウンロードだけである）。取得したものは、SHA256で確認する（該当するもの）。
 
