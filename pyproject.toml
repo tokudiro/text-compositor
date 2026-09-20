@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "text-compositor"
-version = "0.3.0"
+version = "0.3.5"
 description = "A tool for composing multiple text files into a PDF document."
 readme = "README.md"
 license = "MIT"

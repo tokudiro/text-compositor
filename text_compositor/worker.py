@@ -8,7 +8,7 @@ GUI版Viewerが、Pythonをサブプロセスとして常駐させ、これに�
 JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは、依頼を1つずつ順に処理する。
 
 起動時に、準備ができたことを示すイベントを1行出す。
-    {"event": "ready", "protocol": 1, "version": "0.3.0"}
+    {"event": "ready", "protocol": 1, "version": "0.3.5"}
 
 依頼: {"id": <任意の値。応答にそのまま返る>, "method": <メソッド名>, "params": {...}}
   - `build`  : Markdownをビルドする。params: `path`（必須）・`output`・`template`・`plugins`・
