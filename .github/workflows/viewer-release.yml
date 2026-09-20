@@ -58,7 +58,7 @@ jobs:
           cache-dependency-path: viewer/package-lock.json
 
       # ビルド用のPython（組込版のパッケージを、pipで取得するために使う。build-dist.jsが、PATHのpythonを使う）
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
