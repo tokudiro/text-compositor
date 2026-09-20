@@ -6,7 +6,7 @@ const path = require('node:path');
 const { fileURLToPath } = require('node:url');
 
 /**
- * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・テキスト（.txt）。
+ * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・Text（.txt）。
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする（.yaml・.json・ソースコードの表示は、#218）。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
@@ -16,11 +16,11 @@ const TEXT_EXTENSIONS = ['.txt'];
 
 /**
  * ファイルを開くダイアログの、種類ごとの絞り込み。名前の「文」と「図」は、Obunzu（文図）の由来。
- * 「文」は、Markdownと、素のテキストをまとめた種類で、Markdownだけの絞り込みも、別に持つ（種類は、重なってよい）。
+ * 「文」は、MarkdownとText（.txt）をまとめた種類で、Markdownだけの絞り込みも、別に持つ（種類は、重なってよい）。
  * #218で.yaml・.json・ソースコードに対応したら、ここに種類を足す。
  */
 const OPEN_FILE_KINDS = [
-  { name: '文（Markdown・テキスト）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
+  { name: '文（Markdown・Text）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
   { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
   { name: '図（Mermaid・PlantUML・D2・Graphviz・SVG）', extensions: DIAGRAM_EXTENSIONS },
   { name: 'CSV', extensions: CSV_EXTENSIONS },
@@ -74,7 +74,7 @@ function checkOpenTarget(filePath, { statSync = fs.statSync } = {}) {
     return { ok: false, message: `ファイルが見つかりません: ${name}` };
   }
   if (stat.isDirectory()) {
-    return { ok: false, message: `フォルダは開けません: ${name}（Markdown・図・テキストのファイルを、選んでください）` };
+    return { ok: false, message: `フォルダは開けません: ${name}（文・図のファイルを、選んでください）` };
   }
   return { ok: true };
 }
