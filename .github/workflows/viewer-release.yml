@@ -92,7 +92,7 @@ jobs:
         working-directory: viewer
         run: npm run build-dist
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: obunzu-win-x64
           path: viewer/dist/Obunzu-*-win-x64.zip
