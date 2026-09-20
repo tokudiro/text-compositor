@@ -1,7 +1,7 @@
 """図のキャッシュキーを複合ハッシュにする設計（#26）のリグレッションテスト。"""
 import os
 
-import text_compositor.renderer as renderer_mod
+import text_compositor.renderer_diagrams as diagrams_mod
 from text_compositor.deps import D2_RELEASE
 from text_compositor.renderer import TypstRenderer, _diagram_cache_key
 
@@ -33,13 +33,13 @@ class TestDiagramCachePath:
         assert os.path.isdir(os.path.dirname(path))
 
     def test_d2_version_uses_system_d2_output(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(renderer_mod, "find_system_d2", lambda: "/usr/bin/d2")
-        monkeypatch.setattr(renderer_mod, "_system_d2_version", lambda _bin: "v9.9.9")
+        monkeypatch.setattr(diagrams_mod, "find_system_d2", lambda: "/usr/bin/d2")
+        monkeypatch.setattr(diagrams_mod, "_system_d2_version", lambda _bin: "v9.9.9")
         renderer = TypstRenderer(base_dir=str(tmp_path), line_mapping="off")
         assert renderer._d2_version() == "v9.9.9"
 
     def test_d2_version_falls_back_to_pinned_release_without_downloading(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(renderer_mod, "find_system_d2", lambda: None)
-        monkeypatch.setattr(renderer_mod, "ensure_d2_binary", lambda: (_ for _ in ()).throw(AssertionError("must not download")))
+        monkeypatch.setattr(diagrams_mod, "find_system_d2", lambda: None)
+        monkeypatch.setattr(diagrams_mod, "ensure_d2_binary", lambda: (_ for _ in ()).throw(AssertionError("must not download")))
         renderer = TypstRenderer(base_dir=str(tmp_path), line_mapping="off")
         assert renderer._d2_version() == D2_RELEASE
