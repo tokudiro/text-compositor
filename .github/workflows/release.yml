@@ -30,17 +30,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo (docs/config)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: this-repo
 
       - name: Checkout text-compositor (tool)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: tokudiro/text-compositor
           path: text-compositor
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -51,7 +51,7 @@ jobs:
         run: python text-compositor/build.py --config this-repo/doc/usage/text-compositor.config.yaml
 
       - name: Attach PDF to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: this-repo/doc/usage/text-compositor-usage-guide.pdf
           # 本文を自動生成する（マージ済みPRの一覧。v0.0.13までは本文が空のまま公開されて
@@ -66,11 +66,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo (docs/config)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: this-repo
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -97,13 +97,13 @@ jobs:
     needs: build-viewer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: obunzu-win-x64
           path: dist
 
       - name: Attach the Obunzu ZIP to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/Obunzu-*-win-x64.zip
 
@@ -119,9 +119,9 @@ jobs:
     permissions:
       id-token: write  # Trusted Publishing用のOIDCトークン取得に必要
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
