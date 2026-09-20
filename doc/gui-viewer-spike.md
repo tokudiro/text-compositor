@@ -1,6 +1,6 @@
 # GUI版Viewer: スパイク（#99）の結果の要約
 
-GUI版Markdown Viewerの本実装（[#165](https://github.com/tokudiro/text-compositor/issues/165)）に着手する前に行った、実現性の確認（スパイク）の結果をまとめる。詳細は、`viewer-csharp/README.md`と`viewer-rust/README.md`、および[#99](https://github.com/tokudiro/text-compositor/issues/99)のコメントにある。
+GUI版Markdown Viewerの本実装（[#165](https://github.com/tokudiro/text-compositor/issues/165)）に着手する前に行った、実現性の確認（スパイク）の結果をまとめる。詳細は、`viewer-csharp/README.md`と`viewer-rust/README.md`（どちらも、削除済み。下の「スパイクのコード」の取り出し方を参照）、および[#99](https://github.com/tokudiro/text-compositor/issues/99)のコメントにある。
 
 ## 目的と範囲
 
@@ -17,7 +17,7 @@ GUI版Markdown Viewerの本実装（[#165](https://github.com/tokudiro/text-comp
 | 終了時のハング（C#のみ） | 原因は、`PythonEngine.Initialize()`の後、メインスレッドがPythonのスレッドステートを保持したままになることである。プロセス終了時の`PythonEngine.Shutdown()`が、別スレッドでGILを取得できず固まる。`PythonEngine.BeginAllowThreads()`を`Initialize()`の直後に呼ぶと解消する（[pythonnet#1701](https://github.com/pythonnet/pythonnet/issues/1701)）。 |
 | 起動時間 | Rust（PyO3）の平均は203.6 ms、C#（pythonnet）は493.2 msで、Rustが約2.4倍速い（各10回、Release）。 |
 | ピークメモリ | Rustの平均は26.4 MB、C#は57.2 MBで、Rustが約半分である。 |
-| ライセンス | 組込版Python（PSF）と依存パッケージ（MIT・Apache-2.0）は、ライセンス全文と著作権表示の保持が条件である。`*.dist-info/`に含まれるライセンスファイルを、`python-embed/`ごと配布すれば満たせる。一覧は`viewer-csharp/THIRD-PARTY-NOTICES.md`にある。 |
+| ライセンス | 組込版Python（PSF）と依存パッケージ（MIT・Apache-2.0）は、ライセンス全文と著作権表示の保持が条件である。`*.dist-info/`に含まれるライセンスファイルを、`python-embed/`ごと配布すれば満たせる。一覧は、削除した`viewer-csharp/THIRD-PARTY-NOTICES.md`にあった（`git show 393c9fc:viewer-csharp/THIRD-PARTY-NOTICES.md`）。本実装の配布物（ZIP）にも、同じ趣旨の一覧（`licenses/THIRD-PARTY-NOTICES.md`）がある。 |
 
 起動時間とメモリの差は、プロセスを1回起動して固定文字列を1回変換するだけの測定である。GUIとして常駐させたときの体感は、この差と一致するとは限らない。
 
@@ -39,6 +39,9 @@ v0.3.0時点のmasterで、両スパイクが動くことを確認した。た�
 
 ## ソースの場所
 
-`viewer-csharp/`（C#・pythonnet）に、スパイクのコードがある。実装言語をC#に決めた（#166、[gui-viewer-design.md](gui-viewer-design.md)）ため、Rust版（`viewer-rust/`、PyO3）は削除した。参照が必要なら、`git show af23aab:viewer-rust/README.md`で取り出せる（`af23aab`はmasterのコミット）。
+スパイクのコードは、`viewer-csharp/`（C#・pythonnet）と`viewer-rust/`（Rust・PyO3）にあった。実装言語をC#に決めた（#166、[gui-viewer-design.md](gui-viewer-design.md)）ため、Rust版は先に削除した。その後、本実装が、Electron製の`viewer/`（#169）に置き換わったため、C#版も削除した。参照が必要なら、次で取り出せる（どちらも、masterのコミット）。
 
-連携方式も、埋め込み（pythonnet・PyO3）ではなく、常駐サブプロセスに決めた。`viewer-csharp/`は、本実装（#169）で、別のディレクトリの実装へ置き換わる予定である。どちらも、PyPIの配布物には含まれない（`pyproject.toml`が`packages`を明示しているため）。
+- Rust版: `git show af23aab:viewer-rust/README.md`
+- C#版: `git show 393c9fc:viewer-csharp/README.md`
+
+連携方式も、埋め込み（pythonnet・PyO3）ではなく、常駐サブプロセスに決めた。スパイクの`viewer-csharp/`は、本実装（#169）で、別のディレクトリ（`viewer/`）の実装に置き換わった。Viewerは、PyPIの配布物には含まれない（`pyproject.toml`が`packages`を明示しているため）。

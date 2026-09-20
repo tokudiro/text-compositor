@@ -138,7 +138,7 @@ GUIとPythonワーカーを並行して起動すると、最初のプレビュ�
 
 PyPIのtext-compositorとViewerは、ビルドの道具（Python／.NET）・成果物（sdist・wheel／zip等）・公開先が違う。次のように分離する。
 
-- **ディレクトリ**: Viewerは専用のディレクトリに置く（本実装のディレクトリは、#169で作る。現在のスパイクは`viewer-csharp/`）。`pyproject.toml`が`packages`を明示しているため、Viewerのファイルは、sdistにもwheelにも入らない（確認済み）。
+- **ディレクトリ**: Viewerは専用のディレクトリに置く（本実装のディレクトリは、#169で作った`viewer/`。スパイクの`viewer-csharp/`は削除した。参照が必要なら、`git show 393c9fc:viewer-csharp/README.md`で取り出せる）。`pyproject.toml`が`packages`を明示しているため、Viewerのファイルは、sdistにもwheelにも入らない（確認済み）。
 - **タグ**: `release.yml`は、`v*`のタグでPyPIへ公開する。Viewerのタグは、`v`で始まらない名前（例: `gui-v0.1.0`）にする。`viewer-v0.1.0`は、`v`で始まるため、`v*`に一致してしまう。（実際は、Obunzuが同じバージョンのtext_compositorを同梱するため、通常は、`v<バージョン>`のタグ1つで、text-compositorと同時にリリースする。Obunzuだけの例外は、`obunzu-v<バージョン>`のタグ。[#172](https://github.com/tokudiro/text-compositor/issues/172)、[viewer-distribution.md](viewer-distribution.md)）
 - **ワークフロー**: Viewer専用のワークフローを別ファイルで用意する。PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいており、Viewerのワークフローには、公開の権限を与えない。`test.yml`は、`text_compositor/`等の変更でだけ動く設定のため、Viewerの変更では起動しない。Viewer側のワークフローにも、専用の`paths`を付ける。
 - **GitHub Release**: Viewerのタグごとに別のReleaseを作る。`softprops/action-gh-release`の`make_latest: false`で、ViewerのReleaseが「Latest」にならないようにする（未検証）。
