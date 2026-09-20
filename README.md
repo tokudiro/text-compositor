@@ -57,6 +57,10 @@ pip install -r requirements.txt
 
 No Typst compiler binary is bundled; it's obtained from the `typst` package (PyPI wheel) installed via `pip install` above. No additional downloads or installation steps are needed.
 
+### Keeping up to date
+
+Security and bug fixes ship as new releases. There is no automatic update, so use the latest release: `pipx upgrade text-compositor` (or `pip install -U text-compositor`). For the [Obunzu Viewer](viewer/README.md), download the latest ZIP from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest). The Viewer bundles its own Python, so a new ZIP also updates that Python and the other bundled parts.
+
 ### Using Mermaid diagrams (optional)
 
 This is only needed if your source documents use ` ```mermaid ` fences (or specify an `.mmd` file directly in `chapters`). With Option A, install the `mermaid` extra:
