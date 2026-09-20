@@ -69,6 +69,21 @@ jobs:
           path: viewer/dist/.cache
           key: viewer-dist-${{ runner.os }}-${{ hashFiles('viewer/scripts/build-dist.js') }}
 
+      # Electron本体（zip。約151 MB）の保存先。`npm ci`（electronのpostinstall）と、`@electron/packager`が、同じ場所
+      # （@electron/getの既定。WindowsはLOCALAPPDATA\electron\Cache）に取得する。CIは、使い捨ての環境のため、保存しないと、
+      # 実行のたびに、取得する。キーは、Electronの版にする（package.jsonのversionは、リリースごとに変わるため、
+      # ハッシュにすると、毎回、作り直しになる）。ツール群の方針（doc/spec.md 2章）: CIの取得量は、できるだけ減らす。
+      - name: Read the Electron version
+        id: electron
+        shell: bash
+        run: echo "version=$(node -p "require('./viewer/package.json').devDependencies.electron")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Electron download
+        uses: actions/cache@v5
+        with:
+          path: ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ steps.electron.outputs.version }}
+
       - name: Install Node packages
         working-directory: viewer
         run: npm ci
