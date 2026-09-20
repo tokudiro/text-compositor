@@ -8,7 +8,7 @@ import re
 import pytest
 
 import text_compositor.host_renderers as host_renderers_mod
-import text_compositor.renderer as renderer_mod
+import text_compositor.renderer_diagrams as diagrams_mod
 from text_compositor.deps import find_system_browser
 from text_compositor.renderer import TypstRenderer
 import subprocess
@@ -57,7 +57,7 @@ class FakeGraphvizHost:
 def graphviz_host(monkeypatch):
     host = FakeGraphvizHost()
     monkeypatch.setattr(host_renderers_mod, "_graphviz_host_renderer", host)
-    monkeypatch.setattr(renderer_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
+    monkeypatch.setattr(diagrams_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
     return host
 
 
@@ -380,10 +380,10 @@ class TestFences:
         convert(tmp_path, doc)
         convert(tmp_path, doc)
         assert len(graphviz_host.calls) == 1   # 2回目は、キャッシュ
-        monkeypatch.setattr(renderer_mod, "VIZ_JS_SHA256", "0" * 64)   # Viz.jsが変われば、描き直す
+        monkeypatch.setattr(diagrams_mod, "VIZ_JS_SHA256", "0" * 64)   # Viz.jsが変われば、描き直す
         convert(tmp_path, doc)
         assert len(graphviz_host.calls) == 2
-        monkeypatch.setattr(renderer_mod, "GRAPHVIZ_FIT_REVISION", 99)   # 文字幅の補正が変わっても、描き直す
+        monkeypatch.setattr(diagrams_mod, "GRAPHVIZ_FIT_REVISION", 99)   # 文字幅の補正が変わっても、描き直す
         convert(tmp_path, doc)
         assert len(graphviz_host.calls) == 3
 

@@ -9,7 +9,7 @@ import threading
 import pytest
 
 from text_compositor import worker
-import text_compositor.renderer as renderer_mod
+import text_compositor.renderer_diagrams as diagrams_mod
 from text_compositor.host_renderers import _graphviz_host_renderer, _mermaid_host_renderer
 from text_compositor.api import BuildResult, HtmlResult
 from text_compositor.diagnostics import Diagnostic
@@ -307,8 +307,8 @@ class TestHostMermaid:
     def _drive(self, tmp_path, monkeypatch, on_event, doc=FENCE_DOC, requests=1):
         """ワーカー（serve）を、スレッドで動かし、render_htmlを`requests`回依頼する。`on_event(event, host_in)`が、描画の依頼に応える。
         戻り値: (各依頼の応答, 出たイベントの一覧)。"""
-        monkeypatch.setattr(renderer_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
-        monkeypatch.setattr(renderer_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
+        monkeypatch.setattr(diagrams_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
+        monkeypatch.setattr(diagrams_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
         md = tmp_path / "doc.md"
         md.write_text(doc, encoding="utf-8")
         stdin_r, stdin_w = os.pipe()
@@ -477,8 +477,8 @@ class TestHostGraphviz(TestHostMermaid):
 
     def _drive_both(self, tmp_path, monkeypatch, doc, seen):
         """_driveは、1種類のイベントだけを扱うため、両方のイベントに応える版。出たイベントの名前を、seenへ入れる。"""
-        monkeypatch.setattr(renderer_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
-        monkeypatch.setattr(renderer_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
+        monkeypatch.setattr(diagrams_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
+        monkeypatch.setattr(diagrams_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
         md = tmp_path / "doc.md"
         md.write_text(doc, encoding="utf-8")
         stdin_r, stdin_w = os.pipe()

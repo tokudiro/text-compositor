@@ -83,7 +83,14 @@ text-compositor/                         my-project/
   * `build.py`: CLIの入口（引数の解析、`--clean`、`--watch`）。`text-compositor`コマンドと、リポジトリ直下の`build.py`ラッパーは、ここの`build()`を呼ぶ。
   * `project.py`: 1つのconfigのビルド本体（`_build_one`・`_build_project`）。Python API（`api.py`）もこれを呼ぶ。
   * `config.py`（configの読み込み・変数展開）、`document.py`（プリアンブル・改訂履歴・用語集・テンプレート）、`chapters.py`（章の展開と、章ごとのTypstコード）、`compiler.py`（Typstのコンパイルとエラー位置の対応づけ）、`changes.py`（`--watch`・`--if-changed`の変更検出）。
-  * `renderer.py`: Markdown（markdown-it-pyのAST）をTypstへ変換する`TypstRenderer`。`typst_literal.py`は、Typstの文字列リテラルの補助関数。
+  * `renderer.py`: Markdown（markdown-it-pyのAST）をTypstへ変換する`TypstRenderer`（[#225](https://github.com/tokudiro/text-compositor/issues/225)。入口（`render_chapter`・`render`）と、状態・設定・front-matter・変数の展開を持つ）。責務ごとに、ミックスインへ分けてある。`TypstRenderer`が全ミックスインの状態（`self`の属性）を持つため、ミックスインの間は、`self`のメソッドとして呼び合い、モジュールの依存は、ミックスインから`renderer.py`へは向かわない。
+    * `renderer_tokens.py`（`TokenMixin`）: markdown-itのトークン列（ブロック要素）の走査`render_tokens`と、行番号・警告・HTMLトークン・ソース位置の対応づけ（`@srcmap`）。
+    * `renderer_inline.py`（`InlineMixin`）: インライン要素`render_inline`・文字のエスケープ・用語索引・文字色。
+    * `renderer_tables.py`（`TableMixin`）: Markdownの表と`.csv`。
+    * `renderer_layout.py`（`LayoutMixin`）: `:::`のレイアウトブロック。
+    * `renderer_diagrams.py`（`DiagramMixin`）: 図のフェンス（Mermaid・PlantUML・D2・Graphviz・svg）の描画と、SVGのキャッシュ（`_diagram_cache_key`）。外部ツールの取得・検出を呼ぶ名前（`ensure_mermaid_js`・`find_system_d2`など）は、このモジュールにある。テストで差し替える（`monkeypatch`）ときは、`text_compositor.renderer_diagrams`を対象にする。
+    * `html_output.py`の`HtmlRenderer`は、`TypstRenderer`を継承する。
+    * `typst_literal.py`は、Typstの文字列リテラルの補助関数。
   * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid用ブラウザ）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
 * **Typstコンパイラの入手方法**: バイナリを同梱しない（2章）。PyPIの `typst` パッケージ（[typst-py](https://github.com/messense/typst-py/)、`requirements.txt` で版固定）がOSごとのホイールにコンパイラ本体を含むため、`pip install -r requirements.txt` だけで済む。`compiler.py` は `typst.compile(input, output=, root=)` というPython APIを直接呼び出すだけで、バイナリの配置やOS判定コードを持たない。
 
