@@ -410,7 +410,7 @@ result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
 
 標準入力へ、1行に1つのJSONオブジェクトを書く。標準出力へ、1行に1つのJSONオブジェクトが返る（UTF-8）。依頼は、1つずつ順に処理する。
 
-* **起動時のイベント**: `{"event": "ready", "protocol": 1, "version": "0.3.6"}`。
+* **起動時のイベント**: `{"event": "ready", "protocol": 1, "version": "0.3.8"}`。
 * **依頼**: `{"id": <任意。応答に返る>, "method": <名前>, "params": {...}}`。
   * `build`: `params`は、`path`（必須）・`output`・`template`・`plugins`・`document`・`variables`・`config`・`keep_temp`（`Session.build`と同じ意味）。未知のキーは、プロトコルエラー。
   * `render_html`: MarkdownをHTMLにする（実験的、#161。前節）。`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`。
