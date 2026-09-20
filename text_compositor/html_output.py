@@ -38,7 +38,7 @@ PAGE_ONLY_KEYS = ('paper_size', 'landscape', 'header', 'footer', 'paginate', 'fo
 ALERT_TITLES = {'note': 'Note', 'tip': 'Tip', 'important': 'Important', 'warning': 'Warning', 'caution': 'Caution'}
 
 # 図として表示するフェンスの言語。dot・graphvizは、Typstのdiagraphで描く（#264。PDFと同じ経路）。
-_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'svg', 'dot', 'graphviz')
+_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'svg', 'dot', 'graphviz', 'pikchr')
 _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
@@ -264,7 +264,7 @@ class HtmlRenderer(TypstRenderer):
 
     # -- Markdown・図以外のファイル（#196） -------------------------------------------
 
-    SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot など）・"
+    SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot・.pikchr など）・"
                              "テキスト（.txt）・CSV（.csv）・SVG（.svg）です。")
 
     def _unsupported_file(self, path: str, ext: str) -> None:
@@ -422,6 +422,10 @@ class HtmlRenderer(TypstRenderer):
             return self._plantuml_svg_path(code, line)
         if lang == 'd2':
             return self._d2_svg_path(code, line)
+        if lang == 'pikchr':
+            if not self.pikchr_enabled:
+                return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
+            return self._pikchr_svg_path(code, line, code_line)
         if lang in ('dot', 'graphviz'):
             if not self.graphviz_enabled:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）

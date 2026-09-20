@@ -47,6 +47,8 @@ def read_pins():
     }
     for name, version in re.findall(r"@preview/([a-z0-9-]+):([\d.]+)", common):
         pins[f"Typstパッケージ {name}"] = version
+    # kip（Pikchr。#213）は、テンプレートではなく、pikchr_render.pyが、生成コードで読み込む
+    pins["Typstパッケージ kip"] = find(read("text_compositor/pikchr_render.py"), r'KIP_VERSION = "([\d.]+)"')
     return pins
 
 

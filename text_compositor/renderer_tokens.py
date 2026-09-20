@@ -192,7 +192,7 @@ class TokenMixin:
                     # 後ろへ空白区切りでサイズ指定属性を書ける（#82）。
                     parts = info.split(None, 1)
                     lang = parts[0] if parts else ''
-                    if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg', 'd2'):
+                    if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg', 'd2', 'pikchr'):
                         width, height = self._parse_size_attrs(parts[1] if len(parts) > 1 else '')
                         result.append(self._render_diagram_fence(lang, t.content, width, height))
                     else:

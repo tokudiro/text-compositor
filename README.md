@@ -18,7 +18,7 @@ Files listed in `chapters` are handled differently depending on their extension:
 
 - `.md`/`.markdown`: converted as Markdown
 - `.yaml`/`.yml`/`.json`: rendered as monospaced text with syntax highlighting
-- `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, `.d2`: each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, D2 respectively)
+- `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, `.d2`, `.pikchr`: each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, D2, Pikchr respectively)
 - `.csv`: rendered as a structured Typst table
 - everything else (plain text, code files, etc.): rendered as plain monospaced text
 

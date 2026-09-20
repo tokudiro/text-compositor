@@ -56,9 +56,10 @@ const FONTS = {
     'NotoSansJP-Bold.otf': '1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f',
   },
 };
-// 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と同じ版）。CeTZ（LGPL）などは、使う機能を作るときに加える。
+// 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と、kip（Pikchr。#213）はtext_compositor/pikchr_render.pyの`KIP_VERSION`と、同じ版）。CeTZ（LGPL）などは、使う機能を作るときに加える。
 const TYPST_PACKAGES = [
   { name: 'diagraph', version: '0.3.7', license: 'MIT', sha256: '08b9927b047e95c661c1d7ae28806b8cbefa25a07f8ae2d4a47911028875abc6' },
+  { name: 'kip', version: '0.1.0', license: 'MIT', sha256: '4b90dc0e3e0bcc2f273940a15a3c8855f9aa65bd972791f49018154017cb90d0' },
   { name: 'note-me', version: '0.6.0', license: 'MIT', sha256: '94273b3c9a7ddc3960ad86dfc02b8f864eebd918699a1a32310a6cf40aee67a6' },
 ];
 
@@ -209,6 +210,9 @@ async function bundleTypstAssets(appDir) {
     rows.push({ name: `Typst package ${p.name} (typst-packages/)`, version: p.version, license: p.license,
       url: `https://typst.app/universe/package/${p.name}`, file: `../typst-packages/preview/${p.name}/${p.version}/LICENSE` });
   }
+  // kipのWASMに含まれる、Pikchr本体（#213）。kipのREADMEは「BSD-style」と記す。正確なライセンスの識別子は、未確認
+  rows.push({ name: 'Pikchr (compiled into the WASM of the Typst package kip)', version: '(as built by kip)', license: 'BSD-style (see the link)',
+    url: 'https://pikchr.org/', file: '(see the link; the kip package licenses are in ../typst-packages/preview/kip/)' });
   return rows;
 }
 

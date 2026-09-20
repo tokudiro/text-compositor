@@ -1,4 +1,4 @@
-# 図表（Mermaid / Graphviz / PlantUML / D2 / SVG）
+# 図表（Mermaid / Graphviz / PlantUML / D2 / Pikchr / SVG）
 
 通常のフェンスコードブロックとして書きます。
 
@@ -22,6 +22,10 @@ Alice -> Bob: Hello
 A -> B
 ```
 
+```pikchr
+box "開始" fit; arrow; circle "終了"
+```
+
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
   <rect x="10" y="10" width="180" height="80" fill="lightblue"/>
@@ -29,7 +33,7 @@ A -> B
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`とも既定`true`）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`とも既定`true`）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -40,6 +44,7 @@ A -> B
 | `d2` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
+| `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
 
 ### Graphvizで使えない記法
 
@@ -53,6 +58,24 @@ Graphvizは、PDF出力・Obunzu・Python APIのすべてで、Typstの`diagraph
 | ラテン文字のノード名（`a`・`b`など） | 斜体の明朝系の字体になります。日本語のラベルは、普通の字体です（警告なし） |
 
 警告は、DOTを簡易に調べて出します。ノードの`label`や`cluster`の`label`は、描けるため、警告しません。
+
+### Pikchrについて
+
+Pikchr（SQLiteの作者が作った、図を文章で書く言語。[公式](https://pikchr.org/)）は、`box`・`arrow`・`circle`などを並べて、図を書きます。
+
+```pikchr
+box "設定" fit
+arrow
+box "変換" fit
+arrow
+circle "PDF"
+```
+
+- 日本語のラベルも、使えます。`{width=...}`/`{height=...}`で、大きさを指定できます（下の「サイズ指定」）。
+- 構文エラーがあると、ビルドは失敗し、Pikchr自身の説明（該当の行・位置・原因）が出ます。行は、原稿の行です。
+- `.pikchr`ファイルも、`chapters`に指定できます（1ファイル＝1章）。Obunzuでも、単体のファイルとして開けます。
+- PDF出力もObunzuも、同梱のPikchrのWASM版（Typstの`kip`）で描くため、同じ図になります。`plugins.pikchr: false`で、無効にできます。
+- Pikchrの記法は、[公式のドキュメント](https://pikchr.org/home/doc/trunk/doc/userman.md)を参照してください。
 
 レイアウトのブロック（`::: layout-...`・`::: align`）も、PDF出力とObunzuの両方で使えます。Obunzuでは、CSSで近似するため、見た目が、PDF出力と少し違う場合があります。
 

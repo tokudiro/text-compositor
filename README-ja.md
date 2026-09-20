@@ -18,7 +18,7 @@
 
 - `.md`/`.markdown`: Markdownとして変換
 - `.yaml`/`.yml`/`.json`: シンタックスハイライト付きの等幅表示
-- `.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`: それぞれGraphviz/Mermaid/PlantUML/D2の図として1章分描画
+- `.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`・`.pikchr`: それぞれGraphviz/Mermaid/PlantUML/D2/Pikchrの図として1章分描画
 - `.csv`: Typstのテーブルとして構造化して描画
 - それ以外（プレーンテキスト・コードファイル等）: 素の等幅表示
 

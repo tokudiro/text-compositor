@@ -3,6 +3,7 @@
 ```yaml
 plugins:
   graphviz: true               # 既定 true
+  pikchr: true                 # 既定 true
   mermaid: true                # 既定 true
   mermaid_auto_download: false # 既定 false
   plantuml: true                # 既定 true
@@ -11,7 +12,7 @@ plugins:
   d2_auto_download: true        # 既定 true
 ```
 
-`graphviz`/`mermaid`/`plantuml`/`d2`を`false`にすると、該当する図表フェンス（`dot`/`graphviz`/`mermaid`/`plantuml`/`d2`言語のコードブロック）は描画せず、素のコード表示にフォールバックします。`mermaid: true`の場合は`playwright`パッケージが、`plantuml: true`の場合はローカルのJava（11以上）が、`d2: true`の場合はD2 CLI本体が必要です。
+`graphviz`/`pikchr`/`mermaid`/`plantuml`/`d2`を`false`にすると、該当する図表フェンス（`dot`/`graphviz`/`pikchr`/`mermaid`/`plantuml`/`d2`言語のコードブロック）は描画せず、素のコード表示にフォールバックします。`mermaid: true`の場合は`playwright`パッケージが、`plantuml: true`の場合はローカルのJava（11以上）が、`d2: true`の場合はD2 CLI本体が必要です。
 
 `*_auto_download`は、これらの実行に必要なツール（ブラウザ／Java／D2）がシステムに見つからない場合の振る舞いを別軸で制御します。
 

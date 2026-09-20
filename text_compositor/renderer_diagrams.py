@@ -7,11 +7,11 @@ import re
 import sys
 import subprocess
 import hashlib
-from text_compositor import graphviz_render, host_renderers
+from text_compositor import graphviz_render, host_renderers, pikchr_render
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
-from text_compositor.typst_literal import escape_string_literal
+from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
 
 def _diagram_cache_key(kind, tool_version, code):
     """図のキャッシュキー（#26）。入力テキストだけでなく、種別とレンダラのバージョンも
@@ -56,6 +56,8 @@ class DiagramMixin:
             return self._render_svg(code, width, height)
         elif lang == 'd2':
             return self._render_d2(code, width, height)
+        elif lang == 'pikchr':
+            return self._render_pikchr(code, width, height)
         return self._render_graphviz(lang, code, width, height)
 
     def _render_diagram_or_image_match(self, m):
@@ -66,6 +68,30 @@ class DiagramMixin:
             width, height = self._parse_size_attrs(m.group('attrs'))
             return self._render_diagram_fence(m.group('lang'), m.group('code'), width, height)
         return self._render_markdown_segment(m.group('image'), False).strip()
+
+    def _render_pikchr(self, code, width=None, height=None):
+        """```pikchrフェンスの内容を、Typstのkip（PikchrのWASMプラグイン）で描くコードへ変換する（#213）。
+        自動縮小と、width/heightの扱いは、Graphvizの`render-graph()`と同じ。plugins.pikchr: falseなら、素のコード表示にする。
+        テンプレートの補助関数にしない（`render-graph`と違い、生成コードが、kipを直接importする）: 生成コードが読み込むテンプレートの
+        公開名を増やすと、既存のカスタムテンプレートが、`unknown variable`で壊れるため。
+        kip()関数は、構文エラーのPikchrで、原因の分からない`failed to parse SVG`になる。そこで、kipが公開するプラグインを直接呼び、
+        SVGでない返り値（Pikchr自身のエラー: 行・位置・原因）を、panicでそのまま出す（HTML出力のpikchr_render.pyと同じ処理）。"""
+        if not self.pikchr_enabled:
+            return self._render_raw_text(code, 'pikchr')
+        if width or height:
+            image_args = (f'width: {width if width else "auto"}, height: {height if height else "auto"}')
+            body = f'image(bytes(out), format: "svg", {image_args})'
+        else:
+            body = ('layout(size => context {\n'
+                    '    let figure = image(bytes(out), format: "svg")\n'
+                    '    if measure(figure).width > size.width { image(bytes(out), format: "svg", width: 100%) } else { figure }\n'
+                    '  })')
+        return ('#align(center)[#{\n'
+                f'  import "@preview/kip:{pikchr_render.KIP_VERSION}": pikchr-plugin\n'
+                f'  let out = str(pikchr-plugin.typst_pikchr(bytes({_typst_multiline_literal(code)})))\n'
+                '  if not out.trim().starts-with("<svg") { panic("Pikchr error: " + out) }\n'
+                f'  {body}\n'
+                '}]\n\n')
 
     def _diagram_error(self, tool, output, line=None):
         """図の描画の失敗を、エラーとして出す（呼び出し側が、sys.exitで止める）。
@@ -215,6 +241,34 @@ class DiagramMixin:
                 f.write(svg)
         else:
             _log_verbose(f"Reusing cached Graphviz diagram: {os.path.basename(svg_path)}")
+        return svg_path
+
+    def _pikchr_svg_path(self, code, line=None, code_line=None):
+        """Pikchrの図のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージ`kip`で作る（#213）。PDFと同じ経路。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。"""
+        try:
+            version = pikchr_render.cache_version()
+        except ImportError as e:   # typstが入っていない（HTML出力のPikchrは、Typstを通す）
+            self._diagram_error("Pikchr", str(e), line)
+            sys.exit(1)
+        svg_path, _ = self._diagram_cache_path("pikchr", version, code)
+
+        if not os.path.exists(svg_path):
+            _log_info(f"Rendering Pikchr diagram via kip (Typst) -> {os.path.basename(svg_path)}")
+            try:
+                svg = pikchr_render.render_svg(code)
+            except pikchr_render.PikchrRenderError as e:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー。Pikchrが返す行を、原稿の行にする
+                at = code_line + e.code_line - 1 if (code_line and e.code_line) else line
+                self._diagram_error("Pikchr", str(e), at)
+                sys.exit(1)
+            except Exception as e:   # typstの読み込みの失敗など
+                self._diagram_error("Pikchr", f"{type(e).__name__}: {e}", line)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached Pikchr diagram: {os.path.basename(svg_path)}")
         return svg_path
 
     def _ensure_plantuml_tools(self):

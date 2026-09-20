@@ -130,6 +130,11 @@ async function main() {
   }
   r = await open(write('with-dot.md', '# 図\n\n```dot\ndigraph { rankdir=LR; 長い日本語のラベルを持つノード -> b }\n```\n\n```graphviz\ngraph { a -- b }\n```\n'), 9000);
   check('Markdownの```dotと```graphvizが、図として表示される', r.page?.images.length === 2 && r.page.images.every(Boolean) && r.state.banner === '', `${r.state.status} ${JSON.stringify(r.page?.images)} ${r.state.banner}`);
+  // Pikchr（#213）。同梱のtypstとkipで描画する。
+  r = await open(write('p.pikchr', 'box "開始" fit; arrow; circle "終了"\n'), 9000);
+  check('.pikchr（Pikchr）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
+  r = await open(write('bad.pikchr', 'box "unterminated\n'), 9000);
+  check('Pikchrの構文エラーは、変換エラーとして、Pikchr自身の原因が示される', r.state.banner.includes('変換エラー') && /unrecognized token/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
   r = await open(write('bad.dot', 'graph { a -- b -- }\n'), 9000);
   check('Graphvizの構文エラーは、変換エラーとして、原因が示される', r.state.banner.includes('変換エラー') && /syntax error/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
 

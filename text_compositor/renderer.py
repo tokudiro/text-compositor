@@ -87,13 +87,15 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
-                 mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None):
+                 mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
         # plugins.graphviz（既定true）。PDFでは、Typst側のプリアンブルが使う。HTML出力では、falseなら、Graphvizの
         # フェンスを、素のコードのまま表示する（他の図の、無効のときと同じ。#181）。
         self.graphviz_enabled = graphviz_enabled
+        # plugins.pikchr（既定true。#213）。falseなら、```pikchrフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
+        self.pikchr_enabled = pikchr_enabled
         # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
         # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
         self.csv_header_default = csv_header
@@ -195,6 +197,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         '.mmd': 'mermaid',
         '.puml': 'plantuml', '.plantuml': 'plantuml', '.pu': 'plantuml',
         '.d2': 'd2',
+        '.pikchr': 'pikchr',
     }
 
     def render_chapter(self, text, filepath="", drop_leading_title=False):
@@ -223,6 +226,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             return self._render_plantuml(text)
         elif diagram_kind == 'd2':
             return self._render_d2(text)
+        elif diagram_kind == 'pikchr':
+            return self._render_pikchr(text)
         elif ext == '.csv':
             return self._render_csv_table(text)
 

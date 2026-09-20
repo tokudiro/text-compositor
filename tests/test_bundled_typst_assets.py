@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import text_compositor.deps as deps_mod
+from text_compositor import pikchr_render
 from text_compositor.compiler import TYPST_PACKAGES_ENV, typst_package_options
 from text_compositor.deps import FONT_DIR_ENV, NOTO_SANS_JP_FILES, ensure_fonts
 
@@ -82,5 +83,6 @@ def test_build_dist_pins_the_same_fonts_and_packages_as_the_tool():
     assert deps_mod.NOTO_SANS_JP_RELEASE_URL in script
     common = (ROOT / "text_compositor" / "templates" / "_common.typ").read_text(encoding="utf-8")
     used = set(re.findall(r"@preview/([a-z0-9-]+):([\d.]+)", common))
+    used.add(("kip", pikchr_render.KIP_VERSION))   # Pikchr（#213）は、テンプレートではなく、生成コードが読み込む
     bundled = set(re.findall(r"name: '([a-z0-9-]+)', version: '([\d.]+)'", script))
     assert used and used == bundled, (used, bundled)

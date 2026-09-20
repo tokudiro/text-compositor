@@ -15,7 +15,7 @@ Obunzu-0.3.6-win-x64/
   python-embed/              組込版Python（python.orgのembeddable package）
     Lib/site-packages/       必要最小限のパッケージ + typst + text_compositor
   fonts/                     Noto Sans JP（Regular・Bold）とそのライセンス
-  typst-packages/            Typstのパッケージ（preview/<名前>/<版>/。diagraph・note-me）
+  typst-packages/            Typstのパッケージ（preview/<名前>/<版>/。diagraph・kip・note-me）
   licenses/                  サードパーティのライセンス表記
   LICENSE, LICENSES.chromium.html   ElectronとChromiumのライセンス
 ```
@@ -32,7 +32,7 @@ Obunzu-0.3.6-win-x64/
 | Pythonのパッケージ（`markdown-it-py`・`mdurl`・`mdit-py-plugins`・`PyYAML`・`platformdirs`）と、`text_compositor` | 同梱 | 約2.3 MB（`text_compositor`は0.6 MB、`markdown_it`は0.4 MB、`yaml`は0.7 MB） |
 | **`typst`**（Typstのコンパイラ。Pythonのパッケージ） | **同梱**（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[#237](https://github.com/tokudiro/text-compositor/issues/237)で決めた） | 約59.6 MB（ZIPで約27 MB） |
 | Noto Sans JP（`fonts/`。RegularとBold） | **同梱**（#263） | 8.8 MB |
-| Typstのパッケージ（`typst-packages/`。`diagraph` 0.3.7・`note-me` 0.6.0） | **同梱**（#263） | 1.1 MB |
+| Typstのパッケージ（`typst-packages/`。`diagraph` 0.3.7・`kip` 0.1.0（Pikchr。#213）・`note-me` 0.6.0） | **同梱**（#263） | 2.5 MB（`kip`は、WASMを含み、約1.4 MB） |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
 | **`playwright`**（Mermaid用のブラウザ操作） | **同梱しない**。Mermaidは、Electronで描画する（下記） | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
 | PlantUML・D2 | 同梱しない（下の表） | - |
@@ -41,10 +41,10 @@ Obunzu-0.3.6-win-x64/
 
 - **なぜ同梱するか**: Typstを通す図・機能（Graphviz・Pikchr・CeTZ・数式など。[#237](https://github.com/tokudiro/text-compositor/issues/237)）を、Obunzuでも、PDFと同じ経路で扱えるようにするため。ツール群の方針3（配布物に、可能な限り、全部入り）に沿って、ネットワークなしで動くようにする。Typstを通す機能は、Graphvizが最初である（[#264](https://github.com/tokudiro/text-compositor/issues/264)。下の「Graphvizについて」）。Pikchr・CeTZ・数式は、まだ加えていない。
 - **フォント**: `fonts/`に、Noto Sans JP（RegularとBold。CLIと同じ版・SHA256）と、そのライセンス（OFL-1.1）。Typstは、`ignore_system_fonts=True`と`font_paths`で、このフォントだけを使う（CLIのPDFと同じ見た目）。
-- **パッケージ**: `typst-packages/preview/<名前>/<版>/`に、**実際に使う版だけ**（`text_compositor/templates/_common.typ`が`@preview/...`で読む版）。Typstの`package_cache_path`で指すため、初回のダウンロードは要らない。CeTZ（LGPL-3.0以降）は、同梱していない（[#236](https://github.com/tokudiro/text-compositor/issues/236)で判断する）。
+- **パッケージ**: `typst-packages/preview/<名前>/<版>/`に、**実際に使う版だけ**（`text_compositor/templates/_common.typ`が`@preview/...`で読む版と、Pikchrの`kip`＝`text_compositor/pikchr_render.py`の`KIP_VERSION`）。Typstの`package_cache_path`で指すため、初回のダウンロードは要らない。CeTZ（LGPL-3.0以降）は、同梱していない（[#236](https://github.com/tokudiro/text-compositor/issues/236)で判断する）。
 - **ワーカーへの伝え方**: Electronが、ワーカーを起動するとき、`fonts/`と`typst-packages/`があれば、環境変数`TEXT_COMPOSITOR_FONT_DIR`・`TEXT_COMPOSITOR_TYPST_PACKAGES`で教える（`viewer/src/python.js`）。ワーカー（Python）は、`ensure_fonts()`が、そのフォルダのフォントを使い（ダウンロードしない）、Typstのコンパイルが、そのフォルダを`package_cache_path`に渡す。CLIは、この環境変数を使わず、従来どおり（取得して、キャッシュ）。
 - **ライセンス**: `typst`（Apache-2.0）は、Pythonのパッケージのライセンスとして、`licenses/`に入る。Noto Sans JPは`fonts/LICENSE`、Typstのパッケージは、それぞれのフォルダの`LICENSE`（MIT）。`licenses/THIRD-PARTY-NOTICES.md`が、一覧にする。
-- **確認**（`check-dist.js`）: 使い捨ての空のユーザーフォルダと、遮断したネットワーク（使えないプロキシ）で、同梱の`typst`が、同梱のフォントとパッケージだけで、`diagraph`と`note-me`と日本語を使った文書を、コンパイルできる。対照として、パッケージのフォルダを教えないと、同じ環境で失敗する（ユーザーのキャッシュに頼っていない証拠）。`check-embed-dependencies.py`は、`typst`の拡張モジュール（`_typst.pyd`）も調べる（Windows標準の`bcryptprimitives.dll`・`combase.dll`・`secur32.dll`を、許可リストに加えた）。
+- **確認**（`check-dist.js`）: 使い捨ての空のユーザーフォルダと、遮断したネットワーク（使えないプロキシ）で、同梱の`typst`が、同梱のフォントとパッケージだけで、`diagraph`と`kip`（Pikchr）と`note-me`と日本語を使った文書を、コンパイルできる。対照として、パッケージのフォルダを教えないと、同じ環境で失敗する（ユーザーのキャッシュに頼っていない証拠）。`check-embed-dependencies.py`は、`typst`の拡張モジュール（`_typst.pyd`）も調べる（Windows標準の`bcryptprimitives.dll`・`combase.dll`・`secur32.dll`を、許可リストに加えた）。
 - **`typst`の`import`**: `build.py`は、`typst`を、初めて使うとき（Typstのコンパイル）に、`import`する（`_LazyTypst`。#168。今は`typst_runtime.py`）。そのため、Graphvizを含まないHTML出力は、`typst`を`import`しない（起動が速い）。Graphvizは、Typstの`diagraph`で描くため（#264）、`typst`が要る。pipで入れる場合も、`typst`は必須の依存である。`typst`なしで、Graphviz以外のHTML出力が動くこと（`tests/test_distribution.py`）は、変わらない。
 - 配布物の依存は、`viewer/dist-requirements.txt`に、版を固定して書く。`pyproject.toml`の依存と、ずれていないことを、テストで確認する。フォントとパッケージの版が、ツール本体（`deps.py`・テンプレート）と、ずれていないことも、テストで確認する（`tests/test_bundled_typst_assets.py`）。
 
