@@ -24,7 +24,7 @@ plugins:
 | `plantuml_auto_download` | Eclipse Temurin JREをダウンロード（約50MB） | エラーで終了（Java 11以上を自分でインストールする） |
 | `d2_auto_download` | D2公式CLIバイナリをダウンロード（約13MB） | エラーで終了（D2を自分でインストールする） |
 
-既定値が非対称（mermaidはfalse、plantuml・d2はtrue）なのは、ダウンロードされる実体のサイズが一桁以上違うためです。Mermaidの描画に失敗して`mermaid_auto_download: true`にしたくなった場合は、約700MBのダウンロードが実行されることを理解した上で設定してください（詳細は「図表（Mermaid / Graphviz / PlantUML / D2）」の章、README）。
+既定値が非対称（mermaidはfalse、plantuml・d2はtrue）なのは、ダウンロードされる実体のサイズが一桁以上違うためです。Mermaidの描画に失敗して`mermaid_auto_download: true`にしたくなった場合は、約700MBのダウンロードが実行されることを理解した上で設定してください（詳細は「図表（Mermaid / Graphviz / PlantUML / D2 / Pikchr / CeTZ / Fletcher / SVG）」の章、README）。
 
 # inputs: 原稿ファイルの基準ディレクトリ
 

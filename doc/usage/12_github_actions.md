@@ -65,7 +65,7 @@ jobs:
 
 `build.py`本体やそのライセンス・バージョン管理を各ドキュメントリポジトリ側で意識する必要がない。text-compositorは公開リポジトリなので、`repository: tokudiro/text-compositor`と指定するだけで追加の認証設定（トークン等）なしにチェックアウトできる。
 
-`plugins.graphviz`のみを使うプロジェクトは、この構成だけで完結する（Node.js/JRE等の追加インストール不要）。
+`plugins.graphviz`・`plugins.pikchr`・`plugins.cetz`・`plugins.fletcher`（Typstのパッケージで描く図）のみを使うプロジェクトは、この構成だけで完結する（Node.js/JRE等の追加インストール不要）。Typstのパッケージは、初回のビルドで、Typstが取得する（`~/.cache/typst`を`actions/cache`で保存すると、2回目以降は取得しない）。
 
 ## 増分ビルド（`--if-changed`）をCIで使う場合の注意
 

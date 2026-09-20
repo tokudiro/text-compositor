@@ -5,7 +5,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 ## 配布の形式
 
 - **ポータブルなZIP**（`Obunzu-<バージョン>-win-x64.zip`）。展開して、`obunzu.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
-- ZIPの大きさは、**約199 MB**。展開後は、**約463 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから増えた（ZIPで+35 MB。内訳: `typst`が約27 MB、フォントとパッケージが、あわせて約8 MB）。
+- ZIPの大きさは、**約200 MB**。展開後は、**約468 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから増えた（ZIPで+35 MB。内訳: `typst`が約27 MB、フォントとパッケージが、あわせて約8 MB）。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text

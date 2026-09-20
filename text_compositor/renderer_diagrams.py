@@ -1,4 +1,4 @@
-"""図のフェンス（Mermaid・PlantUML・D2・Graphviz・svg）の描画と、図のSVGのキャッシュ。
+"""図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）の描画と、図のSVGのキャッシュ。
 
 `TypstRenderer`（renderer.py）に、ミックスインとして取り込まれる。状態（`self`の属性）は、`TypstRenderer`と共有する（#225）。
 """
@@ -25,7 +25,7 @@ def _diagram_cache_key(kind, tool_version, code):
 
 
 class DiagramMixin:
-    """図のフェンス（Mermaid・PlantUML・D2・Graphviz・svg）の描画と、図のSVGのキャッシュ。"""
+    """図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）の描画と、図のSVGのキャッシュ。"""
 
     def _render_graphviz(self, lang, code, width=None, height=None):
         """```dot/```graphvizフェンスの内容をTypstコードへ変換する。width/height未指定時は
@@ -43,7 +43,7 @@ class DiagramMixin:
         return f'#align(center)[#render-graph("{escaped}"{width_arg}{height_arg})]\n\n'
 
     def _render_diagram_fence(self, lang, code, width=None, height=None):
-        """```mermaid/```plantuml/```dot/```graphviz/```svg/```d2フェンスの内容をTypstコードへ
+        """```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svgフェンスの内容をTypstコードへ
         変換する。通常のMarkdownフロー（render_tokens）とlayout-right/layout-compareブロックの
         双方から共通で呼べるようにした処理（#77）。width/height（#82）が指定された場合、
         mermaid/plantuml/svg/d2は自動縮小（fit-image）をバイパスして直接そのサイズで埋め込み、

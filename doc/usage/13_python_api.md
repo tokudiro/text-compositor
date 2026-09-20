@@ -46,7 +46,7 @@ with Session() as session:
 
 ## HTMLにする（実験的）
 
-Markdownを、PDFではなく、HTMLと図の画像にすることもできます（[#161](https://github.com/tokudiro/text-compositor/issues/161)）。図（Mermaid・PlantUML・D2・`svg`）は、PDFと同じ仕組みで画像にして、HTMLから参照します。
+Markdownを、PDFではなく、HTMLと図の画像にすることもできます（[#161](https://github.com/tokudiro/text-compositor/issues/161)）。図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・`svg`）は、PDFと同じ仕組みで画像にして、HTMLから参照します。
 
 ```python
 from text_compositor import Session, render_html
