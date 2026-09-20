@@ -118,7 +118,9 @@ src = os.path.join(d, 'doc.typ')
 with open(src, 'w', encoding='utf-8') as f:
     f.write('#import "@preview/diagraph:0.3.7": render\\n#import "@preview/note-me:0.6.0": note\\n#import "@preview/kip:0.1.0": pikchr-plugin\\n'
             '#set text(font: "Noto Sans JP")\\n#note[日本語の注記]\\n#render("digraph { あ -> い }")\\n'
-            '#image(pikchr-plugin.typst_pikchr(bytes("box \\\\"あ\\\\" fit")), format: "svg")\\n')
+            '#image(pikchr-plugin.typst_pikchr(bytes("box \\\\"あ\\\\" fit")), format: "svg")\\n'
+            '#import "@preview/fletcher:0.5.8": diagram, node, edge\\n#import "@preview/cetz:0.5.2"\\n'
+            '#diagram(node((0, 0), [あ]), edge("->"), node((1, 0), [い]))\\n#cetz.canvas({ import cetz.draw: *; circle((0, 0)) })\\n')
 fonts = ensure_fonts()
 pdf = typst_lib.compile(src, root=d, font_paths=[fonts], ignore_system_fonts=True, **typst_package_options())
 print(fonts)
@@ -136,10 +138,14 @@ function checkOfflineTypst(work) {
   const fonts = path.join(appDir, 'fonts');
   const packages = path.join(appDir, 'typst-packages');
   check('fonts/ に、Noto Sans JPのRegularとBoldがある', ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf'].every((name) => fs.existsSync(path.join(fonts, name))));
-  check('typst-packages/ に、diagraphとkipとnote-meがある', ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0'].every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
+  check('typst-packages/ に、diagraph・kip・note-me・cetz（2つの版）・fletcher・oxifmt（2つの版）がある',
+    ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0', 'cetz/0.5.2', 'cetz/0.3.4', 'fletcher/0.5.8', 'oxifmt/0.2.1', 'oxifmt/1.0.0']
+      .every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
+  check('CeTZ（LGPL）の全文が、パッケージのフォルダに、改造されずに、入っている', ['cetz/0.5.2', 'cetz/0.3.4']
+    .every((name) => /GNU LESSER GENERAL PUBLIC LICENSE/i.test(fs.readFileSync(path.join(packages, 'preview', ...name.split('/'), 'LICENSE'), 'utf8'))));
   try {
     const out = execFileSync(python, [script], { encoding: 'utf8', env: { ...baseEnv, TEXT_COMPOSITOR_FONT_DIR: fonts, TEXT_COMPOSITOR_TYPST_PACKAGES: packages } }).trim().split(/\r?\n/);
-    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・kip・note-me・日本語）',
+    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・kip・cetz・fletcher・note-me・日本語）',
       out[0] === fonts && out[1] === 'True', out.join(' / '));
   } catch (error) {
     check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる', false, String(error.stderr || error.message).split(/\r?\n/).filter(Boolean).slice(-2).join(' / '));
@@ -213,7 +219,18 @@ async function main() {
     check('Pikchrの構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('pikchr-error.md:7'), JSON.stringify(item.head));   // フェンスは5行目。Pikchrの2行目は、7行目
     check('Pikchr自身のエラーの内容が、詳細に出る', /unrecognized token/.test(item.detail), item.detail.split('\n').slice(-1)[0]);
   }, 12000);
-  await runCase('Graphvizの構文エラー', '# エラー\n\n本文。\n\n```dot\ngraph { a -- b -- }\n```\n', path.join(work, 'dot-error.md'), async (state, _pythons, { chrome }) => {
+  // CeTZ・Fletcher（#236）。同梱のtypstとパッケージで描画する（ネットワークは、使わない）。
+  await runCase('CeTZ・Fletcherの図', '# 図\n\n```cetz\ncircle((0, 0), radius: 1)\ncontent((0, 0), [日本語])\n```\n\n```fletcher\nnode((0, 0), [開始]), edge("->"), node((1, 0), [終了])\n```\n', path.join(work, 'cetz.md'), async (state, _pythons, { content }) => {
+    check('CeTZ・Fletcherを含む文書が、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('CeTZ・Fletcherの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
+  }, 12000);
+  await runCase('CeTZのimport', '# エラー\n\n本文。\n\n```cetz\ncircle((0, 0))\nimport "/secret.typ"\n```\n', path.join(work, 'cetz-error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('CeTZのimportが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('cetz-error.md:7'), JSON.stringify(item.head));   // フェンスは5行目。importは、コードの2行目で、7行目
+    check('importを使えない理由が、詳細に出る', /cannot be used/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
+  await runCase('Graphvizの構文エラー','# エラー\n\n本文。\n\n```dot\ngraph { a -- b -- }\n```\n', path.join(work, 'dot-error.md'), async (state, _pythons, { chrome }) => {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
     check('Graphvizの構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('dot-error.md:6'), JSON.stringify(item.head));   // フェンスは5行目。DOTの1行目は、6行目
     check('Graphvizのエラーの内容が、詳細に出る', /syntax error/.test(item.detail), item.detail.split('\n')[0]);

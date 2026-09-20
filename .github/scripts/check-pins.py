@@ -49,6 +49,11 @@ def read_pins():
         pins[f"Typstパッケージ {name}"] = version
     # kip（Pikchr。#213）は、テンプレートではなく、pikchr_render.pyが、生成コードで読み込む
     pins["Typstパッケージ kip"] = find(read("text_compositor/pikchr_render.py"), r'KIP_VERSION = "([\d.]+)"')
+    # cetz・fletcher（#236）も、cetz_render.pyが、生成コードで読み込む。fletcherが内部で使う旧版のcetzとoxifmtは、
+    # fletcher自身が固定する版のため、対象にしない（fletcherを上げるときに、build-dist.jsで入れ直す）
+    cetz = read("text_compositor/cetz_render.py")
+    pins["Typstパッケージ cetz"] = find(cetz, r'CETZ_VERSION = "([\d.]+)"')
+    pins["Typstパッケージ fletcher"] = find(cetz, r'FLETCHER_VERSION = "([\d.]+)"')
     return pins
 
 

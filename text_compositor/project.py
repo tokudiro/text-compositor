@@ -46,6 +46,8 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     plugins_config = config.get("plugins") or {}
     graphviz_enabled = bool(plugins_config.get("graphviz", True))
     pikchr_enabled = bool(plugins_config.get("pikchr", True))   # #213
+    cetz_enabled = bool(plugins_config.get("cetz", True))   # #236
+    fletcher_enabled = bool(plugins_config.get("fletcher", True))
     mermaid_enabled = bool(plugins_config.get("mermaid", True))
     mermaid_auto_download = bool(plugins_config.get("mermaid_auto_download", False))
     plantuml_enabled = bool(plugins_config.get("plantuml", True))
@@ -81,6 +83,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               mermaid_enabled=mermaid_enabled, mermaid_auto_download=mermaid_auto_download,
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download, pikchr_enabled=pikchr_enabled,
+                              cetz_enabled=cetz_enabled, fletcher_enabled=fletcher_enabled,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
                               mermaid_browser=mermaid_browser, csv_header=csv_header)

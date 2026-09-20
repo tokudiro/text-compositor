@@ -1,4 +1,4 @@
-# 図表（Mermaid / Graphviz / PlantUML / D2 / Pikchr / SVG）
+# 図表（Mermaid / Graphviz / PlantUML / D2 / Pikchr / CeTZ / Fletcher / SVG）
 
 通常のフェンスコードブロックとして書きます。
 
@@ -33,7 +33,7 @@ box "開始" fit; arrow; circle "終了"
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`とも既定`true`）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`とも既定`true`）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -45,6 +45,7 @@ box "開始" fit; arrow; circle "終了"
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
+| `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
 
 ### Graphvizで使えない記法
 
@@ -76,6 +77,36 @@ circle "PDF"
 - `.pikchr`ファイルも、`chapters`に指定できます（1ファイル＝1章）。Obunzuでも、単体のファイルとして開けます。
 - PDF出力もObunzuも、同梱のPikchrのWASM版（Typstの`kip`）で描くため、同じ図になります。`plugins.pikchr: false`で、無効にできます。
 - Pikchrの記法は、[公式のドキュメント](https://pikchr.org/home/doc/trunk/doc/userman.md)を参照してください。
+
+### CeTZ・Fletcherについて
+
+`cetz`・`fletcher`は、Typstの描画ライブラリで、図を描きます。幾何図形・木構造・グラフは、CeTZ（[公式](https://typst.app/universe/package/cetz)）が得意です。ノードと矢印の図（フローチャート・状態遷移図・可換図式）は、Fletcher（[公式](https://typst.app/universe/package/fletcher)）が得意です。
+
+`cetz`には、CeTZの描画関数（`circle`・`line`・`content`など）を、1行に1つずつ書きます。
+
+````markdown
+```cetz
+circle((0, 0), radius: 1)
+line((0, 0), (2, 1))
+content((1, 0.5), [日本語のラベル])
+```
+````
+
+`fletcher`には、`diagram(...)`の引数を、コンマで区切って書きます。
+
+````markdown
+```fletcher
+node((0, 0), [開始]), edge("->"), node((1, 0), [処理]), edge("->"), node((2, 0), [終了])
+```
+````
+
+- 日本語のラベルも、使えます。`{width=...}`/`{height=...}`で、大きさを指定できます（下の「サイズ指定」）。指定しなければ、行の幅より広いときだけ、縮小します。
+- `import`・`include`は、書けません（書くと、原稿の行つきのエラーになります）。CeTZの描画関数は、最初から使えます（`cetz.draw`のすべて。`cetz.vector`・`cetz.tree`などは、`cetz.`をつけて使えます）。Fletcherは、`node`・`edge`・`shapes`（`shapes.diamond`など）・`fletcher`が使えます。
+- ファイルを読む関数（`read`・`json`・`csv`など）も、使えません。原稿が、意図しないファイルを、読まないようにするためです。
+- Typstの構文や関数名の間違いは、ビルドが失敗し、Typstのメッセージが出ます。行は、フェンスの開始行です（コードの中の位置は、出ません）。
+- PDF出力もObunzuも、同梱のTypstのパッケージ（`cetz`・`fletcher`）で描くため、同じ図になります。`plugins.cetz: false`・`plugins.fletcher: false`で、それぞれ無効にできます。
+- CeTZは、LGPL-3.0以降のライセンスです。Obunzuには、改造せずに、同梱しています（ライセンスの全文とソースの入手先は、配布物の`licenses/`にあります）。
+- 記法は、それぞれの公式のドキュメント（[CeTZ](https://cetz-package.github.io/docs/)・[Fletcher](https://github.com/Jollywatt/typst-fletcher)）を参照してください。
 
 レイアウトのブロック（`::: layout-...`・`::: align`）も、PDF出力とObunzuの両方で使えます。Obunzuでは、CSSで近似するため、見た目が、PDF出力と少し違う場合があります。
 
