@@ -169,7 +169,10 @@ class TypstRenderer:
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
-                 mermaid_browser=None, csv_header=True, graphviz_enabled=True):
+                 mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None):
+        # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
+        # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
+        self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
         # plugins.graphviz（既定true）。PDFでは、Typst側のプリアンブルが使う。HTML出力では、falseなら、Graphvizの
         # フェンスを、素のコードのまま表示する（他の図の、無効のときと同じ。#181）。
         self.graphviz_enabled = graphviz_enabled
@@ -991,8 +994,7 @@ class TypstRenderer:
         """```svgフェンスの内容を、キャッシュ用の.svgファイルへ書き出し、そのパスを返す。mermaid/plantumlと
         異なりSVGは既にテキストで完結したベクター画像フォーマットのため、外部レンダリングエンジンは
         呼ばず、コードをそのまま書き出すだけでよい（#91）。"""
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
+        cache_dir = self._diagram_cache_dir()
         digest = hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
         svg_path = os.path.join(cache_dir, f"svg_{digest}.svg")
 
@@ -1009,10 +1011,14 @@ class TypstRenderer:
 
     def _diagram_cache_path(self, kind, tool_version, code):
         """図のSVGキャッシュのパスとキー（ハッシュ）を返す。キーの設計は_diagram_cache_key()参照（#26）。"""
-        cache_dir = os.path.join(self.base_dir, ".text-compositor", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
         digest = _diagram_cache_key(kind, tool_version, code)
-        return os.path.join(cache_dir, f"{kind}_{digest}.svg"), digest
+        return os.path.join(self._diagram_cache_dir(), f"{kind}_{digest}.svg"), digest
+
+    def _diagram_cache_dir(self):
+        """図のSVGのキャッシュのフォルダ（作って返す）。cache_dirの指定がなければ、原稿の隣の.text-compositor/cache/。"""
+        cache_dir = self.cache_dir or os.path.join(self.base_dir, ".text-compositor", "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        return cache_dir
 
     def _d2_version(self):
         """キャッシュキーに使うd2のバージョン。システムのd2があればその実バージョン、無ければ

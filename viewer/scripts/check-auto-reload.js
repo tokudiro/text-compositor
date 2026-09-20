@@ -95,7 +95,7 @@ const stats = (values) => {
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
 
   try {
-    const content = await connect(await findTarget(/preview\.html/));
+    const content = await connect(await findTarget(/(?<!chrome)\.html$/));
     const chrome = await connect(await findTarget(/chrome\.html/));
     const h1 = () => content.eval("document.querySelector('h1')?.textContent ?? ''");
     const waitH1 = async (expected, timeoutMs = 20000) => {

@@ -309,6 +309,37 @@ class TestDependencies:
         assert not result.ok and result.dependencies == []
 
 
+class TestOutsideTheDocumentFolder:
+    """Viewerは、原稿のフォルダに何も書かないため、HTMLと図のキャッシュを、別の場所に出す（#258）。"""
+
+    SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>'
+
+    def test_nothing_is_written_next_to_the_document(self, tmp_path):
+        docs = tmp_path / "docs"
+        work = tmp_path / "work"
+        result, html = convert(docs, f"```svg\n{self.SVG}\n```\n",
+                               output=str(work / "html" / "a.html"), cache_dir=str(work / "cache"))
+        assert result.ok
+        assert result.html_path == str(work / "html" / "a.html")
+        assert sorted(os.listdir(str(docs))) == ["doc.md"]          # .text-compositor/ が無い
+        m = re.search(r'<img src="([^"]+)" alt="svg diagram"', html)
+        assert m, html
+        cached = (work / "html" / m.group(1)).resolve()               # HTMLからの相対URLで、キャッシュに届く
+        assert cached.parent == (work / "cache").resolve() and cached.read_text(encoding="utf-8").startswith("<svg")
+
+    def test_a_document_image_is_still_found_from_the_moved_html(self, tmp_path):
+        docs = tmp_path / "docs"
+        write(docs / "img" / "p.png", "x")
+        result, html = convert(docs, "![p](img/p.png)\n", output=str(tmp_path / "work" / "a.html"),
+                               cache_dir=str(tmp_path / "work" / "cache"))
+        m = re.search(r'<img src="([^"]+)"', html)
+        assert (tmp_path / "work" / m.group(1)).resolve() == (docs / "img" / "p.png").resolve()
+
+    def test_without_cache_dir_the_cache_stays_next_to_the_document(self, tmp_path):
+        result, html = convert(tmp_path, f"```svg\n{self.SVG}\n```\n")
+        assert list((tmp_path / ".text-compositor" / "cache").glob("svg_*.svg"))
+
+
 class TestFences:
     def test_an_svg_fence_becomes_an_img_of_a_cached_file(self, tmp_path):
         svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>'

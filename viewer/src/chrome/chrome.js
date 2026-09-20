@@ -17,6 +17,7 @@ $('csv-header').addEventListener('click', () => api.setCsvHeader($('csv-header')
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
 $('choose-directory').addEventListener('click', () => api.chooseOpenDirectory());
+$('clear-cache').addEventListener('click', () => api.clearCache());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
 $('settings').addEventListener('change', (event) => {
   if (event.target.matches('input[type="radio"]')) api.setSetting(event.target.name, event.target.value);
@@ -48,6 +49,10 @@ function render(state) {
   $('fixed-directory-row').hidden = !fixed;
   $('fixed-directory').textContent = state.settings.fixedDirectory ?? '未指定（ドキュメントのフォルダから始まります）';
   $('fixed-directory').title = state.settings.fixedDirectory ?? '';
+  // アプリの領域の使用量。数え終わるまでは、空にする。0のときは、削除するものが無い
+  $('cache-size').textContent = state.cache.bytes === null ? '' : formatBytes(state.cache.bytes);
+  $('clear-cache').disabled = state.cache.clearing || !state.cache.bytes;
+  $('clear-cache').textContent = state.cache.clearing ? '削除中…' : '削除';
 
   // ファイル名を主にして、フォルダは、控えめに添える。全体は、ホバーで表示する
   const split = state.file ? Math.max(state.file.lastIndexOf('\\'), state.file.lastIndexOf('/')) : -1;
@@ -86,6 +91,12 @@ function render(state) {
   details.hidden = !(showBanner && detailsOpen);
   details.replaceChildren(...d.items.map(itemElement));
   requestAnimationFrame(reportHeight);
+}
+
+/** 使用量の表示。1 MB未満はKB、それ以上はMB（小数1桁）。 */
+function formatBytes(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function itemElement(item) {

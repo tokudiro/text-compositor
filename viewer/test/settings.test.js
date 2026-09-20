@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -101,4 +101,12 @@ test('lastDirectory is an absolute path or null; anything else is dropped', () =
   assert.equal(normalizeSettings({}).lastDirectory, null);
   assert.equal(normalizeSettings({ lastDirectory: absolute }).lastDirectory, absolute);
   for (const bad of ['', 'relative/dir', 42, null, [absolute], {}]) assert.equal(normalizeSettings({ lastDirectory: bad }).lastDirectory, null, JSON.stringify(bad));
+});
+
+test('workLocation is app or beside, defaults to app, and can be changed from the settings screen (#258)', () => {
+  assert.equal(normalizeSettings({}).workLocation, 'app');
+  for (const mode of ['app', 'beside']) assert.equal(normalizeSettings({ workLocation: mode }).workLocation, mode);
+  // 「ファイルを作らない」は、まだ実装していないため、選べない（保存された値でも、既定に戻す）
+  for (const bad of ['none', 'memory', 'App', '', 1, null, ['app']]) assert.equal(normalizeSettings({ workLocation: bad }).workLocation, 'app', JSON.stringify(bad));
+  assert.ok(EDITABLE.includes('workLocation'));
 });

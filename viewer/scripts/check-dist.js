@@ -34,9 +34,13 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`);
 }
 
+/** 文書のビューのURL。変換したHTMLは、アプリの領域の`html/<ハッシュ>.html`（設定が「原稿の隣」のときは`preview.html`）。ツールバーの`chrome.html`は除く。 */
+const isContent = (url) => url.endsWith('.html') && !url.endsWith('/chrome.html');
+
 async function connect(match = 'chrome.html') {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  const ws = new WebSocket(targets.find((t) => t.url.includes(match)).webSocketDebuggerUrl);
+  const matches = typeof match === 'function' ? match : (url) => url.includes(match);
+  const ws = new WebSocket(targets.find((t) => matches(t.url)).webSocketDebuggerUrl);
   await new Promise((resolve) => ws.addEventListener('open', resolve));
   let id = 0;
   const pending = new Map();
@@ -67,7 +71,7 @@ async function runCase(name, markdown, file, expect, wait = 6000, extraEnv = {})
   try {
     await sleep(wait);
     const evaluate = await connect();
-    const content = await connect('preview.html').catch(() => null);   // 文書のビュー（表示できなかったときは、無い）
+    const content = await connect(isContent).catch(() => null);   // 文書のビュー（表示できなかったときは、無い）
     const state = JSON.parse(await evaluate("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "file: document.getElementById('file-name').textContent })"));
@@ -88,6 +92,8 @@ async function main() {
   await runCase('通常の原稿', '# 配布物のテスト\n\n本文。\n\n> [!NOTE]\n> alert\n', path.join(work, 'plain.md'), (state, pythons) => {
     check('Pythonなしの環境で、文書が表示される', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
     check('ワーカーは、同梱のpython-embedで動く', pythons.length > 0 && pythons.every((p) => p.toLowerCase() === embedded), pythons.join(', '));
+    // 既定では、原稿のフォルダに、何も書かない（変換したHTMLと図のキャッシュは、アプリの領域。#258）
+    check('原稿のフォルダに、.text-compositor/ が作られない', !fs.existsSync(path.join(work, '.text-compositor')), fs.readdirSync(work).join(', '));
   });
   await runCase('日本語のフォルダ名・ファイル名', '# 日本語のパス\n\n本文。\n', path.join(work, '日本語のフォルダ', '原稿 その1.md'), (state) => {
     check('日本語のパスの原稿が、表示される', /更新/.test(state.status) && state.banner === '' && state.file === '原稿 その1.md', JSON.stringify(state));

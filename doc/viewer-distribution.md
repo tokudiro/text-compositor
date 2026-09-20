@@ -59,7 +59,7 @@ Obunzu-0.3.6-win-x64/
 **Mermaidは、Electron自身のChromiumで描画する**。Pythonの`playwright`（約106 MB）と、システムのChrome・Edgeは、要らない。
 
 - **仕組み**: Pythonのワーカーが、Mermaidのフェンスに出会うと、標準出力（JSON行）で、描画をElectronに依頼する。Electronは、非表示のウィンドウに、`mermaid.min.js`を読み込み、`mermaid.render()`でSVGにして、標準入力で返す（プロトコルは、仕様書14章）。`mermaid.min.js`の取得（SHA256の確認・キャッシュ）は、Pythonが行い、ファイルのパスを渡す。描画用のウィンドウは、最初の図で、1回だけ作る（起動を遅くしないため）。
-- **速さ**（実測。2回目以降は、SVGが、原稿の隣の`.text-compositor/cache/`に、キャッシュされる）:
+- **速さ**（実測。2回目以降は、SVGが、キャッシュされる。実測したときは、原稿の隣の`.text-compositor/cache/`。今のViewerの既定は、アプリの領域の`cache/`。[#258](https://github.com/tokudiro/text-compositor/issues/258)）:
 
 | | 従来（Python + `playwright` + Chrome・Edge） | Electronで描画 |
 |---|---|---|

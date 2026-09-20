@@ -60,6 +60,8 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 
 The settings screen (gear button) has three items: the **toolbar position** (top or bottom; the error bar follows the toolbar), the **color scheme** (follow the OS, light or dark), and **where to open files** (the folder the `Ctrl+O` dialog starts in). The last one is one of: **OSにゆだねる** (leave it to the OS; no folder is given), **前回開いたフォルダ** (the default; the folder of the file you opened last), or **特定のフォルダ** (a folder chosen with the **フォルダを選ぶ…** button). If the last opened or specific folder is not set or no longer exists, the dialog starts in the Documents folder. Changes apply at once. The automatic reload toggle is saved as well.
 
+There are two more items (#258). **変換ファイルの保存場所** (where the converted files go) is **アプリの領域** (the default: the converted HTML and the diagram cache are kept in the app's cache folder, so nothing is written to your document's folder, and a document in a read-only place can be opened) or **原稿の隣** (a `.text-compositor/` folder next to the document, as the worker does by default; a document in a place that cannot be written is opened with the app folder instead, with a warning). A third choice, **ファイルを作らない**, is shown grayed out: it is not implemented yet. **キャッシュ** shows the size of the app folder (on Windows, `%LOCALAPPDATA%\text-compositor\Cache\viewer`) and has a delete button. Deleting removes only the converted HTML and the diagram cache there, then converts the open document again; a `.text-compositor/` next to a document, and the downloaded fonts and diagram tools, are left alone.
+
 The window size and position are remembered too (also maximized state). If the saved position no longer fits on any screen, for example after unplugging a monitor, only the size is restored.
 
 Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%\Obunzu` on Windows). A missing or broken file, or an unexpected value, falls back to the defaults, so the app always starts.
@@ -89,8 +91,10 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/targets.js` | Which files can be opened; how links and drops are handled |
 | `src/mermaid-host.js` | Renders Mermaid diagrams in a hidden window when the worker asks (#207) |
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
+| `src/workdir.js` | Where the converted HTML and the diagram cache go (app folder or next to the document), and the cache size and delete (#258) |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/check-work-location.js` | Starts the viewer with a throwaway user folder and checks where the converted files go, the cache size and delete, and the switch to "next to the document" (manual) |
 | `scripts/check-open-files.js` | Opens .txt, .csv, .svg, diagram files, unsupported files, a folder, a missing file and a large file from the command line and checks what is shown (manual) |
 | `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |
 | `scripts/check-window-state.js` | Checks that the window size, position and maximized state come back after a restart (manual, Windows only) |

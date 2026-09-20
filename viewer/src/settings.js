@@ -13,11 +13,12 @@ const DEFAULTS = Object.freeze({
   window: null,             // 前回のウィンドウの大きさ・位置（#192）。設定画面では変えない
   openDirectoryMode: 'last', // ファイルを開くダイアログの、最初の場所（#226）。'os'（OSにゆだねる） | 'last'（前回開いたフォルダ） | 'fixed'（特定のフォルダ）
   fixedDirectory: null,     // 'fixed'のときのフォルダ。設定画面の、フォルダを選ぶボタンで決める
+  workLocation: 'app',      // 変換したHTML・図のキャッシュの置き場所（#258）。'app'（アプリの領域。原稿のフォルダには書かない） | 'beside'（原稿の隣の.text-compositor/）
   lastDirectory: null,      // 前回開いたファイルのフォルダ。アプリが自動で保存する。設定画面では変えない
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'openDirectoryMode']);
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'openDirectoryMode', 'workLocation']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -26,6 +27,7 @@ const CHOICES = Object.freeze({
   toolbarPosition: ['top', 'bottom'],
   theme: ['system', 'light', 'dark'],
   openDirectoryMode: ['os', 'last', 'fixed'],
+  workLocation: ['app', 'beside'],   // 「ファイルを作らない」（カスタムプロトコル）は、実装できてから加える（#258）
 });
 
 function integer(value, min, max) {

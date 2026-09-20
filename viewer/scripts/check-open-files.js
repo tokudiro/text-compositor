@@ -21,9 +21,13 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`);
 }
 
+/** 文書のビューのURL。変換したHTMLは、アプリの領域の`html/<ハッシュ>.html`（設定が「原稿の隣」のときは`preview.html`）。ツールバーの`chrome.html`は除く。 */
+const isContent = (url) => url.endsWith('.html') && !url.endsWith('/chrome.html');
+
 async function connect(match) {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  const target = targets.find((t) => t.url.includes(match));
+  const matches = typeof match === 'function' ? match : (url) => url.includes(match);
+  const target = targets.find((t) => matches(t.url));
   if (!target) return null;
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve) => ws.addEventListener('open', resolve));
@@ -50,7 +54,7 @@ async function open(arg, wait = 4500, act = null) {
     const state = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "detail: document.querySelector('#details .item')?.textContent ?? '' })"));
-    const content = await connect('preview.html');
+    const content = await connect(isContent);
     const page = content ? JSON.parse(await content("JSON.stringify({ text: document.querySelector('pre.plain-text')?.textContent ?? null, "
       + "notes: [...document.querySelectorAll('.text-note')].map((n) => n.textContent), headings: document.querySelectorAll('h1,h2,ul').length, "
       + "images: [...document.querySelectorAll('img')].map((i) => i.complete && i.naturalWidth > 0), "

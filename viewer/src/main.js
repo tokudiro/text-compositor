@@ -17,6 +17,7 @@ const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, 
 const { FileWatcher } = require('./watcher');
 const { MermaidHost } = require('./mermaid-host');
 const { GraphvizHost } = require('./graphviz-host');
+const { cacheRoot, cacheUsage, clearCache, workLocation } = require('./workdir');
 const { WorkerClient } = require('./worker-client');
 
 // アプリケーション名（#194）。Observe（観察する）+ 文図（文章と図）の造語。
@@ -53,6 +54,7 @@ const state = {
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
   isCsv: false,          // 開いているのが、.csvか（ツールバーの、見出し行の切り替えを出す。#220）
   settings: { ...DEFAULTS },
+  cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
   diagnostics: summarize([]),
 };
 
@@ -66,7 +68,9 @@ let worker = null;
 let shown = null;        // 表示中の文書 {md, html}
 let inFlight = false;
 let queued = null;
+let idleWaiters = [];   // 変換が終わるのを待つ処理（キャッシュの削除）
 let watcher = null;
+const workRoot = cacheRoot();   // アプリの領域（#258）
 // MermaidとGraphvizの描画（それぞれ、非表示のウィンドウ。最初の図で作る。#207・#181）。ワーカーが、標準入出力で、依頼してくる。
 const createHiddenWindow = () => new BrowserWindow({
   show: false,
@@ -215,7 +219,7 @@ function setSettingsOpen(open) {
   push();
   // 開いたら、フォーカスを設定画面（ウィンドウ本体）へ移す。文書に残ったままだと、隠れた文書がキーを受けて、
   // Escで閉じられない（実測）。閉じたら、文書へ戻す（スクロール・キー操作が、そのまま使える）。
-  if (state.settingsOpen) win.webContents.focus();
+  if (state.settingsOpen) { win.webContents.focus(); void refreshCacheUsage(); }
   else if (state.hasDocument) contentView.webContents.focus();
 }
 
@@ -368,7 +372,13 @@ async function drain() {
     }
   } finally {
     inFlight = false;
+    for (const resolve of idleWaiters.splice(0)) resolve();
   }
+}
+
+/** 変換が終わるまで待つ（変換中に、変換の材料を消さないため）。 */
+function whenIdle() {
+  return inFlight ? new Promise((resolve) => idleWaiters.push(resolve)) : Promise.resolve();
 }
 
 async function renderOnce(file) {
@@ -379,15 +389,23 @@ async function renderOnce(file) {
   push();
 
   let result;
+  let fellBack = false;
   try {
     const client = await getWorker();
-    result = await client.renderHtml({ path: file, csv_header: state.settings.csvHeader });
+    // 既定では、HTMLと図のキャッシュを、アプリの領域に置く（原稿のフォルダには、何も書かない。#258）
+    const location = workLocation(state.settings.workLocation, file, { root: workRoot });
+    fellBack = location.fellBack;
+    result = await client.renderHtml({ path: file, csv_header: state.settings.csvHeader, ...location.params });
   } catch (error) {
     if (error instanceof PythonNotFoundError) worker = null;
     // 想定外の例外でも、アプリを落とさず、原因を診断として見せる
     result = { ok: false, html: null, timings_ms: {}, diagnostics: [{ severity: 'error', message: error.message }] };
   }
 
+  if (fellBack) {
+    // 設定は「原稿の隣」でも、書き込めない場所の原稿は、開けないより、開けるほうがよい。切り替えたことを知らせる
+    result.diagnostics = [...(result.diagnostics ?? []), { severity: 'warning', message: '原稿のフォルダに書き込めないため、変換したファイルを、アプリの領域に保存しました（設定は「原稿の隣」）', file }];
+  }
   state.diagnostics = summarize(result.diagnostics);
   if (result.ok && result.html) {
     await showHtml(file, result.html, sameDocument, result.dependencies);
@@ -505,6 +523,34 @@ async function chooseOpenDirectory() {
   push();
 }
 
+// -- アプリの領域（変換したHTML・図のキャッシュ）の管理（#258） ----------------------------
+
+/** 使用量を数えて、設定画面に出す。 */
+async function refreshCacheUsage() {
+  const usage = await cacheUsage(workRoot);
+  state.cache = { ...state.cache, bytes: usage.bytes };
+  push();
+}
+
+/**
+ * 設定画面の「キャッシュを削除」。消すのは、アプリの領域の、HTMLと図のSVGだけ（原稿の隣の`.text-compositor/`は、
+ * 利用者のフォルダのため、消さない）。表示中の文書は、HTMLと図のファイルを消したため、変換し直して、表示し直す。
+ */
+async function clearWorkCache() {
+  if (state.cache.clearing) return;
+  state.cache = { ...state.cache, clearing: true };
+  push();
+  try {
+    await whenIdle();   // 変換中は、変換の材料を消さない
+    await clearCache(workRoot);
+  } catch (error) {
+    state.diagnostics = summarize([{ severity: 'error', message: `キャッシュを削除できません: ${error.message}` }]);
+  } finally {
+    state.cache = { ...state.cache, clearing: false };
+  }
+  await refreshCacheUsage();
+  if (state.file) openFile(state.file);   // 設定画面は、開いたままにする（reloadと違い、leaveSettingsは呼ばない）
+}
 // -- メニュー・IPC --------------------------------------------------------------
 
 function buildMenu() {
@@ -548,4 +594,5 @@ ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
+ipcMain.on('clear-cache', () => clearWorkCache());
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
