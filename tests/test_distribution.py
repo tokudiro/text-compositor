@@ -1,7 +1,7 @@
 """Viewerの配布物（#168）の前提のテスト。
 
-- typstとMermaid用のplaywrightが、なくても、HTML出力が動くこと（HTML出力は、この2つに依存しない。pipで入れる場合の、
-  最小の構成。配布物は、Typstを通す処理のために、typstを同梱する。#263）。
+- typstとMermaid用のplaywrightが、なくても、Graphviz以外のHTML出力が動くこと（pipで入れる場合の、最小の構成。
+  Graphvizは、Typstのdiagraphで描くため（#264）、typstが要る。配布物は、typstを同梱する。#263）。
 - 配布物のPython依存（viewer/dist-requirements.txt）が、pyproject.tomlの依存と、ずれていないこと。"""
 import json
 import re
@@ -42,7 +42,19 @@ class TestWithoutTypstAndPlaywright:
             "from text_compositor.compiler import typst_lib\n"
             "try:\n    typst_lib.compile\nexcept ImportError as e:\n    print('IMPORTERROR', e)")
         result = run_python(code, tmp_path)
-        assert "IMPORTERROR" in result.stdout and "not needed for HTML output" in result.stdout
+        assert "IMPORTERROR" in result.stdout and "pip install typst" in result.stdout
+
+    def test_graphviz_in_html_output_without_typst_is_an_error_that_says_what_is_missing(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text("```dot\ndigraph { a -> b }\n```\n", encoding="utf-8")
+        code = self.BLOCK + (
+            "import json\nfrom text_compositor.api import render_html\n"
+            f"r = render_html({str(md)!r}, plugins={{'mermaid': False, 'plantuml': False, 'd2': False}})\n"
+            "print(json.dumps({'ok': r.ok, 'detail': [d.detail for d in r.errors]}))")
+        result = run_python(code, tmp_path)
+        assert result.returncode == 0, result.stderr
+        reply = json.loads(result.stdout.strip().splitlines()[-1])
+        assert reply["ok"] is False and "pip install typst" in reply["detail"][0]
 
 
 def _pins(lines):

@@ -188,8 +188,9 @@ class Session:
         失敗しても例外は出さず、`ok=False`の結果を返す。
 
         図（Mermaid・PlantUML・D2・svg）は、PDFと同じ仕組みでSVGにし（キャッシュも共通）、HTMLから`<img>`で
-        参照する。Graphvizは、呼び出し元（ViewerのElectron）が描画できるときだけ図にする（#181）。描けないGraphviz・
-        `typst-exec`・生のHTMLは、内容を消さずにコードブロックで表示し、警告を出す。
+        参照する。Graphviz（`dot`・`graphviz`）は、PDFと同じく、Typstのパッケージ`diagraph`でSVGにする（#264）。
+        `shape=record`・図全体の`label`は、描かれないため、警告を出す。`typst-exec`・生のHTMLは、内容を消さずに
+        コードブロックで表示し、警告を出す。
         PDFにだけ意味を持つ指定（用紙サイズ・改ページ・ヘッダ等）は、無視して、`info`の診断にする。
 
         markdown_path: 対象のファイル。画像等の相対パスは、このファイルの場所が基準。

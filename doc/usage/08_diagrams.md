@@ -39,7 +39,20 @@ A -> B
 | `plantuml` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `d2` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
-| `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（Viz.js。初回に、約1.3 MBを取得します）。PDF出力とは、レイアウトエンジンが違うため、線や配置が、少し違う場合があります。長い日本語のラベルは、箱の幅を、自動で合わせます（`record`形のノードを除く） |
+| `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
+
+### Graphvizで使えない記法
+
+Graphvizは、PDF出力・Obunzu・Python APIのすべてで、Typstの`diagraph`で描きます。次の記法は、描けないか、見た目が変わります。
+
+| 使えないもの | 何が起きるか |
+| --- | --- |
+| データ構造の図（`shape=record`・`Mrecord`） | 仕切りの記号（`{名前\|年齢}`など）が、そのまま文字で、1つの箱に出ます。Obunzu・Python APIでは、警告を出します（PDF出力は、警告なし） |
+| 図全体のタイトル（`label="…"`・`labelloc`） | 表示されません。Obunzu・Python APIでは、警告を出します（PDF出力は、警告なし）。タイトルは、Markdownの本文に書くか、`cluster`の`label`（描けます）にしてください |
+| 表を使ったラベル（HTMLラベル） | 文字が、セルからはみ出す場合があります（警告なし） |
+| ラテン文字のノード名（`a`・`b`など） | 斜体の明朝系の字体になります。日本語のラベルは、普通の字体です（警告なし） |
+
+警告は、DOTを簡易に調べて出します。ノードの`label`や`cluster`の`label`は、描けるため、警告しません。
 
 レイアウトのブロック（`::: layout-...`・`::: align`）も、PDF出力とObunzuの両方で使えます。Obunzuでは、CSSで近似するため、見た目が、PDF出力と少し違う場合があります。
 

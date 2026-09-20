@@ -10,7 +10,7 @@ import pytest
 
 from text_compositor import worker
 import text_compositor.renderer_diagrams as diagrams_mod
-from text_compositor.host_renderers import _graphviz_host_renderer, _mermaid_host_renderer
+from text_compositor.host_renderers import _mermaid_host_renderer
 from text_compositor.api import BuildResult, HtmlResult
 from text_compositor.diagnostics import Diagnostic
 
@@ -308,7 +308,6 @@ class TestHostMermaid:
         """ワーカー（serve）を、スレッドで動かし、render_htmlを`requests`回依頼する。`on_event(event, host_in)`が、描画の依頼に応える。
         戻り値: (各依頼の応答, 出たイベントの一覧)。"""
         monkeypatch.setattr(diagrams_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
-        monkeypatch.setattr(diagrams_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
         md = tmp_path / "doc.md"
         md.write_text(doc, encoding="utf-8")
         stdin_r, stdin_w = os.pipe()
@@ -322,7 +321,7 @@ class TestHostMermaid:
 
         events, responses = [], []
         assert json.loads(host_out.readline())["event"] == "ready"
-        plugins = {"mermaid": True, "plantuml": False, "d2": False, "graphviz": True}
+        plugins = {"mermaid": True, "plantuml": False, "d2": False, "graphviz": False}
         for number in range(1, requests + 1):
             host_in.write(json.dumps({"id": number, "method": "render_html", "params": {"path": str(md), "plugins": plugins}}) + "\n")
             host_in.flush()
@@ -403,107 +402,6 @@ class TestHostMermaid:
         assert "closed the connection" in error["detail"]
 
     def test_without_the_flag_the_host_hooks_are_not_installed(self, tmp_path):
-        assert _mermaid_host_renderer is None and _graphviz_host_renderer is None
+        assert _mermaid_host_renderer is None
         worker.serve(io.StringIO(""), io.StringIO())
-        assert _mermaid_host_renderer is None and _graphviz_host_renderer is None
-
-
-class TestHostGraphviz(TestHostMermaid):
-    """Graphvizも、同じ通信で、呼び出し元に描画してもらう（#181）。Mermaidと同じ性質（キャッシュ・エラー・読み捨て・切断）を、
-    イベント名とキャッシュの名前を変えて、そのまま確かめる。"""
-
-    EVENT = "render_graphviz"
-    FENCE_DOC = "# T\n\n本文。\n\n```dot\ndigraph { A -> B }\n```\n"
-
-    def _drive(self, tmp_path, monkeypatch, on_event, doc=FENCE_DOC, requests=1):
-        return super()._drive(tmp_path, monkeypatch, on_event, doc=doc, requests=requests)
-
-    def test_the_host_renders_the_diagram_and_the_result_is_cached(self, tmp_path, monkeypatch):
-        svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>graphviz from the host</text></svg>'
-
-        def on_event(event, host_in):
-            host_in.write(self._reply(event["callback"], ok=True, svg=svg))
-            host_in.flush()
-
-        responses, events = self._drive(tmp_path, monkeypatch, on_event, requests=2)
-        assert [r["ok"] for r in responses] == [True, True]
-        assert len(events) == 1   # 2回目は、キャッシュ。ホストに、頼まない
-        assert events[0]["code"] == "digraph { A -> B }\n"
-        assert events[0]["js"] == "fake-viz-global.js" and events[0]["diagram_id"].startswith("graphviz-")
-        html = open(responses[0]["html"], encoding="utf-8").read()
-        assert 'alt="dot diagram"' in html
-        cached = list((tmp_path / ".text-compositor" / "cache").glob("graphviz_*.svg"))
-        assert len(cached) == 1 and cached[0].read_text(encoding="utf-8") == svg
-        assert _graphviz_host_renderer is None   # 終わったら、外す
-
-    def test_a_render_error_from_the_host_is_a_diagnostic_with_the_line(self, tmp_path, monkeypatch):
-        def on_event(event, host_in):
-            host_in.write(self._reply(event["callback"], ok=False, error="syntax error in line 1 near '}'"))
-            host_in.flush()
-
-        responses, _ = self._drive(tmp_path, monkeypatch, on_event)
-        assert responses[0]["ok"] is False
-        error = [d for d in responses[0]["diagnostics"] if d["severity"] == "error"][0]
-        assert error["message"] == "Graphviz diagram failed to render"
-        assert error["line"] == 5 and "syntax error in line 1" in error["detail"]
-
-    def test_lines_that_are_not_the_awaited_reply_are_ignored(self, tmp_path, monkeypatch):
-        def on_event(event, host_in):
-            host_in.write("not json\n")
-            host_in.write(self._reply(event["callback"] + 100, ok=True, svg="<svg>other</svg>"))
-            host_in.write(self._reply(event["callback"], ok=True, svg="<svg>mine</svg>"))
-            host_in.flush()
-
-        responses, _ = self._drive(tmp_path, monkeypatch, on_event)
-        assert responses[0]["ok"] is True
-        cached = list((tmp_path / ".text-compositor" / "cache").glob("graphviz_*.svg"))[0]
-        assert cached.read_text(encoding="utf-8") == "<svg>mine</svg>"
-
-    def test_a_host_that_disappears_fails_the_diagram_instead_of_hanging(self, tmp_path, monkeypatch):
-        def on_event(event, host_in):
-            host_in.close()   # 応えずに、標準入力を閉じる
-
-        responses, _ = self._drive(tmp_path, monkeypatch, on_event)
-        assert responses[0]["ok"] is False
-        error = [d for d in responses[0]["diagnostics"] if d["severity"] == "error"][0]
-        assert "closed the connection while rendering a Graphviz diagram" in error["detail"]
-
-    def test_mermaid_and_graphviz_in_one_document_use_their_own_events(self, tmp_path, monkeypatch):
-        doc = "```mermaid\ngraph TD\n  A --> B\n```\n\n```dot\ndigraph { A -> B }\n```\n"
-        seen = []
-        responses = self._drive_both(tmp_path, monkeypatch, doc, seen)
-        assert responses[0]["ok"] is True
-        assert seen == ["render_mermaid", "render_graphviz"]
-
-    def _drive_both(self, tmp_path, monkeypatch, doc, seen):
-        """_driveは、1種類のイベントだけを扱うため、両方のイベントに応える版。出たイベントの名前を、seenへ入れる。"""
-        monkeypatch.setattr(diagrams_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
-        monkeypatch.setattr(diagrams_mod, "ensure_viz_js", lambda: "fake-viz-global.js")
-        md = tmp_path / "doc.md"
-        md.write_text(doc, encoding="utf-8")
-        stdin_r, stdin_w = os.pipe()
-        out_r, out_w = os.pipe()
-        stdin = io.TextIOWrapper(os.fdopen(stdin_r, "rb"), encoding="utf-8")
-        out = io.TextIOWrapper(os.fdopen(out_w, "wb"), encoding="utf-8", newline="\n", write_through=True)
-        host_in = os.fdopen(stdin_w, "w", encoding="utf-8", newline="\n")
-        host_out = os.fdopen(out_r, "r", encoding="utf-8")
-        thread = threading.Thread(target=worker.serve, args=(stdin, out, True), daemon=True)
-        thread.start()
-        assert json.loads(host_out.readline())["event"] == "ready"
-        plugins = {"mermaid": True, "plantuml": False, "d2": False, "graphviz": True}
-        host_in.write(json.dumps({"id": 1, "method": "render_html", "params": {"path": str(md), "plugins": plugins}}) + "\n")
-        host_in.flush()
-        while True:
-            message = json.loads(host_out.readline())
-            if message.get("event") in ("render_mermaid", "render_graphviz"):
-                seen.append(message["event"])
-                host_in.write(self._reply(message["callback"], ok=True, svg="<svg>x</svg>"))
-                host_in.flush()
-                continue
-            break
-        host_in.write('{"id": 99, "method": "shutdown"}\n')
-        host_in.close()
-        thread.join(timeout=10)
-        assert not thread.is_alive()
-        host_out.close()
-        return [message]
+        assert _mermaid_host_renderer is None

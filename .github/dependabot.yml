@@ -2,7 +2,7 @@
 #
 # 同梱した部品（Electron・Chromium、組込版Python、JREなど）の更新は、こちらが新しい版を出すまで、利用者に届かない。
 # 更新を見逃さないための、検知の仕組みの1つである。Dependabotが見られるのは、npm・pip・GitHub Actionsだけ。
-# コードに直接書いた版（Mermaid・Viz.js・PlantUML・D2・JRE・組込版Python・Typstのパッケージ）は、別の仕組み
+# コードに直接書いた版（Mermaid・PlantUML・D2・JRE・組込版Python・Typstのパッケージ）は、別の仕組み
 # （週次の確認のワークフロー）で見る（#240の対策A-3）。
 #
 # 更新のPRは、CI（test.yml・viewer.yml）で確認してから、マージする。
