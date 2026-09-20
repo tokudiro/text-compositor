@@ -59,7 +59,7 @@ No Typst compiler binary is bundled; it's obtained from the `typst` package (PyP
 
 ### Keeping up to date
 
-Security and bug fixes ship as new releases. There is no automatic update, so use the latest release: `pipx upgrade text-compositor` (or `pip install -U text-compositor`). For the [Obunzu Viewer](viewer/README.md), download the latest ZIP from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest). The Viewer bundles its own Python, so a new ZIP also updates that Python and the other bundled parts.
+Security and bug fixes ship as new releases. There is no automatic update, so use the latest release: `pipx upgrade text-compositor` (or `pip install -U text-compositor`). For the [Obunzu Viewer](viewer/README.md), download the latest ZIP from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest). The Viewer bundles its own Python, so a new ZIP also updates that Python and the other bundled parts. A guide to using Obunzu (in Japanese) is in [doc/obunzu-guide/](doc/obunzu-guide/); its PDF is attached to each release.
 
 ### Using Mermaid diagrams (optional)
 

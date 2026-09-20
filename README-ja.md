@@ -59,7 +59,7 @@ Typstコンパイラ本体はバイナリを同梱せず、上記の `pip instal
 
 ### 最新版を使う
 
-セキュリティ修正やバグ修正は、新しい版として出します。自動更新はないため、最新版を使ってください。pipの場合は、`pipx upgrade text-compositor`（または`pip install -U text-compositor`）です。[Obunzu Viewer](viewer/README-ja.md)は、[Releasesのページ](https://github.com/tokudiro/text-compositor/releases/latest)から、最新のZIPを取得します。Viewerは、Pythonを同梱しているため、新しいZIPで、そのPythonと、ほかの同梱物も更新されます。
+セキュリティ修正やバグ修正は、新しい版として出します。自動更新はないため、最新版を使ってください。pipの場合は、`pipx upgrade text-compositor`（または`pip install -U text-compositor`）です。[Obunzu Viewer](viewer/README-ja.md)は、[Releasesのページ](https://github.com/tokudiro/text-compositor/releases/latest)から、最新のZIPを取得します。Viewerは、Pythonを同梱しているため、新しいZIPで、そのPythonと、ほかの同梱物も更新されます。Obunzuの使い方は、[Obunzu使い方ガイド](doc/obunzu-guide/)（Releasesに、PDFを添付しています）を参照してください。
 
 ### Mermaid図を使う場合（任意）
 

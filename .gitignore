@@ -10,6 +10,7 @@ config.yaml
 config.json
 sample/**/*.pdf
 doc/usage/*.pdf
+doc/obunzu-guide/*.pdf
 doc/test_spec/*.pdf
 
 # viewer-csharp/ (.NET) と viewer-rust/ (Cargo) のビルド成果物（#99）

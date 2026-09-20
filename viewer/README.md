@@ -4,6 +4,8 @@ English | [日本語](README-ja.md)
 
 A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, `svg`) as images. There is no editor and no PDF output.
 
+This README is for developers. The guide for people who use Obunzu is the [Obunzu usage guide](../doc/obunzu-guide/) (in Japanese; its PDF is attached to each release).
+
 The visual design policy (colors, spacing, fonts) is in [doc/viewer-visual-design.md](../doc/viewer-visual-design.md).
 
 The display engine was chosen by measurement: see [doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md). Electron with `--disable-gpu --in-process-gpu` felt the fastest, so those flags are applied by default (set `VIEWER_GPU=1` to turn them off).

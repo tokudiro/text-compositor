@@ -1,0 +1,41 @@
+document:
+  title: "Obunzu 使い方ガイド"
+  subtitle: "Markdownと図を、すばやく表示する、閲覧専用のViewer"
+  author: ""
+  date: "auto"
+  paper_size: "a4"
+  landscape: false
+  cover: "template"
+  toc: true
+
+output:
+  filename: "obunzu-usage-guide.pdf"
+  dir: "."
+
+template:
+  path: "template"
+
+# この説明書の中の図は、写真（PNG）だけ。図のコードは、書かないため、どれも無効にして、
+# Pythonとpipだけで、作れるようにする（CIの、使い方ガイドと同じ）。
+plugins:
+  graphviz: false
+  mermaid: false
+  plantuml: false
+  d2: false
+  pikchr: false
+  cetz: false
+  fletcher: false
+
+inputs:
+  dir: "."
+
+chapters:
+  - "01_about.md"
+  - "02_install.md"
+  - "03_open.md"
+  - "04_screen.md"
+  - "05_diagrams.md"
+  - "06_errors.md"
+  - "07_settings.md"
+  - "08_troubleshooting.md"
+  - "09_license.md"
