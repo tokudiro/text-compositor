@@ -13,7 +13,7 @@ const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme,
 const { summarize } = require('./diagnostics');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
-const { DIAGRAM_EXTENSIONS, MARKDOWN_EXTENSIONS, OTHER_EXTENSIONS, checkOpenTarget, classifyNavigation, fileFromArgv } = require('./targets');
+const { checkOpenTarget, classifyNavigation, dialogDirectory, fileFromArgv, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { MermaidHost } = require('./mermaid-host');
 const { GraphvizHost } = require('./graphviz-host');
@@ -341,8 +341,16 @@ function openFile(file) {
     push();
     return;
   }
+  rememberDirectory(path.dirname(full));
   queued = full;
   if (!inFlight) void drain();
+}
+
+/** 開いたファイルのフォルダを覚える（ファイルを開くダイアログの、最初の場所）。変わったときだけ保存する。 */
+function rememberDirectory(directory) {
+  if (state.settings.lastDirectory === directory) return;
+  state.settings = normalizeSettings({ ...state.settings, lastDirectory: directory });
+  saveSettings(settingsFile, state.settings);
 }
 
 function reload() {
@@ -477,11 +485,9 @@ async function openWithDialog() {
   leaveSettings();
   const result = await dialog.showOpenDialog(win, {
     title: 'ファイルを開く',
+    defaultPath: dialogDirectory(state.settings.lastDirectory, app.getPath('documents')),
     properties: ['openFile'],
-    filters: [
-      { name: 'Markdown・図・テキスト・CSV・SVG', extensions: [...MARKDOWN_EXTENSIONS, ...DIAGRAM_EXTENSIONS, ...OTHER_EXTENSIONS].map((e) => e.slice(1)) },
-      { name: 'すべてのファイル', extensions: ['*'] },
-    ],
+    filters: openDialogFilters(),
   });
   if (!result.canceled && result.filePaths[0]) openFile(result.filePaths[0]);
 }

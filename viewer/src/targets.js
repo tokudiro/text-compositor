@@ -6,12 +6,47 @@ const path = require('node:path');
 const { fileURLToPath } = require('node:url');
 
 /**
- * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル・テキスト（.txt）・CSV（表）・SVG（画像）。
+ * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・テキスト（.txt）。
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする（.yaml・.json・ソースコードの表示は、#218）。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
-const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv'];
-const OTHER_EXTENSIONS = ['.txt', '.csv', '.svg'];
+const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.svg'];
+const CSV_EXTENSIONS = ['.csv'];
+const TEXT_EXTENSIONS = ['.txt'];
+
+/** ファイルを開くダイアログの、種類ごとの絞り込み。#218で.yaml・.json・ソースコードに対応したら、ここに種類を足す。 */
+const OPEN_FILE_KINDS = [
+  { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
+  { name: '図（Mermaid・PlantUML・D2・Graphviz・SVG）', extensions: DIAGRAM_EXTENSIONS },
+  { name: 'CSV', extensions: CSV_EXTENSIONS },
+  { name: 'テキスト', extensions: TEXT_EXTENSIONS },
+];
+
+/**
+ * ファイルを開くダイアログの絞り込み（Electronの`filters`の形）。先頭は、開けるものすべて（既定）、
+ * 末尾は、拡張子を問わないすべてのファイル（対象外の場合は、開くときに、ワーカーが案内する）。
+ */
+function openDialogFilters() {
+  const dotless = (extensions) => extensions.map((extension) => extension.slice(1));
+  return [
+    { name: '開けるファイルすべて', extensions: dotless(OPEN_FILE_KINDS.flatMap((kind) => kind.extensions)) },
+    ...OPEN_FILE_KINDS.map((kind) => ({ name: kind.name, extensions: dotless(kind.extensions) })),
+    { name: 'すべてのファイル', extensions: ['*'] },
+  ];
+}
+
+/**
+ * ファイルを開くダイアログが、最初に見せるフォルダ。前回開いたファイルのフォルダ。無い・消えているときは、`fallback`。
+ * 指定しないと、場所はOS任せになり、開いている文書とは無関係な場所（例: 起動したフォルダ）から始まってしまう。
+ */
+function dialogDirectory(lastDirectory, fallback, { statSync = fs.statSync } = {}) {
+  if (typeof lastDirectory !== 'string' || !lastDirectory) return fallback;
+  try {
+    return statSync(lastDirectory).isDirectory() ? lastDirectory : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * 開こうとするファイルの、事前の確認（存在するか、フォルダでないか）。拡張子では、絞らない。
@@ -65,4 +100,4 @@ function classifyNavigation(url) {
   return { type: 'ignore' };
 }
 
-module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, MARKDOWN_EXTENSIONS, DIAGRAM_EXTENSIONS, OTHER_EXTENSIONS };
+module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, openDialogFilters, dialogDirectory };

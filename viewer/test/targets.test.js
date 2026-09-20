@@ -4,7 +4,50 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { describe, test } = require('node:test');
 
-const { checkOpenTarget, classifyNavigation, fileFromArgv } = require('../src/targets');
+const { checkOpenTarget, classifyNavigation, dialogDirectory, fileFromArgv, openDialogFilters } = require('../src/targets');
+
+describe('openDialogFilters', () => {
+  const filters = openDialogFilters();
+  const byName = (name) => filters.find((filter) => filter.name === name);
+
+  test('the first filter is every openable kind, and the last is any file', () => {
+    assert.equal(filters[0].name, '開けるファイルすべて');
+    assert.deepEqual(filters.at(-1), { name: 'すべてのファイル', extensions: ['*'] });
+    const kinds = filters.slice(1, -1).flatMap((filter) => filter.extensions);
+    assert.deepEqual([...filters[0].extensions].sort(), [...kinds].sort());
+  });
+
+  test('each kind lists its extensions without the dot', () => {
+    assert.deepEqual(byName('Markdown').extensions, ['md', 'markdown']);
+    assert.deepEqual(byName('CSV').extensions, ['csv']);
+    assert.deepEqual(byName('テキスト').extensions, ['txt']);
+    const diagrams = filters.find((filter) => filter.name.startsWith('図'));
+    for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
+  });
+
+  test('no extension appears in two kinds, and none has a dot', () => {
+    const kinds = filters.slice(1, -1).flatMap((filter) => filter.extensions);
+    assert.equal(new Set(kinds).size, kinds.length);
+    assert.ok(kinds.every((extension) => !extension.startsWith('.')));
+  });
+});
+
+describe('dialogDirectory', () => {
+  const fallback = path.resolve(path.sep, 'Users', 'me', 'Documents');
+  const statOf = (isDirectory) => () => ({ isDirectory: () => isDirectory });
+  const missing = () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
+
+  test('the folder opened last is shown first', () => {
+    const last = path.resolve(path.sep, 'work', 'docs');
+    assert.equal(dialogDirectory(last, fallback, { statSync: statOf(true) }), last);
+  });
+  test('without a remembered folder, or when it is gone or not a folder, the fallback is used', () => {
+    const last = path.resolve(path.sep, 'work', 'docs');
+    for (const value of [null, undefined, '', 42]) assert.equal(dialogDirectory(value, fallback), fallback, String(value));
+    assert.equal(dialogDirectory(last, fallback, { statSync: missing }), fallback);
+    assert.equal(dialogDirectory(last, fallback, { statSync: statOf(false) }), fallback);
+  });
+});
 
 describe('checkOpenTarget (#196)', () => {
   const statOf = (isDirectory) => () => ({ isDirectory: () => isDirectory });

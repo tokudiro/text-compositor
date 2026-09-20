@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, window: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, window: null, lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, window: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, window: null, lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 } };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -77,4 +77,10 @@ test('csvHeader is a boolean setting that defaults to true and is kept when vali
   assert.equal(normalizeSettings({}).csvHeader, true);
   assert.equal(normalizeSettings({ csvHeader: false }).csvHeader, false);
   for (const bad of ['false', 0, null, undefined, [false]]) assert.equal(normalizeSettings({ csvHeader: bad }).csvHeader, true, String(bad));
+});
+test('lastDirectory is an absolute path or null; anything else is dropped', () => {
+  const absolute = path.resolve(path.sep, 'docs', 'notes');
+  assert.equal(normalizeSettings({}).lastDirectory, null);
+  assert.equal(normalizeSettings({ lastDirectory: absolute }).lastDirectory, absolute);
+  for (const bad of ['', 'relative/dir', 42, null, [absolute], {}]) assert.equal(normalizeSettings({ lastDirectory: bad }).lastDirectory, null, JSON.stringify(bad));
 });
