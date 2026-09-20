@@ -60,7 +60,7 @@ jobs:
       # ビルド用のPython（組込版のパッケージを、pipで取得するために使う。build-dist.jsが、PATHのpythonを使う）
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       # build-dist.jsが取得する、組込版Python・ライセンス（SHA256を確認する）の保存先。バージョンが変わるまで、再取得しない。
       - name: Cache the downloads of build-dist.js

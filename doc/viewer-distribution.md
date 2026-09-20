@@ -5,7 +5,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 ## 配布の形式
 
 - **ポータブルなZIP**（`Obunzu-<バージョン>-win-x64.zip`）。展開して、`obunzu.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
-- ZIPの大きさは、**約162 MB**。展開後は、**約391 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。
+- ZIPの大きさは、**約164 MB**。展開後は、**約394 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
@@ -26,7 +26,7 @@ Obunzu-0.3.5-win-x64/
 |------|------|------------------|
 | Electron（Chromium） | 同梱 | 約367.5 MB |
 | Viewerのコード（`resources/`） | 同梱 | 0.1 MB |
-| 組込版Python 3.12.10 | 同梱 | 約21.5 MB |
+| 組込版Python 3.14.7 | 同梱 | 約23.5 MB |
 | Pythonのパッケージ（`markdown-it-py`・`mdurl`・`mdit-py-plugins`・`PyYAML`・`platformdirs`）と、`text_compositor` | 同梱 | 約2.3 MB（`text_compositor`は0.6 MB、`markdown_it`は0.4 MB、`yaml`は0.7 MB） |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
 | **`typst`**（PDF用のコンパイラ） | **同梱しない** | 約59 MB（外した分） |
@@ -85,7 +85,7 @@ Obunzu-0.3.5-win-x64/
 
 - 配布物の`licenses/`に、`THIRD-PARTY-NOTICES.md`（一覧）と、各ライセンスの全文を入れる。ビルドが、パッケージのメタデータ（`*.dist-info`）から、自動で作る。
 - 内訳: 本体（MIT）、Python（PSF）、OpenSSL（Apache-2.0。全文を同梱）、`markdown-it-py`・`mdit-py-plugins`・`mdurl`・`platformdirs`・`PyYAML`（MIT）。ElectronとChromiumは、`LICENSE`と`LICENSES.chromium.html`（Electronの配布物に含まれるもの）。
-- **未完の点**: 組込版Pythonに含まれる`libffi`・`expat`・`SQLite`・Microsoftの実行時ライブラリは、名前・ライセンス・参照先の記載に留め、全文は付けていない（python.orgの配布物と、同じ扱い）。厳密に全文を付ける必要があるかは、未確認。
+- **未完の点**: 組込版Pythonに含まれる`libffi`・`expat`・`SQLite`・`LibTomMath`・Zstandardのバインディング（3.14で追加）・Microsoftの実行時ライブラリは、名前・ライセンス・参照先の記載に留め、全文は付けていない（python.orgの配布物と、同じ扱い）。厳密に全文を付ける必要があるかは、未確認。
 
 ## 作り方
 
@@ -123,8 +123,8 @@ node scripts/check-dist.js
 
 **実際のクリーンなWindows（Pythonが入っていない別のPC）での起動は、未実施**である（別のPCを用意するのが難しい。Windows Sandboxは、管理者権限と、機能の有効化が要るため、使っていない）。代わりに、次の2つで、確認した。
 
-1. **環境から、Pythonへの手がかりを外して起動した**（上の`check-dist.js`）。開発機には、Pythonがインストールされているが、`PATH`・`TEXT_COMPOSITOR_*`・`PYTHON*`を外しても、ワーカーは、同梱の`python-embed/python.exe`で動く。組込版Pythonは、`python312._pth`で、`sys.path`が固定され、環境変数や、インストール済みのPythonの影響を受けない。
-2. **組込版Pythonが、必要とするDLLを、すべて解析した**（`scripts/check-embed-dependencies.py`。`pefile`が要る）。`python.exe`・`python312.dll`・`*.pyd`が読み込むDLLは、**フォルダに同梱のもの**（`vcruntime140.dll`・`libcrypto-3.dll`など）か、**Windowsに標準で入っているもの**（`kernel32`・`advapi32`・`ws2_32`・`crypt32`など、と、Universal CRTを含むAPIセット）だけだった。Microsoft Visual C++の再頒布可能パッケージを、別にインストールする必要は、ない。
+1. **環境から、Pythonへの手がかりを外して起動した**（上の`check-dist.js`）。開発機には、Pythonがインストールされているが、`PATH`・`TEXT_COMPOSITOR_*`・`PYTHON*`を外しても、ワーカーは、同梱の`python-embed/python.exe`で動く。組込版Pythonは、`python314._pth`で、`sys.path`が固定され、環境変数や、インストール済みのPythonの影響を受けない。
+2. **組込版Pythonが、必要とするDLLを、すべて解析した**（`scripts/check-embed-dependencies.py`。`pefile`が要る）。`python.exe`・`python314.dll`・`*.pyd`が読み込むDLLは、**フォルダに同梱のもの**（`vcruntime140.dll`・`libcrypto-3.dll`など）か、**Windowsに標準で入っているもの**（`kernel32`・`advapi32`・`ws2_32`・`crypt32`など、と、Universal CRTを含むAPIセット）だけだった。Microsoft Visual C++の再頒布可能パッケージを、別にインストールする必要は、ない。
 
 残る不確かさは、Electron本体（Chromium）の動作環境（Windows 10以降）と、ウイルス対策ソフトや、SmartScreenの挙動である（どちらも、この環境では、確認できない）。クリーンな環境で問題が出た場合は、報告を受けて、直す。
 ## CIとリリース（[#172](https://github.com/tokudiro/text-compositor/issues/172)）
@@ -173,6 +173,18 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 - **新しいZIPを取得して、展開し直す**（フォルダごと置き換える）。自動更新は、行わない（署名と、配布の基盤が要るため。必要になったら、別に検討する）。
 - 設定・ウィンドウの状態は、`%APPDATA%\Obunzu\settings.json`に、図のキャッシュ等は、`%LOCALAPPDATA%\text-compositor\`にあり、アプリのフォルダの外のため、置き換えても、残る。
 - **Chromium（Electron）の更新**は、Electronの版を上げて、Obunzuの新版を出すことで、行う。組込版Pythonと、パッケージも、同様（版は、`build-dist.js`と`dist-requirements.txt`で固定している）。セキュリティ更新が出たときは、新版を出す。
+
+## 更新の方針
+
+同梱した部品の更新は、こちらの責任になる（ツール群の方針3。[#240](https://github.com/tokudiro/text-compositor/issues/240)）。部品ごとの方針は、次のとおり。この章は、#240の進行に合わせて、部品を加える。
+
+### 組込版Python
+
+- **現在の版**: 3.14.7（[#239](https://github.com/tokudiro/text-compositor/issues/239)で、3.12.10から移した）。
+- **移した理由**: 3.12.10は、3.12系の最後のバイナリ配布で、以降の3.12.xは、ソースだけの配布になった。Windows用の組込版に、公式のセキュリティ更新が出ない。
+- **3.14を選んだ理由**: バイナリの配布が続いている版（3.13・3.14）のうち、サポートの終わり（EOL）が、より遠い。依存パッケージ（PyYAMLのC拡張を含む）は、3.12・3.13・3.14のすべてで、wheelが取得できた（2026-09-20に確認）。
+- **サポートの終わり**: EOLは、2030-10（Python Developer's Guideによる）。ただし、**バイナリの配布は、通常のバグ修正の期間だけ**である。3.12の実績（2023-10に公開、2025-04に最後のバイナリ）から、3.14のバイナリの配布は、**2027年の後半に終わる**と見込む（推測）。
+- **次の移行**: バイナリの配布が終わる前に、次の版（3.15以降）へ移す。移行の手順は、#239の完了条件と同じ（uild-dist.jsのPYTHON、CIのpython-version、check-embed-dependencies.pyによるDLLの再確認）。
 
 ## 関連
 

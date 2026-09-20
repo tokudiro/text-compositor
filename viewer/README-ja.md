@@ -66,7 +66,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 ## 配布物（Windows）
 
-`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約162 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。HTML出力に必要なパッケージだけ）と、サードパーティのライセンス表記（`licenses/`）です。`typst`（PDF専用）と`playwright`は、同梱しません。Mermaidの図は、Electron自身のChromiumで描画します（`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。
+`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約164 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。HTML出力に必要なパッケージだけ）と、サードパーティのライセンス表記（`licenses/`）です。`typst`（PDF専用）と`playwright`は、同梱しません。Mermaidの図は、Electron自身のChromiumで描画します（`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。
 ## 環境変数
 
 | 変数 | 意味 |
