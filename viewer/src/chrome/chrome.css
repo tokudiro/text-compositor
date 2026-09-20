@@ -84,6 +84,14 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 .segmented input { position: absolute; opacity: 0; pointer-events: none; }
 .segmented span { display: block; padding: 5px 14px; white-space: nowrap; }
 .segmented label:hover span { background: var(--button); }
+/* まだ選べない選択肢（未対応）。押せないことが、見て分かるようにする */
+.segmented label.unavailable { cursor: not-allowed; }
+.segmented label.unavailable span { color: var(--muted); opacity: 0.6; }
+.segmented label.unavailable:hover span { background: none; }
+.cache-control { display: inline-flex; flex: none; align-items: center; gap: 12px; }
+#cache-size { color: var(--muted); min-width: 4em; text-align: right; }
+.cache-control button { border: 1px solid var(--line); padding: 0 14px; }
+.row .desc code { font: 12px/1.4 "Cascadia Mono", Consolas, monospace; }
 .segmented input:checked + span { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
 #settings .hint { margin: 16px 0 0; color: var(--muted); }

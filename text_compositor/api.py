@@ -182,7 +182,8 @@ class Session:
                     plugins: Optional[Mapping[str, Any]] = None,
                     variables: Optional[Mapping[str, Any]] = None,
                     config: Optional[Mapping[str, Any]] = None,
-                    csv_header: bool = True) -> HtmlResult:
+                    csv_header: bool = True,
+                    cache_dir: Optional[str] = None) -> HtmlResult:
         """Markdownファイル（または、図の単体ファイル`.mmd`・`.puml`・`.d2`）を、HTMLにする（#161、実験的）。
         失敗しても例外は出さず、`ok=False`の結果を返す。
 
@@ -195,12 +196,15 @@ class Session:
         output_html: 出力先。省略時は、原稿の隣の`.text-compositor/preview.html`。
         plugins・variables・config: `build`と同じ（`config`は、config全体への上書き。上級者向け）。
         csv_header: `.csv`の1行目を、見出し行にするか（既定`True`。`False`なら、すべての行がデータ行。#220）。
+        cache_dir: 図のSVGのキャッシュのフォルダ。省略時は、原稿の隣の`.text-compositor/cache/`。`output_html`と
+            ともに指定すると、原稿のフォルダには、何も書かない（Viewerが使う。#258）。
         """
         started = time.perf_counter()
         timings: Dict[str, float] = {}
         with self._lock, diagnostics.collect() as collected:
             ok, html_path, dependencies = self._render_html_locked(
-                markdown_path, output_html, plugins, variables, config, timings, csv_header=bool(csv_header))
+                markdown_path, output_html, plugins, variables, config, timings, csv_header=bool(csv_header),
+                cache_dir=cache_dir)
         timings["total"] = (time.perf_counter() - started) * 1000.0
         return HtmlResult(ok=ok, html_path=html_path if ok else None, diagnostics=list(collected.items),
                           timings_ms=timings, dependencies=dependencies if ok else [])
@@ -269,7 +273,8 @@ class Session:
                 self._mermaid.close()
 
 
-    def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings, csv_header=True):
+    def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings, csv_header=True,
+                            cache_dir=None):
         from text_compositor.config import _resolve_variables
         from text_compositor.html_output import HtmlRenderer
         from text_compositor.mermaid import MermaidBrowser
@@ -303,7 +308,7 @@ class Session:
                     d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
                     graphviz_enabled=bool(plugins_config.get("graphviz", True)),
                     variables=_resolve_variables(config),
-                    mermaid_browser=self._mermaid, csv_header=csv_header)
+                    mermaid_browser=self._mermaid, csv_header=csv_header, cache_dir=cache_dir)
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)
             timings["render"] = (time.perf_counter() - started) * 1000.0

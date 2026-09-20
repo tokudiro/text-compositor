@@ -118,6 +118,24 @@ class TestCsvHeaderParam:
             response = worker.handle_request(FakeSession(), {"id": 1, "method": "render_html", "params": {"path": "a.csv", "csv_header": value}})
             assert response["ok"] is False and response["error"]["code"] == "bad_request", value
 
+class TestCacheDirParam:
+    """render_htmlの`output`・`cache_dir`（#258）。Viewerが、原稿のフォルダに書かないために渡す。"""
+
+    def test_strings_are_passed_to_the_session(self):
+        session = FakeSession()
+        params = {"path": "a.md", "output": "C:/work/a.html", "cache_dir": "C:/work/cache"}
+        response = worker.handle_request(session, {"id": 1, "method": "render_html", "params": params})
+        assert response["ok"] is True
+        assert session.html_calls[-1][1] == "C:/work/a.html"
+        assert session.html_calls[-1][2]["cache_dir"] == "C:/work/cache"
+
+    def test_something_that_is_not_a_string_is_a_protocol_error(self):
+        for name in ("output", "cache_dir"):
+            for value in (1, True, ["x"], {}):
+                response = worker.handle_request(FakeSession(), {"id": 1, "method": "render_html", "params": {"path": "a.md", name: value}})
+                assert response["ok"] is False and response["error"]["code"] == "bad_request", (name, value)
+
+
 class TestServe:
     def run(self, lines, session=None):
         session = session or FakeSession()

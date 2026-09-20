@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('viewer', {
   toggleSettings: () => ipcRenderer.send('settings-toggle'),
   setSetting: (key, value) => ipcRenderer.send('settings-set', key, value),
   chooseOpenDirectory: () => ipcRenderer.send('choose-open-directory'),
+  clearCache: () => ipcRenderer.send('clear-cache'),
   openPath: (filePath) => ipcRenderer.send('open-path', filePath),
   pathForFile: (file) => webUtils.getPathForFile(file),
   setChromeHeight: (height) => ipcRenderer.send('chrome-height', height),

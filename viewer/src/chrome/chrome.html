@@ -95,7 +95,29 @@
         </div>
         <button id="choose-directory" class="primary">フォルダを選ぶ…</button>
       </div>
-      <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
+      <div class="row">
+        <div class="text">
+          <div class="name" id="work-location-name">変換ファイルの保存場所</div>
+          <div class="desc">変換したHTMLと、図のキャッシュを置く場所です。「アプリの領域」は、原稿のフォルダに、何も作りません。「原稿の隣」は、原稿のフォルダの<code>.text-compositor/</code>に置きます。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="work-location-name">
+          <label><input type="radio" name="workLocation" value="app"><span>アプリの領域</span></label>
+          <label><input type="radio" name="workLocation" value="beside"><span>原稿の隣</span></label>
+          <!-- 実装できてから、選べるようにする（#258）。ファイルを作らずに表示する方式 -->
+          <label class="unavailable" title="未対応です"><input type="radio" name="workLocation" value="none" disabled><span>ファイルを作らない（未対応）</span></label>
+        </div>
+      </div>
+      <!-- アプリの領域だけが対象。原稿の隣の.text-compositor/、フォント・図のツールの取得物は、消さない。 -->
+      <div class="row">
+        <div class="text">
+          <div class="name">キャッシュ</div>
+          <div class="desc">アプリの領域に置いた、変換したHTMLと図のSVGです。削除すると、表示中の文書は、変換し直します。</div>
+        </div>
+        <div class="cache-control">
+          <span id="cache-size" aria-live="polite"></span>
+          <button id="clear-cache">削除</button>
+        </div>
+      </div>      <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
     </div>
   </section>
   <div id="empty">
