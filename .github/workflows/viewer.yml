@@ -43,7 +43,7 @@ jobs:
       # （準備の不備を、見逃さないため）。
       REQUIRE_WORKER_INTEGRATION: "1"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v5
         with:
