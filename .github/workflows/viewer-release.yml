@@ -64,7 +64,7 @@ jobs:
 
       # build-dist.jsが取得する、組込版Python・ライセンス（SHA256を確認する）の保存先。バージョンが変わるまで、再取得しない。
       - name: Cache the downloads of build-dist.js
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: viewer/dist/.cache
           key: viewer-dist-${{ runner.os }}-${{ hashFiles('viewer/scripts/build-dist.js') }}
@@ -79,7 +79,7 @@ jobs:
         run: echo "version=$(node -p "require('./viewer/package.json').devDependencies.electron")" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Electron download
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/AppData/Local/electron/Cache
           key: electron-${{ runner.os }}-${{ steps.electron.outputs.version }}
