@@ -4,7 +4,8 @@
 //
 // 作るもの: dist/Obunzu-<バージョン>-win-x64.zip（Pythonのインストールが要らない、展開して使うポータブル版）。
 // 中身: Electronのアプリ（obunzu.exe）と、その隣の python-embed/（組込版Python + 必要最小限のパッケージ +
-//       text_compositor）と、licenses/（サードパーティのライセンス表記）。
+//       typst + text_compositor）と、fonts/（Noto Sans JP）と、typst-packages/（Typstのパッケージ。#263）と、
+//       licenses/（サードパーティのライセンス表記）。
 //
 // 手順:
 //   1. @electron/packagerで、Electronのアプリを作る（アイコン・バージョン情報・asar）。
@@ -12,6 +13,7 @@
 //   3. dist-requirements.txtのパッケージを、ビルド用のPythonのpipで、組込版のsite-packagesへ入れる
 //      （--platform win_amd64・cp314・wheelのみ。ビルドするPythonの版に、依存しない）。
 //   4. text_compositorのパッケージを、site-packagesへ写す。バイトコードを作る（起動を速くするため）。
+//   4b. フォント（fonts/）と、Typstのパッケージ（typst-packages/）を、取得して（SHA256を確認）、同梱する。
 //   5. ライセンス表記（licenses/）を作る。
 //   6. ZIPにして、同梱物ごとのサイズを表示する。
 //
@@ -41,6 +43,24 @@ const APACHE = {
   url: 'https://www.apache.org/licenses/LICENSE-2.0.txt',
   sha256: 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30',
 };
+
+// Typstを通す処理のために、フォント（fonts/）と、Typstのパッケージ（typst-packages/）も、ZIPに同梱する（#263。#237で決めた）。
+// ネットワークなしで動くようにするため（ツール群の方針3）。取得元・SHA256は固定し、text_compositor/deps.pyと同じフォントを使う
+// （CLIのPDFと同じ見た目にするため。tests/test_bundled_typst_assets.pyが、deps.pyとテンプレートとの一致を確認する）。
+const FONTS = {
+  version: '2.004',
+  url: 'https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/16_NotoSansJP.zip',
+  sha256: '2bbdd2c20f30670b39ca735c96d75f1fdabdb348103e43b820cf17701fd22b18',   // zip全体
+  files: {   // zipから取り出すフォント。ファイルごとのSHA256（deps.pyのNOTO_SANS_JP_FILESと同じ）
+    'NotoSansJP-Regular.otf': 'dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073',
+    'NotoSansJP-Bold.otf': '1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f',
+  },
+};
+// 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と同じ版）。CeTZ（LGPL）などは、使う機能を作るときに加える。
+const TYPST_PACKAGES = [
+  { name: 'diagraph', version: '0.3.7', license: 'MIT', sha256: '08b9927b047e95c661c1d7ae28806b8cbefa25a07f8ae2d4a47911028875abc6' },
+  { name: 'note-me', version: '0.6.0', license: 'MIT', sha256: '94273b3c9a7ddc3960ad86dfc02b8f864eebd918699a1a32310a6cf40aee67a6' },
+];
 
 const dist = path.join(viewerDir, 'dist');
 const cache = path.join(dist, '.cache');
@@ -140,6 +160,40 @@ function buildPythonEnvironment(appDir, embedZip) {
   return { embed, sitePackages };
 }
 
+/**
+ * フォント（fonts/）と、Typstのパッケージ（typst-packages/preview/<名前>/<版>/）を、取得して、同梱する（#263）。
+ * 実行時は、Electronが、環境変数（TEXT_COMPOSITOR_FONT_DIR・TEXT_COMPOSITOR_TYPST_PACKAGES）で、ワーカーに教える。
+ * @returns ライセンス表記の行
+ */
+async function bundleTypstAssets(appDir) {
+  const rows = [];
+
+  const fontZip = await fetchVerified({ url: FONTS.url, sha256: FONTS.sha256 }, 'Noto Sans JP');
+  const fontsDir = path.join(appDir, 'fonts');
+  fs.mkdirSync(fontsDir, { recursive: true });
+  // zipには、使わない太さ（Thin・Blackなど）も入っている。使う2つと、ライセンスだけを取り出す
+  run(TAR, ['-xf', fontZip, '-C', fontsDir, ...Object.keys(FONTS.files), 'LICENSE']);
+  for (const [name, expected] of Object.entries(FONTS.files)) {
+    const actual = sha256(path.join(fontsDir, name));
+    if (actual !== expected) throw new Error(`${name}のSHA256が一致しません: 期待 ${expected}、実際 ${actual}`);
+  }
+  rows.push({ name: 'Noto Sans JP (fonts/)', version: FONTS.version, license: 'OFL-1.1', url: 'https://github.com/notofonts/noto-cjk', file: '../fonts/LICENSE' });
+
+  for (const p of TYPST_PACKAGES) {
+    const url = `https://packages.typst.org/preview/${p.name}-${p.version}.tar.gz`;
+    const archive = await fetchVerified({ url, sha256: p.sha256 }, `Typstのパッケージ ${p.name}`);
+    const target = path.join(appDir, 'typst-packages', 'preview', p.name, p.version);
+    fs.mkdirSync(target, { recursive: true });
+    run(TAR, ['-xzf', archive, '-C', target]);
+    for (const required of ['typst.toml', 'LICENSE']) {
+      if (!fs.existsSync(path.join(target, required))) throw new Error(`Typstのパッケージ ${p.name} ${p.version} に、${required}がありません`);
+    }
+    rows.push({ name: `Typst package ${p.name} (typst-packages/)`, version: p.version, license: p.license,
+      url: `https://typst.app/universe/package/${p.name}`, file: `../typst-packages/preview/${p.name}/${p.version}/LICENSE` });
+  }
+  return rows;
+}
+
 /** パッケージのMETADATAから、名前・版・ライセンスを読む。 */
 function readMetadata(distInfo) {
   const text = fs.readFileSync(path.join(distInfo, 'METADATA'), 'utf8');
@@ -152,7 +206,7 @@ function readMetadata(distInfo) {
   };
 }
 
-function writeLicenses(appDir, embed, sitePackages, apacheText) {
+function writeLicenses(appDir, embed, sitePackages, apacheText, extraRows = []) {
   const dir = path.join(appDir, 'licenses');
   fs.mkdirSync(dir, { recursive: true });
   const rows = [];
@@ -181,6 +235,8 @@ function writeLicenses(appDir, embed, sitePackages, apacheText) {
     }
     rows.push({ ...meta, file: files.join(', ') || '（ライセンス全文は、パッケージのメタデータの表記のみ）' });
   }
+
+  rows.push(...extraRows);   // 同梱のフォント・Typstのパッケージ（ライセンス全文は、それぞれのフォルダの中）
 
   fs.copyFileSync(path.join(repoDir, 'LICENSE'), path.join(dir, 'Obunzu-text-compositor-LICENSE.txt'));
   rows.unshift({ name: 'Obunzu / text-compositor', version: pkg.version, license: 'MIT', url: 'https://github.com/tokudiro/text-compositor', file: 'Obunzu-text-compositor-LICENSE.txt' });
@@ -219,10 +275,14 @@ function report(appDir, embed, sitePackages, zip) {
   const total = sizeOf(appDir);
   const python = sizeOf(embed);
   const packages = sizeOf(sitePackages);
-  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
+  const fonts = sizeOf(path.join(appDir, 'fonts'));
+  const typstPackages = sizeOf(path.join(appDir, 'typst-packages'));
+  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
   rows.push(['アプリ（resources/）', sizeOf(path.join(appDir, 'resources'))]);
   rows.push(['組込版Python本体', python - packages]);
-  rows.push(['Pythonのパッケージ（site-packages）', packages]);
+  rows.push(['Pythonのパッケージ（site-packages。typstを含む）', packages]);
+  rows.push(['フォント（fonts/）', fonts]);
+  rows.push(['Typstのパッケージ（typst-packages/）', typstPackages]);
   rows.push(['ライセンス表記（licenses/）', sizeOf(path.join(appDir, 'licenses'))]);
   console.log('\n同梱物のサイズ（展開後）');
   for (const [name, bytes] of rows) console.log(`  ${name.padEnd(40)} ${mb(bytes).padStart(10)}`);
@@ -271,8 +331,11 @@ async function main() {
   const apacheText = await fetchVerified({ ...APACHE, file: 'Apache-2.0.txt' }, 'Apache-2.0の全文');
   const { embed, sitePackages } = buildPythonEnvironment(appDir, embedZip);
 
+  log('4/6 Typstを通す処理のための、フォントとパッケージを同梱する');
+  const assetRows = await bundleTypstAssets(appDir);
+
   log('5/6 ライセンス表記を作る');
-  writeLicenses(appDir, embed, sitePackages, apacheText);
+  writeLicenses(appDir, embed, sitePackages, apacheText, assetRows);
 
   log('6/6 ZIPにする');
   const zip = path.join(dist, `${releaseName}.zip`);

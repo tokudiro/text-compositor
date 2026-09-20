@@ -68,7 +68,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 
 ## Distribution (Windows)
 
-`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 164 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with only the packages HTML output needs, and the third-party notices (`licenses/`). `typst` (PDF only) and `playwright` are not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md). Obunzu does not update itself: security fixes ship as new releases, so use the latest ZIP.
+`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 199 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with the packages it needs, the Typst compiler, the Noto Sans JP fonts (`fonts/`) and the Typst packages (`typst-packages/`) (all of these work without a network; #263), and the third-party notices (`licenses/`). `playwright` is not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md). Obunzu does not update itself: security fixes ship as new releases, so use the latest ZIP.
 ## Environment variables
 
 | Variable | Meaning |
@@ -101,7 +101,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `scripts/build-dist.js` | Builds the Windows portable ZIP (Electron + embeddable Python + minimal packages + notices) |
 | `scripts/check-dist.js` | Runs the unpacked distribution with Python hidden from the environment and checks it (manual, Windows only) |
 | `scripts/check-embed-dependencies.py` | Checks that the embedded Python needs only bundled or standard Windows DLLs (needs `pefile`; manual) |
-| `dist-requirements.txt` | Python packages bundled in the distribution (pinned; `typst` and `playwright` are left out) |
+| `dist-requirements.txt` | Python packages bundled in the distribution (pinned; `playwright` is left out) |
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |

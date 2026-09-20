@@ -5,7 +5,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 ## 配布の形式
 
 - **ポータブルなZIP**（`Obunzu-<バージョン>-win-x64.zip`）。展開して、`obunzu.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
-- ZIPの大きさは、**約164 MB**。展開後は、**約394 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。
+- ZIPの大きさは、**約199 MB**。展開後は、**約463 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから増えた（ZIPで+35 MB。内訳: `typst`が約27 MB、フォントとパッケージが、あわせて約8 MB）。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
@@ -13,7 +13,9 @@ Obunzu-0.3.6-win-x64/
   obunzu.exe                 Electronのアプリ（アイコン・バージョン情報つき）
   resources/app.asar         Viewerのコード（src/・assets/）
   python-embed/              組込版Python（python.orgのembeddable package）
-    Lib/site-packages/       必要最小限のパッケージ + text_compositor
+    Lib/site-packages/       必要最小限のパッケージ + typst + text_compositor
+  fonts/                     Noto Sans JP（Regular・Bold）とそのライセンス
+  typst-packages/            Typstのパッケージ（preview/<名前>/<版>/。diagraph・note-me）
   licenses/                  サードパーティのライセンス表記
   LICENSE, LICENSES.chromium.html   ElectronとChromiumのライセンス
 ```
@@ -28,16 +30,23 @@ Obunzu-0.3.6-win-x64/
 | Viewerのコード（`resources/`） | 同梱 | 0.1 MB |
 | 組込版Python 3.14.7 | 同梱 | 約23.5 MB |
 | Pythonのパッケージ（`markdown-it-py`・`mdurl`・`mdit-py-plugins`・`PyYAML`・`platformdirs`）と、`text_compositor` | 同梱 | 約2.3 MB（`text_compositor`は0.6 MB、`markdown_it`は0.4 MB、`yaml`は0.7 MB） |
+| **`typst`**（Typstのコンパイラ。Pythonのパッケージ） | **同梱**（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[#237](https://github.com/tokudiro/text-compositor/issues/237)で決めた） | 約59.6 MB（ZIPで約27 MB） |
+| Noto Sans JP（`fonts/`。RegularとBold） | **同梱**（#263） | 8.8 MB |
+| Typstのパッケージ（`typst-packages/`。`diagraph` 0.3.7・`note-me` 0.6.0） | **同梱**（#263） | 1.1 MB |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
-| **`typst`**（PDF用のコンパイラ） | **同梱しない** | 約59 MB（外した分） |
 | **`playwright`**（Mermaid用のブラウザ操作） | **同梱しない**。Mermaidは、Electronで描画する（下記） | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
-| PlantUML・D2・Noto Sans JP | 同梱しない（下の表） | - |
+| PlantUML・D2 | 同梱しない（下の表） | - |
 
-### `typst`を、同梱から外せるか（結果: 外せる。外した）
+### Typstを通す処理のための同梱（#263。#237で決めた）
 
-- `build.py`は、`typst`を、読み込み時に、`import`していた。これを、**初めて使うとき**（Typstのコンパイル）に、`import`するように変えた（`_LazyTypst`）。HTML出力（`render_html`）と、それを使うViewerは、`typst`なしで動く。
-- 確認: `typst`と`playwright`を、`import`できない状態にして、パッケージの読み込みと、HTML出力（`render_html`）が成功する（`tests/test_distribution.py`）。PDFを作るときに`typst`がなければ、「`typst`が要る。HTML出力には要らない」というメッセージになる。
-- 配布物の依存は、`viewer/dist-requirements.txt`に、版を固定して書く。`pyproject.toml`の依存と、ずれていないことを、テストで確認する。
+- **なぜ同梱するか**: Typstを通す図・機能（Graphviz・Pikchr・CeTZ・数式など。[#237](https://github.com/tokudiro/text-compositor/issues/237)）を、Obunzuでも、PDFと同じ経路で扱えるようにするため。ツール群の方針3（配布物に、可能な限り、全部入り）に沿って、ネットワークなしで動くようにする。この段階では、同梱だけで、Typstを通す機能は、まだ加えていない。
+- **フォント**: `fonts/`に、Noto Sans JP（RegularとBold。CLIと同じ版・SHA256）と、そのライセンス（OFL-1.1）。Typstは、`ignore_system_fonts=True`と`font_paths`で、このフォントだけを使う（CLIのPDFと同じ見た目）。
+- **パッケージ**: `typst-packages/preview/<名前>/<版>/`に、**実際に使う版だけ**（`text_compositor/templates/_common.typ`が`@preview/...`で読む版）。Typstの`package_cache_path`で指すため、初回のダウンロードは要らない。CeTZ（LGPL-3.0以降）は、同梱していない（[#236](https://github.com/tokudiro/text-compositor/issues/236)で判断する）。
+- **ワーカーへの伝え方**: Electronが、ワーカーを起動するとき、`fonts/`と`typst-packages/`があれば、環境変数`TEXT_COMPOSITOR_FONT_DIR`・`TEXT_COMPOSITOR_TYPST_PACKAGES`で教える（`viewer/src/python.js`）。ワーカー（Python）は、`ensure_fonts()`が、そのフォルダのフォントを使い（ダウンロードしない）、Typstのコンパイルが、そのフォルダを`package_cache_path`に渡す。CLIは、この環境変数を使わず、従来どおり（取得して、キャッシュ）。
+- **ライセンス**: `typst`（Apache-2.0）は、Pythonのパッケージのライセンスとして、`licenses/`に入る。Noto Sans JPは`fonts/LICENSE`、Typstのパッケージは、それぞれのフォルダの`LICENSE`（MIT）。`licenses/THIRD-PARTY-NOTICES.md`が、一覧にする。
+- **確認**（`check-dist.js`）: 使い捨ての空のユーザーフォルダと、遮断したネットワーク（使えないプロキシ）で、同梱の`typst`が、同梱のフォントとパッケージだけで、`diagraph`と`note-me`と日本語を使った文書を、コンパイルできる。対照として、パッケージのフォルダを教えないと、同じ環境で失敗する（ユーザーのキャッシュに頼っていない証拠）。`check-embed-dependencies.py`は、`typst`の拡張モジュール（`_typst.pyd`）も調べる（Windows標準の`bcryptprimitives.dll`・`combase.dll`・`secur32.dll`を、許可リストに加えた）。
+- **`typst`の`import`**: `build.py`は、`typst`を、初めて使うとき（Typstのコンパイル）に、`import`する（`_LazyTypst`。#168）。そのため、HTML出力（`render_html`）は、`typst`を`import`しない（起動が速い）。pipで入れる場合の、`typst`なしでもHTML出力が動くこと（`tests/test_distribution.py`）は、変わらない。
+- 配布物の依存は、`viewer/dist-requirements.txt`に、版を固定して書く。`pyproject.toml`の依存と、ずれていないことを、テストで確認する。フォントとパッケージの版が、ツール本体（`deps.py`・テンプレート）と、ずれていないことも、テストで確認する（`tests/test_bundled_typst_assets.py`）。
 
 ## 同梱しないもの（必要になったときに、取得・案内する）
 
@@ -50,7 +59,6 @@ Obunzu-0.3.6-win-x64/
 | D2のCLI（v0.9.0） | `d2`の図。システムに`d2`があれば、それを使う | 約13 MB（取得）、展開後 約40.8 MB | GitHub Releases（`d2lang/d2`） |
 | `mermaid.min.js` | `mermaid`の図（取得は、組込版Python。描画は、Electron） | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
 | `viz-global.js`（Viz.js） | `dot`・`graphviz`の図（取得は、組込版Python。描画は、Electron。[#181](https://github.com/tokudiro/text-compositor/issues/181)） | 約1.3 MB | jsDelivr（npm `@viz-js/viz@3.30.0`） |
-| Noto Sans JP | **PDF専用**（Viewerは、HTML出力で、使わない） | 約8.8 MB | GitHub Releases（`notofonts/noto-cjk`） |
 
 サイズは、`build.py`の記載と、実際にキャッシュされたファイルの実測による。PlantUMLとD2は、初回の描画で、取得のために、数秒〜数十秒かかる（回線による）。
 

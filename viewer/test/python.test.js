@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { describe, test } = require('node:test');
 
-const { resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV } = require('../src/python');
+const { resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV } = require('../src/python');
 
 const APP = path.join(path.sep, 'app');
 const existsIn = (...files) => {
@@ -21,6 +21,23 @@ describe('resolveWorkerLaunch', () => {
     assert.equal(launch.file, python);
     assert.deepEqual(launch.args, ['-m', 'text_compositor.worker']);
     assert.deepEqual(launch.env, {});
+  });
+
+  test('the bundled fonts and Typst packages are handed to the worker (#263)', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const fonts = path.join(APP, 'fonts');
+    const packages = path.join(APP, 'typst-packages');
+    const launch = resolveWorkerLaunch(APP, { env: { [PYTHON_ENV]: python }, exists: existsIn(python, fonts, packages) });
+    assert.deepEqual(launch.env, { [FONT_DIR_ENV]: fonts, [TYPST_PACKAGES_ENV]: packages });
+  });
+
+  test('only the folders that exist are passed, and a value set by the user wins', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const fonts = path.join(APP, 'fonts');
+    const onlyFonts = resolveWorkerLaunch(APP, { env: { [PYTHON_ENV]: python }, exists: existsIn(python, fonts) });
+    assert.deepEqual(onlyFonts.env, { [FONT_DIR_ENV]: fonts });
+    const userSet = resolveWorkerLaunch(APP, { env: { [PYTHON_ENV]: python, [FONT_DIR_ENV]: '/mine' }, exists: existsIn(python, fonts) });
+    assert.deepEqual(userSet.env, {});
   });
 
   test('a missing python from the environment variable is an error, not a fallback', () => {

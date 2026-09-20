@@ -84,6 +84,51 @@ async function runCase(name, markdown, file, expect, wait = 6000, extraEnv = {})
   console.log(`   （${name}）`);
 }
 
+// 同梱の typst・フォント・Typstのパッケージだけで、ネットワークなしで、Typstを通した処理が動くこと（#263）。
+// ネットワークは、使えないプロキシを指定して、遮断する。ユーザーのキャッシュ（LOCALAPPDATA）は、空の使い捨てのフォルダにして、
+// 開発機に取得済みのフォント・パッケージに、頼っていないことも確かめる。対照として、同じ環境で、同梱のフォルダを教えないときは、失敗する。
+const OFFLINE_TYPST_SCRIPT = `import os, sys, tempfile
+from text_compositor.compiler import typst_lib, typst_package_options
+from text_compositor.deps import ensure_fonts
+d = tempfile.mkdtemp()
+src = os.path.join(d, 'doc.typ')
+with open(src, 'w', encoding='utf-8') as f:
+    f.write('#import "@preview/diagraph:0.3.7": render\\n#import "@preview/note-me:0.6.0": note\\n'
+            '#set text(font: "Noto Sans JP")\\n#note[日本語の注記]\\n#render("digraph { あ -> い }")\\n')
+fonts = ensure_fonts()
+pdf = typst_lib.compile(src, root=d, font_paths=[fonts], ignore_system_fonts=True, **typst_package_options())
+print(fonts)
+print(len(pdf) > 1000)
+`;
+
+function checkOfflineTypst(work) {
+  const python = path.join(appDir, 'python-embed', 'python.exe');
+  const script = path.join(work, 'offline-typst.py');
+  fs.writeFileSync(script, OFFLINE_TYPST_SCRIPT, 'utf8');
+  const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-offline-'));
+  const baseEnv = { SystemRoot: process.env.SystemRoot, windir: process.env.windir, TEMP: process.env.TEMP, TMP: process.env.TMP,
+    USERPROFILE: isolated, APPDATA: isolated, LOCALAPPDATA: isolated, PATH: `${process.env.SystemRoot}\\System32`,
+    HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9', https_proxy: 'http://127.0.0.1:9', http_proxy: 'http://127.0.0.1:9' };
+  const fonts = path.join(appDir, 'fonts');
+  const packages = path.join(appDir, 'typst-packages');
+  check('fonts/ に、Noto Sans JPのRegularとBoldがある', ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf'].every((name) => fs.existsSync(path.join(fonts, name))));
+  check('typst-packages/ に、diagraphとnote-meがある', ['diagraph/0.3.7', 'note-me/0.6.0'].every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
+  try {
+    const out = execFileSync(python, [script], { encoding: 'utf8', env: { ...baseEnv, TEXT_COMPOSITOR_FONT_DIR: fonts, TEXT_COMPOSITOR_TYPST_PACKAGES: packages } }).trim().split(/\r?\n/);
+    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・note-me・日本語）',
+      out[0] === fonts && out[1] === 'True', out.join(' / '));
+  } catch (error) {
+    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる', false, String(error.stderr || error.message).split(/\r?\n/).filter(Boolean).slice(-2).join(' / '));
+  }
+  let controlFailed = false;
+  try {
+    // フォントは同梱を使い、パッケージだけ教えない。空のキャッシュでは、ダウンロードが要るため、遮断した環境では、失敗する
+    execFileSync(python, [script], { encoding: 'utf8', stdio: 'pipe', env: { ...baseEnv, TEXT_COMPOSITOR_FONT_DIR: fonts } });
+  } catch { controlFailed = true; }
+  check('（対照）パッケージのフォルダを教えないと、同じ環境で失敗する（遮断が効いていて、ユーザーのキャッシュに頼っていない）', controlFailed);
+  try { fs.rmSync(isolated, { recursive: true, force: true }); } catch { /* 一時ファイルが残るだけ */ }
+}
+
 async function main() {
   check('展開したアプリがある（obunzu.exe と python-embed/）', fs.existsSync(exe) && fs.existsSync(path.join(appDir, 'python-embed', 'python.exe')));
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-dist-docs-'));
@@ -117,6 +162,7 @@ async function main() {
     encoding: 'utf8', env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
       APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, PATH: `${process.env.SystemRoot}\\System32` } });
   check('組込版Pythonが、HTTPSで、mermaid.min.jsを取得でき、SHA256が一致する（初回の取得）', fetched.trim() === 'True', fetched.trim());
+  checkOfflineTypst(work);
   await runCase('Mermaidの構文エラー', '# エラー\n\n本文。\n\n```mermaid\ngraph TD\n  A --> \n  B[[[\n```\n', path.join(work, 'error.md'), async (state, _pythons, { chrome }) => {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
     check('構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('error.md:5'), JSON.stringify(item.head));

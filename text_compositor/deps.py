@@ -13,7 +13,7 @@ import tarfile
 import time
 import platform
 import platformdirs
-from text_compositor.log import _error, _log_info
+from text_compositor.log import _error, _log_info, _warn
 
 # ローカル環境やGitHub Actionsランナー(ubuntu-latest)に標準搭載されているChrome/Edgeの
 # インストール先候補。見つかればmermaidレンダリング用にそのまま起動して再利用し、
@@ -150,10 +150,22 @@ NOTO_SANS_JP_FILES = {
     "NotoSansJP-Bold.otf": "1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f",
 }
 
+# 呼び出し元が、同梱したフォントのフォルダを教える環境変数（#263）。ViewerのZIPは、Noto Sans JPを`fonts/`に同梱しており、
+# Electronが、この変数で、ワーカーに教える。フォルダに、必要なフォントが揃っていれば、ダウンロードしない。
+FONT_DIR_ENV = "TEXT_COMPOSITOR_FONT_DIR"
+
+
 def ensure_fonts():
     """Noto Sans JP（Regular/Bold）がユーザーキャッシュディレクトリの fonts/NotoSansJP/ に
     なければダウンロードする。2回目以降のビルドはキャッシュを使い、ネットワークアクセスなしで
-    完結する（#110）。"""
+    完結する（#110）。環境変数`TEXT_COMPOSITOR_FONT_DIR`のフォルダに、フォントが揃っていれば、
+    それを使う（ダウンロードしない。ViewerのZIPに同梱したフォント。#263）。"""
+    bundled = os.environ.get(FONT_DIR_ENV)
+    if bundled:
+        if all(os.path.exists(os.path.join(bundled, name)) for name in NOTO_SANS_JP_FILES):
+            return bundled
+        # 同梱のフォルダが不完全なとき（配布物の不具合）は、黙って続けず、知らせてから、通常の取得へ進む
+        _warn(f"{FONT_DIR_ENV} is set but {bundled} does not contain {', '.join(NOTO_SANS_JP_FILES)}; falling back to the download.")
     font_dir = os.path.join(_user_cache_dir(), "fonts", "NotoSansJP")
     os.makedirs(font_dir, exist_ok=True)
 

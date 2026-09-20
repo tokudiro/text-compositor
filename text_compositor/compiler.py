@@ -30,6 +30,17 @@ class _LazyTypst:
 
 typst_lib = _LazyTypst()
 
+# 呼び出し元が、同梱したTypstのパッケージ（`preview/<名前>/<版>/`の形）のフォルダを教える環境変数（#263）。ViewerのZIPは、
+# テンプレートが使うパッケージを同梱しており、Electronが、この変数で、ワーカーに教える。あれば、`package_cache_path`に
+# 渡し、初回のダウンロードなしで、`@preview/...`のimportが解決できる。CLIは、この変数を使わない（従来どおり、取得して、キャッシュする）。
+TYPST_PACKAGES_ENV = "TEXT_COMPOSITOR_TYPST_PACKAGES"
+
+
+def typst_package_options():
+    """`typst.compile`・`typst.Compiler`に渡す、パッケージの置き場所の引数。環境変数が、存在するフォルダを指すときだけ、値がある。"""
+    path = os.environ.get(TYPST_PACKAGES_ENV)
+    return {"package_cache_path": path} if path and os.path.isdir(path) else {}
+
 # TypstRenderer._emit_srcmapが生成コードへ挿し込む目印行（`// @srcmap {mdファイル}:{md行番号}`）
 # を検出する正規表現（#27）。ファイルパス自体にコロンを含みうる（Windowsの絶対パス`C:\...`）ため、
 # 末尾の数字グループのみを行番号として貪欲マッチさせ、残り全体をファイルパスとして扱う。
@@ -111,7 +122,7 @@ def _compile_with_reused_compiler(temp_typ_path, out_pdf, typst_root, font_dir, 
     compiler = compiler_cache.get(key)
     if compiler is None:
         compiler = typst_lib.Compiler(temp_typ_path, root=typst_root, font_paths=[font_dir],
-                                       ignore_system_fonts=True)
+                                       ignore_system_fonts=True, **typst_package_options())
         compiler_cache[key] = compiler
     pdf_bytes, warnings = compiler.compile_with_warnings(format="pdf")
     for w in warnings:
@@ -149,7 +160,7 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
         # 対応する）。
         if compiler_cache is None:
             typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=[font_dir],
-                               ignore_system_fonts=True)
+                               ignore_system_fonts=True, **typst_package_options())
         else:
             _compile_with_reused_compiler(temp_typ_path, out_pdf, typst_root, font_dir, compiler_cache, src_map)
         _log_success(f"Generated PDF: {out_pdf}")
