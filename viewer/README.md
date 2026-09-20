@@ -2,7 +2,7 @@
 
 English | [日本語](README-ja.md)
 
-A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, `svg`) as images. There is no editor and no PDF output.
+A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, Graphviz, Pikchr, CeTZ, Fletcher, `svg`) as images. There is no editor and no PDF output.
 
 This README is for developers. The guide for people who use Obunzu is the [Obunzu usage guide](../doc/obunzu-guide/) (in Japanese; its PDF is attached to each release).
 
@@ -70,7 +70,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 
 ## Distribution (Windows)
 
-`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 199 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with the packages it needs, the Typst compiler, the Noto Sans JP fonts (`fonts/`) and the Typst packages (`typst-packages/`) (all of these work without a network; #263), and the third-party notices (`licenses/`). `playwright` is not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md). Obunzu does not update itself: security fixes ship as new releases, so use the latest ZIP.
+`npm run build-dist` builds a portable ZIP (`dist/Obunzu-<version>-win-x64.zip`, about 200 MB) that runs without Python installed: the Electron app, an embeddable Python next to it (`python-embed/`) with the packages it needs, the Typst compiler, the Noto Sans JP fonts (`fonts/`) and the Typst packages (`typst-packages/`) (all of these work without a network; #263), and the third-party notices (`licenses/`). `playwright` is not bundled. Mermaid diagrams are rendered by Electron's own Chromium (no `playwright` and no Chrome or Edge needed; #207). `node scripts/check-dist.js` runs the unpacked app with every hint of Python removed from the environment. Contents, sizes, on-demand downloads, licenses and how to update: [doc/viewer-distribution.md](../doc/viewer-distribution.md). Obunzu does not update itself: security fixes ship as new releases, so use the latest ZIP.
 ## Environment variables
 
 | Variable | Meaning |

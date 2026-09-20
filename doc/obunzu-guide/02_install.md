@@ -2,7 +2,7 @@
 
 ## 入手する
 
-GitHubの[Releases](https://github.com/tokudiro/text-compositor/releases)から、最新の版の`Obunzu-<バージョン>-win-x64.zip`をダウンロードします。大きさは、約199 MBです。展開すると、約463 MBになります。
+GitHubの[Releases](https://github.com/tokudiro/text-compositor/releases)から、最新の版の`Obunzu-<バージョン>-win-x64.zip`をダウンロードします。大きさは、約200 MBです。展開すると、約468 MBになります。
 
 ## 起動する
 

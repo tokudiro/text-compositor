@@ -187,7 +187,7 @@ class Session:
         """Markdownファイル（または、図の単体ファイル`.mmd`・`.puml`・`.d2`）を、HTMLにする（#161、実験的）。
         失敗しても例外は出さず、`ok=False`の結果を返す。
 
-        図（Mermaid・PlantUML・D2・svg）は、PDFと同じ仕組みでSVGにし（キャッシュも共通）、HTMLから`<img>`で
+        図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）は、PDFと同じ仕組みでSVGにし（キャッシュも共通）、HTMLから`<img>`で
         参照する。Graphviz（`dot`・`graphviz`）は、PDFと同じく、Typstのパッケージ`diagraph`でSVGにする（#264）。
         `shape=record`・図全体の`label`は、描かれないため、警告を出す。`typst-exec`・生のHTMLは、内容を消さずに
         コードブロックで表示し、警告を出す。

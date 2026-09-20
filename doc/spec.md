@@ -7,7 +7,7 @@
 
 Viewの既定値はテンプレートが持つ。個々の文書で既定値と異なる見た目にしたいときだけ、`config.yaml`側で明示的に上書きする。この「テンプレートの既定値を基本とし、`config.yaml`で上書きできる」という優先順位は、`cover`/`toc`/`header`/`footer`等、`document:`配下の各設定に共通する設計方針である。設定の優先順位全体は6章を参照。
 
-入力となるテキストファイルはMarkdownに限らない。プレーンテキスト、コードコメント、YAML、JSON、CSVなど、あらゆるテキストファイルが対象になり得る。`chapters`のファイルは拡張子で扱いが分かれる： `.md`/`.markdown`はMarkdownとして変換し（7章）、`.yaml`/`.yml`/`.json`はシンタックスハイライト付きの等幅表示、`.dot`/`.gv`/`.mmd`/`.puml`/`.plantuml`/`.pu`は図表ソースファイルとして1章分描画し（11章、[#53](https://github.com/tokudiro/text-compositor/issues/53)）、`.csv`はTypstのテーブルとして構造化して描画し（後述、[#36](https://github.com/tokudiro/text-compositor/issues/36)）、それ以外（プレーンテキスト・コードファイル等）は素の等幅表示にする。いずれもMarkdown以外の拡張子ではmarkdown-itを一切通さないため、行頭の`#`や`-`等がMarkdown構文として誤解釈されることはない（[#15](https://github.com/tokudiro/text-compositor/issues/15)）。HTMLを入力フォーマットとして本格対応することは検討のうえ見送った（8章）。
+入力となるテキストファイルはMarkdownに限らない。プレーンテキスト、コードコメント、YAML、JSON、CSVなど、あらゆるテキストファイルが対象になり得る。`chapters`のファイルは拡張子で扱いが分かれる： `.md`/`.markdown`はMarkdownとして変換し（7章）、`.yaml`/`.yml`/`.json`はシンタックスハイライト付きの等幅表示、`.dot`/`.gv`/`.mmd`/`.puml`/`.plantuml`/`.pu`/`.d2`/`.pikchr`は図表ソースファイルとして1章分描画し（11章、[#53](https://github.com/tokudiro/text-compositor/issues/53)）、`.csv`はTypstのテーブルとして構造化して描画し（後述、[#36](https://github.com/tokudiro/text-compositor/issues/36)）、それ以外（プレーンテキスト・コードファイル等）は素の等幅表示にする。いずれもMarkdown以外の拡張子ではmarkdown-itを一切通さないため、行頭の`#`や`-`等がMarkdown構文として誤解釈されることはない（[#15](https://github.com/tokudiro/text-compositor/issues/15)）。HTMLを入力フォーマットとして本格対応することは検討のうえ見送った（8章）。
 
 もう1つの要件は「書いている場所で、そのままPDFにできること」。ドキュメントの置き場所をツールの都合に合わせさせない。
 
@@ -41,7 +41,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 | PlantUML（JRE 約50 MB＋jar 約17.6 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行 |
 | D2（バイナリ 約13 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行 |
 | Mermaid（PDF・CLI） | `playwright`（任意の依存）と、システムのChrome/Edge。なければ、Chromium（約700 MB）を取得する。`mermaid.min.js`（約3.4 MB）も取得する | 例外（pip版・CI。ブラウザが要るため、原理的にも難しい） |
-| Obunzuの図（Mermaid） | `mermaid.min.js`（約3.4 MB）を、初回に取得する。PlantUML・D2も、上と同じ | **方針（3）**: ZIPに同梱する方向（小さいJSから、順に）。Graphvizは、同梱のtypst・`diagraph`で描くため、取得しない（[#264](https://github.com/tokudiro/text-compositor/issues/264)） |
+| Obunzuの図（Mermaid） | `mermaid.min.js`（約3.4 MB）を、初回に取得する。PlantUML・D2も、上と同じ | **方針（3）**: ZIPに同梱する方向（小さいJSから、順に）。Graphviz・Pikchr・CeTZ・Fletcherは、同梱のtypstと、そのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`）で描くため、取得しない（[#264](https://github.com/tokudiro/text-compositor/issues/264)・[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#236](https://github.com/tokudiro/text-compositor/issues/236)） |
 | 外部の画像（`![](https://...)`） | HTML出力・Obunzuは、URLのまま`<img>`にする（CSPは、画像を制限していない）。文書を開くだけで、外部へ通信が起きうる | **方針（2）**: 通信が起きないようにする。扱いは、[#238](https://github.com/tokudiro/text-compositor/issues/238)で決める（PDFは、Typstが取得できず、エラーになるので、通信は起きない） |
 
 取得するときも、原稿の内容は、外部へ送らない（ツールやフォントのダウンロードだけである）。取得したものは、SHA256で確認する（該当するもの）。
@@ -88,7 +88,7 @@ text-compositor/                         my-project/
     * `renderer_inline.py`（`InlineMixin`）: インライン要素`render_inline`・文字のエスケープ・用語索引・文字色。
     * `renderer_tables.py`（`TableMixin`）: Markdownの表と`.csv`。
     * `renderer_layout.py`（`LayoutMixin`）: `:::`のレイアウトブロック。
-    * `renderer_diagrams.py`（`DiagramMixin`）: 図のフェンス（Mermaid・PlantUML・D2・Graphviz・svg）の描画と、SVGのキャッシュ（`_diagram_cache_key`）。外部ツールの取得・検出を呼ぶ名前（`ensure_mermaid_js`・`find_system_d2`など）は、このモジュールにある。テストで差し替える（`monkeypatch`）ときは、`text_compositor.renderer_diagrams`を対象にする。
+    * `renderer_diagrams.py`（`DiagramMixin`）: 図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）の描画と、SVGのキャッシュ（`_diagram_cache_key`）。外部ツールの取得・検出を呼ぶ名前（`ensure_mermaid_js`・`find_system_d2`など）は、このモジュールにある。テストで差し替える（`monkeypatch`）ときは、`text_compositor.renderer_diagrams`を対象にする。
     * `html_output.py`の`HtmlRenderer`は、`TypstRenderer`を継承する。
     * `typst_literal.py`は、Typstの文字列リテラルの補助関数。
   * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid用ブラウザ）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
@@ -311,7 +311,9 @@ python build.py --config <path/to/text-compositor.config.yaml>
    * **実行環境の前提**: `find_system_d2()`（`deps.py`）でシステムの`d2`コマンドを検出して再利用する（2章）。PlantUMLのJavaと異なりバージョン下限のチェックは設けていない（D2側に相当する制約が無いため）。GitHub-hosted runner（`ubuntu-latest`）にはD2が標準搭載されていないため、CI上でも`plugins.d2_auto_download`（既定`true`）による自動取得が毎回発生する。ダウンロードされる実体は約13MB（Go製の単一実行ファイル、外部ランタイム不要）とPlantUMLのJRE（約49.7MB）よりさらに小さいため、既定を自動取得側にした（#22の設計議論と同じ判断基準）。
    * **実装**: D2公式のGitHub Releases（バージョン`v0.9.0`固定）から、プラットフォーム別のtar.gzアセットをURL・SHA256込みで取得・キャッシュする（OS標準のユーザーキャッシュ領域、Eclipse Temurin JREと同じプラットフォーム判定ロジック`_temurin_platform_key()`を共用）。`d2 - -`（D2公式のstdin/stdout規約。ステータスメッセージは標準エラーへ出るため標準出力のSVGと混ざらない）へ図のソースを渡し、標準出力のSVGをそのまま使う。PlantUMLと同様、図ごとにsubprocessを都度起動し、図の種別・d2のバージョン・入力テキストの複合ハッシュをキー名として`project_dir/.text-compositor/cache/`にSVG結果をキャッシュし（d2のバージョンは、システムのd2があれば`d2 --version`の出力、無ければ自動取得対象の`v0.9.0`を使う。キャッシュヒット時にバイナリの取得は起こさない。#26）、描画失敗（終了コード非0）でテキストへフォールバックせず即エラー終了する。
    * **width/height・レイアウトブロックへの組み込み**（[#82](https://github.com/tokudiro/text-compositor/issues/82)、[#77](https://github.com/tokudiro/text-compositor/issues/77)）: Mermaid/PlantUMLと全く同じ`_render_sized_image()`を共用するため、既存の`DIAGRAM_OR_IMAGE_RE`・`_render_diagram_fence()`ディスパッチャーに`d2`を加えるだけで、`layout-right`/`layout-left`/`layout-compare`/`layout-feature`のいずれでも他の図種と同列に使える。
-5. **図表ソースファイルの直接指定**（[#53](https://github.com/tokudiro/text-compositor/issues/53)）: Graphviz・Mermaid・PlantUML・D2の図表ソースファイルそのものを`chapters`に直接指定できる（`.dot`/`.gv`→Graphviz、`.mmd`→Mermaid、`.puml`/`.plantuml`/`.pu`→PlantUML、`.d2`→D2。`.iuml`は`!include`で取り込む断片ファイル用の慣習であり単体の図として使われないため対象外）。**（実装済み）** 新しい描画ロジックは書かず、上記1〜4の既存の描画機構（Graphvizはテンプレート側の`show raw.where(lang: "dot")`、Mermaid/PlantUML/D2は`_render_mermaid()`/`_render_plantuml()`/`_render_d2()`）をそのまま呼び出すだけで実現している。1ファイル＝1章（見出しなし、図だけのページ）として扱われ、`plugins.*`の有効・無効判定もそれぞれの既存ロジックがそのまま適用される。
+5. **図表ソースファイルの直接指定**（[#53](https://github.com/tokudiro/text-compositor/issues/53)）: Graphviz・Mermaid・PlantUML・D2・Pikchrの図表ソースファイルそのものを`chapters`に直接指定できる（`.dot`/`.gv`→Graphviz、`.mmd`→Mermaid、`.puml`/`.plantuml`/`.pu`→PlantUML、`.d2`→D2、`.pikchr`→Pikchr。`.iuml`は`!include`で取り込む断片ファイル用の慣習であり単体の図として使われないため対象外）。**（実装済み）** 新しい描画ロジックは書かず、上記1〜4の既存の描画機構（Graphvizはテンプレート側の`show raw.where(lang: "dot")`、Mermaid/PlantUML/D2は`_render_mermaid()`/`_render_plantuml()`/`_render_d2()`）をそのまま呼び出すだけで実現している。1ファイル＝1章（見出しなし、図だけのページ）として扱われ、`plugins.*`の有効・無効判定もそれぞれの既存ロジックがそのまま適用される。
+6. **Pikchr**（[#213](https://github.com/tokudiro/text-compositor/issues/213)）: Typstのパッケージ`kip`（PikchrのWASM版）で、ローカル完結で描画する。**（実装済み）** Graphvizと違い、テンプレートの`show`ルールや補助関数には頼らず、フェンスごとに、`kip`を`import`するTypstコードを生成する（既存のカスタムテンプレートを壊さないため）。`kip()`関数が、構文エラーで原因の分からないエラーになるため、`kip`が公開するプラグインを直接呼び、Pikchr自身のメッセージ（行・位置・原因）を`panic`で出す。自動縮小と`{width= height=}`は、Graphvizと同じ。`plugins.pikchr`（既定`true`）で無効にできる。HTML出力・Obunzuとの共通の実装・エラーの扱い・ZIPへの同梱は、14章。
+7. **CeTZ・Fletcher**（[#236](https://github.com/tokudiro/text-compositor/issues/236)）: Typstの描画ライブラリ`cetz`（幾何図形・木構造・グラフ）・`fletcher`（ノードと矢印の図）で、ローカル完結で描画する。**（実装済み）** ```` ```cetz ````・```` ```fletcher ````フェンスの中身は、Typstのコードである。任意のファイルの読み込みを防ぐため、`eval`に文字列として渡し、ファイルを読む関数と`import`・`include`を禁じる（8章）。生成コードが、パッケージを直接`import`する点、`plugins.cetz`・`plugins.fletcher`（既定`true`。別々）で無効にできる点は、Pikchrと同じ。Fletcherは、`diagram(...)`の引数として書く。`{width= height=}`は、縦横比を保つ（両方を指定すると、その枠に収める）。CeTZは、LGPL-3.0以降で、ZIPに、改造せず、同梱する（2章の方針・14章）。実装の詳細は、14章。
 
 ## 12. ビルド成果物と一時ファイル
 * 中間 Typst ファイルは `project_dir` 直下の `.text-compositor/temp_build.typ` に生成する（Mermaidのキャッシュも同じ `.text-compositor/cache/` 配下）。テンプレートは同じ `.text-compositor/_template.typ` へコピーしてから参照する（5章・8章のサンドボックス要件）。共通の補助関数`templates/_common.typ`も、テンプレートの隣（`.text-compositor/_common.typ`）へコピーする（6章、[#63](https://github.com/tokudiro/text-compositor/issues/63)）。画像はコピーせず、`--root` 起点のルート絶対パス（`/...`）で参照して解決する。
@@ -434,7 +436,7 @@ with Session() as session:                              # 繰り返すなら（M
 
 * **`Session.render_html(markdown_path, output_html=None, *, plugins=None, variables=None, config=None, csv_header=True, cache_dir=None) -> HtmlResult`**: `plugins`・`variables`・`config`は、`build`と同じ。`cache_dir`は、図のSVGのキャッシュのフォルダ（省略時は、原稿の隣の`.text-compositor/cache/`）。`output_html`とともに指定すると、**原稿のフォルダには、何も書かない**（Viewerが使う。[#258](https://github.com/tokudiro/text-compositor/issues/258)）。`template`・`document`・`keep_temp`は、意味がないため、無い。失敗しても例外は出さず、`ok=False`で返す。標準出力へは何も書かない。
 * **`HtmlResult`**: `ok`・`html_path`（成功時のHTMLの絶対パス）・`diagnostics`・`timings_ms`（`total`・`render`）・`dependencies`（原稿が参照している、ローカルのファイル（画像など）の絶対パス。昇順。成功時のみ。存在しないファイルも含み、原稿自体は含まない。変更を検知して、自動で更新する側（Viewer、[#170](https://github.com/tokudiro/text-compositor/issues/170)）が使う）。`errors`・`warnings`・`to_dict()`を持つ（`to_dict()`は、`html_path`を`html`キーにする）。Graphviz以外は、Typstもフォントも使わないため、`build`より、初回が速い（Graphvizは、Typstの`diagraph`で描くため、初回に、Typstの準備（約40〜60 ms）が要る）。
-* **対象のファイル**: `.md`・`.markdown`と、図の単体ファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.gv`）。それ以外は、エラー。
+* **対象のファイル**: `.md`・`.markdown`と、図の単体ファイル（`.mmd`・`.puml`・`.plantuml`・`.pu`・`.d2`・`.dot`・`.gv`・`.pikchr`）。それ以外は、エラー。
 * **出力**: 外部のCSS・JavaScriptを使わない、1ファイルで完結したHTML文書。`<title>`は、最初の見出し（無ければ、ファイル名）。HTMLは、一時ファイルへ書いてから置き換える。図・画像は、HTMLの置き場所からの相対URLで参照する（別のドライブなど、相対にできないときは、`file:`のURL）。図のSVGは、既定では、PDFと同じキャッシュ（`.text-compositor/cache/`）に置く。`cache_dir`を指定すると、そこに置く。
 * **常駐ワーカー**: メソッド`render_html`（`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`・`csv_header`・`cache_dir`。`output`と`cache_dir`は、文字列で、それ以外は`bad_request`）。応答は、`{"id", "ok", "html", "diagnostics", "timings_ms", "dependencies"}`。プロトコルのバージョンは、1のまま（メソッドの追加）。
 
@@ -443,7 +445,7 @@ with Session() as session:                              # 繰り返すなら（M
 | 分類 | 記法 | HTMLでの扱い |
 | --- | --- | --- |
 | そのまま | CommonMark・表・取り消し線・タスクリスト（無効なチェックボックス）・リンク・コード | 標準の変換。コードの構文の色付けは、しない |
-| 図 | Mermaid・PlantUML・D2・Graphviz（`dot`・`graphviz`）・`svg`フェンス | PDFと同じ仕組みでSVGにし、`<img>`で参照する（Graphvizは、Typstの`diagraph`で描く。下記）。`{width= height=}`は、`style`にする。プラグインが無効なら、コードブロックにする（警告なし） |
+| 図 | Mermaid・PlantUML・D2・Graphviz（`dot`・`graphviz`）・Pikchr・CeTZ・Fletcher・`svg`フェンス | PDFと同じ仕組みでSVGにし、`<img>`で参照する（Graphviz・Pikchr・CeTZ・Fletcherは、Typstのパッケージ`diagraph`・`kip`・`cetz`・`fletcher`で描く。下記）。`{width= height=}`は、`style`にする。プラグインが無効なら、コードブロックにする（警告なし） |
 | 置き換え | `[text]{color= size=}`・`<span style="color:...">`・表のセルの`{bg= border=}`・画像の`alt\|width=\|height=\|align=`・alert（`> [!NOTE]`等） | CSSの`style`や、`<div class="alert alert-note">`にする。値は、CSSとして安全な形だけを通し、それ以外は、警告して無視する |
 | 近似 | `:::`のレイアウトブロック | CSS 2.1の表・`position`と、`column-count`で近似する。`layout-feature`は、写真の下部にキャッチコピーを重ねる。`layout-takahashi`のサイズは、そのまま`font-size`にする。PDFの見た目とは一致しない |
 | 無視（`info`） | 改ページ（`<!-- pagebreak -->`）・front-matterの`paper_size`・`landscape`・`header`・`footer`・`paginate`・`font_size` | HTMLには意味がないため無視し、`info`の診断にする（警告にしない）。Marpのディレクティブは、PDFと同じく黙って無視する。`---`は、常に`<hr>`（`marp_compat`は、config側の設定のため、範囲外） |

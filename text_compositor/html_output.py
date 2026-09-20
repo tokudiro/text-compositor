@@ -3,7 +3,7 @@
 GUI版Viewer（#165）の表示の材料と、ドキュメントのWeb公開の土台にする。PDF（Typst）とは別の変換処理で、
 Markdownの解釈（属性・alert・`:::`ブロック・フェンスの属性）は、`TypstRenderer`の部品をそのまま使う。
 
-- 図（Mermaid・PlantUML・D2・svg）は、PDFと同じ仕組みでSVGにし（キャッシュも共通）、`<img src>`で参照する。
+- 図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）は、PDFと同じ仕組みでSVGにし（キャッシュも共通）、`<img src>`で参照する。
 - 出力するHTMLは、外部のCSS・JavaScriptを使わない、1ファイルで完結した文書である。
 - レイアウトブロック（`:::`）は、CSS 2.1の表・`position`と、`column-count`だけで近似する。表示側のエンジンが
   対応しない場合は、見た目が崩れる（#180で確認する）。
@@ -660,7 +660,7 @@ class HtmlRenderer(TypstRenderer):
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
         if not match:
             self._error_here(f"'{name}' block in {self.current_file} must contain exactly one "
-                             "```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fence or a standalone image.")
+                             "```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
             sys.exit(1)
         return match
 
@@ -683,7 +683,7 @@ class HtmlRenderer(TypstRenderer):
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
-                             f"```mermaid/```plantuml/```dot/```graphviz/```svg/```d2 fences or images (found {len(matches)}).")
+                             f"```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
         prev_end = 0
