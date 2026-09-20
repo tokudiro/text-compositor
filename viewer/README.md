@@ -36,7 +36,7 @@ If no Python is found, the window still opens and explains what to do.
 
 | Action | How |
 | --- | --- |
-| Open a file | `Ctrl+O`, drag and drop a file onto the window, or pass it as a command-line argument. Opening a file while the viewer is running shows it in the existing window. The `Ctrl+O` dialog starts in the folder of the file you opened last, and can be narrowed by kind (Markdown, diagrams, CSV, text). |
+| Open a file | `Ctrl+O`, drag and drop a file onto the window, or pass it as a command-line argument. Opening a file while the viewer is running shows it in the existing window. The `Ctrl+O` dialog starts in the folder of the file you opened last, and can be narrowed by kind: 文 (prose: Markdown and `.txt`), Markdown, 図 (diagrams), or CSV. |
 | Reload | `F5` / `Ctrl+R` / the reload button. The scroll position is kept. |
 | CSV header row | While a `.csv` is open, the table button in the toolbar (or View > "CSV: 1行目を見出しにする") switches between a header row and all data rows. The choice is remembered. |
 | Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%). Clicking the percentage in the toolbar also resets it. |

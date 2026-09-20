@@ -11,24 +11,29 @@ describe('openDialogFilters', () => {
   const byName = (name) => filters.find((filter) => filter.name === name);
 
   test('the first filter is every openable kind, and the last is any file', () => {
-    assert.equal(filters[0].name, '開けるファイルすべて');
+    assert.equal(filters[0].name, '対象ファイル');
     assert.deepEqual(filters.at(-1), { name: 'すべてのファイル', extensions: ['*'] });
-    const kinds = filters.slice(1, -1).flatMap((filter) => filter.extensions);
+    const kinds = new Set(filters.slice(1, -1).flatMap((filter) => filter.extensions));
     assert.deepEqual([...filters[0].extensions].sort(), [...kinds].sort());
   });
 
   test('each kind lists its extensions without the dot', () => {
     assert.deepEqual(byName('Markdown').extensions, ['md', 'markdown']);
     assert.deepEqual(byName('CSV').extensions, ['csv']);
-    assert.deepEqual(byName('テキスト').extensions, ['txt']);
     const diagrams = filters.find((filter) => filter.name.startsWith('図'));
     for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
   });
 
-  test('no extension appears in two kinds, and none has a dot', () => {
-    const kinds = filters.slice(1, -1).flatMap((filter) => filter.extensions);
-    assert.equal(new Set(kinds).size, kinds.length);
-    assert.ok(kinds.every((extension) => !extension.startsWith('.')));
+  test('文 groups Markdown and plain text', () => {
+    const prose = filters.find((filter) => filter.name.startsWith('文'));
+    assert.deepEqual(prose.extensions, ['md', 'markdown', 'txt']);
+  });
+
+  test('no filter lists an extension twice, and none has a dot', () => {
+    for (const filter of filters.slice(0, -1)) {
+      assert.equal(new Set(filter.extensions).size, filter.extensions.length, filter.name);
+      assert.ok(filter.extensions.every((extension) => !extension.startsWith('.')), filter.name);
+    }
   });
 });
 

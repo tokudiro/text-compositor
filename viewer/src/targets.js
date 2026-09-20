@@ -14,22 +14,27 @@ const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', 
 const CSV_EXTENSIONS = ['.csv'];
 const TEXT_EXTENSIONS = ['.txt'];
 
-/** ファイルを開くダイアログの、種類ごとの絞り込み。#218で.yaml・.json・ソースコードに対応したら、ここに種類を足す。 */
+/**
+ * ファイルを開くダイアログの、種類ごとの絞り込み。名前の「文」と「図」は、Obunzu（文図）の由来。
+ * 「文」は、Markdownと、素のテキストをまとめた種類で、Markdownだけの絞り込みも、別に持つ（種類は、重なってよい）。
+ * #218で.yaml・.json・ソースコードに対応したら、ここに種類を足す。
+ */
 const OPEN_FILE_KINDS = [
+  { name: '文（Markdown・テキスト）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
   { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
   { name: '図（Mermaid・PlantUML・D2・Graphviz・SVG）', extensions: DIAGRAM_EXTENSIONS },
   { name: 'CSV', extensions: CSV_EXTENSIONS },
-  { name: 'テキスト', extensions: TEXT_EXTENSIONS },
 ];
 
 /**
- * ファイルを開くダイアログの絞り込み（Electronの`filters`の形）。先頭は、開けるものすべて（既定）、
+ * ファイルを開くダイアログの絞り込み（Electronの`filters`の形）。先頭は、対象のファイルすべて（既定）、
  * 末尾は、拡張子を問わないすべてのファイル（対象外の場合は、開くときに、ワーカーが案内する）。
  */
 function openDialogFilters() {
   const dotless = (extensions) => extensions.map((extension) => extension.slice(1));
+  const everything = [...new Set(OPEN_FILE_KINDS.flatMap((kind) => kind.extensions))];
   return [
-    { name: '開けるファイルすべて', extensions: dotless(OPEN_FILE_KINDS.flatMap((kind) => kind.extensions)) },
+    { name: '対象ファイル', extensions: dotless(everything) },
     ...OPEN_FILE_KINDS.map((kind) => ({ name: kind.name, extensions: dotless(kind.extensions) })),
     { name: 'すべてのファイル', extensions: ['*'] },
   ];
