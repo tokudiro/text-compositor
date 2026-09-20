@@ -52,7 +52,7 @@ jobs:
           cache-dependency-path: viewer/package-lock.json
 
       # 配布物（組込版Python 3.12）と、同じ版のPythonで確認する。
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
