@@ -38,7 +38,7 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # `v<バージョン>`（text-compositorと同時のリリース）か、`obunzu-v<バージョン>`（Obunzuだけの例外）
       - name: Check that the tag matches the version in viewer/package.json

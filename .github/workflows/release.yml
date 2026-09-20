@@ -30,12 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo (docs/config)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           path: this-repo
 
       - name: Checkout text-compositor (tool)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: tokudiro/text-compositor
           path: text-compositor
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo (docs/config)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           path: this-repo
 
@@ -119,7 +119,7 @@ jobs:
     permissions:
       id-token: write  # Trusted Publishing用のOIDCトークン取得に必要
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
