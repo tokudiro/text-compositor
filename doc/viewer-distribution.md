@@ -9,7 +9,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
-Obunzu-0.3.6-win-x64/
+Obunzu-0.3.8-win-x64/
   obunzu.exe                 Electronのアプリ（アイコン・バージョン情報つき）
   resources/app.asar         Viewerのコード（src/・assets/）
   python-embed/              組込版Python（python.orgのembeddable package）
