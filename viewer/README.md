@@ -123,7 +123,7 @@ npm test
 
 `test/worker-integration.test.js` runs the real Python worker (`render_html` round trips for Markdown and CSV, an error case, and the resident worker). It needs a Python with the packages of `dist-requirements.txt`; without one it is skipped. Set `REQUIRE_WORKER_INTEGRATION=1` to fail instead of skip.
 
-CI (`.github/workflows/viewer.yml`) runs `npm test` on Windows for pull requests and pushes that touch `viewer/` or `text_compositor/`. It does not start Electron. Pushing a tag `obunzu-v<version>` builds the portable ZIP and attaches it to a GitHub Release (`.github/workflows/viewer-release.yml`; see [doc/viewer-distribution.md](../doc/viewer-distribution.md)).
+CI (`.github/workflows/viewer.yml`) runs `npm test` on Windows for pull requests and pushes that touch `viewer/` or `text_compositor/`. It does not start Electron. Releases are made together with text-compositor: pushing one tag `v<version>` builds the portable ZIP and attaches it to the same GitHub Release (`.github/workflows/release.yml` and `viewer-release.yml`; the exception for releasing Obunzu alone is a tag `obunzu-v<version>`; see [doc/viewer-distribution.md](../doc/viewer-distribution.md)).
 
 ## Third-party components
 

@@ -8,6 +8,9 @@ name: Release
 # doc/usage/12_github_actions.mdで案内している2つの使い方（クローンして直接叩く／
 # pipインストールする、#50・#111・#112）を、それぞれ別ジョブで実際にビルドし、
 # リリースの度にどちらの手順も壊れていないかを継続的に検証する。
+#
+# Obunzu（Viewer）も、同じタグで、同時にリリースする（#172）。ZIPを作り、同じReleaseに添付する
+# （build-viewer・attach-viewer）。Obunzuだけの修正を出す例外は、`obunzu-v*`のタグ（viewer-release.yml）。
 on:
   push:
     tags:
@@ -76,6 +79,33 @@ jobs:
 
       - name: Build usage guide PDF via the text-compositor command
         run: text-compositor --config this-repo/doc/usage/text-compositor.config.yaml
+
+  # Obunzu（Viewer）の配布物（ポータブルZIP）を作る（#172）。text-compositor本体と、同時にリリースする
+  # （Obunzuは、同じバージョンのtext_compositorを同梱し、バージョンも、そろえる決まりのため）。作り方は、
+  # viewer-release.ymlにある（テスト → ビルド。呼び出すだけで、Releaseへの添付は、行わない）。
+  #
+  # needs: Releaseは、build-usage-guideが作る。同じタグに、2つのジョブが、同時にReleaseを作って、競合しないように、
+  # 順序をつける。ビルドが失敗しても、PDFとPyPIへの公開には、影響しない（他のジョブは、これを待たない）。失敗したときは、
+  # 失敗したジョブだけを、再実行できる。
+  build-viewer:
+    needs: build-usage-guide
+    uses: ./.github/workflows/viewer-release.yml
+
+  # ZIPを、build-usage-guideが作ったReleaseに添付する。本文と「Latest」は、変えない（build-usage-guideの結果のまま）。
+  # この権限（contents: write）は、ワークフロー全体の設定。PyPIの公開（id-token）は、publish-pypiだけが持つ。
+  attach-viewer:
+    needs: build-viewer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: obunzu-win-x64
+          path: dist
+
+      - name: Attach the Obunzu ZIP to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Obunzu-*-win-x64.zip
 
   # タグpushのたびにPyPIへ公開する（#134）。APIトークンをGitHub Secretsに保存せず、
   # PyPIのTrusted Publishing（OIDC）を使う。事前にPyPI側で「pending publisher」として

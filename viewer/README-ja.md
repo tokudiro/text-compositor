@@ -123,7 +123,7 @@ npm test
 
 `test/worker-integration.test.js`は、実際のPythonワーカーを起動して、`render_html`の往復（MarkdownとCSV、存在しないファイル、ワーカーの常駐）を確認します。`dist-requirements.txt`のパッケージが入ったPythonが要り、無いときは飛ばします。環境変数`REQUIRE_WORKER_INTEGRATION=1`を付けると、飛ばさず、失敗にします。
 
-CI（`.github/workflows/viewer.yml`）は、`viewer/`や`text_compositor/`を変えたPR・pushで、Windowsで`npm test`を実行します。Electronは、起動しません。タグ`obunzu-v<バージョン>`をpushすると、ポータブルなZIPを作り、GitHub Releaseに添付します（`.github/workflows/viewer-release.yml`。[doc/viewer-distribution.md](../doc/viewer-distribution.md)）。
+CI（`.github/workflows/viewer.yml`）は、`viewer/`や`text_compositor/`を変えたPR・pushで、Windowsで`npm test`を実行します。Electronは、起動しません。リリースは、text-compositor本体と同時に行います。タグ`v<バージョン>`を1つpushすると、ポータブルなZIPが作られ、同じGitHub Releaseに添付されます（`.github/workflows/release.yml`と`viewer-release.yml`。Obunzuだけを出す例外は、タグ`obunzu-v<バージョン>`。[doc/viewer-distribution.md](../doc/viewer-distribution.md)）。
 
 ## サードパーティのコンポーネント
 
