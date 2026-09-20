@@ -1,6 +1,7 @@
 """Viewerの配布物（#168）の前提のテスト。
 
-- PDF専用の依存（typst）と、Mermaid用のplaywrightが、なくても、HTML出力が動くこと（配布物に、同梱しない）。
+- typstとMermaid用のplaywrightが、なくても、HTML出力が動くこと（HTML出力は、この2つに依存しない。pipで入れる場合の、
+  最小の構成。配布物は、Typstを通す処理のために、typstを同梱する。#263）。
 - 配布物のPython依存（viewer/dist-requirements.txt）が、pyproject.tomlの依存と、ずれていないこと。"""
 import json
 import re
@@ -60,9 +61,11 @@ def test_the_distribution_requirements_follow_pyproject():
     project = _pins(dependencies.splitlines())
     dist = _pins((ROOT / "viewer" / "dist-requirements.txt").read_text(encoding="utf-8").splitlines())
 
-    assert "typst" in project and "typst" not in dist   # PDF専用のため、同梱しない
     assert dist, "no pinned requirements found"
     for name, version in dist.items():
         assert project.get(name) == version, f"{name}: dist {version} != pyproject {project.get(name)}"
-    # HTML出力に必要なもの（typst以外）は、すべて同梱する
-    assert set(project) - {"typst"} == set(dist)
+    # typstは、Typstを通す処理のために、同梱する（#263。#237で決めた）。Mermaid用のplaywrightは、pyprojectの必須の依存ではなく、
+    # ElectronのChromiumで描画するため、同梱しない
+    assert "typst" in project and "typst" in dist
+    assert "playwright" not in dist
+    assert set(project) == set(dist)

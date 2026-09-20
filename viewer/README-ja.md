@@ -68,7 +68,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 ## 配布物（Windows）
 
-`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約164 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。HTML出力に必要なパッケージだけ）と、サードパーティのライセンス表記（`licenses/`）です。`typst`（PDF専用）と`playwright`は、同梱しません。Mermaidの図は、Electron自身のChromiumで描画します（`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
+`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約199 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）と、サードパーティのライセンス表記（`licenses/`）です。Typstのコンパイラ・フォント・パッケージは、ネットワークなしで動きます（#263）。`playwright`は、同梱しません。Mermaidの図は、Electron自身のChromiumで描画します（`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
 ## 環境変数
 
 | 変数 | 意味 |
@@ -101,7 +101,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `scripts/build-dist.js` | Windows向けのポータブルZIP（Electron + 組込版Python + 必要最小限のパッケージ + ライセンス表記）を作る |
 | `scripts/check-dist.js` | 展開した配布物を、Pythonへの手がかりを外した環境で起動して、確認する（手動。Windowsのみ） |
 | `scripts/check-embed-dependencies.py` | 組込版Pythonが、同梱のDLLと、Windows標準のDLLだけに依存することを確認する（`pefile`が要る。手動） |
-| `dist-requirements.txt` | 配布物に同梱するPythonのパッケージ（版を固定。`typst`と`playwright`は、外す） |
+| `dist-requirements.txt` | 配布物に同梱するPythonのパッケージ（版を固定。`playwright`は、外す） |
 | `scripts/build-icons.js` | `assets/icon.svg`から、`assets/icon.ico`と`assets/icon.png`を書き出す |
 | `assets/` | アプリのアイコン（元のSVGと、書き出した`.ico`・`.png`） |
 | `src/chrome/` | ツールバー・エラーの帯・診断の一覧 |

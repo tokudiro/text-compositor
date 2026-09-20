@@ -13,6 +13,9 @@ const path = require('node:path');
 
 const PYTHON_ENV = 'TEXT_COMPOSITOR_PYTHON';
 const PYTHONPATH_ENV = 'TEXT_COMPOSITOR_PYTHONPATH';
+// 同梱のフォント・Typstのパッケージのフォルダ（ワーカー側の、text_compositor/deps.pyの`FONT_DIR_ENV`・compiler.pyの`TYPST_PACKAGES_ENV`と同じ名前）
+const FONT_DIR_ENV = 'TEXT_COMPOSITOR_FONT_DIR';
+const TYPST_PACKAGES_ENV = 'TEXT_COMPOSITOR_TYPST_PACKAGES';
 
 class PythonNotFoundError extends Error {
   constructor(message) {
@@ -44,6 +47,12 @@ function resolveWorkerLaunch(appDir, options = {}) {
     const existing = env.PYTHONPATH;
     launchEnv.PYTHONPATH = existing ? `${extra}${path.delimiter}${existing}` : extra;
   }
+  // 配布物に同梱した、フォント（fonts/）と、Typstのパッケージ（typst-packages/）があれば、ワーカーに教える。ワーカーは、
+  // ダウンロードせずに、これを使う（#263）。利用者が、環境変数で、すでに指定しているときは、それを優先する。
+  for (const [name, folder] of [[FONT_DIR_ENV, 'fonts'], [TYPST_PACKAGES_ENV, 'typst-packages']]) {
+    const bundled = path.join(appDir, folder);
+    if (!env[name] && exists(bundled)) launchEnv[name] = bundled;
+  }
   return { file: python, args: ['-m', 'text_compositor.worker'], env: launchEnv };
 }
 
@@ -72,4 +81,4 @@ function findPython(appDir, env, exists, platform) {
   return null;
 }
 
-module.exports = { resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV };
+module.exports = { resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV };
