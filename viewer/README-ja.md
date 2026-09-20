@@ -4,6 +4,8 @@
 
 Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・`svg`）を、画像として表示します。エディタもPDF出力もありません。
 
+このREADMEは、開発者向けです。Obunzuを使う人向けの説明書は、[Obunzu使い方ガイド](../doc/obunzu-guide/)です（Releasesに、PDFを添付しています）。
+
 見た目の方針（色・余白・フォント）は、[doc/viewer-visual-design.md](../doc/viewer-visual-design.md)にあります。
 
 表示エンジンは、計測で決めました（[doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md)）。Electronに`--disable-gpu --in-process-gpu`を付けた構成が、体感で最速だったため、既定で、この引数を使います（`VIEWER_GPU=1`で、無効にできます）。

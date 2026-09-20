@@ -15,7 +15,7 @@ Obunzu-0.3.6-win-x64/
   python-embed/              組込版Python（python.orgのembeddable package）
     Lib/site-packages/       必要最小限のパッケージ + typst + text_compositor
   fonts/                     Noto Sans JP（Regular・Bold）とそのライセンス
-  typst-packages/            Typstのパッケージ（preview/<名前>/<版>/。diagraph・kip・note-me）
+  typst-packages/            Typstのパッケージ（preview/<名前>/<版>/。diagraph・kip・cetz・fletcher・note-me・oxifmt）
   licenses/                  サードパーティのライセンス表記
   LICENSE, LICENSES.chromium.html   ElectronとChromiumのライセンス
 ```

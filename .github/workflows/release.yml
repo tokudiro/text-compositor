@@ -50,10 +50,17 @@ jobs:
       - name: Build usage guide PDF
         run: python text-compositor/build.py --config this-repo/doc/usage/text-compositor.config.yaml
 
-      - name: Attach PDF to release
+      # Obunzu（Viewer）の使い方ガイド（#274）。上と同じ手順で、同じReleaseに、並べて添付する。
+      # 図のプラグインは、すべて無効な設定のため、追加のランタイムは要らない。
+      - name: Build Obunzu guide PDF
+        run: python text-compositor/build.py --config this-repo/doc/obunzu-guide/text-compositor.config.yaml
+
+      - name: Attach PDFs to release
         uses: softprops/action-gh-release@v3
         with:
-          files: this-repo/doc/usage/text-compositor-usage-guide.pdf
+          files: |
+            this-repo/doc/usage/text-compositor-usage-guide.pdf
+            this-repo/doc/obunzu-guide/obunzu-usage-guide.pdf
           # 本文を自動生成する（マージ済みPRの一覧。v0.0.13までは本文が空のまま公開されて
           # いたため追加した）。カテゴリ分けした詳細なノートにしたい場合は、公開後に
           # `gh release edit`で上書きする運用のままでよい（自動生成はたたき台として機能する）。
@@ -79,6 +86,9 @@ jobs:
 
       - name: Build usage guide PDF via the text-compositor command
         run: text-compositor --config this-repo/doc/usage/text-compositor.config.yaml
+
+      - name: Build Obunzu guide PDF via the text-compositor command
+        run: text-compositor --config this-repo/doc/obunzu-guide/text-compositor.config.yaml
 
   # Obunzu（Viewer）の配布物（ポータブルZIP）を作る（#172）。text-compositor本体と、同時にリリースする
   # （Obunzuは、同じバージョンのtext_compositorを同梱し、バージョンも、そろえる決まりのため）。作り方は、
