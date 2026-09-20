@@ -73,6 +73,11 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 .row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .row .name { font-weight: 600; }
 .row .desc { margin-top: 2px; color: var(--muted); }
+.row[hidden] { display: none; }
+/* 直前の項目の、続き（選んだ値の詳細）。上の行に寄せ、長いパスは、途中を省く（全体は、ホバーで見える） */
+.row.sub { padding-top: 0; }
+.row.sub .text { min-width: 0; }
+.row.sub .name { font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .segmented { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .segmented label { cursor: pointer; }
 .segmented label + label { border-left: 1px solid var(--line); }

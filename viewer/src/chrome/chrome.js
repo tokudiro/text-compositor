@@ -16,6 +16,7 @@ $('empty-open').addEventListener('click', () => api.openDialog());
 $('csv-header').addEventListener('click', () => api.setCsvHeader($('csv-header').getAttribute('aria-checked') !== 'true'));
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
+$('choose-directory').addEventListener('click', () => api.chooseOpenDirectory());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
 $('settings').addEventListener('change', (event) => {
   if (event.target.matches('input[type="radio"]')) api.setSetting(event.target.name, event.target.value);
@@ -43,6 +44,10 @@ function render(state) {
   for (const [name, value] of Object.entries(state.settings)) {
     for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === value;
   }
+  const fixed = state.settings.openDirectoryMode === 'fixed';
+  $('fixed-directory-row').hidden = !fixed;
+  $('fixed-directory').textContent = state.settings.fixedDirectory ?? '未指定（ドキュメントのフォルダから始まります）';
+  $('fixed-directory').title = state.settings.fixedDirectory ?? '';
 
   // ファイル名を主にして、フォルダは、控えめに添える。全体は、ホバーで表示する
   const split = state.file ? Math.max(state.file.lastIndexOf('\\'), state.file.lastIndexOf('/')) : -1;

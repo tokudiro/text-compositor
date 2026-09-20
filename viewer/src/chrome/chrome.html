@@ -10,7 +10,7 @@
   <div id="top">
     <div id="toolbar">
       <!-- 左: ファイルに関する操作と、ファイルの場所。アイコンは、線の太さ・角の丸みを、アプリのアイコンに合わせる。 -->
-      <button id="open" class="icon" title="Markdownファイルを開く（Ctrl+O）" aria-label="開く">
+      <button id="open" class="icon" title="ファイルを開く（Ctrl+O）" aria-label="開く">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>
       </button>
       <button id="reload" class="icon" title="もう一度変換する（F5）" aria-label="再読み込み" disabled>
@@ -76,6 +76,24 @@
           <label><input type="radio" name="theme" value="light"><span>ライト</span></label>
           <label><input type="radio" name="theme" value="dark"><span>ダーク</span></label>
         </div>
+      </div>
+      <div class="row">
+        <div class="text">
+          <div class="name" id="open-directory-name">ファイルを開く場所</div>
+          <div class="desc">「ファイルを開く」のダイアログが、最初に見せるフォルダを選びます。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="open-directory-name">
+          <label><input type="radio" name="openDirectoryMode" value="os"><span>OSにゆだねる</span></label>
+          <label><input type="radio" name="openDirectoryMode" value="last"><span>前回開いたフォルダ</span></label>
+          <label><input type="radio" name="openDirectoryMode" value="fixed"><span>特定のフォルダ</span></label>
+        </div>
+      </div>
+      <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->
+      <div class="row sub" id="fixed-directory-row" hidden>
+        <div class="text">
+          <div class="name" id="fixed-directory"></div>
+        </div>
+        <button id="choose-directory" class="primary">フォルダを選ぶ…</button>
       </div>
       <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
     </div>

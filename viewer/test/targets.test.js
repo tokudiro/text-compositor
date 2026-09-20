@@ -4,7 +4,68 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { describe, test } = require('node:test');
 
-const { checkOpenTarget, classifyNavigation, fileFromArgv } = require('../src/targets');
+const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('../src/targets');
+
+describe('openDialogFilters', () => {
+  const filters = openDialogFilters();
+  const byName = (name) => filters.find((filter) => filter.name === name);
+
+  test('the first filter is every openable kind, and the last is any file', () => {
+    assert.equal(filters[0].name, '対象ファイル');
+    assert.deepEqual(filters.at(-1), { name: 'すべてのファイル', extensions: ['*'] });
+    const kinds = new Set(filters.slice(1, -1).flatMap((filter) => filter.extensions));
+    assert.deepEqual([...filters[0].extensions].sort(), [...kinds].sort());
+  });
+
+  test('each kind lists its extensions without the dot', () => {
+    assert.deepEqual(byName('Markdown').extensions, ['md', 'markdown']);
+    assert.deepEqual(byName('CSV').extensions, ['csv']);
+    const diagrams = filters.find((filter) => filter.name.startsWith('図'));
+    for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
+  });
+
+  test('文 groups Markdown and plain text', () => {
+    const prose = filters.find((filter) => filter.name.startsWith('文'));
+    assert.deepEqual(prose.extensions, ['md', 'markdown', 'txt']);
+  });
+
+  test('no filter lists an extension twice, and none has a dot', () => {
+    for (const filter of filters.slice(0, -1)) {
+      assert.equal(new Set(filter.extensions).size, filter.extensions.length, filter.name);
+      assert.ok(filter.extensions.every((extension) => !extension.startsWith('.')), filter.name);
+    }
+  });
+});
+
+describe('openDialogDirectory (#226)', () => {
+  const fallback = path.resolve(path.sep, 'Users', 'me', 'Documents');
+  const last = path.resolve(path.sep, 'work', 'docs');
+  const fixed = path.resolve(path.sep, 'work', 'pinned');
+  const statOf = (isDirectory) => () => ({ isDirectory: () => isDirectory });
+  const missing = () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
+  const settings = (openDirectoryMode, extra = {}) => ({ openDirectoryMode, lastDirectory: last, fixedDirectory: fixed, ...extra });
+
+  test('os leaves the start folder to the OS (no folder is given)', () => {
+    assert.equal(openDialogDirectory(settings('os'), fallback, { statSync: statOf(true) }), undefined);
+  });
+  test('last starts in the folder opened last, and fixed in the chosen folder', () => {
+    assert.equal(openDialogDirectory(settings('last'), fallback, { statSync: statOf(true) }), last);
+    assert.equal(openDialogDirectory(settings('fixed'), fallback, { statSync: statOf(true) }), fixed);
+  });
+  test('an unset, gone or non-folder start folder falls back to the fallback', () => {
+    for (const mode of ['last', 'fixed']) {
+      for (const value of [null, undefined, '', 42]) {
+        assert.equal(openDialogDirectory(settings(mode, { lastDirectory: value, fixedDirectory: value }), fallback), fallback, `${mode} ${String(value)}`);
+      }
+      assert.equal(openDialogDirectory(settings(mode), fallback, { statSync: missing }), fallback, mode);
+      assert.equal(openDialogDirectory(settings(mode), fallback, { statSync: statOf(false) }), fallback, mode);
+    }
+  });
+  test('each mode reads only its own folder', () => {
+    assert.equal(openDialogDirectory(settings('fixed', { fixedDirectory: null }), fallback, { statSync: statOf(true) }), fallback);
+    assert.equal(openDialogDirectory(settings('last', { lastDirectory: null }), fallback, { statSync: statOf(true) }), fallback);
+  });
+});
 
 describe('checkOpenTarget (#196)', () => {
   const statOf = (isDirectory) => () => ({ isDirectory: () => isDirectory });

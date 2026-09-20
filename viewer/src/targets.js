@@ -6,12 +6,58 @@ const path = require('node:path');
 const { fileURLToPath } = require('node:url');
 
 /**
- * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル・テキスト（.txt）・CSV（表）・SVG（画像）。
+ * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・Text（.txt）。
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする（.yaml・.json・ソースコードの表示は、#218）。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
-const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv'];
-const OTHER_EXTENSIONS = ['.txt', '.csv', '.svg'];
+const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.svg'];
+const CSV_EXTENSIONS = ['.csv'];
+const TEXT_EXTENSIONS = ['.txt'];
+
+/**
+ * ファイルを開くダイアログの、種類ごとの絞り込み。名前の「文」と「図」は、Obunzu（文図）の由来。
+ * 「文」は、MarkdownとText（.txt）をまとめた種類で、Markdownだけの絞り込みも、別に持つ（種類は、重なってよい）。
+ * #218で.yaml・.json・ソースコードに対応したら、ここに種類を足す。
+ */
+const OPEN_FILE_KINDS = [
+  { name: '文（Markdown・Text）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
+  { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
+  { name: '図（Mermaid・PlantUML・D2・Graphviz・SVG）', extensions: DIAGRAM_EXTENSIONS },
+  { name: 'CSV', extensions: CSV_EXTENSIONS },
+];
+
+/**
+ * ファイルを開くダイアログの絞り込み（Electronの`filters`の形）。先頭は、対象のファイルすべて（既定）、
+ * 末尾は、拡張子を問わないすべてのファイル（対象外の場合は、開くときに、ワーカーが案内する）。
+ */
+function openDialogFilters() {
+  const dotless = (extensions) => extensions.map((extension) => extension.slice(1));
+  const everything = [...new Set(OPEN_FILE_KINDS.flatMap((kind) => kind.extensions))];
+  return [
+    { name: '対象ファイル', extensions: dotless(everything) },
+    ...OPEN_FILE_KINDS.map((kind) => ({ name: kind.name, extensions: dotless(kind.extensions) })),
+    { name: 'すべてのファイル', extensions: ['*'] },
+  ];
+}
+
+/**
+ * ファイルを開くダイアログが、最初に見せるフォルダ（設定の`openDirectoryMode`、#226）。
+ *   os: 指定しない（`undefined`。OSの既定の動きになる）
+ *   last: 前回開いたファイルのフォルダ（`lastDirectory`）
+ *   fixed: 利用者が指定したフォルダ（`fixedDirectory`）
+ * 指定したフォルダが、未設定・消えている・フォルダでないときは、`fallback`（「ドキュメント」）にする。
+ * 何も指定しないと、場所はOS任せになり、開いている文書とは無関係な場所（例: 起動したフォルダ）から始まることがある。
+ */
+function openDialogDirectory(settings, fallback, { statSync = fs.statSync } = {}) {
+  if (settings.openDirectoryMode === 'os') return undefined;
+  const directory = settings.openDirectoryMode === 'fixed' ? settings.fixedDirectory : settings.lastDirectory;
+  if (typeof directory !== 'string' || !directory) return fallback;
+  try {
+    return statSync(directory).isDirectory() ? directory : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * 開こうとするファイルの、事前の確認（存在するか、フォルダでないか）。拡張子では、絞らない。
@@ -28,7 +74,7 @@ function checkOpenTarget(filePath, { statSync = fs.statSync } = {}) {
     return { ok: false, message: `ファイルが見つかりません: ${name}` };
   }
   if (stat.isDirectory()) {
-    return { ok: false, message: `フォルダは開けません: ${name}（Markdown・図・テキストのファイルを、選んでください）` };
+    return { ok: false, message: `フォルダは開けません: ${name}（文・図のファイルを、選んでください）` };
   }
   return { ok: true };
 }
@@ -65,4 +111,4 @@ function classifyNavigation(url) {
   return { type: 'ignore' };
 }
 
-module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, MARKDOWN_EXTENSIONS, DIAGRAM_EXTENSIONS, OTHER_EXTENSIONS };
+module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, openDialogFilters, openDialogDirectory };
