@@ -3,16 +3,16 @@ import datetime
 
 import pytest
 
-import text_compositor.build as build
+from text_compositor.document import _build_document_preamble, _resolve_revision_history, _revision_history_typst_arg
 
 
 def resolve(entries):
-    return build._resolve_revision_history({"revision_history": entries})
+    return _resolve_revision_history({"revision_history": entries})
 
 
 class TestResolve:
     def test_absent_or_empty_disables_the_page(self):
-        assert build._resolve_revision_history({}) is None
+        assert _resolve_revision_history({}) is None
         assert resolve([]) is None
 
     def test_fills_missing_keys_with_empty_strings(self):
@@ -45,29 +45,29 @@ class TestResolve:
 class TestTypstArg:
     def test_none_passes_no_argument(self):
         # 引数を持たない既存の独自テンプレートとの互換のため、引数行自体を出さない
-        assert build._revision_history_typst_arg(None) == ""
+        assert _revision_history_typst_arg(None) == ""
 
     def test_single_entry_is_still_an_array(self):
-        arg = build._revision_history_typst_arg(resolve([{"version": "1.0"}]))
+        arg = _revision_history_typst_arg(resolve([{"version": "1.0"}]))
         assert arg == '  revision_history: ((version: "1.0", date: "", description: "", author: ""),),\n'
 
     def test_multiple_entries(self):
-        arg = build._revision_history_typst_arg(resolve([{"version": "1.0"}, {"version": "1.1"}]))
+        arg = _revision_history_typst_arg(resolve([{"version": "1.0"}, {"version": "1.1"}]))
         assert arg.count("(version:") == 2
 
     def test_quotes_backslashes_and_markup_are_escaped_as_string_data(self):
-        arg = build._revision_history_typst_arg(resolve([{"description": 'say "hi" \\ #x *y*'}]))
+        arg = _revision_history_typst_arg(resolve([{"description": 'say "hi" \\ #x *y*'}]))
         assert 'description: "say \\"hi\\" \\\\ #x *y*"' in arg
 
     def test_newlines_become_escape_sequences_not_raw_line_breaks(self):
-        arg = build._revision_history_typst_arg(resolve([{"description": "a\r\nb\nc"}]))
+        arg = _revision_history_typst_arg(resolve([{"description": "a\r\nb\nc"}]))
         assert 'description: "a\\nb\\nc"' in arg
         assert arg.count("\n") == 1  # 引数行末の改行のみ
 
 
 class TestPreamble:
     def build_preamble(self, doc):
-        preamble, *_ = build._build_document_preamble({"document": doc}, "/t.typ", True, "/proj", "/proj")
+        preamble, *_ = _build_document_preamble({"document": doc}, "/t.typ", True, "/proj", "/proj")
         return preamble
 
     def test_argument_is_passed_to_conf_when_configured(self):

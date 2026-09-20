@@ -4,10 +4,13 @@ import os
 import pytest
 
 import text_compositor.build as build
+import text_compositor.project as project_mod
+from text_compositor.project import _build_one
+from text_compositor.renderer import TypstRenderer
 
 
 def render_csv(csv_text, filepath="data.csv", table_header_style=None):
-    renderer = build.TypstRenderer(line_mapping="off")
+    renderer = TypstRenderer(line_mapping="off")
     if table_header_style is not None:
         renderer.table_header_style = table_header_style
     return renderer.render_chapter(csv_text, filepath=filepath)
@@ -84,24 +87,24 @@ class TestHeaderOption:
     """1行目を、ヘッダー行にするか（csv_header、#220）。"""
 
     def test_without_a_header_every_row_is_data_and_no_table_header_is_made(self):
-        renderer = build.TypstRenderer(line_mapping="off", csv_header=False)
+        renderer = TypstRenderer(line_mapping="off", csv_header=False)
         out = renderer.render_chapter("Alice,30\nBob,25\n", filepath="data.csv")
         assert out == "#table(\n  columns: 2,\n  [Alice], [30], \n  [Bob], [25], \n  \n)\n\n"
         assert "table.header" not in out
 
     def test_the_header_row_style_is_not_applied_without_a_header(self):
-        renderer = build.TypstRenderer(line_mapping="off", csv_header=False)
+        renderer = TypstRenderer(line_mapping="off", csv_header=False)
         renderer.table_header_style = {"bold": True, "background": "#eee"}
         out = renderer.render_chapter("a,b\n", filepath="data.csv")
         assert "fill" not in out and "*" not in out and out == "#table(\n  columns: 2,\n  [a], [b], \n  \n)\n\n"
 
     def test_the_first_row_decides_the_column_count_without_a_header(self):
-        renderer = build.TypstRenderer(line_mapping="off", csv_header=False)
+        renderer = TypstRenderer(line_mapping="off", csv_header=False)
         with pytest.raises(SystemExit):
             renderer.render_chapter("a,b\n1,2,3\n", filepath="data.csv")
 
     def test_the_default_is_a_header_row(self):
-        assert build.TypstRenderer(line_mapping="off").csv_header is True
+        assert TypstRenderer(line_mapping="off").csv_header is True
 
 
 HEAD = "document:\n  cover: none\ninputs:\n  dir: \".\"\n"
@@ -112,13 +115,13 @@ def csv_project(tmp_path, monkeypatch):
     """_build_oneを通して、生成されるTypstコードを取得する（コンパイルは、差し替える）。"""
     (tmp_path / "data.csv").write_text("name,qty\nAlice,3\n", encoding="utf-8")
     captured = {}
-    monkeypatch.setattr(build, "_compile_and_cleanup", lambda typst_code, *a, **k: captured.setdefault("code", typst_code))
+    monkeypatch.setattr(project_mod, "_compile_and_cleanup", lambda typst_code, *a, **k: captured.setdefault("code", typst_code))
 
     def run(config_text):
         cfg = tmp_path / "text-compositor.config.yaml"
         cfg.write_text(config_text, encoding="utf-8")
         captured.clear()
-        build._build_one(os.path.dirname(os.path.abspath(build.__file__)), str(tmp_path), "fonts", str(cfg))
+        _build_one(os.path.dirname(os.path.abspath(build.__file__)), str(tmp_path), "fonts", str(cfg))
         return captured["code"]
 
     return run

@@ -6,7 +6,7 @@
 // Pythonの`playwright`（約106 MB）と、システムのChrome・Edgeが要らない。準備は、最初の図で、1回だけ行う
 // （起動を遅くしないため）。実測: 準備 約0.3秒、描画 16〜51 ms。
 //
-// 設定は、Python側（`build.py`のMermaidBrowser）と同じにする。Typstとは違い、HTMLの表示では、`<foreignObject>`が
+// 設定は、Python側（`mermaid.py`のMermaidBrowser）と同じにする。Typstとは違い、HTMLの表示では、`<foreignObject>`が
 // 使えるが、SVGの見た目を、PDF出力と、そろえるため、HTMLラベルは、無効にする。
 
 const fs = require('node:fs');

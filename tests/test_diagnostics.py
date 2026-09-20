@@ -2,7 +2,9 @@
 import pytest
 
 from text_compositor import diagnostics
-import text_compositor.build as build
+from text_compositor.log import _error, _log_info, _log_success, _log_verbose
+from text_compositor.renderer import TypstRenderer
+import text_compositor.log as log_mod
 
 
 class TestOutsideCollect:
@@ -69,31 +71,31 @@ class TestBuildHelpers:
     """build.pyの補助関数が、CLIでは従来どおり、collect()の中では構造化して出す。"""
 
     def test_error_helper_is_cli_compatible(self, capsys):
-        build._error("Chapter file not found: a.md")
+        _error("Chapter file not found: a.md")
         assert capsys.readouterr().out == "[Error] Chapter file not found: a.md\n"
 
     def test_success_is_cli_only(self, capsys):
-        build._log_success("Generated PDF: out.pdf")
+        _log_success("Generated PDF: out.pdf")
         assert capsys.readouterr().out == "[Success] Generated PDF: out.pdf\n"
         with diagnostics.collect() as c:
-            build._log_success("Generated PDF: out.pdf")
+            _log_success("Generated PDF: out.pdf")
         assert c.items == []
 
     def test_info_ignores_quiet_when_collecting(self, monkeypatch):
-        monkeypatch.setattr(build, "_QUIET", True)
+        monkeypatch.setattr(log_mod, "_QUIET", True)
         with diagnostics.collect() as c:
-            build._log_info("Rendering ...")
+            _log_info("Rendering ...")
         assert [d.severity for d in c.items] == ["info"]
 
     def test_info_respects_quiet_on_the_cli(self, monkeypatch, capsys):
-        monkeypatch.setattr(build, "_QUIET", True)
-        build._log_info("Rendering ...")
+        monkeypatch.setattr(log_mod, "_QUIET", True)
+        _log_info("Rendering ...")
         assert capsys.readouterr().out == ""
 
     def test_verbose_is_not_collected(self, monkeypatch, capsys):
-        monkeypatch.setattr(build, "_VERBOSE", True)
+        monkeypatch.setattr(log_mod, "_VERBOSE", True)
         with diagnostics.collect() as c:
-            build._log_verbose("detail")
+            _log_verbose("detail")
         assert c.items == [] and capsys.readouterr().out == ""
 
 
@@ -101,7 +103,7 @@ class TestRendererLocations:
     """レンダラーの警告・エラーが、原稿のfile/lineを持つ。"""
 
     def render(self, text, filepath="doc.md"):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         with diagnostics.collect() as c:
             renderer.render(text, filepath=filepath)
         return c
@@ -127,6 +129,6 @@ class TestRendererLocations:
         assert w and w[0].file is None
 
     def test_cli_message_is_unchanged_when_the_line_is_known(self, capsys):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         renderer.render("a\n\n[x]{size=oops}\n", filepath="doc.md")
         assert "[Warning] Ignoring invalid size 'oops' in doc.md:3; expected e.g. '10pt'." in capsys.readouterr().out

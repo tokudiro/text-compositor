@@ -1,11 +1,11 @@
 """Markdownテーブルの本文セル単位の背景色・枠線（#89）のリグレッションテスト。"""
 import pytest
 
-import text_compositor.build as build
+from text_compositor.renderer import TypstRenderer
 
 
 def render(md_text, table_header_style=None):
-    renderer = build.TypstRenderer(line_mapping="off")
+    renderer = TypstRenderer(line_mapping="off")
     if table_header_style is not None:
         renderer.table_header_style = table_header_style
     return renderer.render(md_text)

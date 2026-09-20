@@ -23,9 +23,9 @@ from markdown_it.common.utils import escapeHtml
 from markdown_it.renderer import RendererHTML
 from markdown_it.utils import OptionsDict
 
-from text_compositor import build as _build
 from text_compositor import diagnostics
-from text_compositor.build import TypstRenderer
+from text_compositor import host_renderers
+from text_compositor.renderer import TypstRenderer
 
 # CSSに、そのまま書いてよい値だけを通す（原稿の値が、CSSの構文を壊したり、別の宣言を足したりしないように）。
 _CSS_COLOR_RE = re.compile(r'^(?:[a-zA-Z][a-zA-Z0-9-]*|#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))$')
@@ -417,7 +417,7 @@ class HtmlRenderer(TypstRenderer):
         if lang in ('dot', 'graphviz'):
             if not self.graphviz_enabled:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
-            if _build._graphviz_host_renderer is None:
+            if host_renderers._graphviz_host_renderer is None:
                 # Graphvizは、Electron（Viewer）のChromiumで描く。Viewer以外（CLI・ライブラリ）では、描画する手段がない
                 self._warn_line("Graphviz can only be rendered in the Obunzu Viewer; showing the source as a code block.", line)
                 return None

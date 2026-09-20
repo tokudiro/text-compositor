@@ -4,6 +4,8 @@ import os
 import pytest
 
 import text_compositor.build as build
+from text_compositor.changes import _watch_snapshot, _watch_targets
+import time
 
 
 def write(path, text="x"):
@@ -23,38 +25,38 @@ def project(tmp_path):
 class TestWatchTargets:
     def test_roots_include_project_and_inputs_and_config(self, project):
         tmp_path, cfg = project
-        roots, ignore, files = build._watch_targets(str(tmp_path), cfg)
+        roots, ignore, files = _watch_targets(str(tmp_path), cfg)
         assert str(tmp_path) in roots
         assert os.path.join(str(tmp_path), "inputs") in roots
         assert cfg in files
 
     def test_outputs_dir_is_ignored(self, project):
         tmp_path, cfg = project
-        _, ignore, _ = build._watch_targets(str(tmp_path), cfg)
+        _, ignore, _ = _watch_targets(str(tmp_path), cfg)
         assert os.path.join(str(tmp_path), "outputs") in ignore
 
     def test_custom_typ_template_is_watched(self, tmp_path):
         cfg = str(tmp_path / "c.yaml")
         write(cfg, "template:\n  path: my/tpl.typ\nchapters: [a.md]\n")
-        _, _, files = build._watch_targets(str(tmp_path), cfg)
+        _, _, files = _watch_targets(str(tmp_path), cfg)
         assert os.path.join(str(tmp_path), "my", "tpl.typ") in files
 
     def test_bundled_template_name_is_not_watched(self, project):
         tmp_path, cfg = project
-        _, _, files = build._watch_targets(str(tmp_path), cfg)
+        _, _, files = _watch_targets(str(tmp_path), cfg)
         assert files == [cfg]
 
     def test_output_dir_equal_to_project_dir_does_not_ignore_everything(self, tmp_path, capsys):
         cfg = str(tmp_path / "c.yaml")
         write(cfg, "output:\n  dir: .\n  filename: out.pdf\nchapters: [a.md]\n")
-        _, ignore, _ = build._watch_targets(str(tmp_path), cfg)
+        _, ignore, _ = _watch_targets(str(tmp_path), cfg)
         assert str(tmp_path) not in ignore
         assert os.path.join(str(tmp_path), "out.pdf") in ignore
 
     def test_broken_config_falls_back_without_output(self, tmp_path, capsys):
         cfg = str(tmp_path / "c.yaml")
         write(cfg, "chapters: [unclosed\n")
-        roots, ignore, files = build._watch_targets(str(tmp_path), cfg)
+        roots, ignore, files = _watch_targets(str(tmp_path), cfg)
         assert roots == [str(tmp_path)]
         assert files == [cfg]
         assert capsys.readouterr().out == ""
@@ -62,7 +64,7 @@ class TestWatchTargets:
 
 class TestWatchSnapshot:
     def snap(self, tmp_path, cfg):
-        return build._watch_snapshot(*build._watch_targets(str(tmp_path), cfg))
+        return _watch_snapshot(*_watch_targets(str(tmp_path), cfg))
 
     def test_detects_edit_add_and_delete(self, project):
         tmp_path, cfg = project
@@ -134,7 +136,7 @@ class TestWatchLoop:
             if edits[n]:
                 edits[n]()
 
-        monkeypatch.setattr(build.time, "sleep", fake_sleep)
+        monkeypatch.setattr(time, "sleep", fake_sleep)
         build._watch(str(tmp_path), str(tmp_path), "fonts", [cfg])
         return calls
 
@@ -171,7 +173,7 @@ class TestWatchLoop:
             if edits[n]:
                 edits[n]()
 
-        monkeypatch.setattr(build.time, "sleep", fake_sleep)
+        monkeypatch.setattr(time, "sleep", fake_sleep)
         build._watch(str(tmp_path), str(tmp_path), "fonts", [cfg])
         assert len(calls) == 2  # 初回 + 保存1回分のみ。PDF出力では再ビルドされない
 
@@ -196,6 +198,6 @@ class TestWatchLoop:
             if edits[n]:
                 edits[n]()
 
-        monkeypatch.setattr(build.time, "sleep", fake_sleep)
+        monkeypatch.setattr(time, "sleep", fake_sleep)
         build._watch(str(tmp_path), str(tmp_path), "fonts", [cfg])
         assert len(calls) == 3  # 初回失敗後も監視を続け、2回の保存のたびに再ビルドする

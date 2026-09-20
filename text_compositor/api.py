@@ -111,10 +111,10 @@ def _single_markdown_config(markdown_path: str, template: str, plugins: Optional
     既定の`document.cover`は`markdown`（テンプレートの表紙を出さず、Markdownの先頭をそのまま出す）。
     CLIの既定（`none`）は、先頭のタイトルを落とすため、プレビューには向かない。タイトルは、ファイル名。
     """
-    from text_compositor import build as _build
+    from text_compositor.config import default_config, deep_update
 
     stem = os.path.splitext(os.path.basename(markdown_path))[0]
-    config = _build.default_config()
+    config = default_config()
     config["document"].update({
         "title": stem, "subtitle": "", "author": "", "date": "", "cover": "markdown", "toc": False,
     })
@@ -127,9 +127,9 @@ def _single_markdown_config(markdown_path: str, template: str, plugins: Optional
     if variables:
         config["variables"] = dict(variables)
     if document:
-        _build.deep_update(config["document"], copy.deepcopy(dict(document)))
+        deep_update(config["document"], copy.deepcopy(dict(document)))
     if overrides:
-        _build.deep_update(config, copy.deepcopy(dict(overrides)))
+        deep_update(config, copy.deepcopy(dict(overrides)))
     return config
 
 
@@ -223,7 +223,9 @@ class Session:
 
     def _build_locked(self, markdown_path, output_pdf, template, plugins, document, variables, overrides,
                       keep_temp, timings):
-        from text_compositor import build as _build
+        from text_compositor.deps import ensure_fonts
+        from text_compositor.mermaid import MermaidBrowser
+        from text_compositor.project import _build_project
 
         if self._closed:
             diagnostics.error("The session is closed.")
@@ -236,7 +238,7 @@ class Session:
         project_dir = os.path.dirname(md_path)
         out_pdf = os.path.abspath(output_pdf) if output_pdf else os.path.join(
             project_dir, ".text-compositor", "preview.pdf")
-        tool_dir = os.path.dirname(os.path.abspath(_build.__file__))
+        tool_dir = os.path.dirname(os.path.abspath(__file__))
         repo_root = os.path.dirname(tool_dir)
 
         try:
@@ -245,10 +247,10 @@ class Session:
             with contextlib.redirect_stdout(sys.stderr):
                 config = _single_markdown_config(md_path, template, plugins, document, variables, overrides)
                 if self._font_dir is None:
-                    self._font_dir = _build.ensure_fonts()
+                    self._font_dir = ensure_fonts()
                 if self._mermaid is None:
-                    self._mermaid = _build.MermaidBrowser()
-                _build._build_project(
+                    self._mermaid = MermaidBrowser()
+                _build_project(
                     tool_dir, repo_root, self._font_dir, project_dir, config, config["chapters"],
                     keep_temp=keep_temp, mermaid_browser=self._mermaid, compiler_cache=self._compilers,
                     out_pdf=out_pdf, timings=timings)
@@ -268,8 +270,9 @@ class Session:
 
 
     def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings, csv_header=True):
-        from text_compositor import build as _build
+        from text_compositor.config import _resolve_variables
         from text_compositor.html_output import HtmlRenderer
+        from text_compositor.mermaid import MermaidBrowser
 
         if self._closed:
             diagnostics.error("The session is closed.")
@@ -289,7 +292,7 @@ class Session:
                 config = _single_markdown_config(md_path, "template", plugins, None, variables, overrides)
                 plugins_config = config.get("plugins") or {}
                 if self._mermaid is None:
-                    self._mermaid = _build.MermaidBrowser()
+                    self._mermaid = MermaidBrowser()
                 renderer = HtmlRenderer(
                     project_dir,
                     mermaid_enabled=bool(plugins_config.get("mermaid", True)),
@@ -299,7 +302,7 @@ class Session:
                     d2_enabled=bool(plugins_config.get("d2", True)),
                     d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
                     graphviz_enabled=bool(plugins_config.get("graphviz", True)),
-                    variables=_build._resolve_variables(config),
+                    variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header)
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)

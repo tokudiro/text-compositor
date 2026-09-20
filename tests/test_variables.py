@@ -1,11 +1,12 @@
 """{{KEY}}プレースホルダの置換機構（#72）のリグレッションテスト。"""
 import pytest
 
-import text_compositor.build as build
+from text_compositor.config import _resolve_variables
+from text_compositor.renderer import TypstRenderer
 
 
 def render(md, variables, filepath="ch.md"):
-    renderer = build.TypstRenderer(line_mapping="off", variables=variables)
+    renderer = TypstRenderer(line_mapping="off", variables=variables)
     return renderer.render_chapter(md, filepath=filepath)
 
 
@@ -70,34 +71,34 @@ class TestUndefined:
 
 class TestResolveVariables:
     def test_absent_key_disables_feature(self):
-        assert build._resolve_variables({}) is None
+        assert _resolve_variables({}) is None
 
     def test_scalars_are_stringified(self):
-        assert build._resolve_variables({"variables": {"A": "1.2.0", "B": 3, "C": True}}) == {
+        assert _resolve_variables({"variables": {"A": "1.2.0", "B": 3, "C": True}}) == {
             "A": "1.2.0", "B": "3", "C": "True"}
 
     def test_empty_mapping_is_enabled_but_empty(self):
-        assert build._resolve_variables({"variables": {}}) == {}
+        assert _resolve_variables({"variables": {}}) == {}
 
     def test_env_value(self, monkeypatch):
         monkeypatch.setenv("TC_TEST_BUILD", "123")
-        assert build._resolve_variables({"variables": {"BUILD": {"env": "TC_TEST_BUILD"}}}) == {"BUILD": "123"}
+        assert _resolve_variables({"variables": {"BUILD": {"env": "TC_TEST_BUILD"}}}) == {"BUILD": "123"}
 
     def test_env_missing_uses_default(self, monkeypatch):
         monkeypatch.delenv("TC_TEST_MISSING", raising=False)
         cfg = {"variables": {"CH": {"env": "TC_TEST_MISSING", "default": "stable"}}}
-        assert build._resolve_variables(cfg) == {"CH": "stable"}
+        assert _resolve_variables(cfg) == {"CH": "stable"}
 
     def test_env_missing_without_default_is_fatal(self, monkeypatch, capsys):
         monkeypatch.delenv("TC_TEST_MISSING", raising=False)
         with pytest.raises(SystemExit):
-            build._resolve_variables({"variables": {"CH": {"env": "TC_TEST_MISSING"}}})
+            _resolve_variables({"variables": {"CH": {"env": "TC_TEST_MISSING"}}})
         assert "TC_TEST_MISSING" in capsys.readouterr().out
 
     def test_env_set_but_empty_is_used_not_default(self, monkeypatch):
         monkeypatch.setenv("TC_TEST_EMPTY", "")
         cfg = {"variables": {"X": {"env": "TC_TEST_EMPTY", "default": "d"}}}
-        assert build._resolve_variables(cfg) == {"X": ""}
+        assert _resolve_variables(cfg) == {"X": ""}
 
     @pytest.mark.parametrize("bad", [
         {"variables": ["a"]},
@@ -110,5 +111,5 @@ class TestResolveVariables:
     ])
     def test_invalid_definitions_are_fatal(self, bad):
         with pytest.raises(SystemExit) as e:
-            build._resolve_variables(bad)
+            _resolve_variables(bad)
         assert e.value.code == 1

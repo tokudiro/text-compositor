@@ -4,11 +4,11 @@
 import os
 import pytest
 
-import text_compositor.build as build
+from text_compositor.renderer import TypstRenderer
 
 
 def render(md_text, **kw):
-    return build.TypstRenderer(line_mapping="off", **kw).render(md_text)
+    return TypstRenderer(line_mapping="off", **kw).render(md_text)
 
 
 class TestHeadingsAndParagraphs:
@@ -113,7 +113,7 @@ class TestInlineDecoration:
 
 class TestGlossary:
     def test_wikilink_registers_term_when_enabled(self):
-        renderer = build.TypstRenderer(line_mapping="off", glossary_enabled=True)
+        renderer = TypstRenderer(line_mapping="off", glossary_enabled=True)
         out = renderer.render("[[用語]]\n")
         assert out == "用語#metadata(none)<gloss-0>\n\n"
         assert renderer.glossary_terms == {"用語": ["gloss-0"]}
@@ -128,18 +128,18 @@ class TestImages:
         """#69: width/height未指定時は#image()に段幅いっぱいへ引き伸ばされず、fit-image()で
         実寸基準（はみ出す場合のみ自動縮小）になること。"""
         (tmp_path / "a.png").write_bytes(b"\x89PNG")
-        renderer = build.TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
         out = renderer.render("![alt](a.png)\n", filepath=str(tmp_path / "doc.md"))
         assert out == '#fit-image("/a.png")\n\n'
 
     def test_image_with_size_and_align(self, tmp_path):
         (tmp_path / "a.png").write_bytes(b"\x89PNG")
-        renderer = build.TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
         out = renderer.render("![alt|width=50%|align=center](a.png)\n", filepath=str(tmp_path / "doc.md"))
         assert out == '#align(center)[#image("/a.png", width: 50%)]\n\n'
 
     def test_missing_image_exits(self, tmp_path):
-        renderer = build.TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
         with pytest.raises(SystemExit):
             renderer.render("![alt](missing.png)\n", filepath=str(tmp_path / "doc.md"))
 
@@ -155,13 +155,13 @@ class TestHorizontalRule:
         assert render("___\n") == "#line(length: 100%)\n\n"
 
     def test_marp_compat_true_treats_hr_as_weak_pagebreak(self):
-        renderer = build.TypstRenderer(line_mapping="off", marp_compat=True)
+        renderer = TypstRenderer(line_mapping="off", marp_compat=True)
         assert renderer.render("---\n") == "#pagebreak(weak: true)\n\n"
 
     def test_marp_compat_true_applies_to_asterisk_and_underscore_too(self):
         """実際のMarpitも---/***/___を区別なくスライド区切りとして扱うため、marp_compat時は
         マークアップ文字で区別しない（区別する案は#92のコメントで検討したが撤回した）。"""
-        renderer = build.TypstRenderer(line_mapping="off", marp_compat=True)
+        renderer = TypstRenderer(line_mapping="off", marp_compat=True)
         assert renderer.render("***\n") == "#pagebreak(weak: true)\n\n"
         assert renderer.render("___\n") == "#pagebreak(weak: true)\n\n"
 
@@ -173,7 +173,7 @@ class TestPagebreakDirective:
         assert render("<!-- pagebreak -->\n") == "#pagebreak(weak: true)\n\n"
 
     def test_pagebreak_directive_works_regardless_of_marp_compat(self):
-        renderer = build.TypstRenderer(line_mapping="off", marp_compat=True)
+        renderer = TypstRenderer(line_mapping="off", marp_compat=True)
         assert renderer.render("<!-- pagebreak -->\n") == "#pagebreak(weak: true)\n\n"
 
 

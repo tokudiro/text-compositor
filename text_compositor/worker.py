@@ -50,7 +50,7 @@ import sys
 from typing import Any, Dict, Optional, TextIO
 
 from text_compositor import __version__
-from text_compositor import build as _build
+from text_compositor import host_renderers as _host_renderers
 from text_compositor.api import Session
 
 PROTOCOL_VERSION = 1
@@ -151,8 +151,8 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     session = Session()
     if host_renderer:
         host = HostRenderer(stdin, out)
-        _build.set_mermaid_host_renderer(host.render_mermaid)
-        _build.set_graphviz_host_renderer(host.render_graphviz)
+        _host_renderers.set_mermaid_host_renderer(host.render_mermaid)
+        _host_renderers.set_graphviz_host_renderer(host.render_graphviz)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
         for line in stdin:
@@ -176,8 +176,8 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
         return 0
     finally:
         if host_renderer:
-            _build.set_mermaid_host_renderer(None)
-            _build.set_graphviz_host_renderer(None)
+            _host_renderers.set_mermaid_host_renderer(None)
+            _host_renderers.set_graphviz_host_renderer(None)
         session.close()
 
 

@@ -5,6 +5,8 @@ import re
 import pytest
 
 import text_compositor.build as build
+from text_compositor.config import resolve_template_path
+from text_compositor.document import _abstract_typst_arg, _build_document_preamble, _resolve_abstract
 
 TOOL_DIR = os.path.dirname(os.path.abspath(build.__file__))
 
@@ -16,41 +18,41 @@ def read_template(name):
 
 class TestResolveAbstract:
     def test_unset_returns_none(self):
-        assert build._resolve_abstract({}) is None
+        assert _resolve_abstract({}) is None
 
     def test_blank_returns_none(self):
-        assert build._resolve_abstract({"abstract": "  \n "}) is None
+        assert _resolve_abstract({"abstract": "  \n "}) is None
 
     def test_string_is_stripped(self):
-        assert build._resolve_abstract({"abstract": "\n本文。\n"}) == "本文。"
+        assert _resolve_abstract({"abstract": "\n本文。\n"}) == "本文。"
 
     @pytest.mark.parametrize("value", [["a", "b"], {"k": "v"}, 3, True])
     def test_non_string_is_an_error(self, value, capsys):
         with pytest.raises(SystemExit) as e:
-            build._resolve_abstract({"abstract": value})
+            _resolve_abstract({"abstract": value})
         assert e.value.code == 1
         assert "document.abstract must be a string" in capsys.readouterr().out
 
 
 class TestAbstractTypstArg:
     def test_none_passes_no_argument(self):
-        assert build._abstract_typst_arg(None) == ""
+        assert _abstract_typst_arg(None) == ""
 
     def test_multiline_is_one_line_literal_with_escaped_newline(self):
-        arg = build._abstract_typst_arg("一行目\n二行目")
+        arg = _abstract_typst_arg("一行目\n二行目")
         assert arg == '  abstract: "一行目\\n二行目",\n'
 
     def test_markup_characters_are_data_not_markup(self):
-        arg = build._abstract_typst_arg('#import "x" *bold*')
+        arg = _abstract_typst_arg('#import "x" *bold*')
         assert '\\"x\\"' in arg and arg.startswith('  abstract: "')
 
     def test_crlf_is_normalized(self):
-        assert "\\r" not in build._abstract_typst_arg("a\r\nb") and "\r" not in build._abstract_typst_arg("a\r\nb")
+        assert "\\r" not in _abstract_typst_arg("a\r\nb") and "\r" not in _abstract_typst_arg("a\r\nb")
 
 
 class TestPreamble:
     def preamble(self, doc):
-        return build._build_document_preamble({"document": doc}, "/t.typ", True, ".", ".")[0]
+        return _build_document_preamble({"document": doc}, "/t.typ", True, ".", ".")[0]
 
     def test_abstract_is_passed_only_when_set(self):
         assert "abstract:" not in self.preamble({"title": "T"})
@@ -59,7 +61,7 @@ class TestPreamble:
 
 class TestPaperTemplate:
     def test_bundled_name_resolves(self):
-        path = build.resolve_template_path("paper", TOOL_DIR, ".")
+        path = resolve_template_path("paper", TOOL_DIR, ".")
         assert os.path.exists(path)
 
     def test_conf_accepts_every_required_argument(self):

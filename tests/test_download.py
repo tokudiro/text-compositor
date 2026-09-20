@@ -1,4 +1,4 @@
-"""取得（ダウンロード）の再試行（build._download、#189）のテスト。ネットワークは使わず、urlretrieveを差し替えて、
+"""取得（ダウンロード）の再試行（_download、#189）のテスト。ネットワークは使わず、urlretrieveを差し替えて、
 失敗を再現する。"""
 import hashlib
 import http.client
@@ -9,7 +9,10 @@ import zipfile
 
 import pytest
 
-import text_compositor.build as build
+from text_compositor.deps import DOWNLOAD_ATTEMPTS, VIZ_JS_URL, VIZ_JS_VERSION, _download, ensure_fonts, ensure_mermaid_js, ensure_viz_js
+import text_compositor.deps as deps_mod
+import time
+import urllib.request
 
 
 def http_error(code):
@@ -39,9 +42,9 @@ def sleeps():
 
 
 def download(tmp_path, retrieve, monkeypatch, sleeps, **kwargs):
-    monkeypatch.setattr(build.urllib.request, "urlretrieve", retrieve)
+    monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
     dest = str(tmp_path / "file.bin")
-    build._download("https://example.com/file.bin", dest, sleep=sleeps.append, **kwargs)
+    _download("https://example.com/file.bin", dest, sleep=sleeps.append, **kwargs)
     return dest
 
 
@@ -81,7 +84,7 @@ class TestDownload:
         with pytest.raises(urllib.error.HTTPError) as excinfo:
             download(tmp_path, retrieve, monkeypatch, sleeps)
         assert excinfo.value.code == 503
-        assert retrieve.calls == build.DOWNLOAD_ATTEMPTS == 3
+        assert retrieve.calls == DOWNLOAD_ATTEMPTS == 3
         assert len(sleeps) == 2   # 最後の失敗のあとは、待たない
 
     def test_a_partial_file_from_a_failed_attempt_is_removed(self, tmp_path, monkeypatch, sleeps):
@@ -113,9 +116,9 @@ class TestEnsureFonts:
     @pytest.fixture
     def cache(self, tmp_path, monkeypatch):
         files = {"NotoSansJP-Regular.otf": b"regular", "NotoSansJP-Bold.otf": b"bold"}
-        monkeypatch.setattr(build, "NOTO_SANS_JP_FILES", {n: hashlib.sha256(d).hexdigest() for n, d in files.items()})
-        monkeypatch.setattr(build, "_user_cache_dir", lambda: str(tmp_path / "cache"))
-        monkeypatch.setattr(build.time, "sleep", lambda seconds: None)
+        monkeypatch.setattr(deps_mod, "NOTO_SANS_JP_FILES", {n: hashlib.sha256(d).hexdigest() for n, d in files.items()})
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(time, "sleep", lambda seconds: None)
         archive = tmp_path / "fonts.zip"
         with zipfile.ZipFile(archive, "w") as zf:
             for name, data in files.items():
@@ -125,20 +128,20 @@ class TestEnsureFonts:
     def test_recovers_from_transient_errors(self, cache, monkeypatch):
         archive, tmp_path = cache
         retrieve = FakeRetrieve(http_error(500), urllib.error.URLError("dns"), archive)
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", retrieve)
+        monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
 
-        font_dir = build.ensure_fonts()
+        font_dir = ensure_fonts()
 
         assert retrieve.calls == 3
         assert sorted(os.listdir(font_dir)) == ["NotoSansJP-Bold.otf", "NotoSansJP-Regular.otf"]
 
     def test_a_cached_font_is_not_downloaded_again(self, cache, monkeypatch):
         archive, _ = cache
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", FakeRetrieve(archive))
-        build.ensure_fonts()
+        monkeypatch.setattr(urllib.request, "urlretrieve", FakeRetrieve(archive))
+        ensure_fonts()
         second = FakeRetrieve()
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", second)
-        build.ensure_fonts()
+        monkeypatch.setattr(urllib.request, "urlretrieve", second)
+        ensure_fonts()
         assert second.calls == 0
 
     def test_a_checksum_mismatch_is_an_error_and_is_not_retried(self, cache, monkeypatch, tmp_path):
@@ -148,16 +151,16 @@ class TestEnsureFonts:
             zf.writestr("NotoSansJP-Regular.otf", b"tampered")
             zf.writestr("NotoSansJP-Bold.otf", b"bold")
         retrieve = FakeRetrieve(bad.read_bytes(), b"never used")
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", retrieve)
+        monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
         with pytest.raises(SystemExit):
-            build.ensure_fonts()
+            ensure_fonts()
         assert retrieve.calls == 1
 
     def test_gives_up_with_an_error_after_all_attempts(self, cache, monkeypatch):
         retrieve = FakeRetrieve(http_error(500), http_error(500), http_error(500))
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", retrieve)
+        monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
         with pytest.raises(SystemExit):
-            build.ensure_fonts()
+            ensure_fonts()
         assert retrieve.calls == 3
 
 
@@ -166,9 +169,9 @@ class TestOtherDownloads:
 
     def test_mermaid_js_recovers_and_a_partial_file_is_never_used(self, tmp_path, monkeypatch):
         content = b"mermaid-bundle"
-        monkeypatch.setattr(build, "MERMAID_JS_SHA256", hashlib.sha256(content).hexdigest())
-        monkeypatch.setattr(build, "_user_cache_dir", lambda: str(tmp_path / "cache"))
-        monkeypatch.setattr(build.time, "sleep", lambda seconds: None)
+        monkeypatch.setattr(deps_mod, "MERMAID_JS_SHA256", hashlib.sha256(content).hexdigest())
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(time, "sleep", lambda seconds: None)
 
         def flaky(url, filename, calls=[0]):
             calls[0] += 1
@@ -179,13 +182,13 @@ class TestOtherDownloads:
             with open(filename, "wb") as f:
                 f.write(content)
 
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", flaky)
-        path = build.ensure_mermaid_js()
+        monkeypatch.setattr(urllib.request, "urlretrieve", flaky)
+        path = ensure_mermaid_js()
         assert open(path, "rb").read() == content
 
     def test_viz_js_is_verified_by_checksum_and_only_a_verified_file_is_kept(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(build, "_user_cache_dir", lambda: str(tmp_path / "cache"))
-        monkeypatch.setattr(build.time, "sleep", lambda seconds: None)
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(time, "sleep", lambda seconds: None)
 
         def fetch(content):
             def retrieve(url, filename):
@@ -193,18 +196,18 @@ class TestOtherDownloads:
                     f.write(content)
             return retrieve
 
-        monkeypatch.setattr(build, "VIZ_JS_SHA256", hashlib.sha256(b"viz-bundle").hexdigest())
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", fetch(b"tampered"))
+        monkeypatch.setattr(deps_mod, "VIZ_JS_SHA256", hashlib.sha256(b"viz-bundle").hexdigest())
+        monkeypatch.setattr(urllib.request, "urlretrieve", fetch(b"tampered"))
         with pytest.raises(SystemExit):
-            build.ensure_viz_js()
+            ensure_viz_js()
         assert list((tmp_path / "cache" / "viz").iterdir()) == []   # 検証に通らなければ、何も残らない
 
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", fetch(b"viz-bundle"))
-        path = build.ensure_viz_js()
+        monkeypatch.setattr(urllib.request, "urlretrieve", fetch(b"viz-bundle"))
+        path = ensure_viz_js()
         assert open(path, "rb").read() == b"viz-bundle"
         # 取得済みなら、ネットワークを使わない
-        monkeypatch.setattr(build.urllib.request, "urlretrieve", lambda *a: pytest.fail("downloaded again"))
-        assert build.ensure_viz_js() == path
+        monkeypatch.setattr(urllib.request, "urlretrieve", lambda *a: pytest.fail("downloaded again"))
+        assert ensure_viz_js() == path
 
     def test_the_pinned_viz_js_url_names_the_pinned_version(self):
-        assert f"@viz-js/viz@{build.VIZ_JS_VERSION}/" in build.VIZ_JS_URL
+        assert f"@viz-js/viz@{VIZ_JS_VERSION}/" in VIZ_JS_URL

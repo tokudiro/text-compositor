@@ -3,36 +3,37 @@ font_sizeの優先順位（chapters[] > front-matter > グローバル、#17・#
 """
 import os
 
-import text_compositor.build as build
+from text_compositor.chapters import _render_markdown_chapter
+from text_compositor.renderer import TypstRenderer
 
 
 class TestStripFrontMatter:
     def test_parses_yaml_front_matter(self):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         text, meta = renderer.strip_front_matter("---\ntitle: t\nlandscape: true\n---\n\n# 見出し\n")
         assert meta == {"title": "t", "landscape": True}
         assert text.endswith("# 見出し\n")
 
     def test_no_front_matter_returns_empty_meta(self):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         text, meta = renderer.strip_front_matter("# 見出し\n")
         assert meta == {}
         assert text == "# 見出し\n"
 
     def test_removed_lines_keep_line_numbers(self):
         """front-matterを除去しても改行数を維持し、以降の行番号がずれないこと。"""
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         text, _ = renderer.strip_front_matter("---\ntitle: t\n---\n\n# 見出し\n")
         assert text == "\n\n\n\n# 見出し\n"
 
     def test_invalid_font_size_is_dropped_with_warning(self, capsys):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         _, meta = renderer.strip_front_matter("---\nfont_size: abc\n---\n本文\n")
         assert "font_size" not in meta
         assert "[Warning]" in capsys.readouterr().out
 
     def test_unknown_key_warns_but_is_kept(self, capsys):
-        renderer = build.TypstRenderer(line_mapping="off")
+        renderer = TypstRenderer(line_mapping="off")
         _, meta = renderer.strip_front_matter("---\nunknown_key: 1\n---\n本文\n")
         assert meta == {"unknown_key": 1}
         assert "[Warning]" in capsys.readouterr().out
@@ -45,7 +46,7 @@ def _render_chapter(tmp_path, md_text, ch_dict=None, **overrides):
     inputs_dir.mkdir(exist_ok=True)
     ch_file = "chapter.md"
     (inputs_dir / ch_file).write_text(md_text, encoding="utf-8")
-    renderer = build.TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+    renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
     kwargs = dict(
         ch_dict=ch_dict or {}, ch_file=ch_file, inputs_dir=str(inputs_dir), renderer=renderer,
         current_landscape=False, current_paper="a4",
@@ -57,7 +58,7 @@ def _render_chapter(tmp_path, md_text, ch_dict=None, **overrides):
         current_logo=None, global_logo=None,
     )
     kwargs.update(overrides)
-    return build._render_markdown_chapter(**kwargs)
+    return _render_markdown_chapter(**kwargs)
 
 
 class TestLandscapePriority:

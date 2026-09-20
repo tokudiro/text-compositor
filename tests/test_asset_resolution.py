@@ -6,7 +6,8 @@ import os
 
 import pytest
 
-import text_compositor.build as build
+from text_compositor.config import _resolve_project_image_path
+from text_compositor.renderer import TypstRenderer
 
 
 class TestResolveAsset:
@@ -14,7 +15,7 @@ class TestResolveAsset:
     temp_build.typの置き場所に依存しないtypst_root起点のルート絶対パスへ変換する。"""
 
     def _renderer(self, tmp_path):
-        renderer = build.TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
         renderer.current_dir = str(tmp_path)
         renderer.current_file = str(tmp_path / "doc.md")
         return renderer
@@ -44,7 +45,7 @@ class TestResolveAsset:
         project_dir = tmp_path / "project"
         project_dir.mkdir()
         (project_dir / "a.png").write_bytes(b"\x89PNG")
-        renderer = build.TypstRenderer(line_mapping="off", base_dir=str(project_dir), typst_root=str(tmp_path))
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(project_dir), typst_root=str(tmp_path))
         renderer.current_dir = str(project_dir)
         renderer.current_file = str(project_dir / "doc.md")
         assert renderer._resolve_asset("a.png") == "/project/a.png"
@@ -54,20 +55,20 @@ class TestResolveProjectImagePath:
     """document.background/logo、chapters[].background/logo（project_dir基準）の解決。"""
 
     def test_none_path_returns_none(self, tmp_path):
-        assert build._resolve_project_image_path(None, str(tmp_path), str(tmp_path), "Logo") is None
+        assert _resolve_project_image_path(None, str(tmp_path), str(tmp_path), "Logo") is None
 
     def test_existing_file_resolves_to_root_absolute_path(self, tmp_path):
         (tmp_path / "logo.png").write_bytes(b"\x89PNG")
-        result = build._resolve_project_image_path("logo.png", str(tmp_path), str(tmp_path), "Logo")
+        result = _resolve_project_image_path("logo.png", str(tmp_path), str(tmp_path), "Logo")
         assert result == "/logo.png"
 
     def test_missing_file_exits(self, tmp_path):
         with pytest.raises(SystemExit):
-            build._resolve_project_image_path("missing.png", str(tmp_path), str(tmp_path), "Logo")
+            _resolve_project_image_path("missing.png", str(tmp_path), str(tmp_path), "Logo")
 
     def test_resolves_relative_to_typst_root_not_base_dir(self, tmp_path):
         project_dir = tmp_path / "project"
         project_dir.mkdir()
         (project_dir / "logo.png").write_bytes(b"\x89PNG")
-        result = build._resolve_project_image_path("logo.png", str(project_dir), str(tmp_path), "Logo")
+        result = _resolve_project_image_path("logo.png", str(project_dir), str(tmp_path), "Logo")
         assert result == "/project/logo.png"

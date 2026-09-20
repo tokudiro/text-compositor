@@ -5,6 +5,10 @@ import sys
 import pytest
 
 import text_compositor.build as build
+import text_compositor.project as project_mod
+from text_compositor.changes import _is_up_to_date
+from text_compositor.config import _load_project_config
+from text_compositor.project import _build_one
 
 
 def write(path, text="x"):
@@ -33,22 +37,21 @@ def project(tmp_path):
 
 
 @pytest.fixture
-def tool_dir(tmp_path_factory, monkeypatch):
+def tool_dir(tmp_path_factory):
     """同梱テンプレートとbuild.py自身の更新日時を、実行時点に左右されない古い値に固定した仮のtool_dir。"""
     d = tmp_path_factory.mktemp("tool")
     tpl = str(d / "templates" / "template.typ")
     write(tpl)
     set_mtime(tpl, 500)
-    fake_build = str(d / "build.py")
-    write(fake_build)
-    set_mtime(fake_build, 500)
-    monkeypatch.setattr(build, "__file__", fake_build, raising=False)
+    for name in ("build.py", "renderer.py"):
+        write(str(d / name))
+        set_mtime(str(d / name), 500)
     return str(d)
 
 
 def check(tmp_path, cfg, tool_dir):
-    project_dir, config, _ = build._load_project_config(cfg)
-    return build._is_up_to_date(tool_dir, cfg, project_dir, config)
+    project_dir, config, _ = _load_project_config(cfg)
+    return _is_up_to_date(tool_dir, cfg, project_dir, config)
 
 
 class TestIsUpToDate:
@@ -88,9 +91,11 @@ class TestIsUpToDate:
         set_mtime(pdf, 2000)
         assert check(tmp_path, cfg, tool_dir)[0] is False
 
-    def test_stale_when_tool_is_newer(self, project, tool_dir):
+    @pytest.mark.parametrize("module", ["build.py", "renderer.py"])
+    def test_stale_when_any_tool_module_is_newer(self, project, tool_dir, module):
+        """ツールは複数のモジュールに分かれている（#157）。build.py以外の更新でも、再生成する。"""
         tmp_path, cfg, pdf = project
-        set_mtime(build.__file__, 3000)
+        set_mtime(os.path.join(tool_dir, module), 3000)
         assert check(tmp_path, cfg, tool_dir)[0] is False
 
     def test_intermediate_files_do_not_make_it_stale(self, project, tool_dir):
@@ -112,9 +117,9 @@ class TestIsUpToDate:
 class TestBuildOneSkips:
     def test_skip_logs_and_does_not_touch_work_dir(self, project, tool_dir, capsys, monkeypatch):
         tmp_path, cfg, pdf = project
-        monkeypatch.setattr(build, "_is_up_to_date", lambda *a: (True, pdf))
+        monkeypatch.setattr(project_mod, "_is_up_to_date", lambda *a: (True, pdf))
         # スキップ時はrepo_root/font_dirを使わない。触ればNoneで即座に失敗する。
-        build._build_one(tool_dir, None, None, cfg, if_changed=True)
+        _build_one(tool_dir, None, None, cfg, if_changed=True)
         assert "Skipped (up to date)" in capsys.readouterr().out
         assert not (tmp_path / ".text-compositor").exists()
 
@@ -123,11 +128,11 @@ class TestBuildOneSkips:
 
         def boom(*a):
             raise AssertionError("checked")
-        monkeypatch.setattr(build, "_is_up_to_date", boom)
+        monkeypatch.setattr(project_mod, "_is_up_to_date", boom)
         # 既定は従来どおり常に再生成する。判定関数は呼ばれず、後続の処理（ここでは_resolve_variables以降）へ進む。
-        monkeypatch.setattr(build, "_resolve_variables", lambda c: (_ for _ in ()).throw(RuntimeError("proceeded")))
+        monkeypatch.setattr(project_mod, "_resolve_variables", lambda c: (_ for _ in ()).throw(RuntimeError("proceeded")))
         with pytest.raises(RuntimeError, match="proceeded"):
-            build._build_one(tool_dir, None, None, cfg)
+            _build_one(tool_dir, None, None, cfg)
 
 
 class TestClean:
