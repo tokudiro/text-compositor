@@ -139,7 +139,7 @@ GUIとPythonワーカーを並行して起動すると、最初のプレビュ�
 PyPIのtext-compositorとViewerは、ビルドの道具（Python／.NET）・成果物（sdist・wheel／zip等）・公開先が違う。次のように分離する。
 
 - **ディレクトリ**: Viewerは専用のディレクトリに置く（本実装のディレクトリは、#169で作る。現在のスパイクは`viewer-csharp/`）。`pyproject.toml`が`packages`を明示しているため、Viewerのファイルは、sdistにもwheelにも入らない（確認済み）。
-- **タグ**: `release.yml`は、`v*`のタグでPyPIへ公開する。Viewerのタグは、`v`で始まらない名前（例: `gui-v0.1.0`）にする。`viewer-v0.1.0`は、`v`で始まるため、`v*`に一致してしまう。
+- **タグ**: `release.yml`は、`v*`のタグでPyPIへ公開する。Viewerのタグは、`v`で始まらない名前（例: `gui-v0.1.0`）にする。`viewer-v0.1.0`は、`v`で始まるため、`v*`に一致してしまう。（実際のタグは、`obunzu-v<バージョン>`にした。[#172](https://github.com/tokudiro/text-compositor/issues/172)、[viewer-distribution.md](viewer-distribution.md)）
 - **ワークフロー**: Viewer専用のワークフローを別ファイルで用意する。PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいており、Viewerのワークフローには、公開の権限を与えない。`test.yml`は、`text_compositor/`等の変更でだけ動く設定のため、Viewerの変更では起動しない。Viewer側のワークフローにも、専用の`paths`を付ける。
 - **GitHub Release**: Viewerのタグごとに別のReleaseを作る。`softprops/action-gh-release`の`make_latest: false`で、ViewerのReleaseが「Latest」にならないようにする（未検証）。
 - **バージョン**: ViewerがPythonワーカーとして同梱する`text-compositor`は、固定のバージョンで指定する。
@@ -151,7 +151,7 @@ PyPIのtext-compositorとViewerは、ビルドの道具（Python／.NET）・成
 - **#168（配布）**: GUIは自己完結・ReadyToRun・シンボル除去で、.NET 10で約131 MB（zip 59 MB）である。.NET 10を対象にする（.NET 8・9は2026-11-10に終了）。配布物のコード署名の要否を、課題に加える。
 - **#169（MVP）**: .NET 10 + Avalonia 12 + PDFtoImageで作る。見た目は、上記の「egui風への調整」を、最初から取り入れる。
 - **#170（自動再描画）**: 目標値の案は、次のとおりとする。図表のキャッシュが命中する通常の文書で、保存から表示の更新まで、デバウンス（100 ms程度）を含めて300 ms以内。図表を変更した場合は、直前のPDFを表示したまま、更新できた時点で切り替える（PlantUMLは、JVMの起動で約1.5秒かかるため）。
-- **#172（CI）**: Viewer専用のワークフローと、`v`で始まらないタグを使う（上記）。ビルドは、.NET 10の`actions/setup-dotnet`を使う。
+- **#172（CI）**: Viewer専用のワークフローと、`v`で始まらないタグを使う（上記）。ビルドは、.NET 10の`actions/setup-dotnet`を使う。（#180でElectronに決まったため、実際のビルドは、Node.jsと組込版Pythonで行う。[viewer-distribution.md](viewer-distribution.md)）
 - **#173（スパイク）**: 決定に伴い、`viewer-rust/`を削除した。参照が必要なら、`git show af23aab:viewer-rust/README.md`で取り出せる（`af23aab`はmasterのコミット）。
 
 ## 未確認

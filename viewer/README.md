@@ -101,7 +101,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `scripts/build-icons.js` | Exports `assets/icon.ico` and `assets/icon.png` from `assets/icon.svg` |
 | `assets/` | The app icon: the source SVG and the exported `.ico` / `.png` |
 | `src/chrome/` | The toolbar, the error bar and the diagnostics list |
-| `test/` | `node --test` tests (a fake worker covers crashes, timeouts and restarts) |
+| `test/` | `node --test` tests (a fake worker covers crashes, timeouts and restarts; one test runs the real Python worker) |
 
 ## Icon
 
@@ -120,6 +120,10 @@ npm run build-icons
 cd viewer
 npm test
 ```
+
+`test/worker-integration.test.js` runs the real Python worker (`render_html` round trips for Markdown and CSV, an error case, and the resident worker). It needs a Python with the packages of `dist-requirements.txt`; without one it is skipped. Set `REQUIRE_WORKER_INTEGRATION=1` to fail instead of skip.
+
+CI (`.github/workflows/viewer.yml`) runs `npm test` on Windows for pull requests and pushes that touch `viewer/` or `text_compositor/`. It does not start Electron. Pushing a tag `obunzu-v<version>` builds the portable ZIP and attaches it to a GitHub Release (`.github/workflows/viewer-release.yml`; see [doc/viewer-distribution.md](../doc/viewer-distribution.md)).
 
 ## Third-party components
 

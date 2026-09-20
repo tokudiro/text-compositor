@@ -49,6 +49,12 @@ const releaseName = `Obunzu-${pkg.version}-win-x64`;
 
 function log(message) { console.log(`\n== ${message}`); }
 
+// zipの展開・作成に使うtar。Windows標準のbsdtar（System32のtar.exe）を、明示して使う。PATHの先頭に、Gitに付属の
+// GNU tarがあると（GitHub ActionsのWindowsのランナーなど）、zipを扱えず、`C:`をホスト名と解釈して失敗するため（#172）。
+const TAR = process.platform === 'win32' && process.env.SystemRoot
+  ? path.join(process.env.SystemRoot, 'System32', 'tar.exe')
+  : 'tar';
+
 function run(file, args, options = {}) {
   return execFileSync(file, args, { stdio: 'inherit', ...options });
 }
@@ -106,7 +112,7 @@ async function fetchVerified(item, label) {
 function buildPythonEnvironment(appDir, embedZip) {
   const embed = path.join(appDir, 'python-embed');
   fs.mkdirSync(embed, { recursive: true });
-  run('tar', ['-xf', embedZip, '-C', embed]);
+  run(TAR, ['-xf', embedZip, '-C', embed]);
 
   // sys.pathは、._pthで決まる（PYTHONPATHなどの環境変数は、無視される）。site-packagesを加える。
   const sitePackages = path.join(embed, 'Lib', 'site-packages');
@@ -271,7 +277,7 @@ async function main() {
   log('6/6 ZIPにする');
   const zip = path.join(dist, `${releaseName}.zip`);
   fs.rmSync(zip, { force: true });
-  run('tar', ['-a', '-c', '-f', zip, '-C', stage, releaseName]);
+  run(TAR, ['-a', '-c', '-f', zip, '-C', stage, releaseName]);
   report(appDir, embed, sitePackages, zip);
   console.log(`\n展開済み: ${appDir}`);
 }
