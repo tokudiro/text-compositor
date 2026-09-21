@@ -133,10 +133,11 @@ node scripts/check-dist.js
 
 ### クリーンなWindowsでの確認
 
-**実際のクリーンなWindows（Pythonが入っていない別のPC）での起動は、未実施**である（別のPCを用意するのが難しい。Windows Sandboxは、管理者権限と、機能の有効化が要るため、使っていない）。代わりに、次の2つで、確認した。
+**開発機とは別のPCで、Pythonをアンインストールした環境でも、起動を確認した**（下の3）。ただし、Pythonが入ったことのないPCではない。Windows Sandboxは、管理者権限と、機能の有効化が要るため、使っていない。次の3つで、確認した。
 
 1. **環境から、Pythonへの手がかりを外して起動した**（上の`check-dist.js`）。開発機には、Pythonがインストールされているが、`PATH`・`TEXT_COMPOSITOR_*`・`PYTHON*`を外しても、ワーカーは、同梱の`python-embed/python.exe`で動く。組込版Pythonは、`python314._pth`で、`sys.path`が固定され、環境変数や、インストール済みのPythonの影響を受けない。
 2. **組込版Pythonが、必要とするDLLを、すべて解析した**（`scripts/check-embed-dependencies.py`。`pefile`が要る）。`python.exe`・`python314.dll`・`*.pyd`が読み込むDLLは、**フォルダに同梱のもの**（`vcruntime140.dll`・`libcrypto-3.dll`など）か、**Windowsに標準で入っているもの**（`kernel32`・`advapi32`・`ws2_32`・`crypt32`など、と、Universal CRTを含むAPIセット）だけだった。Microsoft Visual C++の再頒布可能パッケージを、別にインストールする必要は、ない。
+3. **別のPCで、Pythonをアンインストールした環境で、Obunzuが動いた**（2026-09-21。Windows 11。Obunzu v0.3.8。Mermaidの図が、表示された。Mermaid以外に確認した機能は、記録していない）。Mermaidの図は、組込版Pythonが、HTTPSで`mermaid.min.js`を取得し、Electronが描画するため、ネットワークへの接続と、描画も、この環境で確認できたことになる。1は、開発機で環境変数を外しただけだった。開発機とは別のPCで、Python本体を消した状態でも動くことは、これで確かめられた。
 
 残る不確かさは、Electron本体（Chromium）の動作環境（Windows 10以降）と、ウイルス対策ソフトや、SmartScreenの挙動である（どちらも、この環境では、確認できない）。クリーンな環境で問題が出た場合は、報告を受けて、直す。
 ## CIとリリース（[#172](https://github.com/tokudiro/text-compositor/issues/172)）
