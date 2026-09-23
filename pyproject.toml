@@ -14,7 +14,7 @@ dependencies = [
     "markdown-it-py==4.2.0",
     "mdit-py-plugins==0.6.1",
     "PyYAML==6.0.3",
-    "platformdirs==4.11.9",
+    "platformdirs==4.11.10",
 ]
 
 # plugins.mermaid: true（既定）を使う場合のみ必要（11章）。
