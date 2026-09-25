@@ -6,6 +6,7 @@ from collections import namedtuple
 from text_compositor.config import _resolve_project_image_path, yaml
 from text_compositor.document import _page_set_fragment
 from text_compositor.log import _error, _warn
+from text_compositor.typst_literal import insert_soft_break_hints
 
 def extract_md_string(data, key):
     """YAMLからテキストを抽出。リスト形式の場合は改行で結合して単一文字列にする"""
@@ -159,7 +160,7 @@ def _render_aggregate_chapter(ch_dict, ch_file, inputs_dir, renderer, current_la
         # 【修正】YAMLだけでなくJSONファイルも読み込み対象に含める
         tc_files = sorted([f for f in os.listdir(agg_path) if f.endswith(('.yaml', '.yml', '.json'))])
 
-        typst_code += '#table(\n  columns: (auto, auto, auto, 1fr, 1fr),\n'
+        typst_code += '#table(\n  columns: (auto, 1fr, auto, 2fr, 2fr),\n'
         typst_code += '  align: (center, left, center, left, left),\n'
         typst_code += '  stroke: 0.5pt + luma(150),\n'
         typst_code += '  fill: (col, row) => if row == 0 { luma(240) } else { none },\n'
@@ -178,7 +179,9 @@ def _render_aggregate_chapter(ch_dict, ch_file, inputs_dir, renderer, current_la
                     continue
 
             tc_id = renderer.escape_typst(str(tc_data.get("id", "")))
-            tc_title = renderer.escape_typst(str(tc_data.get("title", "")))
+            # Titleにテストパス等の長い識別子（区切りがスペースでない）が入っても、
+            # 表セル内で折り返せずはみ出さないようソフト改行点を挿入する（#269）。
+            tc_title = renderer.escape_typst(insert_soft_break_hints(str(tc_data.get("title", ""))))
             tc_priority = renderer.escape_typst(str(tc_data.get("priority", "")))
 
             # 【修正】YAMLでリスト形式で書かれていた場合も結合して安全に処理する
