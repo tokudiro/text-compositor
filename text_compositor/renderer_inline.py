@@ -3,7 +3,7 @@
 `TypstRenderer`（renderer.py）に、ミックスインとして取り込まれる。状態（`self`の属性）は、`TypstRenderer`と共有する（#225）。
 """
 import re
-from text_compositor.typst_literal import escape_string_literal
+from text_compositor.typst_literal import escape_string_literal, insert_soft_break_hints
 
 
 class InlineMixin:
@@ -102,7 +102,9 @@ class InlineMixin:
                 # 含まれる場合（例: 4バッククォートのインラインコードスパンの中身が```を含む）に
                 # Typst側のraw構文が早期に閉じて壊れる。文字列リテラルとして渡すraw()なら安全
                 # （#15の_render_raw_text・フェンスのelse分岐と同じ理由。実測で発覚したバグ）。
-                res.append(f'#raw("{escape_string_literal(t.content)}")')
+                # テストパス・関数名等スペースを含まない長いコードが表セル内で折り返せずはみ出す
+                # ため、ゼロ幅スペースで改行可能点を挿入する（#269）。
+                res.append(f'#raw("{escape_string_literal(insert_soft_break_hints(t.content))}")')
             elif t.type in ['softbreak', 'hardbreak']:
                 res.append('#linebreak()\n')
             elif t.type == 'image':
