@@ -20,7 +20,7 @@ text-compositorは、Mermaid・PlantUML・D2・Graphvizなど複数の図表形�
 
 - `.md`/`.markdown`: Markdownとして変換
 - `.yaml`/`.yml`/`.json`: シンタックスハイライト付きの等幅表示
-- `.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`・`.pikchr`: それぞれGraphviz/Mermaid/PlantUML/D2/Pikchrの図として1章分描画
+- `.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`・`.pikchr`・`.dsl`: それぞれGraphviz/Mermaid/PlantUML/D2/Pikchr/Structurizrの図として1章分描画（Structurizrは既定オフ。`plugins: { structurizr: true }`が要る。後述）
 - `.csv`: Typstのテーブルとして構造化して描画
 - それ以外（プレーンテキスト・コードファイル等）: 素の等幅表示
 
@@ -104,6 +104,14 @@ Node.js/npmは不要です。ビルド時にMermaid公式配布の単一バン�
 
 Java（PlantUMLが使う）やブラウザ（Mermaidが使う）と異なり、GitHub Actionsの`ubuntu-latest`にはD2が標準搭載されていないため、`d2`図を使うとCI実行のたびにこの約13MBのダウンロードが発生します（このプロジェクトのワークフローは、実行間でキャッシュディレクトリを永続化していません）。
 
+### Structurizr図（C4モデル）を使う場合（任意・既定オフ）
+
+Mermaid/PlantUML/D2と異なり、`plugins.structurizr`は既定`false`です。` ```structurizr ` フェンス（または`.dsl`ファイルを`chapters`に直接指定する場合）を使うには、`plugins: { structurizr: true }`と明示してください。既定でオフなのは、内部で使う公式`structurizr-cli`が約99MBあるためです（他のプラグインは13〜18MB）。この大きさの大半はKotlin/JRuby/Groovyのスクリプト機能（本ツールでは使わない）が占めており、代わりに使える軽量な公式配布物はありません。
+
+内部では、DSLを`structurizr-cli`でPlantUMLへ書き出し、上記と同じPlantUML/Smetanaのパイプラインで描画します（新しい描画エンジンは持ちません）。PlantUMLと同じくJavaが必要で、`plugins.plantuml_auto_download`とは独立した`plugins.structurizr_auto_download`（既定`true`）で制御します。
+
+1つのワークスペースが定義できるビューは、フェンス1つにつき1つに限ります。`structurizr-cli`には、複数ビューから1つだけ選ぶオプションが無いため、黙ってどれかを選ぶ代わりにエラーで終了します。複数のビューが必要な場合は、フェンスを分け、共通のモデルはDSLの`!include`で共有してください。
+
 ## 使い方
 
 `pip`/`pipx`でインストールした場合（方法A）:
@@ -147,7 +155,7 @@ with Session() as session:  # ビルドをまたいで、Mermaidのブラウザ�
     print(result.ok, result.pdf_path, [d.message for d in result.diagnostics])
 ```
 
-`session.render_html("doc.md")`（実験的。[#161](https://github.com/tokudiro/text-compositor/issues/161)）は、PDFの代わりに、1ファイルで完結したHTMLを出力します。図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・`svg`）は、隣に画像として出します。`typst-exec`・生のHTMLは、まだ未対応で、警告つきでコードとして表示します。Graphviz・Pikchr・CeTZ・Fletcherは、PDFと同じく、Typstのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`）で図になります（Graphvizの`shape=record`・図全体の`label`は、描けないため、警告します）。
+`session.render_html("doc.md")`（実験的。[#161](https://github.com/tokudiro/text-compositor/issues/161)）は、PDFの代わりに、1ファイルで完結したHTMLを出力します。図（Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・`svg`）は、隣に画像として出します。`typst-exec`・生のHTMLは、まだ未対応で、警告つきでコードとして表示します。Graphviz・Pikchr・CeTZ・Fletcherは、PDFと同じく、Typstのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`）で図になります（Graphvizの`shape=record`・図全体の`label`は、描けないため、警告します）。
 
 設定ファイルの書き方は [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) を、`document:`/`plugins:`/front-matter/Marpディレクティブ等の詳しい説明は[使い方ガイド](doc/usage/)を参照してください。`chapters` に列挙したMarkdownファイルを順に結合してPDFを生成します。
 

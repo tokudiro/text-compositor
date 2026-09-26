@@ -360,6 +360,63 @@ def ensure_plantuml_jar():
 
     return jar_path
 
+# Structurizr CLI（公式、Apache-2.0）。C4モデルのDSLを検証し、PlantUML/Mermaid/dot等へ書き出す
+# （#212）。公式配布物は約99MBだが、実際に使うのは.dslテキスト形式の解析・書き出しに要る
+# 一部のjar（約14MB）のみで、残りはKotlin/JRuby/Groovyスクリプト形式のワークスペース定義
+# （.kts/.rb/.groovy、本ツールでは使わない）向けである。個別jarをMaven Centralから取得し直すと
+# 十数個のSHA256を別途固定する必要があり保守コストが増えるため、既存のplantuml.jar/D2と同じ
+# 「1URL・1SHA256」の単純な形を優先し、公式zipをそのまま1つの取得物として固定する（Mermaidの
+# 自動取得（既定false、約700MB）と同じ「重いため既定オフ」の位置づけにする。#22の設計議論を踏襲）。
+STRUCTURIZR_CLI_RELEASE = "v2025.11.09"
+STRUCTURIZR_CLI_URL = f"https://github.com/structurizr/cli/releases/download/{STRUCTURIZR_CLI_RELEASE}/structurizr-cli.zip"
+STRUCTURIZR_CLI_SHA256 = "f5365a463fc44d539ed19bec00c48ba1e1ecda0ccfd1ba40d2e7472d264eb79a"
+
+def _structurizr_cli_cache_root():
+    return os.path.join(_user_cache_dir(), "structurizr-cli", STRUCTURIZR_CLI_RELEASE)
+
+def _structurizr_cli_lib_dir(cache_root):
+    return os.path.join(cache_root, "lib")
+
+def ensure_structurizr_cli():
+    """structurizr-cli一式（lib/配下の全jar）がユーザーキャッシュディレクトリの
+    structurizr-cli/<版>/ になければダウンロード・展開する。lib/ディレクトリの絶対パスを返す
+    （呼び出し側が`java -cp <このパス>/* ...`で使う）。2回目以降のビルドはキャッシュを使い、
+    ネットワークアクセスなしで完結する（#110）。"""
+    cache_root = _structurizr_cli_cache_root()
+    lib_dir = _structurizr_cli_lib_dir(cache_root)
+    if os.path.isdir(lib_dir):
+        return lib_dir
+
+    os.makedirs(cache_root, exist_ok=True)
+    zip_path = os.path.join(cache_root, "_download.zip")
+    _log_info(f"Downloading structurizr-cli {STRUCTURIZR_CLI_RELEASE} (one-time, approx. 99MB; cached under {cache_root})...")
+    try:
+        _download(STRUCTURIZR_CLI_URL, zip_path)
+    except OSError as e:
+        _error(f"Failed to download structurizr-cli: {e}")
+        sys.exit(1)
+
+    with open(zip_path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    if digest != STRUCTURIZR_CLI_SHA256:
+        os.remove(zip_path)
+        _error(f"Checksum mismatch for structurizr-cli.zip: expected {STRUCTURIZR_CLI_SHA256}, got {digest}")
+        sys.exit(1)
+
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(cache_root)
+    except zipfile.BadZipFile as e:
+        _error(f"Failed to extract structurizr-cli (bad zip): {e}")
+        sys.exit(1)
+    finally:
+        os.remove(zip_path)
+
+    if not os.path.isdir(lib_dir):
+        _error(f"structurizr-cli extraction did not produce the expected directory: {lib_dir}")
+        sys.exit(1)
+    return lib_dir
+
 # D2公式CLIバイナリ（Go製、単一実行ファイル、外部ランタイム不要）。mermaid/plantumlと同じ設計方針
 # （#90）で、GitHub Releasesから取得しSHA256を固定した上でtool_dir配下にキャッシュする。
 # バージョン・SHA256を固定し、決定論的な取得結果にする（9章）。SHA256は公式リリースの

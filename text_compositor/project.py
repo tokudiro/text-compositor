@@ -54,6 +54,10 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     plantuml_auto_download = bool(plugins_config.get("plantuml_auto_download", True))
     d2_enabled = bool(plugins_config.get("d2", True))
     d2_auto_download = bool(plugins_config.get("d2_auto_download", True))
+    # plugins.structurizr: false（既定。#212）。内部で使うstructurizr-cli一式が約99MBあり、
+    # 他のプラグインと一桁違うため、mermaidと同じ「重いので既定オフ」の位置づけにする。
+    structurizr_enabled = bool(plugins_config.get("structurizr", False))
+    structurizr_auto_download = bool(plugins_config.get("structurizr_auto_download", True))
     # document.glossary: false（既定。#47）。trueなら[[用語]]を検出し、巻末に索引ページを生成する。
     glossary_enabled = bool(config.get("document", {}).get("glossary", False))
     # document.marp_compat: false（既定、#92）。trueなら実際のMarpitに合わせ、hr（---/***/___）を
@@ -84,6 +88,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download, pikchr_enabled=pikchr_enabled,
                               cetz_enabled=cetz_enabled, fletcher_enabled=fletcher_enabled,
+                              structurizr_enabled=structurizr_enabled, structurizr_auto_download=structurizr_auto_download,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
                               mermaid_browser=mermaid_browser, csv_header=csv_header)

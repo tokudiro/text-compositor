@@ -1,15 +1,17 @@
-"""図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）の描画と、図のSVGのキャッシュ。
+"""図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・Structurizr・svg）の描画と、図のSVGのキャッシュ。
 
 `TypstRenderer`（renderer.py）に、ミックスインとして取り込まれる。状態（`self`の属性）は、`TypstRenderer`と共有する（#225）。
 """
+import glob
 import os
 import re
 import sys
 import subprocess
 import hashlib
+import tempfile
 from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render
-from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_temurin_jre, find_system_d2, find_system_java
-from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml
+from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
+from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
 from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
 
@@ -56,6 +58,8 @@ class DiagramMixin:
             return self._render_svg(code, width, height)
         elif lang == 'd2':
             return self._render_d2(code, width, height)
+        elif lang == 'structurizr':
+            return self._render_structurizr(code, width, height)
         elif lang == 'pikchr':
             return self._render_pikchr(code, width, height)
         elif lang in cetz_render.KINDS:
@@ -356,6 +360,13 @@ class DiagramMixin:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
+    def _run_plantuml_jar(self, java_bin, jar_path, code, timeout=60):
+        """plantuml.jarへcodeを標準入力で渡し、SVGを標準出力から受け取る（PlantUML本体・
+        Structurizr共通、#212）。OSError・終了コードのハンドリングは呼び出し側が行う。"""
+        return subprocess.run(
+            [java_bin, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
+            input=code, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+
     def _plantuml_svg_path(self, code, line=None):
         """plantumlの図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのjava+plantuml.jarで作る。
         plugins.plantuml: falseなら、何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
@@ -371,9 +382,7 @@ class DiagramMixin:
             _log_info(f"Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
             java_bin, jar_path = self._ensure_plantuml_tools()
             try:
-                result = subprocess.run(
-                    [java_bin, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
-                    input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)
+                result = self._run_plantuml_jar(java_bin, jar_path, code)
             except OSError as e:
                 self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
                 # 隔離環境（venv/pipx）外での実行が原因の可能性が高い（#113、ファイルが
@@ -390,6 +399,108 @@ class DiagramMixin:
                 f.write(result.stdout)
         else:
             _log_verbose(f"Reusing cached PlantUML diagram: {os.path.basename(svg_path)}")
+        return svg_path
+
+    def _ensure_structurizr_tools(self):
+        """Structurizr実行に必要なjava実行ファイル・structurizr-cli一式・plantuml.jarを遅延解決する
+        （初回のみ）。Javaの自動取得はplugins.structurizr_auto_downloadで制御し、
+        plugins.plantuml_auto_downloadとは独立させる（structurizrを使うプロジェクトが常にPlantUMLも
+        有効とは限らないため）。plantuml.jar自体は、内部実装として常に要る（plugins.plantumlの値には
+        左右されない、#212）。"""
+        if self._structurizr_java_bin is None:
+            java_bin = find_system_java()
+            if java_bin:
+                _log_info(f"Reusing system Java for Structurizr rendering: {java_bin}")
+            elif self.structurizr_auto_download:
+                java_bin = ensure_temurin_jre()
+            else:
+                _error("No local Java 11+ found; required to render Structurizr diagrams. "
+                      "Install Java 11+, or set plugins.structurizr_auto_download: true "
+                      "(downloads Eclipse Temurin JRE, approx. 50MB), or set plugins.structurizr: false.")
+                sys.exit(1)
+            self._structurizr_java_bin = java_bin
+        if self._structurizr_lib_dir is None:
+            self._structurizr_lib_dir = ensure_structurizr_cli()
+        if self._structurizr_plantuml_jar_path is None:
+            self._structurizr_plantuml_jar_path = ensure_plantuml_jar()
+        return self._structurizr_java_bin, self._structurizr_lib_dir, self._structurizr_plantuml_jar_path
+
+    def _render_structurizr(self, code, width=None, height=None):
+        """```structurizrブロック（C4モデルのDSL）を、ローカルのjava+structurizr-cli（公式、
+        Apache-2.0）でPlantUMLへ書き出し、それを既存のPlantUML+Smetanaパイプラインでそのまま
+        描画する（#212）。外部APIへの通信は行わない。新しい描画コードは持たず、DSL→PlantUML
+        という変換だけを挟む。"""
+        svg_path = self._structurizr_svg_path(code)
+        if svg_path is None:
+            return f"```structurizr\n{code}```\n\n"
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _structurizr_svg_path(self, code, line=None):
+        """Structurizrの図のSVG（キャッシュ）のパスを返す。無ければ、structurizr-cliでPlantUMLへ
+        書き出し、それをローカルのjava+plantuml.jarで描画して作る。plugins.structurizr: falseなら、
+        何も作らずNoneを返す。line: 失敗時の診断に付ける行。
+
+        structurizr-cliは、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、
+        CLI引数で1つだけ選ぶ方法は無い（実機確認）。このツールは「1フェンス=1図」という他の図表と
+        同じ原則を保つため、ビューは1つに限定し、0または2つ以上ならFail-fastでエラーにする
+        （複数ビューを1つのモデルから使い回したい場合は、DSLの`!include`で共通モデルを別ファイルへ
+        切り出し、フェンスごとに`views`ブロックだけ変えるよう案内する）。"""
+        if not self.structurizr_enabled:
+            if not self._structurizr_disabled_warned:
+                _log_info(f"plugins.structurizr is disabled; leaving ```structurizr fences as plain code (first seen in {self.current_file}).")
+                self._structurizr_disabled_warned = True
+            return None
+
+        version = f"{STRUCTURIZR_CLI_SHA256}:{PLANTUML_JAR_SHA256}"
+        svg_path, _ = self._diagram_cache_path("structurizr", version, code)
+
+        if not os.path.exists(svg_path):
+            _log_info(f"Rendering Structurizr diagram via local Java -> {os.path.basename(svg_path)}")
+            java_bin, lib_dir, jar_path = self._ensure_structurizr_tools()
+            with tempfile.TemporaryDirectory(prefix="structurizr-") as tmp_dir:
+                dsl_path = os.path.join(tmp_dir, "workspace.dsl")
+                with open(dsl_path, "w", encoding="utf-8") as f:
+                    f.write(code)
+                out_dir = os.path.join(tmp_dir, "out")
+                try:
+                    result = subprocess.run(
+                        [java_bin, "-cp", os.path.join(lib_dir, "*"),
+                         "com.structurizr.cli.StructurizrCliApplication",
+                         "export", "-workspace", dsl_path, "-format", "plantuml", "-output", out_dir],
+                        capture_output=True, text=True, encoding="utf-8", timeout=60)
+                except OSError as e:
+                    self._error_here(f"Failed to run structurizr-cli for {self.current_file}:\n{e}")
+                    for diag in (_check_isolated_env(), _check_structurizr(self.structurizr_enabled, self.structurizr_auto_download)):
+                        if diag.status != "OK":
+                            _hint(f"[{diag.status}] {diag.name}: {diag.message}")
+                    sys.exit(1)
+                if result.returncode != 0:
+                    # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
+                    self._diagram_error("Structurizr", result.stderr or result.stdout, line)
+                    sys.exit(1)
+                views = sorted(p for p in glob.glob(os.path.join(out_dir, "*.puml")) if not p.endswith("-key.puml"))
+                if len(views) != 1:
+                    detail = (f"the workspace defines {len(views)} views, but exactly 1 is required per "
+                              "```structurizr fence (one output image per fence). Split into separate "
+                              "fences, one per view; share the model between them with the DSL's own "
+                              "`!include` if needed.")
+                    self._diagram_error("Structurizr", detail, line)
+                    sys.exit(1)
+                with open(views[0], "r", encoding="utf-8") as f:
+                    puml_code = f.read()
+                try:
+                    result = self._run_plantuml_jar(java_bin, jar_path, puml_code)
+                except OSError as e:
+                    self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
+                    sys.exit(1)
+                if result.returncode != 0:
+                    self._diagram_error("Structurizr", result.stderr, line)
+                    sys.exit(1)
+                with open(svg_path, "w", encoding="utf-8") as f:
+                    f.write(result.stdout)
+        else:
+            _log_verbose(f"Reusing cached Structurizr diagram: {os.path.basename(svg_path)}")
         return svg_path
 
     def _ensure_d2_bin(self):

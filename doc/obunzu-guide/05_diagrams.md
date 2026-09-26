@@ -11,6 +11,7 @@
 | `mermaid` | フローチャート・シーケンス図など | 要ります（約3.4 MB） |
 | `plantuml` | UMLの図 | 要ります（約17 MB。Javaがなければ、さらに約49 MB） |
 | `d2` | 構成図 | 要ります（約13 MB） |
+| `structurizr` | C4モデルの図（ソフトウェア構成） | Obunzuでは、表示しません（下の「Structurizrの注意」） |
 | `dot`・`graphviz` | ネットワーク・関係の図 | 要りません |
 | `pikchr` | 箱と矢印の図（SQLiteの作者が作った、図を文章で書く言語） | 要りません |
 | `cetz` | 幾何図形・木構造・グラフ（Typstの描画ライブラリ） | 要りません |
@@ -101,7 +102,11 @@ graph LR
 
 ## 図の単体ファイル
 
-図のコードだけを書いたファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.gv`・`.pikchr`）は、そのまま開いて、図1つとして、表示できます。
+図のコードだけを書いたファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.gv`・`.pikchr`）は、そのまま開いて、図1つとして、表示できます（`.dsl`は、下の「Structurizrの注意」のとおり、Obunzuでは、ふつうのコードのまま表示します）。
+
+## Structurizrの注意
+
+`structurizr`は、text-compositor本体（PDF）では、`plugins: { structurizr: true }`と明示すると使えます。しかし、**Obunzuでは、常にふつうのコードのまま表示し、図にはしません。** 他の図と違い、`structurizr`は既定で無効（内部で使う`structurizr-cli`が約99 MBあるため）で、Obunzuには、これを個別に有効にする設定がありません。C4モデルの図を見たい場合は、PDFとしてビルドしてください。
 
 ## CeTZ・Fletcherの注意
 
@@ -115,4 +120,4 @@ Graphvizは、PDFを作るときと同じ仕組みで、描きます。そのた
 
 - 言語名の綴りを、確かめてください。未知の言語名のコードブロックは、ふつうのコードとして、表示します。
 - 図の、コードの誤りは、エラーの帯に、原稿の行つきで出ます（「エラーが出たとき」の章）。
-- Obunzuでは、すべての図が、有効です（text-compositorの設定の、`plugins`は、Obunzuには、効きません）。
+- Obunzuでは、`structurizr`を除くすべての図が、有効です（text-compositorの設定の、`plugins`は、Obunzuには、効きません）。`structurizr`だけは、上の「Structurizrの注意」のとおり、常に無効です。

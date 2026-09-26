@@ -307,6 +307,8 @@ class Session:
                     plantuml_auto_download=bool(plugins_config.get("plantuml_auto_download", True)),
                     d2_enabled=bool(plugins_config.get("d2", True)),
                     d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
+                    structurizr_enabled=bool(plugins_config.get("structurizr", False)),
+                    structurizr_auto_download=bool(plugins_config.get("structurizr_auto_download", True)),
                     graphviz_enabled=bool(plugins_config.get("graphviz", True)),
                     pikchr_enabled=bool(plugins_config.get("pikchr", True)),
                     cetz_enabled=bool(plugins_config.get("cetz", True)),

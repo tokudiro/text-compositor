@@ -5,7 +5,7 @@ import sys
 import importlib.metadata
 from collections import namedtuple
 from text_compositor.config import _load_project_config, yaml
-from text_compositor.deps import D2_ASSETS, NOTO_SANS_JP_FILES, TEMURIN_JRE_ASSETS, TEMURIN_JRE_TOP_DIR, _d2_bin_path, _d2_cache_root, _jre_cache_root, _temurin_platform_key, _user_cache_dir, find_system_browser, find_system_d2, find_system_java
+from text_compositor.deps import D2_ASSETS, NOTO_SANS_JP_FILES, TEMURIN_JRE_ASSETS, TEMURIN_JRE_TOP_DIR, _d2_bin_path, _d2_cache_root, _jre_cache_root, _structurizr_cli_cache_root, _structurizr_cli_lib_dir, _temurin_platform_key, _user_cache_dir, find_system_browser, find_system_d2, find_system_java
 from text_compositor.log import _warn
 
 def _typst_version_info(repo_root):
@@ -147,6 +147,35 @@ def _check_plantuml(plantuml_enabled, plantuml_auto_download):
                         "no local Java 11+ found and plugins.plantuml_auto_download is false. "
                         "Install Java 11+, or set plugins.plantuml_auto_download: true")
 
+def _check_structurizr(structurizr_enabled, structurizr_auto_download):
+    """plugins.structurizr_auto_downloadは、Java（PlantUMLと共用）・structurizr-cli本体の、
+    どちらの自動取得も併せて制御する（structurizrを使うプロジェクトが常にPlantUMLも有効とは
+    限らないため、plugins.plantuml_auto_downloadとは独立させる）。"""
+    if not structurizr_enabled:
+        return CheckResult("structurizr", "OK", "disabled (plugins.structurizr: false)")
+    java_path = find_system_java()
+    if not java_path:
+        key = _temurin_platform_key()
+        asset = TEMURIN_JRE_ASSETS.get(key)
+        cached = asset and os.path.exists(os.path.join(_jre_cache_root(), TEMURIN_JRE_TOP_DIR, *asset[3]))
+        if not cached:
+            if structurizr_auto_download:
+                return CheckResult("structurizr", "WARN",
+                                    "no local Java 11+ found; Eclipse Temurin JRE will be downloaded "
+                                    "(one-time; approx. 50MB) on first structurizr render")
+            return CheckResult("structurizr", "NG",
+                                "no local Java 11+ found and plugins.structurizr_auto_download is false. "
+                                "Install Java 11+, or set plugins.structurizr_auto_download: true")
+    lib_dir = _structurizr_cli_lib_dir(_structurizr_cli_cache_root())
+    if os.path.isdir(lib_dir):
+        return CheckResult("structurizr", "OK", f"structurizr-cli already cached under {lib_dir}")
+    if structurizr_auto_download:
+        return CheckResult("structurizr", "WARN",
+                            "structurizr-cli will be downloaded (one-time; approx. 99MB) on first structurizr render")
+    return CheckResult("structurizr", "NG",
+                        "structurizr-cli is not cached and plugins.structurizr_auto_download is false. "
+                        "Set plugins.structurizr_auto_download: true, or plugins.structurizr: false")
+
 def _check_d2(d2_enabled, d2_auto_download):
     if not d2_enabled:
         return CheckResult("d2", "OK", "disabled (plugins.d2: false)")
@@ -182,6 +211,8 @@ def run_env_check(repo_root, config_path):
     plantuml_auto_download = bool(plugins_config.get("plantuml_auto_download", True))
     d2_enabled = bool(plugins_config.get("d2", True))
     d2_auto_download = bool(plugins_config.get("d2_auto_download", True))
+    structurizr_enabled = bool(plugins_config.get("structurizr", False))
+    structurizr_auto_download = bool(plugins_config.get("structurizr_auto_download", True))
 
     results = [
         _check_isolated_env(),
@@ -191,6 +222,7 @@ def run_env_check(repo_root, config_path):
         _check_mermaid(mermaid_enabled, mermaid_auto_download),
         _check_plantuml(plantuml_enabled, plantuml_auto_download),
         _check_d2(d2_enabled, d2_auto_download),
+        _check_structurizr(structurizr_enabled, structurizr_auto_download),
     ]
     _print_check_results(results)
     return 1 if any(r.status == "NG" for r in results) else 0

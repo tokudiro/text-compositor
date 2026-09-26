@@ -38,7 +38,7 @@ PAGE_ONLY_KEYS = ('paper_size', 'landscape', 'header', 'footer', 'paginate', 'fo
 ALERT_TITLES = {'note': 'Note', 'tip': 'Tip', 'important': 'Important', 'warning': 'Warning', 'caution': 'Caution'}
 
 # 図として表示するフェンスの言語。dot・graphvizは、Typstのdiagraphで描く（#264。PDFと同じ経路）。
-_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'svg', 'dot', 'graphviz', 'pikchr', 'cetz', 'fletcher')
+_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'structurizr', 'svg', 'dot', 'graphviz', 'pikchr', 'cetz', 'fletcher')
 _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
@@ -422,6 +422,8 @@ class HtmlRenderer(TypstRenderer):
             return self._plantuml_svg_path(code, line)
         if lang == 'd2':
             return self._d2_svg_path(code, line)
+        if lang == 'structurizr':
+            return self._structurizr_svg_path(code, line)
         if lang == 'pikchr':
             if not self.pikchr_enabled:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
@@ -660,7 +662,7 @@ class HtmlRenderer(TypstRenderer):
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
         if not match:
             self._error_here(f"'{name}' block in {self.current_file} must contain exactly one "
-                             "```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
+                             "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
             sys.exit(1)
         return match
 
@@ -683,7 +685,7 @@ class HtmlRenderer(TypstRenderer):
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
-                             f"```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fences or images (found {len(matches)}).")
+                             f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
         prev_end = 0

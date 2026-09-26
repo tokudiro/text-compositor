@@ -37,14 +37,14 @@ class LayoutMixin:
         r'(?: +\{([^}\r\n]*)\})? *\r?\n(.*?)\r?\n::: *\r?$',
         re.MULTILINE | re.DOTALL)
 
-    # フェンス（mermaid/plantuml/dot/graphviz/svg/d2/pikchr/cetz/fletcher）か、単独行のMarkdown画像（`![alt](src)`のみの行）の
+    # フェンス（mermaid/plantuml/dot/graphviz/svg/d2/structurizr/pikchr/cetz/fletcher）か、単独行のMarkdown画像（`![alt](src)`のみの行）の
     # いずれかにマッチする。画像側は行全体にアンカーし、文中に埋め込まれたインライン画像を誤って
     # 抜き出さないようにする（テキストの前後を単純に連結する都合上、行の一部だけを抜くと文が壊れる）。
     # 言語名の後ろに`{width=50%}`のようなPandoc風のサイズ指定属性を書ける（#82）。
     # svgはmermaid/plantumlと異なりレンダリング不要（コードそのものが既に完成した画像）だが、
     # 「図/画像を1つ含む」という抽出対象としては同列に扱える（#91）。
     DIAGRAM_OR_IMAGE_RE = re.compile(
-        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2|pikchr|cetz|fletcher)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
+        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2|structurizr|pikchr|cetz|fletcher)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
         r'|^[ \t]*(?P<image>!\[[^\]]*\]\([^)\n]+\))[ \t]*\r?$',
         re.MULTILINE | re.DOTALL)
 
@@ -76,7 +76,7 @@ class LayoutMixin:
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
             self._error_here(f"'{block_name}' block in {self.current_file} must contain exactly one "
-                  "```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
+                  "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
             sys.exit(1)
         surrounding_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
         text_typst = self._render_markdown_segment(surrounding_md, False).strip()
@@ -95,13 +95,13 @@ class LayoutMixin:
         )
 
     def _render_compare_block(self, inner_text):
-        """::: layout-compare ... ::: ブロックを、2つの図（mermaid/plantuml/dot/graphviz/svg/d2/pikchr/cetz/fletcherまたは
+        """::: layout-compare ... ::: ブロックを、2つの図（mermaid/plantuml/dot/graphviz/svg/d2/structurizr/pikchr/cetz/fletcherまたは
         Markdown画像。種類は混在可）を左右に並べた2カラムgridへ変換する。
         各図の直前にあるテキスト（キャプション）は、その図と同じ列にまとめて配置する。"""
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
-                  f"```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fences or images (found {len(matches)}).")
+                  f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
         prev_end = 0
@@ -130,7 +130,7 @@ class LayoutMixin:
         「写真が主役」という趣旨に合わせ、Markdown画像はalt側のwidth/height指定（あれば）を
         無視してwidth/height: 100%・fit: "cover"で枠いっぱいに敷き詰める（枠の高さ自体は
         FEATURE_IMG_HEIGHTで固定するため、はみ出しはfit:coverのトリミングで吸収される）。
-        mermaid/plantuml/dot/graphviz/svg/d2/pikchr/cetz/fletcherフェンスは想定外の使い方だが、#77の汎用抽出をそのまま通し、
+        mermaid/plantuml/dot/graphviz/svg/d2/structurizr/pikchr/cetz/fletcherフェンスは想定外の使い方だが、#77の汎用抽出をそのまま通し、
         既存のfit-image表示（高さ上限あり・cover表示ではない）に委ねる。フェンス側のwidth/height
         属性（#82）はcover化の対象外（画像と同じ強制はしない）なので、他のブロックと同様に
         そのまま反映する。"""
@@ -147,7 +147,7 @@ class LayoutMixin:
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
             self._error_here(f"'layout-feature' block in {self.current_file} must contain exactly one "
-                  "```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
+                  "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svg fence or a standalone image.")
             sys.exit(1)
         catchcopy_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
         catchcopy_typst = self._render_markdown_segment(catchcopy_md, False).strip()

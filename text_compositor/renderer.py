@@ -114,7 +114,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
                  mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
-                 cetz_enabled=True, fletcher_enabled=True):
+                 cetz_enabled=True, fletcher_enabled=True, structurizr_enabled=False, structurizr_auto_download=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
@@ -203,6 +203,21 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         self.d2_auto_download = d2_auto_download
         # d2実行ファイルのパスは初回の```d2描画時に遅延解決する（plantumlのjava/jarと同様）。
         self._d2_bin = None
+        # plugins.structurizr: false（既定。#212）。既定がfalseなのは、内部で使うstructurizr-cli
+        # 一式が約99MBあり、他のプラグイン（PlantUML約17.6MB・D2約13MB）と一桁違うため
+        # （mermaidの自動ダウンロード（既定false、約700MB）と同じ「重いので既定オフ」の位置づけ）。
+        # trueなら```structurizrフェンス（C4モデルのDSL）をローカルのjava+structurizr-cliで
+        # PlantUMLへ書き出し、既存のPlantUMLパイプラインで描画する。falseなら、他の未対応言語と
+        # 同じく素のコード表示にフォールバックする。
+        self.structurizr_enabled = structurizr_enabled
+        self._structurizr_disabled_warned = False
+        # plugins.structurizr_auto_download: true（既定）。Java・structurizr-cli一式、どちらの
+        # 自動取得も併せて制御する。plugins.plantuml_auto_downloadとは独立させる（structurizrを
+        # 使うプロジェクトが常にPlantUMLも有効とは限らないため）。
+        self.structurizr_auto_download = structurizr_auto_download
+        self._structurizr_java_bin = None
+        self._structurizr_lib_dir = None
+        self._structurizr_plantuml_jar_path = None
         # キャッシュキー用のd2バージョン（#26）。キャッシュヒット時にバイナリの自動取得を
         # 起こさないよう、_d2_binの解決とは別に遅延評価する。
         self._d2_version_cache = None
@@ -227,6 +242,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         '.puml': 'plantuml', '.plantuml': 'plantuml', '.pu': 'plantuml',
         '.d2': 'd2',
         '.pikchr': 'pikchr',
+        '.dsl': 'structurizr',
     }
 
     def render_chapter(self, text, filepath="", drop_leading_title=False):
@@ -257,6 +273,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             return self._render_d2(text)
         elif diagram_kind == 'pikchr':
             return self._render_pikchr(text)
+        elif diagram_kind == 'structurizr':
+            return self._render_structurizr(text)
         elif ext == '.csv':
             return self._render_csv_table(text)
 
