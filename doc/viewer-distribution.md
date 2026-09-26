@@ -5,7 +5,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 ## 配布の形式
 
 - **ポータブルなZIP**（`Obunzu-<バージョン>-win-x64.zip`）。展開して、`obunzu.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
-- ZIPの大きさは、**約200 MB**。展開後は、**約468 MB**。Electron（Chromium）が、ほとんどを占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから増えた（ZIPで+35 MB。内訳: `typst`が約27 MB、フォントとパッケージが、あわせて約8 MB）。
+- ZIPの大きさは、**約293.0 MB**。展開後は、**約685.1 MB**。Electron（Chromium）が、展開後の半分強を占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから約468 MBへ増え（ZIPで+35 MB）、PlantUML・D2・Structurizr・Mermaidの同梱（[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）で、さらに展開後+約217 MB（Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsの合計。実測は下の表）、**ZIPで+約93 MB**（約200 MBから約293 MBへ）増えた。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
@@ -16,13 +16,18 @@ Obunzu-0.3.8-win-x64/
     Lib/site-packages/       必要最小限のパッケージ + typst + text_compositor
   fonts/                     Noto Sans JP（Regular・Bold）とそのライセンス
   typst-packages/            Typstのパッケージ（preview/<名前>/<版>/。diagraph・kip・cetz・fletcher・note-me・oxifmt）
+  jre/                       Eclipse Temurin JRE（PlantUML・Structurizrが使うJava。#290）
+  plantuml/plantuml.jar      PlantUML本体（MIT版。#290）
+  d2/d2.exe                  D2公式CLIバイナリ（#290）
+  structurizr-cli/lib/       Structurizr CLI（絞り込み版。#290）
+  mermaid/mermaid.min.js     Mermaid公式配布の単一バンドルJS（#310）
   licenses/                  サードパーティのライセンス表記
   LICENSE, LICENSES.chromium.html   ElectronとChromiumのライセンス
 ```
 
 ## 同梱するもの・しないもの
 
-方針は、「Viewerの動作に必要なものだけを、事前に入れる。それ以外は、必要になったときに、取得または案内する」（利用者の要望）。
+方針は、「Viewerの動作に必要なものだけを、事前に入れる。それ以外は、必要になったときに、取得または案内する」（利用者の要望）。**Mermaid・PlantUML・D2・Structurizrの図を同梱した（下記）ことで、初回起動時の追加ダウンロードは、無くなった**（`playwright`だけは、方針どおり同梱しない。下の「Mermaidについて」）。
 
 | 種類 | 扱い | サイズ（展開後） |
 |------|------|------------------|
@@ -33,9 +38,13 @@ Obunzu-0.3.8-win-x64/
 | **`typst`**（Typstのコンパイラ。Pythonのパッケージ） | **同梱**（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[#237](https://github.com/tokudiro/text-compositor/issues/237)で決めた） | 約59.6 MB（ZIPで約27 MB） |
 | Noto Sans JP（`fonts/`。RegularとBold） | **同梱**（#263） | 8.8 MB |
 | Typstのパッケージ（`typst-packages/`。`diagraph` 0.3.7・`kip` 0.1.0（Pikchr。#213）・`cetz` 0.5.2と0.3.4・`fletcher` 0.5.8・`oxifmt` 0.2.1と1.0.0（CeTZ・Fletcher。#236）・`note-me` 0.6.0） | **同梱**（#263） | 約4 MB（`kip`は、WASMを含み、約1.4 MB。CeTZ・Fletcherと、その依存は、約1.5 MB） |
+| Java（Eclipse Temurin JRE 21。`jre/`。PlantUML・Structurizrが使う） | **同梱**（[#290](https://github.com/tokudiro/text-compositor/issues/290)） | 約144.5 MB |
+| PlantUMLの`plantuml-mit-1.2026.8.jar`（`plantuml/`） | **同梱**（#290） | 約16.9 MB |
+| D2のCLI v0.9.0（`d2/`） | **同梱**（#290） | 約40.8 MB |
+| Structurizr CLI（絞り込み版。`structurizr-cli/`） | **同梱**（#290） | 約13.5 MB |
+| `mermaid.min.js`（`mermaid/`） | **同梱**（[#310](https://github.com/tokudiro/text-compositor/issues/310)） | 約3.4 MB |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
 | **`playwright`**（Mermaid用のブラウザ操作） | **同梱しない**。Mermaidは、Electronで描画する（下記） | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
-| PlantUML・D2 | 同梱しない（下の表） | - |
 
 ### Typstを通す処理のための同梱（#263。#237で決めた）
 
@@ -48,24 +57,21 @@ Obunzu-0.3.8-win-x64/
 - **`typst`の`import`**: `build.py`は、`typst`を、初めて使うとき（Typstのコンパイル）に、`import`する（`_LazyTypst`。#168。今は`typst_runtime.py`）。そのため、Graphvizを含まないHTML出力は、`typst`を`import`しない（起動が速い）。Graphvizは、Typstの`diagraph`で描くため（#264）、`typst`が要る。pipで入れる場合も、`typst`は必須の依存である。`typst`なしで、Graphviz以外のHTML出力が動くこと（`tests/test_distribution.py`）は、変わらない。
 - 配布物の依存は、`viewer/dist-requirements.txt`に、版を固定して書く。`pyproject.toml`の依存と、ずれていないことを、テストで確認する。フォントとパッケージの版が、ツール本体（`deps.py`・テンプレート）と、ずれていないことも、テストで確認する（`tests/test_bundled_typst_assets.py`）。
 
-## 同梱しないもの（必要になったときに、取得・案内する）
+### PlantUML・D2・Structurizr・Mermaidのための同梱（#290・#310）
 
-`text_compositor`が、必要になったときに、取得して、キャッシュする（`%LOCALAPPDATA%\text-compositor\Cache\`）。取得の失敗は、再試行し（[#189](https://github.com/tokudiro/text-compositor/issues/189)）、SHA256で確認する。
-
-| もの | 使う場面 | サイズ | 取得元 |
-|------|----------|--------|--------|
-| PlantUMLの`plantuml-mit-1.2026.8.jar` | `plantuml`の図 | 約16.9 MB | GitHub Releases（`plantuml/plantuml`） |
-| Java（Eclipse Temurin JRE 21） | `plantuml`の図。システムにJava 11以上があれば、それを使う | 約49.0 MB（取得）、展開後 約144.5 MB | GitHub Releases（`adoptium/temurin21-binaries`） |
-| D2のCLI（v0.9.0） | `d2`の図。システムに`d2`があれば、それを使う | 約13 MB（取得）、展開後 約40.8 MB | GitHub Releases（`d2lang/d2`） |
-| `mermaid.min.js` | `mermaid`の図（取得は、組込版Python。描画は、Electron） | 約3.4 MB | jsDelivr（npm `mermaid@11.16.1`） |
-
-サイズは、`build.py`の記載と、実際にキャッシュされたファイルの実測による。PlantUMLとD2は、初回の描画で、取得のために、数秒〜数十秒かかる（回線による）。
+- **なぜ同梱するか**: もともとPlantUML・D2・Structurizr（Java含む）・Mermaidは、初回の描画時に、`text_compositor`が、ユーザーキャッシュ（`%LOCALAPPDATA%\text-compositor\Cache\`）へ取得していた（Structurizrは、既定で無効。#212）。「ZIPを展開して起動するだけで、別のインストールなしに、対応する図を描ける」という目標（仕様書2章）に対して、これが唯一残っていた未同梱物だった。Typstを通す処理の同梱（#263）と同じ考え方（ツール群の方針3。ネットワークなしで動くようにする）で、残りをすべて同梱した。これにより、**Obunzuの初回起動時の追加ダウンロードは、ゼロになった**（Mermaid自身は、常にElectronの描画のため、Chromiumのダウンロードにはならない。下の「Mermaidについて」）。
+- **中身**: `jre/`（Eclipse Temurin JRE。PlantUML・Structurizrが共用）、`plantuml/plantuml.jar`、`d2/d2.exe`、`structurizr-cli/lib/`（公式配布は約99 MBだが、DSLの解析・PlantUMLへの書き出しに要るjarだけ約13.5 MBまで絞り込んだ。使わないのは、Kotlin/JRuby/Groovyのスクリプト形式ワークスペース定義向けと、ソースコードからのコンポーネント自動検出＝javaparser向けのjar。除いても、`export -format plantuml`の出力が変わらないことを、手元で確認した）、`mermaid/mermaid.min.js`。いずれも、CLIと同じ版・URL・SHA256（`text_compositor/deps.py`）を使う。
+- **ワーカーへの伝え方**: Typstのフォント・パッケージ（#263）と同じ仕組み。Electronが、ワーカーを起動するとき、上のフォルダがあれば、環境変数（`TEXT_COMPOSITOR_JAVA_BIN`・`TEXT_COMPOSITOR_PLANTUML_JAR`・`TEXT_COMPOSITOR_D2_BIN`・`TEXT_COMPOSITOR_STRUCTURIZR_CLI_LIB`・`TEXT_COMPOSITOR_MERMAID_JS`）で教える（`viewer/src/python.js`）。ワーカー（Python）側は、`_ensure_plantuml_tools()`・`_ensure_structurizr_tools()`・`_ensure_d2_bin()`・`ensure_mermaid_js()`が、この環境変数のパスを、システムの検出・自動ダウンロードより先に使う。CLIは、この環境変数を使わず、従来どおり（システムを探し、無ければ取得して、キャッシュ）。
+- **Structurizrは、Obunzuでは常に有効**: text-compositor本体（PDF）では、Structurizrは既定で無効（`structurizr-cli`が重いため。#212）で、`plugins: { structurizr: true }`と明示する必要がある。Obunzuは、同梱しているため、`viewer/src/main.js`が、常にこれを指定する（他の図と同じ扱いになる）。
+- **ライセンス**: PlantUML・D2・Java（JRE）は、それぞれのライセンス全文を`licenses/`に入れる（PlantUML・MermaidはGitHub上のLICENSEを別途取得・固定、D2・JRE自身が同梱するものをそのまま使う）。**`trove4j`（structurizr-cliが使う、LGPL-2.1以降のライブラリ）は、改造せず、別のjarファイル（`structurizr-cli/lib/trove4j-*.jar`）のまま入れる**（CeTZと同じ考え方。#236）。ソースの入手先（GitHub）は、`licenses/THIRD-PARTY-NOTICES.md`に書く。
+- **確認**（`check-dist.js`）: PlantUML・D2・Structurizrの図を含む文書が、`runCase`の最小環境（システムのJava・D2への手がかりが、そもそも無い）のまま、エラーなく表示され、画像として読み込まれること。
+- 配布物が同梱するURL・SHA256が、ツール本体（`deps.py`）と、ずれていないことを、テストで確認する（`tests/test_bundled_diagram_tools.py`）。同梱した版は、他の同梱物と同じく、`check-pins.py`の週次確認の対象にする（Structurizr CLIは、これを機に、確認の対象へ加えた）。
 
 ### Mermaidについて（Electronで描画する。#207）
 
 **Mermaidは、Electron自身のChromiumで描画する**。Pythonの`playwright`（約106 MB）と、システムのChrome・Edgeは、要らない。
 
-- **仕組み**: Pythonのワーカーが、Mermaidのフェンスに出会うと、標準出力（JSON行）で、描画をElectronに依頼する。Electronは、非表示のウィンドウに、`mermaid.min.js`を読み込み、`mermaid.render()`でSVGにして、標準入力で返す（プロトコルは、仕様書14章）。`mermaid.min.js`の取得（SHA256の確認・キャッシュ）は、Pythonが行い、ファイルのパスを渡す。描画用のウィンドウは、最初の図で、1回だけ作る（起動を遅くしないため）。
+- **仕組み**: Pythonのワーカーが、Mermaidのフェンスに出会うと、標準出力（JSON行）で、描画をElectronに依頼する。Electronは、非表示のウィンドウに、`mermaid.min.js`を読み込み、`mermaid.render()`でSVGにして、標準入力で返す（プロトコルは、仕様書14章）。`mermaid.min.js`は、同梱の`mermaid/mermaid.min.js`を使う（#310。ダウンロードしない）。描画用のウィンドウは、最初の図で、1回だけ作る（起動を遅くしないため）。
 - **速さ**（実測。2回目以降は、SVGが、キャッシュされる。実測したときは、原稿の隣の`.text-compositor/cache/`。今のViewerの既定は、アプリの領域の`cache/`。[#258](https://github.com/tokudiro/text-compositor/issues/258)）:
 
 | | 従来（Python + `playwright` + Chrome・Edge） | Electronで描画 |
@@ -87,7 +93,7 @@ Obunzu-0.3.8-win-x64/
 - **速さ**（実測。開発機。[#264](https://github.com/tokudiro/text-compositor/issues/264)）: `Compiler`の準備は、最初の1回だけ約40〜60 ms。図1つは、14〜29 ms（25ノード・約40辺で59 ms）。実アプリで、Graphvizの単体ファイルを開いてから、表示までは、約120〜170 ms（`check-open-files.js`）。
 - **日本語のラベル**: 箱の幅が、文字に合う。文字幅の補正の処理（`viewer/src/graphviz-host.js`）は、要らなくなり、削除した。
 - **SVGの扱い**: 文字は、輪郭（`<use>`）で、フォントに依存しない。ライト・ダークの両方で、`<img>`として表示できる（ダーク配色の反転も、効く。#209）。大きさは、`pt`。
-- **ライセンス**: `diagraph`は、MIT。`typst-packages/`に、`LICENSE`つきで同梱している（#263）。Viz.js・Graphviz・Expatの表記は、`THIRD-PARTY-NOTICES.md`の「初回に取得するもの」から、外した。
+- **ライセンス**: `diagraph`は、MIT。`typst-packages/`に、`LICENSE`つきで同梱している（#263）。Viz.js・Graphviz・Expatの表記は、同梱しなくなったため、`THIRD-PARTY-NOTICES.md`に、載せていない。
 - **制限**: `diagraph`は、Graphvizの一部の記法を、描けない（`shape=record`・`Mrecord`、図全体の`label`、HTMLラベルのはみ出し、ラテン文字のノード名の字体）。PDFも同じ。`record`と図全体の`label`は、警告する（仕様書14章。使い方は、`doc/usage/08_diagrams.md`）。
 - **構文エラー**: `diagraph`の`Diagraph error: syntax error in line N`を、原稿の行（フェンスの開始行＋N）にして、診断にする。Viz.jsより、位置の情報が、少ない。
 - **環境変数`TEXT_COMPOSITOR_MERMAID_HOST`**: Mermaidだけの意味になった（Graphvizは、Electronに任せない）。名前は、互換のため、据え置いた。
@@ -161,7 +167,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 - **順序**: Releaseは、`build-usage-guide`が作る。`build-viewer`は、これを待ち（`needs`）、`attach-viewer`が、そのあとで、ZIPを添付する。同じタグに、2つのジョブが同時にReleaseを作って、競合しないため。
 - **失敗したとき**: PDFとPyPIへの公開は、`build-viewer`を待たない。Obunzuのビルドが失敗しても、影響しない。失敗したジョブだけを、Actionsの「Re-run failed jobs」で、再実行できる。
 - **CIで確認するもの**: Node.jsのテストと、実際のPythonワーカーとの結合（`viewer/test/worker-integration.test.js`。Markdown・CSV（`csv_header`）・存在しないファイルの`render_html`の往復と、ワーカーの常駐）。ワーカーとの結合テストは、Pythonの準備がない手元では、飛ばし、CIでは（`REQUIRE_WORKER_INTEGRATION=1`）、飛ばさず、失敗にする。
-- **CIで確認しないもの**: ElectronのGUIの起動と、展開した配布物の起動（`check-dist.js`）。画面が要り、不安定になりやすいため、手元で行う。Mermaid・PlantUML・D2の実際の描画も、対象外（外部のツールや、ダウンロードが要る）。
+- **CIで確認しないもの**: ElectronのGUIの起動と、展開した配布物の起動（`check-dist.js`）。画面が要り、不安定になりやすいため、手元で行う。Mermaid・PlantUML・D2・Structurizrの実際の描画も、対象外（外部のツール＝Java・D2 CLIの実際の起動や、GUIでの表示確認が要るため）。
 - **バージョンの確認**: タグは、`viewer/package.json`の`version`と、そろえる（`v<バージョン>`か、`obunzu-v<バージョン>`。そろっていなければ、ビルドの前に失敗する）。
 - **PyPIとの分離**: PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいている。`id-token`の権限は、`publish-pypi`だけが持つ。Viewerのビルド・添付のジョブ（`build-viewer`・`attach-viewer`）にも、`viewer-release.yml`にも、与えない。
 - **「Latest」・本文**: `v*`のReleaseの本文と「Latest」は、`build-usage-guide`が決めた結果のまま（`attach-viewer`は、ファイルを添付するだけ。**未検証**。初回のリリースで、確認する）。例外の道（`obunzu-v*`）は、`make_latest: false`で作り、text-compositor本体のReleaseの「Latest」表示を、奪わない。
@@ -199,7 +205,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 | PyPIのパッケージ（`pyproject.toml`・`requirements*.txt`・`viewer/dist-requirements.txt`） | Dependabot（1つのPRにまとめる） | PR |
 | GitHub Actions | Dependabot | PR |
 | 既知の脆弱性 | Dependabotのアラート・セキュリティ更新（リポジトリの設定で有効） | アラート・PR |
-| コードに直接書いた版（Mermaid・PlantUML・D2・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「同梱した部品の更新確認（自動）」（差があるときだけ。すべて最新になると、自動で閉じる） |
+| コードに直接書いた版（Mermaid・PlantUML・D2・Structurizr CLI・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「同梱した部品の更新確認（自動）」（差があるときだけ。すべて最新になると、自動で閉じる） |
 
 - `check-pins.py`は、固定した版を、`text_compositor/deps.py`・`viewer/scripts/build-dist.js`・`text_compositor/templates/_common.typ`から、読み取る。読み取れなかったときは、ワークフローが失敗する（ソースの書き方を変えて、確認が空振りになるのを防ぐ。`tests/test_check_pins.py`が、読み取りを確かめる）。
 - 上流の最新版を取得できなかった部品は、報告に「確認できず」と書き、差には数えない。

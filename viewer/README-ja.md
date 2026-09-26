@@ -72,7 +72,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 ## 配布物（Windows）
 
-`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約200 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）と、サードパーティのライセンス表記（`licenses/`）です。Typstのコンパイラ・フォント・パッケージは、ネットワークなしで動きます（#263）。`playwright`は、同梱しません。Mermaidの図は、Electron自身のChromiumで描画します（`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・初回に取得するもの・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
+`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約293 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）（ネットワークなしで動きます。#263）と、Java（`jre/`）・`plantuml.jar`・D2本体・structurizr-cli（絞り込み版）・`mermaid.min.js`（Mermaid・PlantUML・D2・Structurizrの図が、追加のダウンロードなしで使えます。#290・#310）と、サードパーティのライセンス表記（`licenses/`）です。`playwright`は、同梱しません（Mermaidの図は、Electron自身のChromiumで描画するため、`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
 ## 環境変数
 
 | 変数 | 意味 |

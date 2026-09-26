@@ -10,7 +10,7 @@ import subprocess
 import hashlib
 import tempfile
 from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render
-from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
+from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
 from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
@@ -176,11 +176,11 @@ class DiagramMixin:
         return cache_dir
 
     def _d2_version(self):
-        """キャッシュキーに使うd2のバージョン。システムのd2があればその実バージョン、無ければ
+        """キャッシュキーに使うd2のバージョン。同梱・システムのd2があればその実バージョン、無ければ
         自動取得の対象（D2_RELEASE）。どちらの場合も、ここではバイナリの取得は行わない。"""
         if self._d2_version_cache is None:
-            system_d2 = find_system_d2()
-            version = _system_d2_version(system_d2) if system_d2 else None
+            existing_d2 = bundled_d2_bin() or find_system_d2()
+            version = _system_d2_version(existing_d2) if existing_d2 else None
             self._d2_version_cache = version or D2_RELEASE
         return self._d2_version_cache
 
@@ -329,24 +329,30 @@ class DiagramMixin:
 
     def _ensure_plantuml_tools(self):
         """PlantUML実行に必要なjava実行ファイルとplantuml.jarを遅延解決する（初回のみ）。
-        システムJava（11+）があればそのまま再利用する（2章の最小限のダウンロード）。無い場合、
-        plugins.plantuml_auto_download（既定true）ならEclipse Temurin JREを自動取得し、falseなら
-        Fail-fastでエラー終了する。mermaidのブラウザ自動取得（既定false）と非対称な既定値なのは、
-        ダウンロードされる実体のサイズが一桁違うため（JRE約49.7MB対Chromium約700MB。#22の設計議論）。"""
+        Obunzuが配布物に同梱したもの（`TEXT_COMPOSITOR_JAVA_BIN`・`TEXT_COMPOSITOR_PLANTUML_JAR`。
+        #290）があれば最優先で使う。無ければシステムJava（11+）をそのまま再利用する（2章の最小限の
+        ダウンロード）。それも無い場合、plugins.plantuml_auto_download（既定true）ならEclipse
+        Temurin JREを自動取得し、falseならFail-fastでエラー終了する。mermaidのブラウザ自動取得
+        （既定false）と非対称な既定値なのは、ダウンロードされる実体のサイズが一桁違うため
+        （JRE約49.7MB対Chromium約700MB。#22の設計議論）。"""
         if self._plantuml_java_bin is None:
-            java_bin = find_system_java()
+            java_bin = bundled_java_bin()
             if java_bin:
-                _log_info(f"Reusing system Java for PlantUML rendering: {java_bin}")
-            elif self.plantuml_auto_download:
-                java_bin = ensure_temurin_jre()
+                _log_info(f"Using bundled Java for PlantUML rendering: {java_bin}")
             else:
-                _error("No local Java 11+ found; required to render PlantUML diagrams. "
-                      "Install Java 11+, or set plugins.plantuml_auto_download: true "
-                      "(downloads Eclipse Temurin JRE, approx. 50MB), or set plugins.plantuml: false.")
-                sys.exit(1)
+                java_bin = find_system_java()
+                if java_bin:
+                    _log_info(f"Reusing system Java for PlantUML rendering: {java_bin}")
+                elif self.plantuml_auto_download:
+                    java_bin = ensure_temurin_jre()
+                else:
+                    _error("No local Java 11+ found; required to render PlantUML diagrams. "
+                          "Install Java 11+, or set plugins.plantuml_auto_download: true "
+                          "(downloads Eclipse Temurin JRE, approx. 50MB), or set plugins.plantuml: false.")
+                    sys.exit(1)
             self._plantuml_java_bin = java_bin
         if self._plantuml_jar_path is None:
-            self._plantuml_jar_path = ensure_plantuml_jar()
+            self._plantuml_jar_path = bundled_plantuml_jar() or ensure_plantuml_jar()
         return self._plantuml_java_bin, self._plantuml_jar_path
 
     def _render_plantuml(self, code, width=None, height=None):
@@ -403,26 +409,32 @@ class DiagramMixin:
 
     def _ensure_structurizr_tools(self):
         """Structurizr実行に必要なjava実行ファイル・structurizr-cli一式・plantuml.jarを遅延解決する
-        （初回のみ）。Javaの自動取得はplugins.structurizr_auto_downloadで制御し、
+        （初回のみ）。Obunzuが配布物に同梱したもの（`TEXT_COMPOSITOR_JAVA_BIN`・
+        `TEXT_COMPOSITOR_STRUCTURIZR_CLI_LIB`・`TEXT_COMPOSITOR_PLANTUML_JAR`。#290）があれば
+        最優先で使う。Javaの自動取得はplugins.structurizr_auto_downloadで制御し、
         plugins.plantuml_auto_downloadとは独立させる（structurizrを使うプロジェクトが常にPlantUMLも
         有効とは限らないため）。plantuml.jar自体は、内部実装として常に要る（plugins.plantumlの値には
         左右されない、#212）。"""
         if self._structurizr_java_bin is None:
-            java_bin = find_system_java()
+            java_bin = bundled_java_bin()
             if java_bin:
-                _log_info(f"Reusing system Java for Structurizr rendering: {java_bin}")
-            elif self.structurizr_auto_download:
-                java_bin = ensure_temurin_jre()
+                _log_info(f"Using bundled Java for Structurizr rendering: {java_bin}")
             else:
-                _error("No local Java 11+ found; required to render Structurizr diagrams. "
-                      "Install Java 11+, or set plugins.structurizr_auto_download: true "
-                      "(downloads Eclipse Temurin JRE, approx. 50MB), or set plugins.structurizr: false.")
-                sys.exit(1)
+                java_bin = find_system_java()
+                if java_bin:
+                    _log_info(f"Reusing system Java for Structurizr rendering: {java_bin}")
+                elif self.structurizr_auto_download:
+                    java_bin = ensure_temurin_jre()
+                else:
+                    _error("No local Java 11+ found; required to render Structurizr diagrams. "
+                          "Install Java 11+, or set plugins.structurizr_auto_download: true "
+                          "(downloads Eclipse Temurin JRE, approx. 50MB), or set plugins.structurizr: false.")
+                    sys.exit(1)
             self._structurizr_java_bin = java_bin
         if self._structurizr_lib_dir is None:
-            self._structurizr_lib_dir = ensure_structurizr_cli()
+            self._structurizr_lib_dir = bundled_structurizr_cli_lib() or ensure_structurizr_cli()
         if self._structurizr_plantuml_jar_path is None:
-            self._structurizr_plantuml_jar_path = ensure_plantuml_jar()
+            self._structurizr_plantuml_jar_path = bundled_plantuml_jar() or ensure_plantuml_jar()
         return self._structurizr_java_bin, self._structurizr_lib_dir, self._structurizr_plantuml_jar_path
 
     def _render_structurizr(self, code, width=None, height=None):
@@ -504,20 +516,25 @@ class DiagramMixin:
         return svg_path
 
     def _ensure_d2_bin(self):
-        """d2実行ファイルを遅延解決する（初回のみ）。システムのdコマンドがあればそのまま
-        再利用する（2章の最小限のダウンロード）。無い場合、plugins.d2_auto_download（既定true）
-        ならD2公式CLIバイナリを自動取得し、falseならFail-fastでエラー終了する（#90）。"""
+        """d2実行ファイルを遅延解決する（初回のみ）。Obunzuが配布物に同梱したもの
+        （`TEXT_COMPOSITOR_D2_BIN`。#290）があれば最優先で使う。無ければシステムのdコマンドが
+        あればそのまま再利用する（2章の最小限のダウンロード）。無い場合、plugins.d2_auto_download
+        （既定true）ならD2公式CLIバイナリを自動取得し、falseならFail-fastでエラー終了する（#90）。"""
         if self._d2_bin is None:
-            d2_bin = find_system_d2()
+            d2_bin = bundled_d2_bin()
             if d2_bin:
-                _log_info(f"Reusing system D2 for d2 rendering: {d2_bin}")
-            elif self.d2_auto_download:
-                d2_bin = ensure_d2_binary()
+                _log_info(f"Using bundled D2 for d2 rendering: {d2_bin}")
             else:
-                _error("No local D2 found; required to render d2 diagrams. "
-                      "Install D2 (https://d2lang.com), or set plugins.d2_auto_download: true "
-                      "(downloads the D2 CLI binary, approx. 13MB), or set plugins.d2: false.")
-                sys.exit(1)
+                d2_bin = find_system_d2()
+                if d2_bin:
+                    _log_info(f"Reusing system D2 for d2 rendering: {d2_bin}")
+                elif self.d2_auto_download:
+                    d2_bin = ensure_d2_binary()
+                else:
+                    _error("No local D2 found; required to render d2 diagrams. "
+                          "Install D2 (https://d2lang.com), or set plugins.d2_auto_download: true "
+                          "(downloads the D2 CLI binary, approx. 13MB), or set plugins.d2: false.")
+                    sys.exit(1)
             self._d2_bin = d2_bin
         return self._d2_bin
 

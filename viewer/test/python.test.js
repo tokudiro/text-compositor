@@ -3,7 +3,10 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { describe, test } = require('node:test');
 
-const { resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV } = require('../src/python');
+const {
+  resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV,
+  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV,
+} = require('../src/python');
 
 const APP = path.join(path.sep, 'app');
 const existsIn = (...files) => {
@@ -29,6 +32,43 @@ describe('resolveWorkerLaunch', () => {
     const packages = path.join(APP, 'typst-packages');
     const launch = resolveWorkerLaunch(APP, { env: { [PYTHON_ENV]: python }, exists: existsIn(python, fonts, packages) });
     assert.deepEqual(launch.env, { [FONT_DIR_ENV]: fonts, [TYPST_PACKAGES_ENV]: packages });
+  });
+
+  test('bundled Java, plantuml.jar, D2 and structurizr-cli are handed to the worker (#290)', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const java = path.join(APP, 'jre', 'bin', 'java.exe');
+    const plantumlJar = path.join(APP, 'plantuml', 'plantuml.jar');
+    const d2 = path.join(APP, 'd2', 'd2.exe');
+    const structurizrLib = path.join(APP, 'structurizr-cli', 'lib');
+    const launch = resolveWorkerLaunch(APP, {
+      env: { [PYTHON_ENV]: python },
+      exists: existsIn(python, java, plantumlJar, d2, structurizrLib),
+      platform: 'win32',
+    });
+    assert.deepEqual(launch.env, {
+      [JAVA_BIN_ENV]: java, [PLANTUML_JAR_ENV]: plantumlJar, [D2_BIN_ENV]: d2, [STRUCTURIZR_CLI_LIB_ENV]: structurizrLib,
+    });
+  });
+
+  test('a value already set by the user wins over the bundled diagram tools too', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const java = path.join(APP, 'jre', 'bin', 'java.exe');
+    const launch = resolveWorkerLaunch(APP, {
+      env: { [PYTHON_ENV]: python, [JAVA_BIN_ENV]: '/my/java' },
+      exists: existsIn(python, java),
+      platform: 'win32',
+    });
+    assert.equal(launch.env[JAVA_BIN_ENV], undefined);
+  });
+
+  test('bundled mermaid.min.js is handed to the worker too (#310)', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const mermaidJs = path.join(APP, 'mermaid', 'mermaid.min.js');
+    const launch = resolveWorkerLaunch(APP, {
+      env: { [PYTHON_ENV]: python },
+      exists: existsIn(python, mermaidJs),
+    });
+    assert.deepEqual(launch.env, { [MERMAID_JS_ENV]: mermaidJs });
   });
 
   test('only the folders that exist are passed, and a value set by the user wins', () => {

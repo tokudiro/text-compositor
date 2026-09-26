@@ -164,6 +164,33 @@ class TestEnsureFonts:
         assert retrieve.calls == 3
 
 
+class TestBundledMermaidJs:
+    """Obunzuが配布物に同梱したmermaid.min.jsを、ダウンロードより優先して使う仕組み（#310）のテスト。"""
+
+    def test_a_bundled_file_is_used_without_downloading(self, tmp_path, monkeypatch):
+        bundled = tmp_path / "mermaid.min.js"
+        bundled.write_bytes(b"bundled-mermaid")
+        monkeypatch.setenv(deps_mod.MERMAID_JS_ENV, str(bundled))
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(urllib.request, "urlretrieve", lambda *a, **k: pytest.fail("downloaded"))
+        assert ensure_mermaid_js() == str(bundled)
+        assert not (tmp_path / "cache").exists()
+
+    def test_a_missing_bundled_path_falls_back_to_the_download(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(deps_mod.MERMAID_JS_ENV, str(tmp_path / "nope.js"))
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(urllib.request, "urlretrieve", lambda *a, **k: pytest.fail("downloaded"))
+        with pytest.raises(BaseException, match="downloaded"):
+            ensure_mermaid_js()
+
+    def test_without_the_variable_the_behavior_is_unchanged(self, tmp_path, monkeypatch):
+        monkeypatch.delenv(deps_mod.MERMAID_JS_ENV, raising=False)
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(urllib.request, "urlretrieve", lambda *a, **k: pytest.fail("downloaded"))
+        with pytest.raises(BaseException, match="downloaded"):
+            ensure_mermaid_js()
+
+
 class TestOtherDownloads:
     """フォント以外の取得（Mermaid用のJS）も、同じ再試行を使う。"""
 

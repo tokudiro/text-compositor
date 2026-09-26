@@ -104,6 +104,30 @@ def find_system_browser():
             return found
     return None
 
+# Obunzu（Viewer）が、配布物に同梱したJava・plantuml.jar・D2・structurizr-cliの場所を教える環境変数
+# （#290）。FONT_DIR_ENV・TYPST_PACKAGES_ENVと同じ仕組み。設定されていて実在すれば、システムの検出・
+# 自動取得より先にこれを使う（Obunzuを、追加の取得なしで動かすため）。
+BUNDLED_JAVA_BIN_ENV = "TEXT_COMPOSITOR_JAVA_BIN"
+BUNDLED_PLANTUML_JAR_ENV = "TEXT_COMPOSITOR_PLANTUML_JAR"
+BUNDLED_D2_BIN_ENV = "TEXT_COMPOSITOR_D2_BIN"
+BUNDLED_STRUCTURIZR_CLI_LIB_ENV = "TEXT_COMPOSITOR_STRUCTURIZR_CLI_LIB"
+
+def bundled_java_bin():
+    path = os.environ.get(BUNDLED_JAVA_BIN_ENV)
+    return path if path and os.path.isfile(path) else None
+
+def bundled_plantuml_jar():
+    path = os.environ.get(BUNDLED_PLANTUML_JAR_ENV)
+    return path if path and os.path.isfile(path) else None
+
+def bundled_d2_bin():
+    path = os.environ.get(BUNDLED_D2_BIN_ENV)
+    return path if path and os.path.isfile(path) else None
+
+def bundled_structurizr_cli_lib():
+    path = os.environ.get(BUNDLED_STRUCTURIZR_CLI_LIB_ENV)
+    return path if path and os.path.isdir(path) else None
+
 def find_system_java():
     """PATH上のjavaコマンドを探し、PlantUML（最新版はJava 11+要求）を実行できるバージョンか
     確認する。見つからない、またはバージョンが古い場合はNoneを返す（#22）。
@@ -205,9 +229,19 @@ def ensure_fonts():
 MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist/mermaid.min.js"
 MERMAID_JS_SHA256 = "18327bef70d96fb505fe7287d9f6a7362ebf07ff6576ddfaffb1a06f3e1a2954"
 
+# 呼び出し元が、同梱したmermaid.min.jsのファイルを教える環境変数（#310）。ViewerのZIPは、これを`mermaid/`に
+# 同梱しており、FONT_DIR_ENVと同じ仕組みで、ダウンロードせずに、これを使う。
+MERMAID_JS_ENV = "TEXT_COMPOSITOR_MERMAID_JS"
+
 def ensure_mermaid_js():
     """mermaid.min.jsがユーザーキャッシュディレクトリの mermaid/ になければダウンロードする。
-    2回目以降のビルドはキャッシュを使い、ネットワークアクセスなしで完結する（#110）。"""
+    2回目以降のビルドはキャッシュを使い、ネットワークアクセスなしで完結する（#110）。環境変数
+    `TEXT_COMPOSITOR_MERMAID_JS`のファイルがあれば、それを使う（ダウンロードしない。ViewerのZIPに
+    同梱したもの。#310）。"""
+    bundled = os.environ.get(MERMAID_JS_ENV)
+    if bundled and os.path.isfile(bundled):
+        return bundled
+
     cache_dir = os.path.join(_user_cache_dir(), "mermaid")
     os.makedirs(cache_dir, exist_ok=True)
     js_path = os.path.join(cache_dir, "mermaid.min.js")

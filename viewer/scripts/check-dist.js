@@ -236,6 +236,29 @@ async function main() {
     check('Graphvizのエラーの内容が、詳細に出る', /syntax error/.test(item.detail), item.detail.split('\n')[0]);
   }, 12000);
 
+  // PlantUML・D2・Structurizr（#290）。JRE・plantuml.jar・D2・structurizr-cliを同梱しているため、runCaseの最小環境
+  // （システムのJava・D2には、そもそも手がかりがない）のままで、追加の取得なしに、表示できるはず。
+  await runCase('PlantUMLの図', '# PlantUML\n\n```plantuml\n@startuml\nAlice -> Bob: こんにちは\n@enduml\n```\n', path.join(work, 'plantuml.md'), async (state, _pythons, { content }) => {
+    check('PlantUMLを含む文書が、表示される（エラーの帯がない。同梱のJava・plantuml.jarだけで、追加の取得なし）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('PlantUMLの図が、画像として読み込まれている', images.length === 1 && images.every(Boolean), JSON.stringify(images));
+    console.log(`   初回の変換（PlantUML、Java起動を含む）: ${state.status}`);
+  }, 15000);
+  await runCase('D2の図', '# D2\n\n```d2\nサーバー -> データベース: 問い合わせ\n```\n', path.join(work, 'd2.md'), async (state, _pythons, { content }) => {
+    check('D2を含む文書が、表示される（エラーの帯がない。同梱のD2だけで、追加の取得なし）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('D2の図が、画像として読み込まれている', images.length === 1 && images.every(Boolean), JSON.stringify(images));
+  }, 12000);
+  const structurizrDoc = '# Structurizr\n\n```structurizr\nworkspace "Test" "desc" {\n    model {\n        user = person "User"\n'
+    + '        softwareSystem = softwareSystem "Software System"\n        user -> softwareSystem "Uses"\n    }\n'
+    + '    views {\n        systemContext softwareSystem "SystemContext" {\n            include *\n            autoLayout\n        }\n    }\n}\n```\n';
+  await runCase('Structurizrの図', structurizrDoc, path.join(work, 'structurizr.md'), async (state, _pythons, { content }) => {
+    check('Structurizrを含む文書が、表示される（エラーの帯がない。plugins指定なしでも常に有効。同梱のJava・structurizr-cliだけで、追加の取得なし）',
+      /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('Structurizrの図が、画像として読み込まれている', images.length === 1 && images.every(Boolean), JSON.stringify(images));
+  }, 15000);
+
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);
   process.exit(failures === 0 ? 0 : 1);

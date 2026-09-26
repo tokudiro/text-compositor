@@ -391,7 +391,10 @@ async function renderOnce(file) {
     // 既定では、HTMLと図のキャッシュを、アプリの領域に置く（原稿のフォルダには、何も書かない。#258）
     const location = workLocation(state.settings.workLocation, file, { root: workRoot });
     fellBack = location.fellBack;
-    result = await client.renderHtml({ path: file, csv_header: state.settings.csvHeader, ...location.params });
+    // plugins.structurizrは、text-compositor本体では既定false（内部で使うstructurizr-cliが重いため、#212）。
+    // Obunzuは、Mermaid/PlantUML/D2と同じく常に有効にする（#290。同梱すれば追加取得なし、無くてもPlantUML/D2と同じ
+    // ライブ取得にフォールバックするだけで、CLIのconfig.yamlのような「意図しない重い取得」への配慮は要らない）。
+    result = await client.renderHtml({ path: file, csv_header: state.settings.csvHeader, plugins: { structurizr: true }, ...location.params });
   } catch (error) {
     if (error instanceof PythonNotFoundError) worker = null;
     // 想定外の例外でも、アプリを落とさず、原因を診断として見せる

@@ -1,7 +1,7 @@
 """コードに直接書いた部品の版を、上流の最新版と比べて、差を報告する（#240）。
 
-Dependabotが見られるのは、npm・pip・GitHub Actionsの一部だけである。Mermaid・PlantUML・D2・JRE・
-組込版Python・Typstのパッケージ・フォントは、ソースコードに版を直接書いているため、このスクリプトで確認する。
+Dependabotが見られるのは、npm・pip・GitHub Actionsの一部だけである。Mermaid・PlantUML・D2・Structurizr CLI・
+JRE・組込版Python・Typstのパッケージ・フォントは、ソースコードに版を直接書いているため、このスクリプトで確認する。
 
 使い方（標準ライブラリだけで動く）:
     python .github/scripts/check-pins.py [--output report.md]
@@ -41,6 +41,7 @@ def read_pins():
         "Mermaid": find(deps, r"npm/mermaid@([\d.]+)/"),
         "PlantUML": find(deps, r"download/v([\d.]+)/plantuml-mit"),
         "D2": find(deps, r'D2_RELEASE = "v([\d.]+)"'),
+        "Structurizr CLI": find(deps, r'STRUCTURIZR_CLI_RELEASE = "v([\d.]+)"'),
         "Temurin JRE 21": find(deps, r'TEMURIN_JRE_RELEASE = "jdk-([\d.]+\+\d+)"'),
         "Noto Sans JP": find(deps, r"releases/download/Sans([\d.]+)/"),
         "組込版Python": find(build_dist, r"const PYTHON = \{\s*version: '([\d.]+)'"),
@@ -147,6 +148,7 @@ def latest_versions(pins):
         "Mermaid": lambda: (latest_npm("mermaid"), ""),
         "PlantUML": lambda: (latest_github_release("plantuml/plantuml", "v"), ""),
         "D2": lambda: (latest_github_release("d2lang/d2", "v"), ""),
+        "Structurizr CLI": lambda: (latest_github_release("structurizr/cli", "v"), ""),
         "Temurin JRE 21": lambda: (latest_github_release("adoptium/temurin21-binaries", "jdk-"), ""),
         "Noto Sans JP": lambda: (latest_github_release("notofonts/noto-cjk", "Sans"), ""),
         "組込版Python": lambda: latest_embed_python(pins["組込版Python"]),
