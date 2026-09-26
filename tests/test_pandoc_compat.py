@@ -23,6 +23,18 @@ class TestFencedDivs:
         assert out == "::: {.note}\n\nFirst paragraph.\n\nSecond paragraph.\n\n:::\n\n"
         assert capsys.readouterr().out == ""
 
+    def test_nested_divs_render_without_crash(self, capsys):
+        out = render("::: {.a}\n::: {.b}\nInner content.\n:::\n:::\n")
+        assert "Inner content." in out
+        assert capsys.readouterr().out == ""
+
+    def test_wrapping_a_real_diagram_fence_still_renders_the_diagram(self, capsys):
+        """`layout-right`等（本ツール独自の`:::`ブロック）とは名前が一致しないため素通りするだけだが、
+        中の本物の図表フェンス自体は、通常どおり検出・変換されることを確認する（#84）。"""
+        out = render("::: {.note}\n```dot\ndigraph { a -> b }\n```\n:::\n")
+        assert '#raw("digraph { a -> b }\\n", lang: "dot", block: true)' in out
+        assert capsys.readouterr().out == ""
+
 
 class TestAttributedFencedCode:
     def test_class_and_extra_attr_extracts_first_class_as_lang(self, capsys):
@@ -40,6 +52,20 @@ class TestAttributedFencedCode:
         # 壊れた文字列（旧: `lang: "{.numberLines"`）のような実害はない。
         out = render("```{.numberLines}\ncode\n```\n")
         assert out == '#raw("code\\n", lang: "numberLines", block: true)\n\n'
+
+    def test_no_dot_class_at_all_omits_lang(self, capsys):
+        """クラス（`.foo`）を1つも持たない属性だけの指定（`{data-line="1"}`）は、言語名が
+        無いのと同じ扱いにする（`lang`引数自体を渡さない）。"""
+        out = render('```{data-line="1"}\ncode\n```\n')
+        assert out == '#raw("code\\n", block: true)\n\n'
+        assert capsys.readouterr().out == ""
+
+    def test_dot_inside_quoted_attribute_value_does_not_leak_as_lang(self, capsys):
+        """属性値に引用符付きでピリオドを含む文字列（バージョン番号等）があると、先頭クラスより
+        先に見つかって誤った言語名を拾ってしまっていた（#84で発見）。引用符内は探索対象から除く。"""
+        out = render('```{key="a.b" .python}\ncode\n```\n')
+        assert out == '#raw("code\\n", lang: "python", block: true)\n\n'
+        assert capsys.readouterr().out == ""
 
 
 class TestFootnotes:
@@ -72,11 +98,28 @@ class TestFootnotes:
         out = render("```\n[^1]: shorttext\n```\n")
         assert out == '#raw("[^1]: shorttext\\n", block: true)\n\n'
 
+    def test_multiple_footnotes_coexist_without_leaking(self, capsys):
+        """1語だけの本文と、空白を含む本文のfootnoteが同じ原稿に混在しても、それぞれ独立して
+        無害化されること（片方の定義が、もう片方の参照に誤爆しない）。"""
+        out = render("One[^1] and two[^2].\n\n[^1]: shortbody\n\n[^2]: A longer body with spaces.\n")
+        assert "#link(" not in out
+        assert "\\[^1\\]" in out and "\\[^2\\]" in out
+        assert capsys.readouterr().out == ""
+
 
 class TestCitations:
     def test_renders_as_literal_text(self, capsys):
         out = render("As shown in [@doe2020], the result holds.\n")
         assert out == "As shown in \\[\\@doe2020\\], the result holds.\n\n"
+        assert capsys.readouterr().out == ""
+
+    def test_followed_by_a_brace_attribute_interacts_with_the_existing_attrs_plugin(self, capsys):
+        """#84のスコープ外の既知の相互作用: citationの直後に`{...}`が続くと、`[text]{attr=val}`
+        記法（色指定等、#46）用の`attrs_plugin`が`[@doe2020]{.foo}`を1つのspanとして食べてしまい、
+        角括弧が消える（クラッシュはしない）。citation単体（このクラスの他テストの通り）は無関係。
+        単なる同時使用は稀なため、#84では対応しない。挙動が変わった場合に気付けるよう記録する。"""
+        out = render("See [@doe2020]{.foo}.\n")
+        assert out == "See \\@doe2020.\n\n"
         assert capsys.readouterr().out == ""
 
 

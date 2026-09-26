@@ -33,13 +33,17 @@ class TokenMixin:
     # `.numberLines`等の残りの属性は、#82のwidth/height以外の属性と同様に読み捨てる（値を
     # 反映する機能は本ツールの対象外）。マッチしなければ（`.class`が1つも無ければ）Noneを返す。
     PANDOC_FENCE_CLASS_RE = re.compile(r'\.([A-Za-z0-9_-]+)')
+    # 上記の探索前に、引用符で囲まれた属性値（`key="a.b"`等）を取り除くための正規表現。値の中に
+    # ピリオドが含まれる場合（バージョン番号等）、先頭クラスより先に見つかって誤爆するため。
+    PANDOC_FENCE_QUOTED_VALUE_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
 
     def _pandoc_fence_lang(self, info):
         """フェンスのinfo string全体が`{...}`のPandoc属性ブロックのときの言語名の取り出し（#84）。
         `info.split(None, 1)`のような単純な空白区切りだと、`{.python .numberLines}`が
         `lang: "{.python"`という壊れた文字列になってしまう（#82のmermaid等の言語名+`{width=...}`
         という並びとは、構文が別物であるため）。"""
-        m = self.PANDOC_FENCE_CLASS_RE.search(info)
+        stripped = self.PANDOC_FENCE_QUOTED_VALUE_RE.sub('', info)
+        m = self.PANDOC_FENCE_CLASS_RE.search(stripped)
         return m.group(1) if m else None
 
     def _consume_heading(self, tokens, pos):
