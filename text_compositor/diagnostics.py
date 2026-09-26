@@ -4,11 +4,15 @@ CLIは、従来どおり標準出力へ`[Error] ...`の形式で出す。Python 
 間だけ、標準出力へは何も出さず、`Diagnostic`のリストとして受け取る。GUIとの通信に標準入出力を
 使う常駐ワーカーが、ビルド中の出力で汚れないようにするため、また、GUIが失敗や警告を、文字列の
 解析なしに表示できるようにするためである。
+
+GitHub Actions上のCLI実行では、加えて`::warning file=...,line=...::message`形式のワークフロー
+コマンドも出す（#29）。GitHub側がこれをPull Requestの差分上へのアノテーションとして表示する。
 """
 from __future__ import annotations
 
 import contextlib
 import contextvars
+import os
 from dataclasses import asdict, dataclass
 from typing import Iterator, List, Optional
 
@@ -16,6 +20,10 @@ SEVERITIES = ("error", "warning", "hint", "info")
 
 # CLIで標準出力へ出すときの見出し（従来の`[Error]`等と同じ）
 _LABELS = {"error": "Error", "warning": "Warning", "hint": "Hint", "info": "Info"}
+
+# GitHub Actionsのワークフローコマンドが持つ注釈の種類。hint/infoに対応する種類は無いため対象外
+# （#29はissue本文どおり警告・エラーのみを対象にする）。
+_GITHUB_ANNOTATION_KINDS = {"error": "error", "warning": "warning"}
 
 
 @dataclass(frozen=True)
@@ -74,6 +82,45 @@ def active() -> bool:
     return _collector.get() is not None
 
 
+def _github_escape(text: str, *, is_property: bool) -> str:
+    """ワークフローコマンドの値のエスケープ（GitHub公式ドキュメント準拠。#29）。
+    メッセージ本体は`%`/`\\r`/`\\n`のみ、`file=`等のプロパティ値はそれに加えて`,`/`:`もエスケープする。"""
+    text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    if is_property:
+        text = text.replace(',', '%2C').replace(':', '%3A')
+    return text
+
+
+def _github_relative_path(file: str) -> Optional[str]:
+    """GitHub Actionsのアノテーションは、`GITHUB_WORKSPACE`（チェックアウト先）相対のパスでないと
+    Pull Requestの差分上に重ならない。このツールは原稿がリポジトリ外にあってもよい設計（3章）のため、
+    `GITHUB_WORKSPACE`の外を指す場合はNoneを返し、呼び出し側でファイル指定なしにフォールバックする。"""
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if not workspace:
+        return None
+    rel = os.path.relpath(os.path.abspath(file), workspace)
+    if rel.startswith(".."):
+        return None
+    return rel.replace(os.sep, "/")
+
+
+def _print_github_annotation(severity: str, message: str, file: Optional[str], line: Optional[int]) -> None:
+    """`::warning file=...,line=...::message`形式のワークフローコマンドを標準出力へ出す（#29）。
+    GitHub Actions実行時（`GITHUB_ACTIONS=true`）に限り、既存の`[Warning] ...`行へ追加で出す
+    （既存のCLI出力自体は変えない）。"""
+    kind = _GITHUB_ANNOTATION_KINDS.get(severity)
+    if kind is None or os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+    props = []
+    rel_file = _github_relative_path(file) if file else None
+    if rel_file:
+        props.append(f"file={_github_escape(rel_file, is_property=True)}")
+        if line:
+            props.append(f"line={line}")
+    prefix = f"::{kind} {','.join(props)}::" if props else f"::{kind}::"
+    print(f"{prefix}{_github_escape(message, is_property=False)}")
+
+
 def emit(severity: str, message: str, *, file: Optional[str] = None, line: Optional[int] = None,
          detail: Optional[str] = None, cli_text: Optional[str] = None) -> None:
     """診断を出す。`collect()`の中ならCollectorへ、外（CLI）なら`[Error] message`の形式で標準出力へ。
@@ -87,6 +134,7 @@ def emit(severity: str, message: str, *, file: Optional[str] = None, line: Optio
         collector.items.append(Diagnostic(severity, message, file, line, detail))
         return
     print(f"[{_LABELS[severity]}] {cli_text if cli_text is not None else message}")
+    _print_github_annotation(severity, message, file, line)
 
 
 def error(message: str, **kwargs) -> None:

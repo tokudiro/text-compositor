@@ -99,6 +99,72 @@ class TestBuildHelpers:
         assert c.items == [] and capsys.readouterr().out == ""
 
 
+class TestGithubActionsAnnotations:
+    """GitHub Actions実行時（GITHUB_ACTIONS=true）に追加で出す`::warning ...::`/`::error ...::`
+    ワークフローコマンド（#29）。GITHUB_ACTIONSが無いときは、tests/conftest.pyのautouseフィクスチャ
+    により常に未設定として扱われる（このプロジェクト自身のCIもGitHub Actions上で動くため）。"""
+
+    def test_no_annotation_when_not_in_github_actions(self, capsys):
+        diagnostics.warning("w", file="doc.md", line=3)
+        assert capsys.readouterr().out == "[Warning] w\n"
+
+    def test_warning_annotation_with_workspace_relative_file(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        md_path = tmp_path / "docs" / "a.md"
+        diagnostics.warning("w", file=str(md_path), line=3)
+        assert capsys.readouterr().out == "[Warning] w\n::warning file=docs/a.md,line=3::w\n"
+
+    def test_error_annotation(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        diagnostics.error("e", file=str(tmp_path / "a.md"), line=1)
+        assert capsys.readouterr().out == "[Error] e\n::error file=a.md,line=1::e\n"
+
+    @pytest.mark.parametrize("severity,label", [("hint", "Hint"), ("info", "Info")])
+    def test_hint_and_info_have_no_github_equivalent(self, monkeypatch, capsys, tmp_path, severity, label):
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        diagnostics.emit(severity, "m", file=str(tmp_path / "a.md"), line=1)
+        assert capsys.readouterr().out == f"[{label}] m\n"
+
+    def test_omits_line_property_when_line_is_unknown(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        diagnostics.warning("w", file=str(tmp_path / "a.md"))
+        assert capsys.readouterr().out == "[Warning] w\n::warning file=a.md::w\n"
+
+    def test_omits_file_property_when_file_is_unknown(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        diagnostics.error("e")
+        assert capsys.readouterr().out == "[Error] e\n::error::e\n"
+
+    def test_file_outside_the_workspace_falls_back_to_no_file_property(self, monkeypatch, capsys, tmp_path):
+        """原稿がリポジトリ（GITHUB_WORKSPACE）の外にあってもよい設計（3章）のための後方互換。"""
+        workspace = tmp_path / "workspace"
+        outside = tmp_path / "outside" / "a.md"
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+        diagnostics.error("e", file=str(outside), line=5)
+        assert capsys.readouterr().out == "[Error] e\n::error::e\n"
+
+    def test_escapes_percent_and_newlines_in_the_message(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        diagnostics.warning("100% done\nnext line", file=str(tmp_path / "a.md"), line=1)
+        out = capsys.readouterr().out
+        assert "::warning file=a.md,line=1::100%25 done%0Anext line\n" in out
+
+    def test_collect_mode_never_emits_an_annotation(self, monkeypatch, capsys, tmp_path):
+        """Python API/常駐ワーカー（collect()の中）は、従来どおり標準出力に何も出さない。"""
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        with diagnostics.collect():
+            diagnostics.warning("w", file=str(tmp_path / "a.md"), line=1)
+        assert capsys.readouterr().out == ""
+
+
 class TestRendererLocations:
     """レンダラーの警告・エラーが、原稿のfile/lineを持つ。"""
 
