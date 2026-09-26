@@ -88,6 +88,14 @@ Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）は�
 
 `plugins.d2: true`（既定）のプロジェクトでは、追加の`pip install`は不要です（PlantUMLと同じくコア機能の一部）。ただしMermaid用のブラウザ・PlantUML用のJavaと異なり、GitHub-hosted runner（`ubuntu-latest`）にはD2 CLIが標準搭載されていないため、`d2`フェンス（または`.d2`直接指定）を使うプロジェクトは、ビルドのたびにD2公式CLIバイナリ（約13MB）をダウンロードします。`actions/checkout`は毎回新規チェックアウトのためキャッシュは引き継がれません。ただし、サイズが小さいため実用上は都度取得でも問題にならない点はMermaidの`mermaid.min.js`と同様です。
 
+## 警告・エラーがPull Requestの差分上にアノテーション表示される
+
+GitHub Actions上での実行（`GITHUB_ACTIONS=true`）を自動検出し、コンソールへの`[Warning]`/`[Error]`表示に加えて、GitHub側のPull Request画面が理解できる形式（`::warning file=...,line=...::message`）でも出力する。設定は不要で、GitHub Actions上で実行するだけで有効になる。
+
+これにより、例えば原稿の記法ミス（不正なサイズ指定、front-matterの未知キー等）による警告が、CIログを開かなくてもPull Requestの「Files changed」タブ上に直接表示される。
+
+前述の「ツールとドキュメントを別リポジトリのまま使う」構成のように、原稿・text-compositor本体をそれぞれ別の`path:`でチェックアウトする場合も、両方とも同じ`GITHUB_WORKSPACE`配下（サブディレクトリ違い）なので問題なく対応付けられる。`GITHUB_WORKSPACE`そのものの外（セルフホストランナーで別の場所にある原稿を`--config`の絶対パスで直接指定する場合等）を原稿が指すときに限り、ファイル・行番号の対応付けができないため、アノテーションはファイル無しの表示にフォールバックする。
+
 ## リリース時にPDFをアセットとして添付する
 
 このツール自身の使い方ガイド（本書）は、`v*`タグのpushをトリガーに、クローン方式・pipインストール方式の両方でビルドしている。クローン方式の成果物はGitHub Releaseへアセットとして添付し（上記と同じ2回チェックアウトの構成）、pipインストール方式は継続検証のみを行う（ビルドが成功することの確認、アセット添付はしない）。Obunzuの使い方ガイド（`doc/obunzu-guide/`）も、同じ手順で作り、同じReleaseに添付する。これによりリリースの度に、どちらの使い方も壊れていないかを継続的に検証している。設定例は `.github/workflows/release.yml` を参照。
