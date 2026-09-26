@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('viewer', 'wv2', 'wv2-tuned', 'wv2-defer', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer', 'arto', 'shiba', 'mdhero', 'marktext', 'ghostwriter', 'mo')]
+    [ValidateSet('viewer', 'wv2', 'wv2-tuned', 'wv2-defer', 'wv2-bg', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer', 'arto', 'shiba', 'mdhero', 'marktext', 'ghostwriter', 'mo')]
     [string]$Tool,
     [int]$Runs = 10,
     [string]$ToolsDir = "",
@@ -50,6 +50,8 @@ function Get-Launch([string]$Tool) {
         'wv2'            { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`"") }
         'wv2-tuned'      { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`" --args `"$Tuned`"") }
         'wv2-defer'      { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`" --args `"$Tuned`" --defer-show") }
+        # 未試験だった、ページの背景色（#ffffff、fixture/index.htmlの--bg）にフォーム・WebView2既定の背景を合わせる案（#180の宿題、#187）
+        'wv2-bg'         { return @($Dotnet, "`"$Wv2Dll`" `"$Html`" --udf `"$(Join-Path $Temp 'wv2-udf-bench')`" --args `"$Tuned`" --bg-color `"#ffffff`"") }
         'wry'            { return @($WryExe, "`"$Html`" --user-data `"$(Join-Path $Temp 'wry-udf-bench')`"") }
         'wry-tuned'      { return @($WryExe, "`"$Html`" --user-data `"$(Join-Path $Temp 'wry-udf-bench')`" --args `"$Tuned`"") }
         'wry-defer'      { return @($WryExe, "`"$Html`" --user-data `"$(Join-Path $Temp 'wry-udf-bench')`" --args `"$Tuned`" --defer-show") }
@@ -64,7 +66,7 @@ function Get-Launch([string]$Tool) {
     }
 }
 
-function Get-TouchPath() { if ($Tool -eq 'viewer') { return $ViewerMd }; if ($Tool -in 'wv2', 'wv2-tuned', 'wv2-defer', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer') { return $Html } else { return $Md } }
+function Get-TouchPath() { if ($Tool -eq 'viewer') { return $ViewerMd }; if ($Tool -in 'wv2', 'wv2-tuned', 'wv2-defer', 'wv2-bg', 'wry', 'wry-tuned', 'wry-defer', 'electron', 'electron-tuned', 'electron-defer') { return $Html } else { return $Md } }
 
 function Invoke-AppRun([int]$Index) {
     $launch = Get-Launch $Tool

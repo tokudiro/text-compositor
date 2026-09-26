@@ -14,7 +14,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        string? html = null, udf = null, browserArgs = null;
+        string? html = null, udf = null, browserArgs = null, bgColor = null;
         bool noScript = false, noWebView = false, deferShow = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -25,6 +25,8 @@ internal static class Program
                 case "--no-script": noScript = true; break;
                 case "--no-webview": noWebView = true; break;
                 case "--defer-show": deferShow = true; break;
+                // ページの背景色に、フォーム・WebView2既定の背景色を合わせる（Electronの調整と同じ狙い。#180の「未試験」）。
+                case "--bg-color": bgColor = args[++i]; break;
                 default: html = args[i]; break;
             }
         }
@@ -33,6 +35,7 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         var form = new Form { Text = "Wv2Bench", Width = 1000, Height = 800, StartPosition = FormStartPosition.Manual, Left = 40, Top = 40 };
         if (deferShow) form.Opacity = 0;   // 内容が描かれるまで、透明にしておく
+        if (bgColor is not null) form.BackColor = System.Drawing.ColorTranslator.FromHtml(bgColor);
         WebView2? view = null;
         var loadedOnce = false;
 
@@ -45,6 +48,7 @@ internal static class Program
         else
         {
             view = new WebView2 { Dock = DockStyle.Fill };
+            if (bgColor is not null) view.DefaultBackgroundColor = System.Drawing.ColorTranslator.FromHtml(bgColor);
             form.Controls.Add(view);
             form.Shown += async (_, _) =>
             {
