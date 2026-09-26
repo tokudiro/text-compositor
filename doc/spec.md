@@ -178,7 +178,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **範囲外**: (1)参考文献・引用（Typstの`bibliography()`との連携。Markdown側の引用記法が未定義のため）。(2)段幅より広い表・コードを、段をまたいで全幅に置く機能（折り返されるか、はみ出す）。(3)章や図表の全幅配置。`toc`・`cover_page_number`・`revision_history`は、論文に無い要素のため受け取って何も出力しない。
   * **サンプル**: `sample/paper/`。
 
-## 7. Markdown 方言と Marp 互換
+## 7. Markdown 方言と Marp/Pandoc 互換
 本章は、ディレクティブ・front-matter・改ページ規則等の専用の変換規則を持つ唯一のフォーマットであるMarkdownの扱いを規定する（1章）。他フォーマット（YAML/JSON/プレーンテキスト等）は専用の変換規則を持たず、拡張子に応じて等幅表示にフォールバックするのみ（1章、[#15](https://github.com/tokudiro/text-compositor/issues/15)）。フォーマットごとに専用の変換規則を追加していく場合も、本章のMarkdown固有の扱いは維持する設計とする。
 
 **対応するMarkdown記法のスコープ**（[#48](https://github.com/tokudiro/text-compositor/issues/48)）: CommonMark（`markdown-it-py`の`commonmark`プリセット）を土台に、GFM (GitHub Flavored Markdown) の一部とGitHub Wikiの記法を対応範囲とする。**（実装済み）**
@@ -217,6 +217,16 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **テンプレートの契約**: `conf()`の任意引数`revision_history`（辞書`(version:, date:, description:, author:)`の配列、値はすべて文字列）として渡す。値は生成するTypstコードにデータとして埋め込むため、`#`や`*`等はMarkup記法として解釈されない。`description`内の改行は文字列中の`\n`で渡し、テンプレートが`linebreak()`へ変換する。未指定なら引数自体を渡さず、この引数を持たない既存テンプレートとの互換を保つ（`toc`等と同じ方針）。同梱の`slide.typ`は、引数を受け取るだけで何も出力しない（no-op。10章の独自テンプレートの契約どおり）。
   * **範囲外**: Gitのタグ・コミットからの版数の自動生成は行わない（ビルドの決定論、9章と衝突するため）。`variables:`（#72）は`document:`の値には適用しない。
 * **ディレクティブ以外の HTML タグ**（`<br>` 等）は行番号付きで警告する（8章のフェイルファスト方針）。ディレクティブ構文に合致するもののみを解釈し、それ以外は無害化しない。
+
+**Pandoc互換の目標もMarpと同じレベルに設定する**（[#84](https://github.com/tokudiro/text-compositor/issues/84)）: Pandocでよく使われる主要拡張（fenced divs・属性付きフェンスコードブロック・footnote・citation・definition list）を`chapters`にそのまま流し込んでも、ビルドが失敗したり大量の警告が出たりしないことを目標とする。Marpと同様、値を実際に反映する（footnoteを脚注として組版する、citationを参考文献として解決する等）ことは対象外とする。
+
+`:::`によるfenced divs構文自体は、Pandoc固有の発明ではなく`markdown-it-container`等の複数ツールが採用する慣習的パターンである。このツール独自の`layout-right`等の`:::`ブロック（本章冒頭「対応するMarkdown記法のスコープ」参照）とは別物であり、`layout-*`/`align`のいずれの名前にも一致しない汎用のPandoc fenced divs（`::: {.class}`）は、素の地の文としてそのまま表示される（[#84](https://github.com/tokudiro/text-compositor/issues/84)で検証済み）。
+
+検証の結果、ビルド失敗こそ無いものの、値が意図せず壊れる不具合が2箇所で見つかり、修正した（`tests/test_pandoc_compat.py`に回帰テストとして追加）。
+* **属性付きフェンスコードブロック**（`` ```{.python .numberLines} ``）: 言語名の抽出処理が空白区切り前提だったため、`{`から始まるinfo string全体を単純に空白分割すると`lang: "{.python"`という壊れた文字列になり、シンタックスハイライトが黙って効かなくなっていた。`{...}`全体をPandoc属性ブロックとして認識し、先頭の`.クラス名`を言語名として取り出すよう修正した（Pandocの慣習に倣う。他の属性は#82のwidth/height以外の属性と同様に読み捨てる）。
+* **footnote定義行**（`[^1]: 本文`）: 本文が空白を含まない1語だけの場合、CommonMarkの通常のリンク参照定義（`[label]: destination`）と構文上区別できず、`markdown-it-py`に定義として飲み込まれ、本文中の`[^1]`が実在しないリンクに化けていた（警告もエラーも出ない「見た目の崩れ」）。`^`始まりのラベルの定義行に限り、行頭の`[`をエスケープして無害化し、他の未対応記法と同じ「地の文としてそのまま表示」に倒すよう修正した。
+
+citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いずれもCommonMarkの標準構文の範囲外であるため元々素の地の文として表示され、追加の対応は不要だった。
 
 ## 8. 複数の書き手による協調執筆
 本システムは「複数の書き手（AIも人間も問わない）が原稿を持ち寄り、人間が直接Markdownをレビュー・加筆修正してGitにコミットする」という協調ワークフローを前提とする。レビュー担当者の介入に伴う例外処理として「Raw Typstパススルー」を許容する。ただし、書き手からのデザイン権限剥奪とセキュリティを担保するため、以下のガバナンス設計を設ける。

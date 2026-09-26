@@ -40,6 +40,17 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     # （chapters[]の明示指定が無い場合のみ使われる）ため、ここには含めない。
     MARP_ONLY_KEYS = {'marp', 'theme', 'size', 'class', 'style', 'backgroundColor'}
 
+    # Pandoc形式のfootnote定義行（`[^1]: 本文`、#84）。本文が空白を含まない1語だけの場合、
+    # CommonMarkの通常のリンク参照定義（`[label]: destination`）と構文上区別できず、markdown-itに
+    # 定義として飲み込まれてしまう。結果、本文中の`[^1]`が実在しないリンクに化ける
+    # （警告もエラーも出ない「見た目の崩れ」）。footnoteを実際に脚注として組版する機能は本ツールの
+    # 対象外（Marpのディレクティブと同様、認識するが反映しない）だが、この暴発だけは防ぐため、
+    # `^`始まりのラベルに限り、行頭の`[`をエスケープして無害化する（他の言語同様、地の文として
+    # そのまま表示されるだけになる）。CommonMarkはブロック要素の行頭インデントを3スペースまで
+    # 許容する（4スペース以上はインデントコードブロックになり、これは本修正と無関係な別の挙動）ため、
+    # `[ ]{0,3}`で0〜3個の行頭スペースも合わせて無害化の対象にする。
+    FOOTNOTE_DEF_RE = re.compile(r'^( {0,3})\[\^([^\]\r\n]+)\]:', re.MULTILINE)
+
     def _fenced_char_ranges(self, text):
         """LAYOUT_BLOCK_RE/DIAGRAM_OR_IMAGE_REは、markdown-itの通常のASTフローを経由しない、生テキスト
         段階での正規表現マッチである（#11、#77）。そのため、使い方説明用のサンプルコードのように
@@ -83,6 +94,21 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         """_finditer_outside_fencesの最初の1件版（.search()相当、#85）。"""
         matches = self._finditer_outside_fences(regex, text)
         return matches[0] if matches else None
+
+    def _neutralize_footnote_definitions(self, text):
+        """FOOTNOTE_DEF_REにマッチした行頭の`[`をエスケープし、CommonMarkのリンク参照定義として
+        解釈されないようにする（#84）。使い方説明のサンプルコード（```内）は対象外にする。"""
+        matches = self._finditer_outside_fences(self.FOOTNOTE_DEF_RE, text)
+        if not matches:
+            return text
+        out = []
+        pos = 0
+        for m in matches:
+            out.append(text[pos:m.start()])
+            out.append(f'{m.group(1)}\\[^{m.group(2)}\\]:')
+            pos = m.end()
+        out.append(text[pos:])
+        return ''.join(out)
 
     def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
@@ -283,6 +309,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         # 【修正】typst-exec は「人間レビュー済み (reviewed/)」配下のみ許可するホワイトリスト方式
         self.allow_exec = "reviewed" in Path(os.path.abspath(filepath)).parts if filepath else False
         text, self.front_matter = self.strip_front_matter(text)
+        text = self._neutralize_footnote_definitions(text)
 
         output = []
         pos = 0
