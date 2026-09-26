@@ -2,9 +2,11 @@
 
 *[日本語版 (Japanese version)](README-ja.md)*
 
-A tool that treats multiple text files as independent fragments and deterministically composes them into a single human-readable PDF document. Works equally well for AI-generated drafts refined by humans and for existing, hand-authored documents you want to organize and consolidate.
+A tool for technical documents — design docs, architecture notes, and similar deliverables — that mix multiple diagram formats such as Mermaid, PlantUML, D2, and Graphviz with prose. It treats each source file as an independent fragment and deterministically composes them into a single human-readable PDF, with no diagram toolchain to set up yourself: each tool's compiler or renderer is fetched and cached automatically. It works just as well for existing, hand-authored documents you want to organize and consolidate, or for AI-generated drafts refined by humans.
 
-This README covers only the essentials needed to get started quickly. For a full walkthrough of `config.yaml` and how to write your source documents, see the [usage guide](doc/usage/) (which can also be built into a PDF with `cd doc/usage && python ../../build.py`). For detailed design rationale and implementation status, see [doc/spec.md](doc/spec.md). Differences from general-purpose tools like Quarto are summarized in [doc/diff.md](doc/diff.md).
+You could wire up the same diagram conversions directly with pandoc or Typst — the underlying capability isn't new. What text-compositor adds is packaging that toolchain setup (dependency installation, caching, CI support) for Mermaid/PlantUML/D2 behind a single `config.yaml`, instead of you assembling it yourself for each tool. See [doc/diff.md](doc/diff.md) for how this compares to Typst directly and to general-purpose tools like Quarto.
+
+This README covers only the essentials needed to get started quickly. For a full walkthrough of `config.yaml` and how to write your source documents, see the [usage guide](doc/usage/) (which can also be built into a PDF with `cd doc/usage && python ../../build.py`). For detailed design rationale and implementation status, see [doc/spec.md](doc/spec.md).
 
 ## Features
 

@@ -230,7 +230,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * **HTMLタグのフェイルファスト**: 無意識に混入したHTMLタグ（`<br>`等）をサイレントに無視すると事故につながるため、AST解析時にHTMLタグを検出した場合は行番号付きの警告（またはエラー）を出す（7章のディレクティブを除く）。
 * **HTMLを入力フォーマットとして本格対応することは見送った**（1章）: Pandocのように任意のHTMLファイルをそのまま読み込んで変換する機能を持たせたい、という発想は検討した。しかし、実装・方針の両面で見送った。
   * **実装面**: 現在の変換パイプラインは「Markdown → markdown-it-pyのAST → Typst」というMarkdownの単純な構造に特化した変換器である。HTML対応にはDOM木を作るパーサーと、そこから別のTypst変換ロジック（見出し・段落・リスト・テーブル・`<div>`/`<span>`のネスト・インラインstyle・CSSクラス等）を一から書く必要があり、既存のMarkdown変換器と同規模かそれ以上の別実装になる。
-  * **方針面（より本質的）**: このツールは「HTMLは基本非対応、例外は狭い許可リストに1パターンずつ慎重に追加する」という立場を一貫して取っている（`<span style="color:...">`のみを特別扱いした[#46](https://github.com/tokudiro/text-compositor/issues/46)が代表例）。HTML入力への本格対応は、この方針を正面からひっくり返すことになる。Pandocは「あらゆる形式間の汎用コンバータ」として何年もかけて各形式のリーダー/ライターを作り込んでいる。一方、text-compositorは「レビュー可能なMarkdown→安全なPDF」に絞ったツールであり、doc/diff.mdでもその価値は機能の広さではなくガバナンスにあると位置づけている。
+  * **方針面（より本質的）**: このツールは「HTMLは基本非対応、例外は狭い許可リストに1パターンずつ慎重に追加する」という立場を一貫して取っている（`<span style="color:...">`のみを特別扱いした[#46](https://github.com/tokudiro/text-compositor/issues/46)が代表例）。HTML入力への本格対応は、この方針を正面からひっくり返すことになる。Pandocは「あらゆる形式間の汎用コンバータ」として何年もかけて各形式のリーダー/ライターを作り込んでいる。一方、text-compositorは「レビュー可能なMarkdown→安全なPDF」に絞ったツールであり、doc/diff-ja.mdでもその価値は機能の広さではなくガバナンスにあると位置づけている。
   * **代替案**: HTMLで持っているコンテンツを取り込みたい場合は、`html2text`やPandoc自体等の既存ツールでツールの外側でHTML→Markdownに変換してから、通常どおり`chapters`に渡すことを推奨する。
   * 「どうしても必要になったときに再検討する」という結論で、現時点でissue化はしていない。
 
@@ -330,7 +330,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
 
 **Q. Typstコンパイラを直接使えばよいのでは？**
 
-A. 両者はレイヤーが異なるため比較の対象にならない。Typstはタイプセッティングエンジンであり、text-compositorはそのTypstに依存する側のツールである。原稿をMarkdownで書けること、複数ファイルを`config.yaml`駆動で1冊に合成できること、書き手にレイアウトの決定権を渡さないことの3点が、Typst単体には無い価値である。詳細は[doc/diff.md](diff.md)「Typst自体との違い」を参照。
+A. 両者はレイヤーが異なるため比較の対象にならない。Typstはタイプセッティングエンジンであり、text-compositorはそのTypstに依存する側のツールである。原稿をMarkdownで書けること、複数ファイルを`config.yaml`駆動で1冊に合成できること、書き手にレイアウトの決定権を渡さないことの3点が、Typst単体には無い価値である。詳細は[doc/diff-ja.md](diff-ja.md)「Typst自体との違い」を参照。
 
 **Q. AIにMarkdownとTypst構文の両方を書かせて、以後はMarkdownだけ更新すればよいのでは？　それならこのツールは要らないのでは？**
 

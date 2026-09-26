@@ -1,68 +1,70 @@
-# 汎用ツールとの違い
+# Differences from general-purpose tools
 
-「Text → PDF」という技術スタック自体は、text-compositor独自のものではない。[Quarto](https://quarto.org/docs/output-formats/typst.html)はTypstをバックエンドに選べる汎用出版システムで、v1.9以降はbookプロジェクトで複数の`.qmd`ファイルを1つのPDFへ合成する機能も持つ。[md2pdf](https://github.com/cipherchabon/md2pdf)のような単一ファイル向けの軽量CLIも複数存在する。
+*[日本語版 (Japanese version)](diff-ja.md)*
 
-したがって、text-compositorの存在意義は「技術的に他にない機能」ではなく、**特定のワークフロー（複数の書き手——人間もAIも問わない——が持ち寄った断片的なテキストを練り上げ、安全に本番化する）専用に、運用ルールごとツールへ埋め込んでいること**にある。以下、具体的な違いを挙げる。
+The underlying "text → PDF" stack is not unique to text-compositor. [Quarto](https://quarto.org/docs/output-formats/typst.html) is a general-purpose publishing system that can target Typst as a backend, and since v1.9 its book projects can also compose multiple `.qmd` files into a single PDF. Several lightweight single-file CLIs, such as [md2pdf](https://github.com/cipherchabon/md2pdf), also exist.
 
-## Typst自体との違い
+So text-compositor's reason to exist isn't "a technical capability nothing else has." It's that **it embeds, as operating rules built into the tool itself, the specific workflow of taking fragmentary text contributed by multiple writers — human or AI — and safely turning it into a reviewed, production-ready document.** The sections below spell out the concrete differences.
 
-Quartoとの比較の前に、より根本的な疑問に答えておく。「Typstコンパイラを直接使えばよいのでは」という疑問である。
+## Difference from Typst itself
 
-答えは、両者はレイヤーが異なるため比較の対象にならない、というものである。Typstはタイプセッティングエンジンであり、Typst構文で書かれたファイルをPDFに変換する。text-compositorはそのTypstに依存するツールであり、Typstを置き換えるものではない。text-compositorは最終的に`compiler.py`からTypstコンパイラ（`typst.compile()`）を呼び出すだけであり、PDF生成そのものはTypstが行う（3章）。
+Before comparing against Quarto, it's worth answering a more basic question first: "why not just use the Typst compiler directly?"
 
-両者の役割の違いは3点ある。
+The answer is that the two operate at different layers, so they aren't really comparable. Typst is a typesetting engine: it converts files written in Typst syntax into a PDF. text-compositor is a tool that depends on Typst; it doesn't replace it. text-compositor's only interaction with Typst is calling the Typst compiler (`typst.compile()`) from `compiler.py` — Typst itself does the actual PDF generation (spec chapter 3).
 
-* **入力形式**: 原稿を書く人間（AIも含む）はMarkdown等の平易なテキストで書く。Typst構文は一切書かない。text-compositorが`markdown-it-py`でAST化し、決定論的にTypst構文へ変換する（1章）。Typstを直接使う場合、原稿自体をTypst構文で書く必要がある。
-* **複数ファイルの合成**: 独立した複数のテキストファイル（`chapters`）を、章ごとの用紙設定・ヘッダー/フッターも含めて1冊のPDFに組み上げる`config.yaml`駆動の仕組みは、Typst自体には無い。Typstの`#include`で自分で書くことは可能である。しかし、それは「Typstで自分用のビルドシステムを都度書く」のと同義であり、3章で述べた「ツールとドキュメントの分離」は得られない。
-* **書き手へのデザイン権限の遮断**: これが最も本質的な違いである。Typstは本来プログラマブルなレイアウト言語であり、Typst構文を直接扱えるなら、レイアウトの制御もその場でできてしまう。原稿の書き手（AIか人間かを問わない）がTypst構文を直書きできる状態は、その書き手にレイアウトの決定権まで渡すことを意味する。text-compositorがMarkdownしか受け付けない設計にしているのは、レイアウトの決定権をテンプレート（人間が書き・レビューする`.typ`ファイル）側に固定するためである（1章）。
+The two differ in role in three ways.
 
-例えるなら、LaTeXに対するSphinxやPandocの関係に近い。「PandocとLaTeXは何が違うのか」が疑問になりにくいのと同様に、text-compositorはTypstの代替ではなく、Typstを変換先として使うツールである。
+* **Input format**: the person writing the source (AI included) writes in plain text such as Markdown, never Typst syntax directly. text-compositor turns it into an AST via `markdown-it-py` and deterministically converts that into Typst syntax (chapter 1). Using Typst directly means writing the source itself in Typst syntax.
+* **Composing multiple files**: the `config.yaml`-driven mechanism that assembles independent text files (`chapters`) into one PDF — including per-chapter paper settings and headers/footers — doesn't exist in Typst itself. You could write your own with Typst's `#include`, but that amounts to writing a one-off build system in Typst each time, and it doesn't give you the "separation between the tool and the document" described in chapter 3.
+* **Withholding layout authority from the writer**: this is the most fundamental difference. Typst is, at heart, a programmable layout language — anyone who can write Typst syntax directly can also control layout on the spot. Letting the writer (AI or human) write raw Typst syntax means handing them layout decisions as well. text-compositor accepts only Markdown by design, precisely so that layout decisions stay fixed on the template side (a `.typ` file that a human writes and reviews; chapter 1).
 
-## 比較表
+An analogy: this is close to Sphinx's or Pandoc's relationship to LaTeX. Just as "what's the difference between Pandoc and LaTeX" isn't a question that comes up much, text-compositor isn't a Typst replacement — it's a tool that uses Typst as its conversion target.
 
-| 観点 | 汎用ツール（Quarto等） | text-compositor |
+## Comparison table
+
+| Aspect | General-purpose tools (Quarto, etc.) | text-compositor |
 | --- | --- | --- |
-| 未レビューコードの実行制御 | 特になし。Markdown内のコードは基本そのまま実行系（code cell等）に渡る前提 | `typst-exec`はホワイトリスト方式。`reviewed/`配下のファイルでのみ生Typstコードを許可し、それ以外は即エラー（仕様書7章・8章）。書き手（AIか人間かを問わない）が持ち込んだ「未レビューの表現力」を本番に混ぜない、という運用ルールをツール自体に埋め込んでいる |
-| 意図しないHTML混入の検知 | 通常はそのまま無視してレンダリング | AST解析でHTMLタグを検出したら行番号付き警告（仕様書9章）。Markdownにたまに混ざるHTMLタグを「サイレントに握りつぶさない」設計 |
-| ファイルアクセスの境界 | プロジェクト全体が信頼された前提 | `--root`をプロジェクトディレクトリに厳密に閉じる。`typst-exec`で`read()`が使われても、意図しないファイルを読めないサンドボックス（仕様書5章・8章） |
-| ツールとドキュメントの分離 | プロジェクトディレクトリの中にツールの設定・拡張を書き込む前提が多い | `--config`一つで完全分離。ツール本体を一切変更せず、任意の場所にあるドキュメントをビルドできる（仕様書3章） |
-| 再現性への態度 | バージョン固定は利用者側の裁量 | Typst本体・プラグイン・フォントをすべてSHA256/バージョンピン留め（仕様書9章）。「同じ入力なら同じ出力」を強く担保 |
-| ファイル分割の単位 | 章・セクション単位の分割が一般的 | 「1ファイル＝1つの独立した断片」という粒度。AIとの対話1回分でも、既存ドキュメントの1章分でも、由来を問わずそのままファイル境界にできる設計（仕様書1章） |
-| コードベースの規模 | 大規模・汎用（多数の出力形式、拡張機構、実行可能セル等） | 実装本体は`text_compositor/`配下（トップレベルの`build.py`はこれを呼び出す薄いラッパー、[#111](https://github.com/tokudiro/text-compositor/issues/111)）。`build.py`単体は当初約2,300行まで肥大化したが、[#157](https://github.com/tokudiro/text-compositor/issues/157)で責務ごとのモジュール（`config.py`・`renderer.py`・`chapters.py`・`compiler.py`等、依存は一方向で循環しない）へ分割済み。全体を読んで理解・改造できる規模に留めている |
+| Controlling execution of unreviewed code | Generally none — code inside Markdown (code cells, etc.) is typically passed straight to an execution engine | `typst-exec` is allowlist-based. Raw Typst code is only permitted in files under `reviewed/`; everything else errors immediately (spec chapters 7–8). This embeds, in the tool itself, the operating rule that unreviewed expressive power contributed by a writer (AI or human) never mixes into production output |
+| Detecting unintended HTML | Usually rendered as-is, silently | AST analysis flags any HTML tag with a line-numbered warning (spec chapter 9) — a design that never silently swallows HTML that slips into Markdown by accident |
+| File access boundary | The whole project directory is generally trusted | `--root` is strictly confined to the project directory. Even if `typst-exec` calls `read()`, it's sandboxed against reading unintended files (spec chapters 5, 8) |
+| Separation of tool and document | Often assumes tool config/extensions live inside the project directory | Fully separated via a single `--config`. The tool itself is never modified, and it can build a document living anywhere (spec chapter 3) |
+| Attitude toward reproducibility | Version pinning is left to the user | Typst itself, plugins, and fonts are all pinned by SHA256/version (spec chapter 9) — strongly guarantees "same input, same output" |
+| Unit of file splitting | Splitting by chapter/section is common | Granularity of "one file = one independent fragment." A single AI conversation turn or a single chapter of an existing document can become a file boundary as-is, regardless of origin (spec chapter 1) |
+| Codebase size | Large and general-purpose (many output formats, extension mechanisms, executable cells, etc.) | The implementation lives under `text_compositor/` (the top-level `build.py` is a thin wrapper that calls into it, [#111](https://github.com/tokudiro/text-compositor/issues/111)). `build.py` alone once grew to about 2,300 lines, but [#157](https://github.com/tokudiro/text-compositor/issues/157) split it into modules by responsibility (`config.py`, `renderer.py`, `chapters.py`, `compiler.py`, etc., with one-directional, non-circular dependencies). Kept small enough to read and modify as a whole |
 
-## GitHub Actions上でのダウンロード量
+## Download volume on GitHub Actions
 
-かつて（#34・#35着手前）は、mmdc（`@mermaid-js/mermaid-cli`）をnpx経由で使う実装だったため、Mermaidを使う場合はtext-compositorの方がQuartoよりダウンロード量が多いという、意図と逆の結果になっていた。#34（システムブラウザの検出・再利用）と#35（`mermaid-cli`丸ごとではなく単一バンドルJS+Playwright経由のCDP直接操作に置き換え）を実装した現在は、以下のとおり逆転している。
+Previously (before #34/#35), Mermaid support was implemented via `mmdc` (`@mermaid-js/mermaid-cli`) run through `npx`, which meant text-compositor actually downloaded *more* than Quarto when Mermaid was in use — the opposite of the intended positioning. With #34 (detecting and reusing the system browser) and #35 (replacing the whole `mermaid-cli` package with a single bundled JS file driven directly over CDP via Playwright) now implemented, that's reversed, as shown below.
 
-| | ダウンロード量 | 内訳 |
+| | Download volume | Breakdown |
 | --- | --- | --- |
-| Quarto（Mermaidなし、Typstバックエンドでbook合成） | 約140MB | [Quarto CLI tarball](https://github.com/quarto-dev/quarto-cli/releases/) 1本。Pandoc・Deno・[Typstまで同梱済み](https://quarto.org/docs/output-formats/typst.html)で追加ダウンロード不要 |
-| Quarto（Mermaidあり） | **約254MB** | 上記140MB + Mermaid図をPDF化するために必要な[Chrome Headless Shell](https://quarto.org/docs/blog/posts/2026-04-14-chrome-headless-shell.html) linux64版。[Google公式配布元](https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.42/linux64/chrome-headless-shell-linux64.zip)で実測 **119,483,791バイト（約114MB、圧縮zip）** |
-| text-compositor（Mermaidなし） | 約60.5MB | pip: `typst`(32.6MB) + `markdown-it-py`(0.08MB) + `mdit-py-plugins`(0.05MB) + `PyYAML`(0.73MB) ≈ 33.5MB／Noto Sans JP: ZIP全体27MBをダウンロードし2ファイルだけ使用 |
-| text-compositor（Mermaidあり） | **約109MB** | 上記60.5MB + `playwright`パッケージ（PyPI、manylinux1_x86_64ホイール実測**約45.5MB**） + `mermaid.min.js`（実測3.4MB）。ブラウザは`ubuntu-latest`に標準搭載のChromeを`find_system_browser()`（#34）で検出・再利用するため追加ダウンロードなし（11章、#35で実装済み） |
-| text-compositor（PlantUMLあり） | 約78MB | 上記60.5MB + `plantuml-mit-*.jar`（実測約17.6MB）。Javaは`ubuntu-latest`に標準搭載のものを`find_system_java()`で検出・再利用するため、CI上ではEclipse Temurin JREの追加ダウンロードは発生しない（11章、#22で実装済み）。Quartoは標準非対応のため比較対象なし |
-| Marp CLI（`npx @marp-team/marp-cli`） | 約123MB＋ブラウザ | HTML/CSSをヘッドレスブラウザ（Puppeteer-core）で描画してPDF化する方式。パッケージ自体は約123MB。別途Chromiumが必要 |
-| Vivliostyle CLI（`npx @vivliostyle/cli`） | 約242MB＋ブラウザ | Marpと同じくPuppeteer-core方式。CSS組版のフル機能を持つ分、依存ツリーがさらに大きい |
+| Quarto (no Mermaid, book composition with Typst backend) | ~140MB | A single [Quarto CLI tarball](https://github.com/quarto-dev/quarto-cli/releases/). Pandoc, Deno, and [even Typst are bundled in](https://quarto.org/docs/output-formats/typst.html), so nothing extra is downloaded |
+| Quarto (with Mermaid) | **~254MB** | The 140MB above + the linux64 [Chrome Headless Shell](https://quarto.org/docs/blog/posts/2026-04-14-chrome-headless-shell.html) needed to turn Mermaid diagrams into PDF. Measured directly from [Google's official distribution](https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.42/linux64/chrome-headless-shell-linux64.zip): **119,483,791 bytes (~114MB, compressed zip)** |
+| text-compositor (no Mermaid) | ~60.5MB | pip: `typst` (32.6MB) + `markdown-it-py` (0.08MB) + `mdit-py-plugins` (0.05MB) + `PyYAML` (0.73MB) ≈ 33.5MB / Noto Sans JP: downloads a 27MB ZIP but only uses 2 files from it |
+| text-compositor (with Mermaid) | **~109MB** | The 60.5MB above + the `playwright` package (PyPI, manylinux1_x86_64 wheel, measured at **~45.5MB**) + `mermaid.min.js` (measured at 3.4MB). The browser itself is detected and reused via `find_system_browser()` (#34) against the Chrome preinstalled on `ubuntu-latest`, so nothing extra is downloaded for it (chapter 11, implemented in #35) |
+| text-compositor (with PlantUML) | ~78MB | The 60.5MB above + `plantuml-mit-*.jar` (measured at ~17.6MB). Java is detected and reused via `find_system_java()` against the version preinstalled on `ubuntu-latest`, so no extra Eclipse Temurin JRE download happens on CI (chapter 11, implemented in #22). Quarto has no standard equivalent here, so there's nothing to compare against |
+| Marp CLI (`npx @marp-team/marp-cli`) | ~123MB + browser | Renders HTML/CSS to PDF via a headless browser (Puppeteer-core). The package itself is ~123MB; Chromium is needed on top |
+| Vivliostyle CLI (`npx @vivliostyle/cli`) | ~242MB + browser | Also Puppeteer-core based, like Marp. Its dependency tree is larger still, reflecting its full CSS-typesetting feature set |
 
-Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約254MB）の半分以下に収まる。Mermaidを使わない用途ではさらに差が開く（60.5MB対140MB）。この差はNoto SansフォントZIPの無駄（27MBダウンロードして9.2MBしか使わない）を解消すればさらに縮められる（今後の課題）。
+Including Mermaid, text-compositor (~109MB) comes in at well under half of Quarto (~254MB). Without Mermaid, the gap widens further (60.5MB vs. 140MB). This gap could be narrowed further by eliminating the waste in the Noto Sans font ZIP (downloading 27MB to use only 9.2MB of it) — that remains a future improvement.
 
-実測値は展開後のディスク使用量、またはHTTPヘッダーから直接取得した圧縮ファイルサイズのいずれか（各行に記載の取得方法を参照）。両ツールとも、GitHub Actionsのキャッシュ機構（`actions/cache`等）を使えば2回目以降の実行コストは大きく下げられる。
+Figures are either the on-disk size after extraction, or the compressed file size read directly from HTTP headers (see each row for which method was used). For both tools, caching mechanisms on GitHub Actions (e.g. `actions/cache`) can substantially reduce the cost of runs after the first.
 
-## 図表描画（Mermaid / Graphviz / PlantUML / D2）の対応状況
+## Diagram rendering support (Mermaid / Graphviz / PlantUML / D2)
 
-これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUML・D2は状況が異なる。
+Looking at this concretely, text-compositor has little edge over Quarto for Mermaid/Graphviz. PlantUML and D2 are a different story.
 
-| ツール | Mermaid | Graphviz(dot) | PlantUML | D2 |
+| Tool | Mermaid | Graphviz (dot) | PlantUML | D2 |
 | --- | --- | --- | --- | --- |
-| text-compositor | 実装済み（Playwright経由のCDP直接操作、#35） | 実装済み（`diagraph`） | 実装済み（ローカルJava+Smetana、#22） | 実装済み（D2公式CLIバイナリ、#90） |
-| [Quarto](https://quarto.org/docs/authoring/diagrams.html) | **ネイティブ組み込み**、追加設定不要 | **ネイティブ組み込み**、`{dot}`セルで即使える（[参照](https://medium.com/codex/quarto-1-4-adds-mermaid-and-graphviz-604de76fca21)） | 標準非対応。サードパーティのpandocフィルタか、Java+PlantUML jarの手動セットアップが必要（[参照](https://github.com/orgs/quarto-dev/discussions/6549)） | 標準非対応（公式ドキュメントに記載なし） |
-| Marp CLI | 組み込みなし。`markdown-it-mermaid`等を自分で`engine.js`に組み込む必要（[参照](https://github.com/orgs/marp-team/discussions/207)） | 組み込みなし（[要望issueあり](https://github.com/orgs/marp-team/discussions/219)、未実装） | 組み込みなし | 組み込みなし |
-| Vivliostyle CLI | 組み込みなし。`rehype-mermaid`等をprocessor置き換え拡張点経由で手動導入（[参照](https://zenn.dev/mura_mi/articles/4f08cc99f19887)） | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 |
+| text-compositor | Implemented (direct CDP control via Playwright, #35) | Implemented (`diagraph`) | Implemented (local Java + Smetana, #22) | Implemented (official D2 CLI binary, #90) |
+| [Quarto](https://quarto.org/docs/authoring/diagrams.html) | **Native, built in**, no extra setup | **Native, built in** — usable immediately via a `{dot}` cell ([reference](https://medium.com/codex/quarto-1-4-adds-mermaid-and-graphviz-604de76fca21)) | Not supported out of the box. Requires a third-party pandoc filter or a manual Java + PlantUML jar setup ([reference](https://github.com/orgs/quarto-dev/discussions/6549)) | Not supported out of the box (not documented officially) |
+| Marp CLI | Not built in — you have to wire something like `markdown-it-mermaid` into `engine.js` yourself ([reference](https://github.com/orgs/marp-team/discussions/207)) | Not built in ([feature request open](https://github.com/orgs/marp-team/discussions/219), unimplemented) | Not built in | Not built in |
+| Vivliostyle CLI | Not built in — requires manually wiring something like `rehype-mermaid` in via its processor-replacement extension point ([reference](https://zenn.dev/mura_mi/articles/4f08cc99f19887)) | No information found; presumably manual as well | No information found; presumably manual as well | No information found; presumably manual as well |
 
-Mermaid・GraphvizはQuartoが最初からネイティブに持っており、追加設定が一切要らない。text-compositorは独自に実装した図表連携（Playwright/CDP直接操作・`diagraph`）で、ダウンロード量の面では上回るようになった。ただし、「設定不要ですぐ使える」という手軽さではQuartoに及ばない。PlantUML・D2はQuartoが標準非対応な一方、text-compositorは`plugins.plantuml: true`/`plugins.d2: true`の設定だけで使え（ローカルに実行環境が無ければそれぞれEclipse Temurin JRE・D2公式CLIバイナリを自動取得）、ここは明確な差別化点になった。
+Quarto has Mermaid and Graphviz natively from the start, with zero extra configuration needed. text-compositor's own diagram integration (direct Playwright/CDP control, `diagraph`) now comes out ahead on download volume, but it doesn't match Quarto's "ready to use with zero config" convenience. On the other hand, Quarto has no standard support for PlantUML or D2, while text-compositor only needs `plugins.plantuml: true` / `plugins.d2: true` (auto-fetching the Eclipse Temurin JRE or the official D2 CLI binary respectively when no local runtime is present) — a clear point of differentiation.
 
-## 結論
+## Conclusion
 
-「図表描画機能の手軽さ（追加設定の要否）」では、Mermaid/GraphvizについてQuartoに明確な優位性は見出せなかった。ただしPlantUML・D2はQuartoが標準非対応なのに対し、text-compositorは`plugins.plantuml: true`（#22）/`plugins.d2: true`（#90）だけで使えるため、この点は明確な差別化点になった。「ダウンロード量」は、#34・#35の実装によりMermaid込みでもtext-compositorがQuartoの半分以下に収まるようになった。
+On "how easy diagram rendering is to turn on," we couldn't find a clear edge for text-compositor over Quarto for Mermaid/Graphviz. But since Quarto has no standard support for PlantUML or D2, while text-compositor only needs `plugins.plantuml: true` (#22) / `plugins.d2: true` (#90), that remains a clear differentiator. On download volume, the #34/#35 work means text-compositor now comes in at under half of Quarto's, even including Mermaid.
 
-とはいえ比較表（冒頭）に挙げた項目——`typst-exec`のホワイトリスト、HTMLタグのフェイルファスト、`--root`のサンドボックス化、ツール/ドキュメントの完全分離——は、Quartoを含む汎用ツールが標準では持たない、**複数の書き手（人間もAIも問わない）が持ち寄ったテキストを、レビューを経て安全に本番化するための運用ルール**である。これがtext-compositorの存在意義の核であることに変わりはなく、「軽量」は達成できた副次的な利点という位置づけに留め、主張の軸はこのガバナンス面に置き続けるべきである。
+That said, the items in the comparison table above — the `typst-exec` allowlist, fail-fast on stray HTML, the `--root` sandbox, full separation of tool and document — are operating rules that general-purpose tools including Quarto don't provide by default: **rules for safely turning text contributed by multiple writers (human or AI) into production output after review.** That remains the core of why text-compositor exists. Being lightweight is a welcome side effect it happens to have achieved, not the main argument — the case for this tool should keep resting on that governance angle.

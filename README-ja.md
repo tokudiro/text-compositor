@@ -2,9 +2,11 @@
 
 *[English version (英語版)](README.md)*
 
-複数のテキストファイルをそれぞれ独立した断片として扱い、1つの人間可読なPDF文書へ決定論的に組み上げる（compose）ツールです。AIが生成し人間が加筆・修正した原稿はもちろん、既存の手作成ドキュメントを持ち込んで整理・統合する用途にも使えます。
+text-compositorは、Mermaid・PlantUML・D2・Graphvizなど複数の図表形式を本文と組み合わせて書く技術文書（設計書、アーキテクチャ資料など）向けのツールです。個々のテキストファイルを独立した断片として扱い、1つの人間可読なPDFへ決定論的に組み上げます（compose）。図表ツールごとの環境構築は不要です。各ツールのコンパイラやレンダラーは自動的に取得・キャッシュされます。既存の手作成ドキュメントを持ち込んで整理・統合する用途にも、AIが生成し人間が加筆・修正した原稿にも、同じように使えます。
 
-このREADMEは最短で使い始めるための要点のみを記載します。`config.yaml`や原稿の書き方を一通り知りたい場合は[使い方ガイド](doc/usage/)（`cd doc/usage && python ../../build.py` でPDF化もできます）を、詳細な設計方針・実装状況は [doc/spec.md](doc/spec.md) を参照してください。Quarto等の汎用ツールとの違いは [doc/diff.md](doc/diff.md) にまとめています。
+同じ図表変換は、pandocやTypstを直接使っても原理的に実現できます。この点で、text-compositorが新しい変換能力を持つわけではありません。text-compositorが行っているのは、Mermaid・PlantUML・D2それぞれの環境構築（依存ツールのインストール、キャッシュ管理、CI対応）を、`config.yaml`ひとつにパッケージ化することです。Typst自体との違い、Quarto等汎用ツールとの違いは、[doc/diff-ja.md](doc/diff-ja.md)にまとめています。
+
+このREADMEは最短で使い始めるための要点のみを記載します。`config.yaml`や原稿の書き方を一通り知りたい場合は[使い方ガイド](doc/usage/)（`cd doc/usage && python ../../build.py` でPDF化もできます）を、詳細な設計方針・実装状況は [doc/spec.md](doc/spec.md) を参照してください。
 
 ## 特徴
 
