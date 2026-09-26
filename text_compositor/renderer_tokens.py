@@ -28,6 +28,20 @@ class TokenMixin:
     # note/tip/important/warning/cautionをcallout()でラップして呼び出す。
     ALERT_MARKER_RE = re.compile(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$')
 
+    # Pandoc形式の属性付きフェンスコードブロック（`` ```{.python .numberLines} ``、#84）の
+    # `{...}`の中から、最初の`.クラス名`だけを取り出す（Pandocの慣習で先頭クラス=言語）。
+    # `.numberLines`等の残りの属性は、#82のwidth/height以外の属性と同様に読み捨てる（値を
+    # 反映する機能は本ツールの対象外）。マッチしなければ（`.class`が1つも無ければ）Noneを返す。
+    PANDOC_FENCE_CLASS_RE = re.compile(r'\.([A-Za-z0-9_-]+)')
+
+    def _pandoc_fence_lang(self, info):
+        """フェンスのinfo string全体が`{...}`のPandoc属性ブロックのときの言語名の取り出し（#84）。
+        `info.split(None, 1)`のような単純な空白区切りだと、`{.python .numberLines}`が
+        `lang: "{.python"`という壊れた文字列になってしまう（#82のmermaid等の言語名+`{width=...}`
+        という並びとは、構文が別物であるため）。"""
+        m = self.PANDOC_FENCE_CLASS_RE.search(info)
+        return m.group(1) if m else None
+
     def _consume_heading(self, tokens, pos):
         """posがheading_open（H1/H2まで）ならそのブロックを読み飛ばし、(次の位置, 見出しテキスト)を返す。
         該当しなければ (pos, None)。"""
@@ -187,6 +201,11 @@ class TokenMixin:
                         self._error_here(f"Security: 'typst-exec' is allowed only under a 'reviewed/' directory ({self.current_file}).")
                         sys.exit(1)
                     result.append(f"{t.content}\n\n")
+                elif info.startswith('{') and info.endswith('}'):
+                    # Pandoc形式の属性付きフェンスコードブロック（`` ```{.python .numberLines} ``、
+                    # #84）。言語名が先頭に無く、info string全体が`{...}`のため、下のmermaid等と同じ
+                    # 空白区切りの解析には乗らない（乗せると`lang: "{.python"`のように壊れる）。
+                    result.append(self._render_raw_text(t.content, self._pandoc_fence_lang(info)))
                 else:
                     # info stringは'mermaid'や'mermaid {width=50% height=8cm}'のように、言語名の
                     # 後ろへ空白区切りでサイズ指定属性を書ける（#82）。
