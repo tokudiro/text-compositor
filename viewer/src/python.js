@@ -16,6 +16,14 @@ const PYTHONPATH_ENV = 'TEXT_COMPOSITOR_PYTHONPATH';
 // 同梱のフォント・Typstのパッケージのフォルダ（ワーカー側の、text_compositor/deps.pyの`FONT_DIR_ENV`・compiler.pyの`TYPST_PACKAGES_ENV`と同じ名前）
 const FONT_DIR_ENV = 'TEXT_COMPOSITOR_FONT_DIR';
 const TYPST_PACKAGES_ENV = 'TEXT_COMPOSITOR_TYPST_PACKAGES';
+// 同梱のJava・plantuml.jar・D2・structurizr-cliの場所（ワーカー側の、text_compositor/deps.pyの
+// 同名の環境変数と同じ名前。#290）。PlantUML・Structurizrは同じJavaを共用する。
+const JAVA_BIN_ENV = 'TEXT_COMPOSITOR_JAVA_BIN';
+const PLANTUML_JAR_ENV = 'TEXT_COMPOSITOR_PLANTUML_JAR';
+const D2_BIN_ENV = 'TEXT_COMPOSITOR_D2_BIN';
+const STRUCTURIZR_CLI_LIB_ENV = 'TEXT_COMPOSITOR_STRUCTURIZR_CLI_LIB';
+// 同梱のmermaid.min.jsのファイル（ワーカー側の、text_compositor/deps.pyの`MERMAID_JS_ENV`と同じ名前。#310）
+const MERMAID_JS_ENV = 'TEXT_COMPOSITOR_MERMAID_JS';
 
 class PythonNotFoundError extends Error {
   constructor(message) {
@@ -49,8 +57,18 @@ function resolveWorkerLaunch(appDir, options = {}) {
   }
   // 配布物に同梱した、フォント（fonts/）と、Typstのパッケージ（typst-packages/）があれば、ワーカーに教える。ワーカーは、
   // ダウンロードせずに、これを使う（#263）。利用者が、環境変数で、すでに指定しているときは、それを優先する。
-  for (const [name, folder] of [[FONT_DIR_ENV, 'fonts'], [TYPST_PACKAGES_ENV, 'typst-packages']]) {
-    const bundled = path.join(appDir, folder);
+  const javaExe = platform === 'win32' ? 'java.exe' : 'java';
+  const d2Exe = platform === 'win32' ? 'd2.exe' : 'd2';
+  for (const [name, rel] of [
+    [FONT_DIR_ENV, 'fonts'], [TYPST_PACKAGES_ENV, 'typst-packages'],
+    // Java・plantuml.jarは、PlantUMLとStructurizrが共用する（#290）。
+    [JAVA_BIN_ENV, path.join('jre', 'bin', javaExe)],
+    [PLANTUML_JAR_ENV, path.join('plantuml', 'plantuml.jar')],
+    [D2_BIN_ENV, path.join('d2', d2Exe)],
+    [STRUCTURIZR_CLI_LIB_ENV, path.join('structurizr-cli', 'lib')],
+    [MERMAID_JS_ENV, path.join('mermaid', 'mermaid.min.js')],
+  ]) {
+    const bundled = path.join(appDir, rel);
     if (!env[name] && exists(bundled)) launchEnv[name] = bundled;
   }
   return { file: python, args: ['-m', 'text_compositor.worker'], env: launchEnv };
@@ -81,4 +99,7 @@ function findPython(appDir, env, exists, platform) {
   return null;
 }
 
-module.exports = { resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV };
+module.exports = {
+  resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV,
+  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV,
+};

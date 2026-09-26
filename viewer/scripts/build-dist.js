@@ -5,7 +5,8 @@
 // 作るもの: dist/Obunzu-<バージョン>-win-x64.zip（Pythonのインストールが要らない、展開して使うポータブル版）。
 // 中身: Electronのアプリ（obunzu.exe）と、その隣の python-embed/（組込版Python + 必要最小限のパッケージ +
 //       typst + text_compositor）と、fonts/（Noto Sans JP）と、typst-packages/（Typstのパッケージ。#263）と、
-//       licenses/（サードパーティのライセンス表記）。
+//       jre/・plantuml/・d2/・structurizr-cli/・mermaid/（Mermaid・PlantUML・D2・Structurizrの図が、そのまま
+//       GUIから、追加のダウンロードなしで使えるようにする。#290・#310）と、licenses/（サードパーティのライセンス表記）。
 //
 // 手順:
 //   1. @electron/packagerで、Electronのアプリを作る（アイコン・バージョン情報・asar）。
@@ -14,6 +15,8 @@
 //      （--platform win_amd64・cp314・wheelのみ。ビルドするPythonの版に、依存しない）。
 //   4. text_compositorのパッケージを、site-packagesへ写す。バイトコードを作る（起動を速くするため）。
 //   4b. フォント（fonts/）と、Typstのパッケージ（typst-packages/）を、取得して（SHA256を確認）、同梱する。
+//   4c. Java・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.jsを、取得して（SHA256を確認）、
+//       同梱する（#290・#310）。
 //   5. ライセンス表記（licenses/）を作る。
 //   6. ZIPにして、同梱物ごとのサイズを表示する。
 //
@@ -82,6 +85,91 @@ const LGPL_NOTICE = [
   'copyright notice) is `LICENSE` in each of those folders. The source is available at https://typst.app/universe/package/cetz',
   'and https://github.com/cetz-package/cetz. CeTZ is used only through Typst; the generated PDF/HTML files and your documents',
   'are not covered by the LGPL.',
+  '',
+];
+
+// Java（Structurizr・PlantUMLが使う。#290）。ローカルにJava 11+が見つからない場合と同じ取得元（text_compositor/deps.pyの
+// TEMURIN_JRE_ASSETS、win32/x86_64の1件のみ。build-dist.js自体がWindows向けのため）。
+const JRE = {
+  version: '21.0.12.1+1',
+  file: 'OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip',
+  url: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip',
+  sha256: 'd35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636',
+  topDir: 'jdk-21.0.12.1+1-jre',
+};
+
+// PlantUML本体（deps.pyのPLANTUML_JAR_URL/SHA256と同じ、MIT版）。jarの中にライセンス全文は無いため、
+// GitHub上の対応するライセンスファイル（同じ版のタグ）を、Apache-2.0の全文と同じ手順で別途取得・固定する。
+const PLANTUML = {
+  url: 'https://github.com/plantuml/plantuml/releases/download/v1.2026.8/plantuml-mit-1.2026.8.jar',
+  sha256: '3629c9cd017c7f73e6450396eea0040216c7e1eef8473ce33cc1aad469dab2f9',
+};
+const PLANTUML_LICENSE = {
+  url: 'https://raw.githubusercontent.com/plantuml/plantuml/v1.2026.8/plantuml-mit/mit-license.txt',
+  sha256: '0aadc58e7c3e1eee5914418ff63ffbd19b79747075190b5f9f69017ab58966df',
+};
+
+// Mermaid公式配布の単一バンドルJS（deps.pyのMERMAID_JS_URL/SHA256と同じ）。#310。ライセンス全文は、jsの中に
+// 無いため、PlantUMLと同じ手順で、GitHub上のLICENSE（現在のmasterの内容）を別途取得・固定する。
+const MERMAID_JS = {
+  version: '11.16.1',
+  file: 'mermaid.min.js',
+  url: 'https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist/mermaid.min.js',
+  sha256: '18327bef70d96fb505fe7287d9f6a7362ebf07ff6576ddfaffb1a06f3e1a2954',
+};
+const MERMAID_LICENSE = {
+  url: 'https://raw.githubusercontent.com/mermaid-js/mermaid/master/LICENSE',
+  sha256: 'ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80',
+};
+
+// D2公式CLIバイナリ（deps.pyのD2_ASSETSと同じ、win32/x86_64の1件）。アーカイブ自身にLICENSE.txtが入っている。
+const D2 = {
+  version: 'v0.9.0',
+  file: 'd2-v0.9.0-windows-amd64.tar.gz',
+  url: 'https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-windows-amd64.tar.gz',
+  sha256: '5f63b643de8f5a6dfb922d172e1b5496e4caf47497c33c4427cf1127f28c340f',
+  topDir: 'd2-v0.9.0',
+};
+
+// Structurizr CLI（deps.pyのSTRUCTURIZR_CLI_URL/SHA256と同じ、公式zipそのまま）。
+const STRUCTURIZR_CLI = {
+  release: 'v2025.11.09',
+  url: 'https://github.com/structurizr/cli/releases/download/v2025.11.09/structurizr-cli.zip',
+  sha256: 'f5365a463fc44d539ed19bec00c48ba1e1ecda0ccfd1ba40d2e7472d264eb79a',
+};
+// structurizr-cliのlib/（展開すると約99MB・54個）のうち、Kotlin/JRuby/Groovyのスクリプト形式ワークスペース定義
+// （.kts/.rb/.groovy）向けと、ソースコードからのコンポーネント自動検出（javaparser経由）向けのjarを除く。
+// 本ツールはDSL（`workspace { ... }`テキスト）の`include *`/`autoLayout`等のみ使い、どちらも使わない。除いても
+// `export -format plantuml`の出力が変わらないことを、手元でフルセットとの出力比較で確認済み（36個・約14MBまで縮む）。
+const STRUCTURIZR_CLI_KEEP_JARS = [
+  'annotations-13.0.jar', 'checker-qual-3.51.1.jar', 'commons-cli-1.10.0.jar', 'commons-io-2.20.0.jar',
+  'commons-lang3-3.19.0.jar', 'commons-logging-1.3.5.jar', 'error_prone_annotations-2.41.0.jar',
+  'failureaccess-1.0.3.jar', 'guava-33.5.0-jre.jar', 'httpclient5-5.5.1.jar', 'httpcore5-5.3.6.jar',
+  'httpcore5-h2-5.3.6.jar', 'j2objc-annotations-3.1.jar', 'jackson-annotations-2.20.jar',
+  'jackson-core-2.20.0.jar', 'jackson-databind-2.20.0.jar', 'javax.activation-api-1.2.0.jar',
+  'jaxb-api-2.4.0-b180830.0359.jar', 'jspecify-1.0.0.jar', 'jsr305-3.0.2.jar',
+  'listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar', 'log4j-api-2.25.2.jar',
+  'log4j-core-2.25.2.jar', 'log4j-jcl-2.25.2.jar', 'log4j-slf4j-impl-2.25.2.jar', 'slf4j-api-1.7.36.jar',
+  'structurizr-autolayout-5.0.2.jar', 'structurizr-cli.jar', 'structurizr-client-5.0.2.jar',
+  'structurizr-component-5.0.2.jar', 'structurizr-core-5.0.2.jar', 'structurizr-dsl-5.0.2.jar',
+  'structurizr-export-5.0.2.jar', 'structurizr-import-5.0.2.jar', 'structurizr-inspection-5.0.2.jar',
+  'trove4j-1.0.20200330.jar',
+];
+
+// trove4j（LGPL-2.1以降）を同梱する条件。CeTZと同じ考え方（改造せず、差し替え可能な、別ファイルのまま同梱）だが、
+// Typstのパッケージ（ソース）と異なり、jarというビルド済みバイナリのため、差し替えは「同じファイル名のjarを、
+// structurizr-cli/lib/に置き換える」ことで行える（javaのクラスパス読み込みのため、静的リンクではない）。
+const TROVE4J_NOTICE = [
+  '## trove4j (LGPL-2.1-or-later)',
+  '',
+  'The library trove4j (`structurizr-cli/lib/trove4j-1.0.20200330.jar`, a dependency of the bundled Structurizr CLI)',
+  'is licensed under the GNU LGPL, version 2.1 or later. It is included unmodified, as a separate jar file (loaded via',
+  "Java's classpath, not statically linked), so you can replace it with another (compatible) build: put the replacement",
+  'at the same path with the same file name. The jar carries no license file of its own; the license text is at',
+  'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html, and the source is available at',
+  'https://github.com/JetBrains/intellij-deps-trove4j (this build, `org.jetbrains.intellij.deps:trove4j:1.0.20200330`,',
+  'is a fork maintained for the IntelliJ Platform). trove4j is used only inside structurizr-cli; the diagrams and',
+  'documents you produce are not covered by the LGPL.',
   '',
 ];
 
@@ -238,6 +326,94 @@ async function bundleTypstAssets(appDir) {
   return rows;
 }
 
+/**
+ * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.jsを、取得して、同梱する（#290・#310）。
+ * 実行時は、Electronが、環境変数（TEXT_COMPOSITOR_JAVA_BIN等）で、ワーカーに教える（初回起動から、
+ * 追加のダウンロードなしで、Mermaid・PlantUML・D2・Structurizrの図が使えるようにするため）。
+ * @returns ライセンス表記の行
+ */
+async function bundleDiagramTools(appDir) {
+  const rows = [];
+
+  // Java（jre/bin/java.exe）。zipはjdk-<版>-jre/配下に展開されるため、その中身をjre/へ移す（フォルダ名から版を外し、
+  // python.jsの決め打ちのパス`jre/bin/java.exe`に合わせる）。
+  const jreZip = await fetchVerified(JRE, 'Eclipse Temurin JRE');
+  const jreTmp = path.join(appDir, '_jre-tmp');
+  fs.rmSync(jreTmp, { recursive: true, force: true });
+  fs.mkdirSync(jreTmp, { recursive: true });
+  run(TAR, ['-xf', jreZip, '-C', jreTmp]);
+  const jreDir = path.join(appDir, 'jre');
+  fs.rmSync(jreDir, { recursive: true, force: true });
+  // renameSyncは、直後にEPERM（操作が許可されていません）で失敗することがある（展開直後のフォルダを、
+  // ウイルス対策ソフト等が、まだ開いているため。推測）。cpSync + rmSyncは、この問題を避けられる。
+  fs.cpSync(path.join(jreTmp, JRE.topDir), jreDir, { recursive: true });
+  fs.rmSync(jreTmp, { recursive: true, force: true });
+  if (!fs.existsSync(path.join(jreDir, 'bin', 'java.exe'))) throw new Error('Eclipse Temurin JREの展開結果に、jre/bin/java.exeがありません');
+  // ライセンス全文は、JRE自身が同梱するもの（legal/java.base/）をそのまま使う（GPLv2 + Classpath Exception）
+  rows.push({ name: 'Eclipse Temurin JRE (jre/)', version: JRE.version, license: 'GPL-2.0-with-classpath-exception',
+    url: 'https://adoptium.net/', file: '../jre/legal/java.base/LICENSE, ../jre/legal/java.base/ASSEMBLY_EXCEPTION' });
+
+  // plantuml.jar（plantuml/plantuml.jar。固定名にする。python.jsの決め打ちのパスに合わせる）
+  const plantumlJar = await fetchVerified(PLANTUML, 'plantuml.jar');
+  const plantumlDir = path.join(appDir, 'plantuml');
+  fs.mkdirSync(plantumlDir, { recursive: true });
+  fs.copyFileSync(plantumlJar, path.join(plantumlDir, 'plantuml.jar'));
+  const plantumlLicense = await fetchVerified({ ...PLANTUML_LICENSE, file: 'PlantUML-LICENSE.txt' }, 'PlantUMLのMITライセンス全文');
+  fs.mkdirSync(path.join(appDir, 'licenses'), { recursive: true });
+  fs.copyFileSync(plantumlLicense, path.join(appDir, 'licenses', 'PlantUML-LICENSE.txt'));
+  rows.push({ name: 'PlantUML (mit build; plantuml/plantuml.jar)', version: path.basename(PLANTUML.url), license: 'MIT',
+    url: 'https://plantuml.com/', file: 'PlantUML-LICENSE.txt' });
+
+  // D2（d2/d2.exe。固定名にする）。アーカイブ自身のLICENSE.txtを、そのまま同梱する
+  const d2Archive = await fetchVerified(D2, 'D2 CLI');
+  const d2Tmp = path.join(appDir, '_d2-tmp');
+  fs.rmSync(d2Tmp, { recursive: true, force: true });
+  fs.mkdirSync(d2Tmp, { recursive: true });
+  run(TAR, ['-xzf', d2Archive, '-C', d2Tmp]);
+  const d2Dir = path.join(appDir, 'd2');
+  fs.mkdirSync(d2Dir, { recursive: true });
+  fs.copyFileSync(path.join(d2Tmp, D2.topDir, 'bin', 'd2.exe'), path.join(d2Dir, 'd2.exe'));
+  fs.copyFileSync(path.join(d2Tmp, D2.topDir, 'LICENSE.txt'), path.join(appDir, 'licenses', 'D2-LICENSE.txt'));
+  fs.rmSync(d2Tmp, { recursive: true, force: true });
+  rows.push({ name: `D2 (${D2.version}; d2/d2.exe)`, version: D2.version, license: 'MPL-2.0',
+    url: 'https://github.com/d2lang/d2', file: 'D2-LICENSE.txt' });
+
+  // structurizr-cli（structurizr-cli/lib/）。公式zipを一時フォルダへ全展開し、STRUCTURIZR_CLI_KEEP_JARSの
+  // jarだけをstructurizr-cli/lib/へ写す（一時フォルダごと、後で消す）
+  const structurizrZip = await fetchVerified(STRUCTURIZR_CLI, 'structurizr-cli');
+  const structurizrTmp = path.join(appDir, '_structurizr-tmp');
+  fs.rmSync(structurizrTmp, { recursive: true, force: true });
+  fs.mkdirSync(structurizrTmp, { recursive: true });
+  run(TAR, ['-xf', structurizrZip, '-C', structurizrTmp]);
+  const structurizrLibDir = path.join(appDir, 'structurizr-cli', 'lib');
+  fs.rmSync(path.join(appDir, 'structurizr-cli'), { recursive: true, force: true });
+  fs.mkdirSync(structurizrLibDir, { recursive: true });
+  const keep = new Set(STRUCTURIZR_CLI_KEEP_JARS);
+  const available = new Set(fs.readdirSync(path.join(structurizrTmp, 'lib')));
+  for (const name of STRUCTURIZR_CLI_KEEP_JARS) {
+    if (!available.has(name)) throw new Error(`structurizr-cliのlib/に、想定していたjarがありません: ${name}`);
+  }
+  for (const name of available) {
+    if (keep.has(name)) fs.copyFileSync(path.join(structurizrTmp, 'lib', name), path.join(structurizrLibDir, name));
+  }
+  fs.rmSync(structurizrTmp, { recursive: true, force: true });
+  rows.push({ name: `Structurizr CLI (${STRUCTURIZR_CLI.release}, trimmed to ${STRUCTURIZR_CLI_KEEP_JARS.length} jars; structurizr-cli/lib/)`,
+    version: STRUCTURIZR_CLI.release, license: 'Apache-2.0', url: 'https://github.com/structurizr/cli', file: 'Apache-2.0.txt' });
+
+  // mermaid.min.js（mermaid/mermaid.min.js。固定名にする）。#310。これで、Obunzuの初回起動時の追加取得は、
+  // Structurizrを有効化しない限りではなく、常にゼロになる（Structurizrも同梱済みのため）。
+  const mermaidJs = await fetchVerified(MERMAID_JS, 'mermaid.min.js');
+  const mermaidDir = path.join(appDir, 'mermaid');
+  fs.mkdirSync(mermaidDir, { recursive: true });
+  fs.copyFileSync(mermaidJs, path.join(mermaidDir, 'mermaid.min.js'));
+  const mermaidLicense = await fetchVerified({ ...MERMAID_LICENSE, file: 'Mermaid-LICENSE.txt' }, 'MermaidのMITライセンス全文');
+  fs.copyFileSync(mermaidLicense, path.join(appDir, 'licenses', 'Mermaid-LICENSE.txt'));
+  rows.push({ name: `Mermaid (${MERMAID_JS.version}; mermaid/mermaid.min.js)`, version: MERMAID_JS.version, license: 'MIT',
+    url: 'https://github.com/mermaid-js/mermaid', file: 'Mermaid-LICENSE.txt' });
+
+  return rows;
+}
+
 /** パッケージのMETADATAから、名前・版・ライセンスを読む。 */
 function readMetadata(distInfo) {
   const text = fs.readFileSync(path.join(distInfo, 'METADATA'), 'utf8');
@@ -300,15 +476,7 @@ function writeLicenses(appDir, embed, sitePackages, apacheText, extraRows = []) 
     '| Chromium and its components | (bundled with Electron) | various | https://www.chromium.org/ | ../LICENSES.chromium.html |',
     '',
     ...LGPL_NOTICE,
-    '## Downloaded on first use (not bundled)',
-    '',
-    'These files are not part of this archive. They are fetched when a document needs them (pinned by version and SHA256),',
-    'and cached per user. They are listed here for transparency.',
-    '',
-    '| Component | License | Source |',
-    '| --- | --- | --- |',
-    '| Mermaid (`mermaid.min.js`) | MIT | https://github.com/mermaid-js/mermaid |',
-    '',
+    ...TROVE4J_NOTICE,
   ];
   fs.writeFileSync(path.join(dir, 'THIRD-PARTY-NOTICES.md'), lines.join('\n'));
   return rows;
@@ -321,12 +489,23 @@ function report(appDir, embed, sitePackages, zip) {
   const packages = sizeOf(sitePackages);
   const fonts = sizeOf(path.join(appDir, 'fonts'));
   const typstPackages = sizeOf(path.join(appDir, 'typst-packages'));
-  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
+  const jre = sizeOf(path.join(appDir, 'jre'));
+  const plantuml = sizeOf(path.join(appDir, 'plantuml'));
+  const d2 = sizeOf(path.join(appDir, 'd2'));
+  const structurizrCli = sizeOf(path.join(appDir, 'structurizr-cli'));
+  const mermaid = sizeOf(path.join(appDir, 'mermaid'));
+  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid
+    - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
   rows.push(['アプリ（resources/）', sizeOf(path.join(appDir, 'resources'))]);
   rows.push(['組込版Python本体', python - packages]);
   rows.push(['Pythonのパッケージ（site-packages。typstを含む）', packages]);
   rows.push(['フォント（fonts/）', fonts]);
   rows.push(['Typstのパッケージ（typst-packages/）', typstPackages]);
+  rows.push(['Java（jre/）', jre]);
+  rows.push(['PlantUML（plantuml/）', plantuml]);
+  rows.push(['D2（d2/）', d2]);
+  rows.push(['Structurizr CLI（structurizr-cli/、絞り込み版）', structurizrCli]);
+  rows.push(['Mermaid（mermaid/）', mermaid]);
   rows.push(['ライセンス表記（licenses/）', sizeOf(path.join(appDir, 'licenses'))]);
   console.log('\n同梱物のサイズ（展開後）');
   for (const [name, bytes] of rows) console.log(`  ${name.padEnd(40)} ${mb(bytes).padStart(10)}`);
@@ -375,11 +554,14 @@ async function main() {
   const apacheText = await fetchVerified({ ...APACHE, file: 'Apache-2.0.txt' }, 'Apache-2.0の全文');
   const { embed, sitePackages } = buildPythonEnvironment(appDir, embedZip);
 
-  log('4/6 Typstを通す処理のための、フォントとパッケージを同梱する');
+  log('4b/6 Typstを通す処理のための、フォントとパッケージを同梱する');
   const assetRows = await bundleTypstAssets(appDir);
 
+  log('4c/6 Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsを同梱する');
+  const diagramToolRows = await bundleDiagramTools(appDir);
+
   log('5/6 ライセンス表記を作る');
-  writeLicenses(appDir, embed, sitePackages, apacheText, assetRows);
+  writeLicenses(appDir, embed, sitePackages, apacheText, [...assetRows, ...diagramToolRows]);
 
   log('6/6 ZIPにする');
   const zip = path.join(dist, `${releaseName}.zip`);

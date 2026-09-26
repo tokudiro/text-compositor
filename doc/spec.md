@@ -32,17 +32,17 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
    * **pip版（PyPIのパッケージ）は、例外とする。** `pip install`は、導入のためのネットワーク接続を前提とする利用者（開発者・CI）が対象であり、パッケージを小さく保つことを優先して、フォント・図表ツールなどは、初回に取得してよい（取得したものは、キャッシュして、以後は取得しない）。
    * **CIは、例外とする。** GitHub Actionsなど、毎回まっさらな、使い捨ての環境（CI）では、実行時に取得してよい。取得するのは、必要なものだけにし、取得物は、`actions/cache`で保存して、取得する量と回数を、できるだけ減らす（下の「取得の再試行」）。方針（2）（原稿を外へ送らない）は、CIでも保つ。
 
-**現状と方針の差**（2026-09-20時点。pip版とCIでの取得は、例外なので、差に含めない。差があるのは、ObunzuのZIPの実行時の取得と、外部の画像である。ObunzuのZIPは、方針（3）に寄せていく）:
+**現状と方針の差**（2026-09-20時点、Mermaid/PlantUML/D2/Structurizrの同梱（#290・#310）後に更新。pip版とCIでの取得は、例外なので、差に含めない。ObunzuのZIPの実行時の取得は、Mermaid用のブラウザ（Electron自身のChromiumのため、そもそも不要）を除き解消し、残る差は、外部の画像だけである）:
 
 | 対象 | 現状 | 方針との差 |
 |---|---|---|
 | 日本語フォント（Noto Sans JP、約8.8 MB。PDF） | 初回のビルドで取得する（9章） | 例外（pip版は、取得してよい） |
 | Typstのパッケージ（`@preview/...`。`diagraph`など） | 初回のコンパイルで、Typstが取得する | 例外（pip版・CI） |
-| PlantUML（JRE 約50 MB＋jar 約17.6 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行 |
-| D2（バイナリ 約13 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行 |
-| Structurizr（JRE 約50 MB＋structurizr-cli一式 約99 MB） | 既定オフ（`plugins.structurizr`）。有効時、初回の描画で取得する（11章8） | 例外（pip版・CI）。既定オフのため、有効化しない限り取得は起きない |
+| PlantUML（JRE 約50 MB＋jar 約17.6 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行のとおり同梱済み |
+| D2（バイナリ 約13 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行のとおり同梱済み |
+| Structurizr（JRE 約50 MB＋structurizr-cli一式 約99 MB） | 既定オフ（`plugins.structurizr`）。有効時、初回の描画で取得する（11章8） | 例外（pip版・CI）。既定オフのため、有効化しない限り取得は起きない。Obunzuは、下の行のとおり同梱済み・常時有効 |
 | Mermaid（PDF・CLI） | `playwright`（任意の依存）と、システムのChrome/Edge。なければ、Chromium（約700 MB）を取得する。`mermaid.min.js`（約3.4 MB）も取得する | 例外（pip版・CI。ブラウザが要るため、原理的にも難しい） |
-| Obunzuの図（Mermaid） | `mermaid.min.js`（約3.4 MB）を、初回に取得する。PlantUML・D2も、上と同じ | **方針（3）**: ZIPに同梱する方向（小さいJSから、順に）。Graphviz・Pikchr・CeTZ・Fletcherは、同梱のtypstと、そのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`）で描くため、取得しない（[#264](https://github.com/tokudiro/text-compositor/issues/264)・[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#236](https://github.com/tokudiro/text-compositor/issues/236)） |
+| Obunzuの図（Mermaid・PlantUML・D2・Structurizr） | すべてZIPに同梱済み（Java・`plantuml.jar`・D2本体・structurizr-cli絞り込み版・`mermaid.min.js`。[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）。Graphviz・Pikchr・CeTZ・Fletcherは、同梱のtypstと、そのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`）で描くため、そもそも取得しない（[#264](https://github.com/tokudiro/text-compositor/issues/264)・[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#236](https://github.com/tokudiro/text-compositor/issues/236)） | **差はない**（方針（3）を達成。Obunzuの初回起動時の追加ダウンロードは、ゼロになった） |
 | 外部の画像（`![](https://...)`） | HTML出力・Obunzuは、URLのまま`<img>`にする（CSPは、画像を制限していない）。文書を開くだけで、外部へ通信が起きうる | **方針（2）**: 通信が起きないようにする。扱いは、[#238](https://github.com/tokudiro/text-compositor/issues/238)で決める（PDFは、Typstが取得できず、エラーになるので、通信は起きない） |
 
 取得するときも、原稿の内容は、外部へ送らない（ツールやフォントのダウンロードだけである）。取得したものは、SHA256で確認する（該当するもの）。

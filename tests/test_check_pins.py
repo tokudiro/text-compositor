@@ -20,7 +20,7 @@ def test_read_pins_finds_every_pin_in_the_sources(check_pins):
     pins = check_pins.read_pins()
     missing = [name for name, version in pins.items() if version is None]
     assert missing == []
-    for name in ("Mermaid", "PlantUML", "D2", "Temurin JRE 21", "Noto Sans JP", "組込版Python"):
+    for name in ("Mermaid", "PlantUML", "D2", "Structurizr CLI", "Temurin JRE 21", "Noto Sans JP", "組込版Python"):
         assert name in pins
     assert any(name.startswith("Typstパッケージ ") for name in pins)
 
@@ -29,6 +29,7 @@ def test_read_pins_matches_the_source_constants(check_pins):
     from text_compositor import deps
     pins = check_pins.read_pins()
     assert f"v{pins['D2']}" == deps.D2_RELEASE
+    assert f"v{pins['Structurizr CLI']}" == deps.STRUCTURIZR_CLI_RELEASE
     assert f"jdk-{pins['Temurin JRE 21']}" == deps.TEMURIN_JRE_RELEASE
 
 

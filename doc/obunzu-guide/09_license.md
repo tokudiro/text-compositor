@@ -14,7 +14,9 @@ Obunzuの配布物（ZIP）には、Electron（Chromiumを含む）・Python・T
 
 図を描くために、Typstの描画ライブラリ、CeTZを同梱しています。CeTZは、LGPL-3.0以降のライセンスです。改造せずに、別のフォルダ（`typst-packages\preview\cetz\`）のまま入れているため、別の版に、差し替えられます。ライセンスの全文は、そのフォルダの、`LICENSE`です。ソースは、[Typst Universe](https://typst.app/universe/package/cetz)と、[GitHub](https://github.com/cetz-package/cetz)にあります。Obunzuで作る図や、あなたの文書には、LGPLは、及びません。
 
-初回に取得する、Mermaid・PlantUML・D2・Javaは、Obunzuには、入っていません。それぞれのライセンスに従って、取得したものを、使います。
+PlantUML・Structurizrの図を描くために、Java（Eclipse Temurin JRE）・`plantuml.jar`・`structurizr-cli`一式（`structurizr-cli\lib\`。使わない部分は除いた、絞り込み版）も、同梱しています。`structurizr-cli`が使う`trove4j`は、LGPL-2.1以降のライセンスです。改造せずに、別のjarファイル（`structurizr-cli\lib\trove4j-1.0.20200330.jar`）のまま入れているため、同じ名前の別の版に、差し替えられます。ソースは、[GitHub](https://github.com/JetBrains/intellij-deps-trove4j)にあります。こちらも、Obunzuで作る図や、あなたの文書には、LGPLは、及びません。
+
+初回に取得するのは、Mermaidだけです。PlantUML・D2・Structurizr・Javaは、Obunzuに、同梱しています。
 
 ## 関連する文書
 
