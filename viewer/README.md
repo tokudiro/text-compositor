@@ -10,6 +10,8 @@ The visual design policy (colors, spacing, fonts) is in [doc/viewer-visual-desig
 
 The display engine was chosen by measurement: see [doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md). Electron with `--disable-gpu --in-process-gpu` felt the fastest, so those flags are applied by default (set `VIEWER_GPU=1` to turn them off).
 
+The design for making the display engine swappable (core/screen/shell split, the worker protocol, what a new shell must implement) is in [doc/viewer-engine-architecture.md](../doc/viewer-engine-architecture.md) (in Japanese).
+
 This directory is a separate Node.js project from the Python package on PyPI. Nothing here is included in the sdist or wheel.
 
 The version shown in the window title is `version` in `package.json`. It is kept the same as the text-compositor version in `pyproject.toml` (`tests/test_viewer_version.py` checks this), so bump both together, including `package-lock.json`.

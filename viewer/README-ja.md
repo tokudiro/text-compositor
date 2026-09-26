@@ -10,6 +10,8 @@ Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown 
 
 表示エンジンは、計測で決めました（[doc/html-viewer-benchmark.md](../doc/html-viewer-benchmark.md)）。Electronに`--disable-gpu --in-process-gpu`を付けた構成が、体感で最速だったため、既定で、この引数を使います（`VIEWER_GPU=1`で、無効にできます）。
 
+表示エンジンを差し替えられるようにするための設計（中核・画面・殻の役割分担、ワーカーのプロトコル、新しい殻が実装すべきもの）は、[doc/viewer-engine-architecture.md](../doc/viewer-engine-architecture.md)にあります。
+
 このディレクトリは、PyPIのPythonパッケージとは別のNode.jsプロジェクトです。sdist・wheelには含まれません。
 
 ウィンドウのタイトルに出るバージョンは、`package.json`の`version`です。`pyproject.toml`のtext-compositorのバージョンと、同じ値にそろえます（`tests/test_viewer_version.py`が確認します）。版上げのときは、`package-lock.json`も含めて、あわせて上げます。
