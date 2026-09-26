@@ -59,6 +59,14 @@ class TestFootnotes:
         assert "#link(" not in out
         assert capsys.readouterr().out == ""
 
+    def test_single_word_body_with_1_to_3_space_indent_does_not_leak_either(self, capsys):
+        """CommonMarkはブロック要素の行頭を3スペースまでインデント扱いしない（4スペース以上で
+        インデントコードブロックになる）。この範囲のインデントも、無害化の対象に含める必要がある。"""
+        for indent in (1, 2, 3):
+            out = render(f"Some text.[^1]\n\n{' ' * indent}[^1]: shorttext\n")
+            assert "#link(" not in out, f"indent={indent}"
+            assert capsys.readouterr().out == ""
+
     def test_example_inside_fence_is_left_untouched(self):
         """使い方説明のサンプルコード（```内）まで無害化の対象にしないこと（#85と同じ保護）。"""
         out = render("```\n[^1]: shorttext\n```\n")

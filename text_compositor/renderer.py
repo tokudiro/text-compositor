@@ -46,8 +46,10 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     # （警告もエラーも出ない「見た目の崩れ」）。footnoteを実際に脚注として組版する機能は本ツールの
     # 対象外（Marpのディレクティブと同様、認識するが反映しない）だが、この暴発だけは防ぐため、
     # `^`始まりのラベルに限り、行頭の`[`をエスケープして無害化する（他の言語同様、地の文として
-    # そのまま表示されるだけになる）。
-    FOOTNOTE_DEF_RE = re.compile(r'^\[\^([^\]\r\n]+)\]:', re.MULTILINE)
+    # そのまま表示されるだけになる）。CommonMarkはブロック要素の行頭インデントを3スペースまで
+    # 許容する（4スペース以上はインデントコードブロックになり、これは本修正と無関係な別の挙動）ため、
+    # `[ ]{0,3}`で0〜3個の行頭スペースも合わせて無害化の対象にする。
+    FOOTNOTE_DEF_RE = re.compile(r'^( {0,3})\[\^([^\]\r\n]+)\]:', re.MULTILINE)
 
     def _fenced_char_ranges(self, text):
         """LAYOUT_BLOCK_RE/DIAGRAM_OR_IMAGE_REは、markdown-itの通常のASTフローを経由しない、生テキスト
@@ -103,7 +105,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         pos = 0
         for m in matches:
             out.append(text[pos:m.start()])
-            out.append(f'\\[^{m.group(1)}\\]:')
+            out.append(f'{m.group(1)}\\[^{m.group(2)}\\]:')
             pos = m.end()
         out.append(text[pos:])
         return ''.join(out)
