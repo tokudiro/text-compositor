@@ -1,4 +1,4 @@
-# 図表（Mermaid / Graphviz / PlantUML / D2 / Pikchr / CeTZ / Fletcher / SVG）
+# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / SVG）
 
 通常のフェンスコードブロックとして書きます。
 
@@ -22,6 +22,22 @@ Alice -> Bob: Hello
 A -> B
 ```
 
+```structurizr
+workspace {
+    model {
+        user = person "User"
+        softwareSystem = softwareSystem "Software System"
+        user -> softwareSystem "Uses"
+    }
+    views {
+        systemContext softwareSystem "SystemContext" {
+            include *
+            autoLayout
+        }
+    }
+}
+```
+
 ```pikchr
 box "開始" fit; arrow; circle "終了"
 ```
@@ -33,7 +49,7 @@ box "開始" fit; arrow; circle "終了"
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`とも既定`true`）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -42,6 +58,7 @@ box "開始" fit; arrow; circle "終了"
 | `mermaid` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します |
 | `plantuml` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `d2` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
+| `structurizr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします（`structurizr-cli`でPlantUMLへ書き出してから描画）。既定は無効です（下の「Structurizr固有の注意点」） |
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
@@ -141,15 +158,15 @@ digraph { A -> B }
 ```
 ````
 
-- `mermaid`/`plantuml`/`dot`/`graphviz`/`svg`/`d2`/`pikchr`/`cetz`/`fletcher`のいずれのフェンスでも使えます。`width`/`height`は片方だけでも両方でも指定できます。`cetz`/`fletcher`は、縦横比を保って拡大・縮小し、両方を指定したときは、その枠に収めます。
+- `mermaid`/`plantuml`/`dot`/`graphviz`/`svg`/`d2`/`structurizr`/`pikchr`/`cetz`/`fletcher`のいずれのフェンスでも使えます。`width`/`height`は片方だけでも両方でも指定できます。`cetz`/`fletcher`は、縦横比を保って拡大・縮小し、両方を指定したときは、その枠に収めます。
 - 値はTypstがそのまま解釈できる文字列（`50%`、`8cm`等）です。
 - 明示指定すると自動縮小は働かなくなり、指定した値がそのまま使われます。**拡大も含めて指定どおりに反映される**ため、ページからはみ出さないかは自分で確認してください。
 - 未指定の場合は従来どおり、はみ出さないよう自動で縮小されます（拡大はされません）。
-- `layout-right`/`layout-left`/`layout-compare`内の図でも同じ記法が使えます。`layout-feature`内では、Markdown画像は写真用レイアウトの仕様上サイズ指定を無視して常に枠いっぱいに敷き詰められます。一方、Mermaid/PlantUML/Graphviz/D2/Pikchr/CeTZ/Fletcherのフェンスは対象外（このレイアウトの想定用途ではない使い方）のため`{width=...}`/`{height=...}`がそのまま反映されます。
+- `layout-right`/`layout-left`/`layout-compare`内の図でも同じ記法が使えます。`layout-feature`内では、Markdown画像は写真用レイアウトの仕様上サイズ指定を無視して常に枠いっぱいに敷き詰められます。一方、Mermaid/PlantUML/Graphviz/D2/Structurizr/Pikchr/CeTZ/Fletcherのフェンスは対象外（このレイアウトの想定用途ではない使い方）のため`{width=...}`/`{height=...}`がそのまま反映されます。
 
 ## ローカルにブラウザ／Java／D2が無い場合
 
-MermaidはChrome/Edge、PlantUMLはJava（11以上）、D2はD2 CLI本体が必要です。システムに見つからない場合の挙動は`plugins.mermaid_auto_download`/`plugins.plantuml_auto_download`/`plugins.d2_auto_download`で制御します（「plugins: 図表プラグインの有効・無効」の章）。既定はMermaidがエラー終了、PlantUML・D2が自動取得（それぞれ約50MB・約13MB）です。**Mermaid側を`true`にすると、Playwright自身のChromium（約700MB）をダウンロードする**点に注意してください。GitHub Actionsの`ubuntu-latest`にはMermaid用のブラウザ・PlantUML用のJavaが標準搭載されているため、CI上では追加取得は発生しません。一方、D2 CLIは標準搭載されていないため、初回ビルド時に自動取得されます。
+MermaidはChrome/Edge、PlantUML・StructurizrはJava（11以上）、D2はD2 CLI本体が必要です。システムに見つからない場合の挙動は`plugins.mermaid_auto_download`/`plugins.plantuml_auto_download`/`plugins.d2_auto_download`/`plugins.structurizr_auto_download`で制御します（「plugins: 図表プラグインの有効・無効」の章）。既定はMermaidがエラー終了、PlantUML・D2・Structurizrが自動取得（それぞれ約50MB・約13MB・Java約50MB+structurizr-cli約99MB）です。**Mermaid側を`true`にすると、Playwright自身のChromium（約700MB）をダウンロードする**点に注意してください。GitHub Actionsの`ubuntu-latest`にはMermaid用のブラウザ・PlantUML/Structurizr用のJavaが標準搭載されているため、CI上では追加取得は発生しません。一方、D2 CLI・structurizr-cliは標準搭載されていないため、初回ビルド時に自動取得されます（`structurizr`は既定無効のため、有効化しない限り取得自体が発生しません）。
 
 ## PlantUML固有の注意点
 
@@ -162,6 +179,13 @@ MermaidはChrome/Edge、PlantUMLはJava（11以上）、D2はD2 CLI本体が必�
 - レイアウトエンジンは既定の`dagre`です。PlantUML/Graphvizと異なり、D2の構文自体はコード例のとおり`A -> B`のようにシンプルです（詳しい書き方は[D2公式ドキュメント](https://d2lang.com/)を参照してください）。
 - D2公式CLIバイナリ（Go製の単一実行ファイル）は初回ビルド時のみ取得し、PlantUML/Mermaidと同じOS標準のユーザーキャッシュ領域にキャッシュします。システムに`d2`コマンドが既にあればそちらを再利用し、ダウンロードは発生しません。
 
+## Structurizr固有の注意点
+
+- **既定で無効です。** 使うには`plugins: { structurizr: true }`を明示してください（内部で使う`structurizr-cli`一式が約99MBあるため）。
+- 中身は、実際のStructurizr DSL構文どおりに書きます（[Structurizr DSL公式ドキュメント](https://docs.structurizr.com/dsl/language)を参照）。新しい描画コードは持たず、公式`structurizr-cli`でPlantUMLへ書き出し、PlantUMLと同じパイプラインで描画するだけです。
+- **1つのワークスペースが定義できるビューは、1フェンスにつき1つだけです。** `structurizr-cli`は、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、こちらから1つだけ選ぶ方法がありません。2つ以上のビュー（`systemContext`と`container`を両方書く等）を定義すると、エラーで終了します。System ContextとContainerの両方を見せたい場合は、フェンスを2つに分け、共通のモデル定義はDSLの`!include`で別ファイルに切り出してください。
+- `plugins.structurizr_auto_download`（既定`true`）で、Java・`structurizr-cli`一式の自動取得を制御します。`plugins.plantuml_auto_download`とは別の設定です（Structurizrを使うプロジェクトが、常にPlantUMLのフェンスも使うとは限らないため）。`plantuml.jar`自体は、`plugins.plantuml`の値に関わらず、内部実装として常に取得されます。
+
 ````markdown
 ::: layout-right
 左にこのテキスト、右に図が並びます。
@@ -173,7 +197,7 @@ graph TD
 :::
 ````
 
-`::: layout-right`/`::: layout-compare`の中に置ける図は、Mermaidに限らずPlantUML・Graphviz（`dot`/`graphviz`フェンス）・D2（`d2`フェンス）・Pikchr・CeTZ・Fletcher・SVG（`svg`フェンス）・Markdown画像（`![alt](path)`、単独行のみ）のいずれも使えます。`::: layout-compare ... :::` は2つの図を左右に並べます（横長の図には不向き）。2つの種類を混在させる（例: 片方はMermaid図、もう片方は写真）こともできます。
+`::: layout-right`/`::: layout-compare`の中に置ける図は、Mermaidに限らずPlantUML・Graphviz（`dot`/`graphviz`フェンス）・D2（`d2`フェンス）・Structurizr（`structurizr`フェンス）・Pikchr・CeTZ・Fletcher・SVG（`svg`フェンス）・Markdown画像（`![alt](path)`、単独行のみ）のいずれも使えます。`::: layout-compare ... :::` は2つの図を左右に並べます（横長の図には不向き）。2つの種類を混在させる（例: 片方はMermaid図、もう片方は写真）こともできます。
 
 図を左・テキストを右に置きたい場合は`layout-right`の左右反転版`layout-left`が使えます。中に置ける図の種類・書式は`layout-right`と同じです。
 

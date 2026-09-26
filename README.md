@@ -20,7 +20,7 @@ Files listed in `chapters` are handled differently depending on their extension:
 
 - `.md`/`.markdown`: converted as Markdown
 - `.yaml`/`.yml`/`.json`: rendered as monospaced text with syntax highlighting
-- `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, `.d2`, `.pikchr`: each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, D2, Pikchr respectively)
+- `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, `.d2`, `.pikchr`, `.dsl`: each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, D2, Pikchr, Structurizr respectively — Structurizr is off by default, see "Using Structurizr diagrams" below)
 - `.csv`: rendered as a structured Typst table
 - everything else (plain text, code files, etc.): rendered as plain monospaced text
 
@@ -104,6 +104,14 @@ No extra `config.yaml` settings are needed to use ` ```d2 ` fences in your sourc
 
 Unlike Java (used by PlantUML) or a browser (used by Mermaid), GitHub Actions' `ubuntu-latest` does not ship with D2 preinstalled, so a `d2` diagram triggers this ~13MB download on every CI run (this project's workflows don't persist the cache directory across separate runs).
 
+### Using Structurizr diagrams (C4 model, optional and off by default)
+
+Unlike Mermaid/PlantUML/D2, `plugins.structurizr` defaults to `false` — set `plugins: { structurizr: true }` to use ` ```structurizr ` fences (or a `.dsl` file directly in `chapters`). It's off by default because the tool it uses internally, the official `structurizr-cli`, is a ~99MB download (the other plugins are 13-18MB) — most of that size is Kotlin/JRuby/Groovy scripting support this project doesn't use, but there's no lighter official build to fetch instead.
+
+Internally, the DSL is exported to PlantUML via `structurizr-cli` and rendered through the same PlantUML/Smetana pipeline described above — no separate rendering engine. Java is required, same as PlantUML, controlled by its own `plugins.structurizr_auto_download` (defaults `true`) independent of `plugins.plantuml_auto_download`.
+
+A workspace must define exactly one view per fence — `structurizr-cli` has no option to pick a single view when a workspace defines several, so this tool fails fast instead of silently picking one. Split multiple views into separate fences, sharing the model between them with the DSL's own `!include` if needed.
+
 ## Usage
 
 If installed via `pip`/`pipx` (Option A):
@@ -147,7 +155,7 @@ with Session() as session:  # reuses the Mermaid browser and the Typst compiler 
     print(result.ok, result.pdf_path, [d.message for d in result.diagnostics])
 ```
 
-`session.render_html("doc.md")` (experimental, [#161](https://github.com/tokudiro/text-compositor/issues/161)) writes a self-contained HTML file instead. Diagrams (Mermaid, PlantUML, D2, Graphviz, Pikchr, CeTZ, Fletcher, `svg`) become images next to it. `typst-exec` and raw HTML are not supported yet and are shown as code with a warning. Graphviz, Pikchr, CeTZ and Fletcher are drawn with the Typst packages `diagraph`, `kip`, `cetz` and `fletcher`, the same as in the PDF (Graphviz's `shape=record` and a graph-level `label` cannot be drawn and produce a warning).
+`session.render_html("doc.md")` (experimental, [#161](https://github.com/tokudiro/text-compositor/issues/161)) writes a self-contained HTML file instead. Diagrams (Mermaid, PlantUML, D2, Structurizr, Graphviz, Pikchr, CeTZ, Fletcher, `svg`) become images next to it. `typst-exec` and raw HTML are not supported yet and are shown as code with a warning. Graphviz, Pikchr, CeTZ and Fletcher are drawn with the Typst packages `diagraph`, `kip`, `cetz` and `fletcher`, the same as in the PDF (Graphviz's `shape=record` and a graph-level `label` cannot be drawn and produce a warning).
 
 See [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) for how to write the config file, and the [usage guide](doc/usage/) for details on `document:`/`plugins:`, front matter, Marp directives, and more. The Markdown files listed in `chapters` are concatenated in order to produce the PDF.
 
