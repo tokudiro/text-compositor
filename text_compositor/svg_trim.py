@@ -59,9 +59,6 @@ def trim_svg(svg_text, margin=DEFAULT_MARGIN):
     """SVGのルート要素のviewBox・width・height（属性・style両方）を、実際に描かれている範囲＋
     安全マージンへ縮めて返す。判定できない場合（ルート要素にviewBoxが無い、内容が背景と
     見分けられない等）はTrimErrorを送出する。"""
-    import resvg_py
-    from PIL import Image, ImageChops
-
     m = _ROOT_SVG_RE.search(svg_text)
     if not m:
         raise TrimError("no root <svg> tag found")
@@ -75,6 +72,11 @@ def trim_svg(svg_text, margin=DEFAULT_MARGIN):
         raise TrimError(f"unparsable viewBox: {vb_m.group(1)!r}")
     if vw <= 0 or vh <= 0:
         raise TrimError(f"empty viewBox: {vb_m.group(1)!r}")
+
+    # ラスタライズが要る（依存が実際に必要になる）のは、ここから先だけ。上のチェックだけで
+    # 済むケース（viewBoxが無い等）で、resvg_py・Pillow未導入でもTrimErrorを返せるようにする。
+    import resvg_py
+    from PIL import Image, ImageChops
 
     scale = _TARGET_LONG_SIDE / max(vw, vh)
     raster_w = max(1, round(vw * scale))
