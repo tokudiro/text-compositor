@@ -122,6 +122,68 @@ class TestSessionCleanup:
             assert closed == [1]  # page is None -> cleaned up right away
 
 
+class TestMermaidMargins:
+    """flowchart.padding・sequence.diagramMarginX/Yを、既定より縮めて初期化していることの確認（#315）。
+    実ブラウザは使わず、playwright一式を丸ごと偽物にして、mermaid.initialize()へ渡す文字列だけを見る。"""
+
+    class _FakePage:
+        def __init__(self):
+            self.evaluated = []
+
+        def set_content(self, html):
+            pass
+
+        def add_script_tag(self, content=None):
+            pass
+
+        def evaluate(self, code, *args):
+            self.evaluated.append(code)
+            return None
+
+    class _FakeBrowser:
+        def __init__(self, page):
+            self.contexts = []
+            self._page = page
+
+        def new_context(self):
+            return self
+
+        def new_page(self):
+            return self._page
+
+        def close(self):
+            pass
+
+    def test_initialize_shrinks_flowchart_and_sequence_margins(self, monkeypatch, tmp_path):
+        page = self._FakePage()
+        browser = self._FakeBrowser(page)
+
+        monkeypatch.setattr(mermaid_mod, "find_system_browser", lambda: "C:/fake/chrome.exe")
+        monkeypatch.setattr(mermaid_mod, "_launch_headless_chrome", lambda *a, **k: (None, 12345))
+        monkeypatch.setattr(mermaid_mod.tempfile, "mkdtemp", lambda prefix=None: str(tmp_path))
+
+        js_path = tmp_path / "mermaid.min.js"
+        js_path.write_text("/* fake mermaid.min.js */", encoding="utf-8")
+        monkeypatch.setattr(mermaid_mod, "ensure_mermaid_js", lambda: str(js_path))
+
+        fake_sync_api = type(sys)("playwright.sync_api")
+        pw_instance = type("PW", (), {
+            "chromium": type("Chromium", (), {"connect_over_cdp": lambda self, url: browser})(),
+            "stop": lambda self: None,
+        })()
+        fake_sync_api.sync_playwright = lambda: type("S", (), {"start": lambda self: pw_instance})()
+        monkeypatch.setitem(sys.modules, "playwright", type(sys)("playwright"))
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_sync_api)
+
+        b = MermaidBrowser()
+        b.ensure_page(True, False)
+
+        init_call = next(c for c in page.evaluated if "mermaid.initialize" in c)
+        assert "padding: 8" in init_call
+        assert "diagramMarginX: 8" in init_call
+        assert "diagramMarginY: 8" in init_call
+
+
 def _has_browser():
     try:
         import playwright  # noqa: F401

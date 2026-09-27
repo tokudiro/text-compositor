@@ -403,31 +403,32 @@ class HtmlRenderer(TypstRenderer):
         if info == 'typst-exec':
             lang = 'typst-exec'
         width, height = self._parse_size_attrs(attrs)
+        trim = self._parse_trim_attr(attrs)
         line = self._abs_line(t)
-        return self._fenced_html(lang, t.content, width, height, line=line, code_line=line + 1 if line else None)
+        return self._fenced_html(lang, t.content, width, height, trim, line=line, code_line=line + 1 if line else None)
 
-    def _fenced_html(self, lang: str, code: str, width, height, line=None, code_line=None) -> str:
+    def _fenced_html(self, lang: str, code: str, width, height, trim=None, line=None, code_line=None) -> str:
         """フェンス1つ分。図は`<img>`に、それ以外（未対応・無効な図を含む）は、コードブロックにする。
         code_line: コードの1行目の、原稿での行（Graphvizの警告・エラーを、原稿の行にするため。分からなければ、None）。"""
         if lang in _DIAGRAM_LANGS:
-            svg_path = self._diagram_svg_path(lang, code, line, code_line)
+            svg_path = self._diagram_svg_path(lang, code, trim, line, code_line)
             if svg_path is not None:
                 return self._diagram_html(lang, svg_path, width, height)
         elif lang in _UNSUPPORTED_FENCES:
             self._warn_line(f"{_UNSUPPORTED_FENCES[lang]}; showing the source as a code block.", line)
         return self._code_block(code, lang)
 
-    def _diagram_svg_path(self, lang: str, code: str, line=None, code_line=None) -> Optional[str]:
+    def _diagram_svg_path(self, lang: str, code: str, trim=None, line=None, code_line=None) -> Optional[str]:
         """図のSVGファイルのパス。無効なプラグインの図は、Noneを返す（呼び出し側が、コード表示にする）。
         line: 描画に失敗したとき、診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。"""
         if lang == 'mermaid':
-            return self._mermaid_svg_path(code, line)
+            return self._mermaid_svg_path(code, line, trim)
         if lang == 'plantuml':
-            return self._plantuml_svg_path(code, line)
+            return self._plantuml_svg_path(code, line, trim)
         if lang == 'd2':
-            return self._d2_svg_path(code, line)
+            return self._d2_svg_path(code, line, trim)
         if lang == 'structurizr':
-            return self._structurizr_svg_path(code, line)
+            return self._structurizr_svg_path(code, line, trim)
         if lang == 'pikchr':
             if not self.pikchr_enabled:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
@@ -469,7 +470,8 @@ class HtmlRenderer(TypstRenderer):
         """DIAGRAM_OR_IMAGE_REの1マッチ（図のフェンス、または、単独行のMarkdown画像）を、HTMLにする。"""
         if match.group('lang'):
             width, height = self._parse_size_attrs(match.group('attrs'))
-            return self._fenced_html(match.group('lang'), match.group('code'), width, height)
+            trim = self._parse_trim_attr(match.group('attrs'))
+            return self._fenced_html(match.group('lang'), match.group('code'), width, height, trim)
         return self._segment_html(match.group('image')).strip() + "\n"
 
     # -- 画像・URL --------------------------------------------------------------

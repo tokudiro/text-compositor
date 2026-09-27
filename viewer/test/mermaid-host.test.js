@@ -50,7 +50,7 @@ describe('MermaidHost', () => {
     assert.match(env.windows[0].loaded, /^data:text\/html/);
     // mermaid.min.jsの読み込み → 初期化 → 描画2回
     assert.equal(env.scripts.filter((s) => s.includes('mermaid.initialize')).length, 1);
-    assert.match(env.scripts.find((s) => s.includes('mermaid.initialize')), /htmlLabels: false, flowchart: \{ htmlLabels: false \}/);
+    assert.match(env.scripts.find((s) => s.includes('mermaid.initialize')), /htmlLabels: false, flowchart: \{ htmlLabels: false, padding: 8 \}/);
     assert.equal(env.scripts.filter((s) => s.startsWith('mermaid.render(')).length, 2);
   });
 

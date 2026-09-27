@@ -309,6 +309,7 @@ class Session:
                     d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
                     structurizr_enabled=bool(plugins_config.get("structurizr", False)),
                     structurizr_auto_download=bool(plugins_config.get("structurizr_auto_download", True)),
+                    diagram_trim_enabled=bool(plugins_config.get("diagram_trim", False)),
                     graphviz_enabled=bool(plugins_config.get("graphviz", True)),
                     pikchr_enabled=bool(plugins_config.get("pikchr", True)),
                     cetz_enabled=bool(plugins_config.get("cetz", True)),

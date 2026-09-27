@@ -9,7 +9,7 @@ import sys
 import subprocess
 import hashlib
 import tempfile
-from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render
+from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
@@ -57,22 +57,23 @@ class DiagramMixin:
         height_arg = f', height: {height}' if height else ''
         return f'#align(center)[#render-graph("{escaped}"{width_arg}{height_arg})]\n\n'
 
-    def _render_diagram_fence(self, lang, code, width=None, height=None):
+    def _render_diagram_fence(self, lang, code, width=None, height=None, trim=None):
         """```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```svgフェンスの内容をTypstコードへ
         変換する。通常のMarkdownフロー（render_tokens）とlayout-right/layout-compareブロックの
         双方から共通で呼べるようにした処理（#77）。width/height（#82）が指定された場合、
         mermaid/plantuml/svg/d2は自動縮小（fit-image）をバイパスして直接そのサイズで埋め込み、
-        dot/graphvizは_render_graphvizが同様にバイパスする。"""
+        dot/graphvizは_render_graphvizが同様にバイパスする。trim（#315）は、mermaid/plantuml/d2/
+        structurizrにのみ効く（他は渡しても無視される）。"""
         if lang == 'mermaid':
-            return self._render_mermaid(code, width, height)
+            return self._render_mermaid(code, width, height, trim)
         elif lang == 'plantuml':
-            return self._render_plantuml(code, width, height)
+            return self._render_plantuml(code, width, height, trim)
         elif lang == 'svg':
             return self._render_svg(code, width, height)
         elif lang == 'd2':
-            return self._render_d2(code, width, height)
+            return self._render_d2(code, width, height, trim)
         elif lang == 'structurizr':
-            return self._render_structurizr(code, width, height)
+            return self._render_structurizr(code, width, height, trim)
         elif lang == 'pikchr':
             return self._render_pikchr(code, width, height)
         elif lang in cetz_render.KINDS:
@@ -85,7 +86,8 @@ class DiagramMixin:
         _render_markdown_segmentに委譲する（#77）。"""
         if m.group('lang'):
             width, height = self._parse_size_attrs(m.group('attrs'))
-            return self._render_diagram_fence(m.group('lang'), m.group('code'), width, height)
+            trim = self._parse_trim_attr(m.group('attrs'))
+            return self._render_diagram_fence(m.group('lang'), m.group('code'), width, height, trim)
         return self._render_markdown_segment(m.group('image'), False).strip()
 
     def _render_pikchr(self, code, width=None, height=None):
@@ -197,10 +199,32 @@ class DiagramMixin:
             self._d2_version_cache = version or D2_RELEASE
         return self._d2_version_cache
 
-    def _render_mermaid(self, code, width=None, height=None):
+    def _resolve_trim(self, trim):
+        """トリミング（#315）を、この図に適用するか。フェンス属性`{trim=...}`（trim引数）が
+        あればそれを優先し、無ければplugins.diagram_trimの既定値を使う。"""
+        return self.diagram_trim_enabled if trim is None else trim
+
+    def _maybe_trim_svg(self, svg, effective_trim, label):
+        """effective_trimがtrueなら、svg_trim.trim_svg()でSVGの余白を縮める（#315）。
+        失敗しても、元の図自体は正しく描画済みのため、ビルドは失敗させず、元のSVGのまま使う
+        （svg_trim.TrimErrorのdocstring参照）。resvg_py・Pillow未導入時は、Fail-fastする
+        （利用者が明示的にtrimを有効にしたのに、静かに無効化されたと気づかないままにしないため）。"""
+        if not effective_trim:
+            return svg
+        try:
+            return svg_trim.trim_svg(svg)
+        except svg_trim.TrimError as e:
+            _log_info(f"{label}: could not trim the diagram's margin; keeping it as-is ({e}).")
+            return svg
+        except ImportError:
+            _error("plugins.diagram_trim: true requires the 'resvg_py' and 'Pillow' packages. "
+                  "Install them with: pip install resvg_py Pillow")
+            sys.exit(1)
+
+    def _render_mermaid(self, code, width=None, height=None, trim=None):
         """mermaidブロックをヘッドレスブラウザ上のmermaid.render()でSVG化し、Typstのimage呼び出しに
         変換する。外部APIへの通信は行わず、ローカルのブラウザで完結させる（仕様書10章・11章、#35）。"""
-        svg_path = self._mermaid_svg_path(code)
+        svg_path = self._mermaid_svg_path(code, trim=trim)
         if svg_path is None:
             return f"```mermaid\n{code}```\n\n"
         # fit-image() は templates/slide.typ 側で定義されているため、image() の相対パス解決基準は
@@ -209,7 +233,7 @@ class DiagramMixin:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _mermaid_svg_path(self, code, line=None):
+    def _mermaid_svg_path(self, code, line=None, trim=None):
         """mermaidの図のSVG（キャッシュ）のパスを返す。無ければ、ヘッドレスブラウザで描画して作る。
         plugins.mermaid: falseなら、何も作らずNoneを返す（呼び出し側が、素のコード表示にフォールバックする）。
         line: 失敗したときの診断に付ける、原稿でのフェンスの行（分かる場合）。"""
@@ -219,8 +243,13 @@ class DiagramMixin:
                 self._mermaid_disabled_warned = True
             return None
 
-        # 固定済みmermaid.min.jsのSHA256をバージョンとして使う（バンドルが変われば別キーになる）
-        svg_path, digest = self._diagram_cache_path("mermaid", MERMAID_JS_SHA256, code)
+        effective_trim = self._resolve_trim(trim)
+        # 固定済みmermaid.min.jsのSHA256をバージョンとして使う（バンドルが変われば別キーになる）。
+        # ":margin1"は、mermaid.initialize()の余白設定（flowchart.padding等、#315）のバージョン。
+        # トリミング（#315）が有効なときだけ":trim1"を足す。既定（無効）のキーは変えないことで、
+        # plugins.diagram_trimを使わない大多数のプロジェクトの既存キャッシュを、無駄に無効化しない。
+        version = f"{MERMAID_JS_SHA256}:margin1" + (":trim1" if effective_trim else "")
+        svg_path, digest = self._diagram_cache_path("mermaid", version, code)
 
         if not os.path.exists(svg_path):
             host = host_renderers._mermaid_host_renderer
@@ -244,6 +273,7 @@ class DiagramMixin:
                 message = "\n".join(l for l in str(e).splitlines() if not re.match(r"\s+at ", l))
                 self._diagram_error("mermaid", message, line)
                 sys.exit(1)
+            svg = self._maybe_trim_svg(svg, effective_trim, "mermaid")
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(svg)
         else:
@@ -368,12 +398,12 @@ class DiagramMixin:
             self._plantuml_jar_path = bundled_plantuml_jar() or ensure_plantuml_jar()
         return self._plantuml_java_bin, self._plantuml_jar_path
 
-    def _render_plantuml(self, code, width=None, height=None):
+    def _render_plantuml(self, code, width=None, height=None, trim=None):
         """```plantumlブロックをローカルのjava+plantuml.jar（Smetanaレイアウトエンジン。dot等の
         外部バイナリに依存しない）でSVG化し、Typstのimage呼び出しに変換する。外部APIへの通信は
         行わない（仕様書10章・11章、#22）。コードは実際のPlantUML構文どおり@startuml/@enduml
         込みで書く必要がある（暗黙の補完はしない。9章の決定論的出力・明示性の方針に沿う）。"""
-        svg_path = self._plantuml_svg_path(code)
+        svg_path = self._plantuml_svg_path(code, trim=trim)
         if svg_path is None:
             return f"```plantuml\n{code}```\n\n"
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
@@ -412,7 +442,7 @@ class DiagramMixin:
             parts = parts[:-1]
         return result.returncode, parts, result.stderr
 
-    def _plantuml_svg_path(self, code, line=None):
+    def _plantuml_svg_path(self, code, line=None, trim=None):
         """plantumlの図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのjava+plantuml.jarで作る。
         plugins.plantuml: falseなら、何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
         if not self.plantuml_enabled:
@@ -421,7 +451,13 @@ class DiagramMixin:
                 self._plantuml_disabled_warned = True
             return None
 
-        svg_path, _ = self._diagram_cache_path("plantuml", PLANTUML_JAR_SHA256, code)
+        effective_trim = self._resolve_trim(trim)
+        # トリミング（#315）が有効なときだけ":trim1"を足す（既定のキャッシュキーは変えない。
+        # prefetch_plantuml_diagrams()の事前描画フェーズは、常にtrim無しのキーで書くため、
+        # trim有効時はここで作り直す。バッチ起動の高速化（#307）が効かなくなるだけで、
+        # 正しさには影響しない）。
+        version = PLANTUML_JAR_SHA256 + (":trim1" if effective_trim else "")
+        svg_path, _ = self._diagram_cache_path("plantuml", version, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
@@ -440,8 +476,9 @@ class DiagramMixin:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
                 self._diagram_error("PlantUML", result.stderr, line)
                 sys.exit(1)
+            svg = self._maybe_trim_svg(result.stdout, effective_trim, "PlantUML")
             with open(svg_path, "w", encoding="utf-8") as f:
-                f.write(result.stdout)
+                f.write(svg)
         else:
             _log_verbose(f"Reusing cached PlantUML diagram: {os.path.basename(svg_path)}")
         return svg_path
@@ -476,12 +513,12 @@ class DiagramMixin:
             self._structurizr_plantuml_jar_path = bundled_plantuml_jar() or ensure_plantuml_jar()
         return self._structurizr_java_bin, self._structurizr_lib_dir, self._structurizr_plantuml_jar_path
 
-    def _render_structurizr(self, code, width=None, height=None):
+    def _render_structurizr(self, code, width=None, height=None, trim=None):
         """```structurizrブロック（C4モデルのDSL）を、ローカルのjava+structurizr-cli（公式、
         Apache-2.0）でPlantUMLへ書き出し、それを既存のPlantUML+Smetanaパイプラインでそのまま
         描画する（#212）。外部APIへの通信は行わない。新しい描画コードは持たず、DSL→PlantUML
         という変換だけを挟む。"""
-        svg_path = self._structurizr_svg_path(code)
+        svg_path = self._structurizr_svg_path(code, trim=trim)
         if svg_path is None:
             return f"```structurizr\n{code}```\n\n"
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
@@ -529,7 +566,7 @@ class DiagramMixin:
             with open(views[0], "r", encoding="utf-8") as f:
                 return f.read()
 
-    def _structurizr_svg_path(self, code, line=None):
+    def _structurizr_svg_path(self, code, line=None, trim=None):
         """Structurizrの図のSVG（キャッシュ）のパスを返す。無ければ、structurizr-cliでPlantUMLへ
         書き出し、それをローカルのjava+plantuml.jarで描画して作る。plugins.structurizr: falseなら、
         何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
@@ -539,7 +576,12 @@ class DiagramMixin:
                 self._structurizr_disabled_warned = True
             return None
 
-        version = f"{STRUCTURIZR_CLI_SHA256}:{PLANTUML_JAR_SHA256}"
+        effective_trim = self._resolve_trim(trim)
+        # トリミング（#315）が有効なときだけ":trim1"を足す（既定のキャッシュキーは変えない。
+        # prefetch_plantuml_diagrams()の事前描画フェーズは、常にtrim無しのキーで書くため、
+        # trim有効時はここで作り直す。バッチ起動の高速化（#307）が効かなくなるだけで、
+        # 正しさには影響しない）。
+        version = f"{STRUCTURIZR_CLI_SHA256}:{PLANTUML_JAR_SHA256}" + (":trim1" if effective_trim else "")
         svg_path, _ = self._diagram_cache_path("structurizr", version, code)
 
         if not os.path.exists(svg_path):
@@ -554,8 +596,9 @@ class DiagramMixin:
             if result.returncode != 0:
                 self._diagram_error("Structurizr", result.stderr, line)
                 sys.exit(1)
+            svg = self._maybe_trim_svg(result.stdout, effective_trim, "Structurizr")
             with open(svg_path, "w", encoding="utf-8") as f:
-                f.write(result.stdout)
+                f.write(svg)
         else:
             _log_verbose(f"Reusing cached Structurizr diagram: {os.path.basename(svg_path)}")
         return svg_path
@@ -675,17 +718,23 @@ class DiagramMixin:
             self._d2_bin = d2_bin
         return self._d2_bin
 
-    def _render_d2(self, code, width=None, height=None):
+    def _render_d2(self, code, width=None, height=None, trim=None):
         """```d2```ブロックをローカルのD2公式CLIバイナリでSVG化し、Typstのimage呼び出しに変換する。
         外部APIへの通信は行わない（仕様書10章・11章、#90）。`d2 - -`で標準入力から読み、標準出力へ
         SVGを書く（D2公式のstdin/stdout規約。ステータスメッセージは標準エラーへ出るため混ざらない）。"""
-        svg_path = self._d2_svg_path(code)
+        svg_path = self._d2_svg_path(code, trim=trim)
         if svg_path is None:
             return f"```d2\n{code}```\n\n"
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _d2_svg_path(self, code, line=None):
+    # D2 CLIの`--pad`既定値（100px、上下左右）は、本文へ埋め込む小さな図には過大なため、
+    # 小さな固定値へ縮める（#315）。実測: `A -> B`だけの図で258x434（既定）->74x250（pad8）。
+    # D2自身が内容のバウンディングボックスを計算した上で外側に付け足す値のため、値を縮めても
+    # 中身が見切れる心配はない（実機確認）。
+    _D2_PAD = "8"
+
+    def _d2_svg_path(self, code, line=None, trim=None):
         """d2の図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのD2で作る。
         plugins.d2: falseなら、何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
         if not self.d2_enabled:
@@ -694,14 +743,19 @@ class DiagramMixin:
                 self._d2_disabled_warned = True
             return None
 
-        svg_path, _ = self._diagram_cache_path("d2", self._d2_version(), code)
+        effective_trim = self._resolve_trim(trim)
+        # _D2_PADをキャッシュキーに含める。将来この値を変えたときに、古い（余白が違う）
+        # キャッシュ済みSVGを再利用してしまわないようにするため。トリミング（#315）が有効な
+        # ときだけ":trim1"を足す（既定のキャッシュキーは変えない）。
+        version = f"{self._d2_version()}:pad{self._D2_PAD}" + (":trim1" if effective_trim else "")
+        svg_path, _ = self._diagram_cache_path("d2", version, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering d2 diagram via local D2 -> {os.path.basename(svg_path)}")
             d2_bin = self._ensure_d2_bin()
             try:
                 result = subprocess.run(
-                    [d2_bin, "-", "-"],
+                    [d2_bin, "--pad", self._D2_PAD, "-", "-"],
                     input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)
             except OSError as e:
                 self._error_here(f"Failed to run D2 for {self.current_file}:\n{e}")
@@ -715,8 +769,9 @@ class DiagramMixin:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
                 self._diagram_error("d2", result.stderr, line)
                 sys.exit(1)
+            result_stdout = self._maybe_trim_svg(result.stdout, effective_trim, "d2")
             with open(svg_path, "w", encoding="utf-8") as f:
-                f.write(result.stdout)
+                f.write(result_stdout)
         else:
             _log_verbose(f"Reusing cached d2 diagram: {os.path.basename(svg_path)}")
         return svg_path

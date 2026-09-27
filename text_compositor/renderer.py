@@ -114,7 +114,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                  plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
                  mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
-                 cetz_enabled=True, fletcher_enabled=True, structurizr_enabled=False, structurizr_auto_download=True):
+                 cetz_enabled=True, fletcher_enabled=True, structurizr_enabled=False, structurizr_auto_download=True,
+                 diagram_trim_enabled=False):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
@@ -218,6 +219,12 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         self._structurizr_java_bin = None
         self._structurizr_lib_dir = None
         self._structurizr_plantuml_jar_path = None
+        # plugins.diagram_trim: false（既定。#315）。trueなら、mermaid/plantuml/d2/structurizrが
+        # 生成したSVGの余白を、実際に描かれている範囲へ自動で縮める（svg_trim.trim_svg）。
+        # resvg_py・Pillowという新しい依存＋まだ実績のないアルゴリズムに頼るため、既定はopt-in
+        # とし、実績が積み重なってから既定を見直す（#315の設計議論）。フェンス属性`{trim=...}`で、
+        # 図ごとに上書きできる（_parse_trim_attr）。
+        self.diagram_trim_enabled = diagram_trim_enabled
         # キャッシュキー用のd2バージョン（#26）。キャッシュヒット時にバイナリの自動取得を
         # 起こさないよう、_d2_binの解決とは別に遅延評価する。
         self._d2_version_cache = None
@@ -378,6 +385,15 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                 elif key == 'height':
                     height = val
         return width, height
+
+    def _parse_trim_attr(self, attrs_str):
+        """フェンスのinfo string中の属性部分から`trim=true`/`trim=false`を取り出す（#315）。
+        未指定ならNone（呼び出し側は、plugins.diagram_trimの既定値を使うこと）。"""
+        if attrs_str:
+            for key, val in self.FENCE_ATTR_RE.findall(attrs_str):
+                if key == 'trim':
+                    return val.strip().lower() == 'true'
+        return None
 
     # layout-featureの写真枠の高さ（スライド本文領域に対する割合）。#78の実機確認で判明した通り、
     # width:100%だけだと縦長写真が大幅にはみ出す（枠の高さが写真任せになるため）。CSSの

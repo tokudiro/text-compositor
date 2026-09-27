@@ -196,6 +196,21 @@ def _check_d2(d2_enabled, d2_auto_download):
                         "no local D2 found and plugins.d2_auto_download is false. "
                         "Install D2 (https://d2lang.com), or set plugins.d2_auto_download: true")
 
+def _check_diagram_trim(diagram_trim_enabled):
+    """plugins.diagram_trim: trueは、resvg_py・Pillowという追加のpipパッケージを要る（#315）。
+    どちらもopt-inの依存で、requirements.txtには含めていない（プラグインを使わないプロジェクトに
+    要らないダウンロードを強いないため）。"""
+    if not diagram_trim_enabled:
+        return CheckResult("diagram_trim", "OK", "disabled (plugins.diagram_trim: false)")
+    try:
+        import resvg_py  # noqa: F401
+        import PIL  # noqa: F401
+    except ImportError as e:
+        return CheckResult("diagram_trim", "NG",
+                            f"plugins.diagram_trim: true requires 'resvg_py' and 'Pillow' ({e}). "
+                            "Install them with: pip install resvg_py Pillow")
+    return CheckResult("diagram_trim", "OK", "resvg_py and Pillow are installed")
+
 def run_env_check(repo_root, config_path):
     """`--check-env`本体。configを指定すればそのplugins設定を反映し、未指定なら全項目を
     既定値（すべて有効）でチェックする。実際のビルドは行わない。戻り値はexit code
@@ -213,6 +228,7 @@ def run_env_check(repo_root, config_path):
     d2_auto_download = bool(plugins_config.get("d2_auto_download", True))
     structurizr_enabled = bool(plugins_config.get("structurizr", False))
     structurizr_auto_download = bool(plugins_config.get("structurizr_auto_download", True))
+    diagram_trim_enabled = bool(plugins_config.get("diagram_trim", False))
 
     results = [
         _check_isolated_env(),
@@ -223,6 +239,7 @@ def run_env_check(repo_root, config_path):
         _check_plantuml(plantuml_enabled, plantuml_auto_download),
         _check_d2(d2_enabled, d2_auto_download),
         _check_structurizr(structurizr_enabled, structurizr_auto_download),
+        _check_diagram_trim(diagram_trim_enabled),
     ]
     _print_check_results(results)
     return 1 if any(r.status == "NG" for r in results) else 0

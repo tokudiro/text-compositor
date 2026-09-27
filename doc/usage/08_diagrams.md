@@ -64,6 +64,82 @@ box "開始" fit; arrow; circle "終了"
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
 
+### 記法で描ける図の種類（対応表）
+
+原稿を書くときに「この図を描きたいが、どの記法を使えばいいか」を判断する材料です。`✅`＝その記法が、その図の種類を名指しで対応している、`❌`＝対応していない。代用の推測は書きません。図の種類の対応が基本ですが、判断を左右する重要な機能差（例: シーケンス図のコンビネーションフラグメント）は、注記に書きます。
+
+`✅`には、その機能が入った版を、確認できたものだけ添えています（例: `✅(v11.0+)`）。本ツールが同梱する版は、mermaid 11.16.1・PlantUML 1.2026.8・D2 v0.9.0・structurizr-cli v2025.11.09です。同梱の版が、必要な版以上であることを確認済みです。
+
+#### UML図
+
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| シーケンス図 | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| タイミング図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| クラス図 | ✅ | ✅ | ✅ | ❌※1 | ❌ | ❌ | ❌ | ❌ |
+| 状態遷移図 | ✅※6 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ユースケース図 | ❌※3 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| アクティビティ図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| コンポーネント図／配置図 | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| オブジェクト図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| パッケージ図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 複合構造図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| プロファイル図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| コミュニケーション図 | ❌※9 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| 相互作用概要図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+#### SysML図（要求図以外は、上のUML図と共通。SysML v2.0は対象外※4）
+
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 要求図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ブロック定義図（BDD） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 内部ブロック図（IBD） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| パラメトリック図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+#### C4モデル図（UML・SysMLとは別の、独自のモデル。コミュニケーション図に相当するDynamic図は、上のUML図の表を参照）
+
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| System Context図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| コンテナ図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| コンポーネント図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| システムランドスケープ図 | ❌ | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| デプロイメント図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+
+#### その他
+
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| フローチャート | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| ノードとエッジ図 | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
+| ER図 | ✅(v8.5+) | ❌※7 | ✅ | ❌※1 | ❌ | ❌ | ❌ | ❌ |
+| ガントチャート | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| データ可視化 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| マインドマップ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Git履歴図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| タイムライン | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| カンバン | ✅(v11.4+) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| アーキテクチャ図 | ✅(v11.1+) | ❌ | ❌ | ❌ | ❌※8 | ❌ | ❌ | ❌ |
+| ポジションマップ（クアドラントチャート） | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ネットワーク構成図 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ラック構成図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| パケット構造図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 幾何図形・自由描画 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| 可換図式・木構造 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+
+**注記**
+
+- ※1 Graphvizの`shape=record`は、このツールでは使えません（[#264](https://github.com/tokudiro/text-compositor/issues/264)）。
+- ※2 PlantUMLでC4モデルを描く方法（C4-PlantUML）はありますが、外部からファイルを取得する必要があり、本ツールの方針に反するため使えません。
+- ※3 mermaidのユースケース図は、v12.0.0以降で対応予定です。本ツールが同梱する版（11.16.1）には、まだ入っていません。
+- ※4 SysML v2.0は、2025年9月に発行されたばかりの、別物の新標準（旧来のダイアグラム構成ではなく、テキスト中心の新しい言語）です。主要なMBSE専用ツール（Cameo、CATIA Magicなど）でも対応はまだ発展途上で、既存のSysML 1.xの資産が多いため、当面はv1.xとの併存が見込まれます。8記法のいずれも、SysML v2.0への対応はありません。
+- ※5 分岐・繰り返し（コンビネーションフラグメント。`alt`/`opt`/`loop`等）に対応するかどうかで、実用性が大きく変わります。mermaid・PlantUML・D2は対応します。
+- ※6 mermaidは、サブマシン状態（複合状態）・並行状態（fork/join）・選択擬似状態には対応しますが、**履歴状態（history state）は非対応です。** 異なる複合状態の内部状態どうしを、直接つなぐ遷移も書けません。PlantUMLは、この2つに対応します。
+- ※7 **実機で確認済みです。** PlantUMLの「Information Engineering diagram」（`entity`キーワード、鳥の足の関係記法）を、実際にレンダリングしました。結果は、クラス図のアイコン（"C"）が"E"に変わり、関係線に鳥の足の記法が付くだけで、見た目・作りとも、ほぼクラス図そのものでした（PlantUML自身も「クラス図の拡張」と説明しています）。クラス図の行で、すでにPlantUML＝✅として数えているため、二重計上を避け、この行は`❌`にしています。
+- ※8 StructurizrのSystem Landscape viewは、対象を1つのソフトウェアシステムに絞らない、System Context viewの一種です（C4モデル公式サイトの説明による）。見た目は同じ、抽象的な四角（Person・Software System）で、クラウドベンダーのアイコンは使いません。「システムランドスケープ図」の行で、すでにStructurizr＝✅として数えているため、二重計上を避け、この行は`❌`にしています。
+- ※9 **実機で確認済みです。** mermaidのC4系の図（System Context・コンテナ・コンポーネント・デプロイメント・Dynamic）は、PNGアイコンを`xlink:href`で埋め込みますが、SVGのルート要素に、その名前空間の宣言がありません。ブラウザでの表示は問題ありませんが、Typstに通すと「failed to parse SVG（unknown namespace prefix 'xlink'）」で失敗し、**PDF出力ができません。** HTML出力（Obunzu）でのみ使えます。
+
 ### Graphvizで使えない記法
 
 Graphvizは、PDF出力・Obunzu・Python APIのすべてで、Typstの`diagraph`で描きます。次の記法は、描けないか、見た目が変わります。
@@ -164,9 +240,38 @@ digraph { A -> B }
 - 未指定の場合は従来どおり、はみ出さないよう自動で縮小されます（拡大はされません）。
 - `layout-right`/`layout-left`/`layout-compare`内の図でも同じ記法が使えます。`layout-feature`内では、Markdown画像は写真用レイアウトの仕様上サイズ指定を無視して常に枠いっぱいに敷き詰められます。一方、Mermaid/PlantUML/Graphviz/D2/Structurizr/Pikchr/CeTZ/Fletcherのフェンスは対象外（このレイアウトの想定用途ではない使い方）のため`{width=...}`/`{height=...}`がそのまま反映されます。
 
+## 余白のトリミング（trim）
+
+mermaid/plantuml/d2/structurizrは、それぞれのツール自身が、生成するSVGに余白（マージン）を持たせます（#315）。text-compositorは、D2の`--pad`を8pxに、mermaidのflowchart/sequenceの余白設定を8pxに、それぞれ既定より縮めていますが、それでも図によっては余白が気になる場合があります。
+
+`plugins.diagram_trim: true`（既定`false`）にすると、生成後のSVGを実際に描かれている範囲（＋小さな安全マージン）へ、自動でトリミングします。`resvg_py`・`Pillow`という追加のpipパッケージが必要です（`pip install resvg_py Pillow`）。まだ実績の少ない機能のため、既定はopt-inです。
+
+```yaml
+plugins:
+  diagram_trim: true
+```
+
+図ごとに上書きしたい場合は、`{width=...}`/`{height=...}`と同じフェンス属性として`{trim=true}`/`{trim=false}`を書きます。
+
+````markdown
+```mermaid {trim=false}
+graph TD
+  A --> B
+```
+````
+
+- 対象はmermaid/plantuml/d2/structurizr（外部ツールが生成するSVG）です。`svg`フェンス（ユーザー自身が書いたSVG）・graphviz/pikchr/cetz/fletcher（Typst側で完結し、元から余白がほぼ無い）には効きません。
+- トリミングに失敗した場合（内容の判定ができない等）は、警告を出した上で、元の（トリミングしていない）SVGのまま使います。図自体は正しく描画済みのため、ビルドは失敗しません。
+- `plugins.diagram_trim: true`にしたのに`resvg_py`・`Pillow`が入っていない場合は、Fail-fastでエラー終了します。`--check-env`で事前に確認できます。
+
 ## ローカルにブラウザ／Java／D2が無い場合
 
 MermaidはChrome/Edge、PlantUML・StructurizrはJava（11以上）、D2はD2 CLI本体が必要です。システムに見つからない場合の挙動は`plugins.mermaid_auto_download`/`plugins.plantuml_auto_download`/`plugins.d2_auto_download`/`plugins.structurizr_auto_download`で制御します（「plugins: 図表プラグインの有効・無効」の章）。既定はMermaidがエラー終了、PlantUML・D2・Structurizrが自動取得（それぞれ約50MB・約13MB・Java約50MB+structurizr-cli約99MB）です。**Mermaid側を`true`にすると、Playwright自身のChromium（約700MB）をダウンロードする**点に注意してください。GitHub Actionsの`ubuntu-latest`にはMermaid用のブラウザ・PlantUML/Structurizr用のJavaが標準搭載されているため、CI上では追加取得は発生しません。一方、D2 CLI・structurizr-cliは標準搭載されていないため、初回ビルド時に自動取得されます（`structurizr`は既定無効のため、有効化しない限り取得自体が発生しません）。
+
+## Mermaid固有の注意点
+
+- 余白（`flowchart.padding`の既定15px、`sequence.diagramMarginX`の既定50px・`diagramMarginY`の既定10px）は、本文へ埋め込む小さな図には過大なため、いずれも8pxに縮めて呼び出しています（`graph TD`の2ノードだけの図で実測87×164→縮小後は概ね59×136相当、#315）。これらは内容のレイアウト後に外側へ付け足す余白のため、縮めても図の内容が見切れることはありません。
+- 上記はflowchart・sequenceの2種類のみの対応です。class/state/er/gantt等、他の図の種類は、それぞれ別の設定キー・既定値を持つため未対応です（#315）。
 
 ## PlantUML固有の注意点
 
@@ -178,6 +283,7 @@ MermaidはChrome/Edge、PlantUML・StructurizrはJava（11以上）、D2はD2 CL
 
 - レイアウトエンジンは既定の`dagre`です。PlantUML/Graphvizと異なり、D2の構文自体はコード例のとおり`A -> B`のようにシンプルです（詳しい書き方は[D2公式ドキュメント](https://d2lang.com/)を参照してください）。
 - D2公式CLIバイナリ（Go製の単一実行ファイル）は初回ビルド時のみ取得し、PlantUML/Mermaidと同じOS標準のユーザーキャッシュ領域にキャッシュします。システムに`d2`コマンドが既にあればそちらを再利用し、ダウンロードは発生しません。
+- D2 CLI自体の余白（`--pad`）の既定値は100px（上下左右）で、小さな図には過大なため、8pxに縮めて呼び出しています（`A -> B`だけの図で実測258×434→74×250、#315）。余白はD2側でバウンディングボックス計算後に付け足す値のため、縮めても図の内容が見切れることはありません。
 
 ## Structurizr固有の注意点
 

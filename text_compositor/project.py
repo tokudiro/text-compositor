@@ -58,6 +58,9 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     # 他のプラグインと一桁違うため、mermaidと同じ「重いので既定オフ」の位置づけにする。
     structurizr_enabled = bool(plugins_config.get("structurizr", False))
     structurizr_auto_download = bool(plugins_config.get("structurizr_auto_download", True))
+    # plugins.diagram_trim: false（既定。#315）。生成された図のSVGの余白を、実際に描かれている
+    # 範囲へ自動で縮める（resvg_py・Pillowという新しい依存に頼るため、既定はopt-in）。
+    diagram_trim_enabled = bool(plugins_config.get("diagram_trim", False))
     # document.glossary: false（既定。#47）。trueなら[[用語]]を検出し、巻末に索引ページを生成する。
     glossary_enabled = bool(config.get("document", {}).get("glossary", False))
     # document.marp_compat: false（既定、#92）。trueなら実際のMarpitに合わせ、hr（---/***/___）を
@@ -89,6 +92,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download, pikchr_enabled=pikchr_enabled,
                               cetz_enabled=cetz_enabled, fletcher_enabled=fletcher_enabled,
                               structurizr_enabled=structurizr_enabled, structurizr_auto_download=structurizr_auto_download,
+                              diagram_trim_enabled=diagram_trim_enabled,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
                               mermaid_browser=mermaid_browser, csv_header=csv_header)

@@ -14,6 +14,7 @@ plugins:
   d2_auto_download: true        # 既定 true
   structurizr: false                    # 既定 false
   structurizr_auto_download: true       # 既定 true
+  diagram_trim: false                   # 既定 false
 ```
 
 `graphviz`/`pikchr`/`cetz`/`fletcher`/`mermaid`/`plantuml`/`d2`/`structurizr`を`false`にすると、該当する図表フェンス（`dot`/`graphviz`/`pikchr`/`cetz`/`fletcher`/`mermaid`/`plantuml`/`d2`/`structurizr`言語のコードブロック）は描画せず、素のコード表示にフォールバックします。`mermaid: true`の場合は`playwright`パッケージが、`plantuml: true`/`structurizr: true`の場合はローカルのJava（11以上）が、`d2: true`の場合はD2 CLI本体が必要です。
@@ -30,6 +31,8 @@ plugins:
 | `structurizr_auto_download` | Java（未検出時、約50MB）とstructurizr-cli一式（約99MB）をダウンロード | エラーで終了（Java 11以上を自分でインストールする） |
 
 既定値が非対称（mermaidはfalse、plantuml・d2はtrue）なのは、ダウンロードされる実体のサイズが一桁以上違うためです。Mermaidの描画に失敗して`mermaid_auto_download: true`にしたくなった場合は、約700MBのダウンロードが実行されることを理解した上で設定してください（詳細は「図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / SVG）」の章、README）。
+
+**`diagram_trim`だけ、他とは性質が違います。** mermaid/plantuml/d2/structurizrが生成したSVGの余白を、実際に描かれている範囲へ自動で縮める機能（トリミング、#315）の、グローバルな既定値です。`resvg_py`・`Pillow`という追加のpipパッケージが必要で（`pip install resvg_py Pillow`）、既定はまだ実績が少ないため`false`（opt-in）です。個別の図だけ有効・無効にしたい場合は、`{trim=true}`/`{trim=false}`をフェンス属性として書きます（「図表」の章の「余白のトリミング」を参照）。
 
 **`plugins:`配下に、ここに載っていないキー（綴りミス等）を書くと、エラーで終了します。** 近い既知キー名（例: `plantuml_auto_downlaod` → `plantuml_auto_download`）があれば、その提案もあわせて表示されます。書いた設定が黙って無視され、原因の分からないまま既定動作にフォールバックすることを防ぐためです（`document:`/`output:`/`template:`/`inputs:`と、`config.yaml`のトップレベルのキーについても同様です）。
 

@@ -216,8 +216,10 @@ class TokenMixin:
                     parts = info.split(None, 1)
                     lang = parts[0] if parts else ''
                     if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg', 'd2', 'structurizr', 'pikchr', 'cetz', 'fletcher'):
-                        width, height = self._parse_size_attrs(parts[1] if len(parts) > 1 else '')
-                        result.append(self._render_diagram_fence(lang, t.content, width, height))
+                        attrs_str = parts[1] if len(parts) > 1 else ''
+                        width, height = self._parse_size_attrs(attrs_str)
+                        trim = self._parse_trim_attr(attrs_str)
+                        result.append(self._render_diagram_fence(lang, t.content, width, height, trim))
                     else:
                         # ```` ``` ````フェンス構文で直接組み立てると、コード内容自体に```が
                         # 含まれる場合にTypst側のフェンスが早期に閉じて壊れる。文字列リテラルとして

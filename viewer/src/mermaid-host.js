@@ -7,11 +7,14 @@
 // （起動を遅くしないため）。実測: 準備 約0.3秒、描画 16〜51 ms。
 //
 // 設定は、Python側（`mermaid.py`のMermaidBrowser）と同じにする。Typstとは違い、HTMLの表示では、`<foreignObject>`が
-// 使えるが、SVGの見た目を、PDF出力と、そろえるため、HTMLラベルは、無効にする。
+// 使えるが、SVGの見た目を、PDF出力と、そろえるため、HTMLラベルは、無効にする。flowchart.padding・
+// sequence.diagramMarginX/Yを8pxへ縮める理由も、PDF出力と同じ（#315、mermaid.pyのコメント参照）。
 
 const fs = require('node:fs');
 
-const INITIALIZE = 'mermaid.initialize({ startOnLoad: false, htmlLabels: false, flowchart: { htmlLabels: false } })';
+const INITIALIZE = 'mermaid.initialize({ startOnLoad: false, htmlLabels: false, '
+  + 'flowchart: { htmlLabels: false, padding: 8 }, '
+  + 'sequence: { diagramMarginX: 8, diagramMarginY: 8 } })';
 const BLANK_PAGE = 'data:text/html;charset=utf-8,<!doctype html><meta charset="utf-8"><body></body>';
 
 /** Electronのエラーメッセージから、原因の理解に役立たない部分（内部のスタック、呼び出しの包み）を除く。 */

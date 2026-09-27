@@ -94,8 +94,15 @@ class MermaidBrowser:
             page.add_script_tag(content=f.read())
         # Typstのraw SVGレンダラーは<foreignObject>内のHTMLを描画できないため、mermaid既定の
         # HTMLラベルを無効化し、通常のSVG<text>要素で出力させる（トップレベルとflowchart配下
-        # 両方に指定する必要がある。PoCで確認済み）
-        page.evaluate("mermaid.initialize({ startOnLoad: false, htmlLabels: false, flowchart: { htmlLabels: false } })")
+        # 両方に指定する必要がある。PoCで確認済み）。
+        # flowchart.padding（既定15）・sequence.diagramMarginX/Y（既定50/10）は、本文へ埋め込む
+        # 小さな図には過大なため、D2と同じ8pxへ縮める（#315）。これらは内容のレイアウト後に
+        # 外側へ付け足す余白で、内容自体の大きさは変えないため、値を縮めても見切れる心配はない
+        # （実機確認: 長いnoteを含む図で、内容のバウンディングボックスが変化しないことを確認）。
+        # 他の図の種類（class/state/er/gantt等）は、種類ごとに別のキー・既定値を持つため未対応。
+        page.evaluate("mermaid.initialize({ startOnLoad: false, htmlLabels: false, "
+                      "flowchart: { htmlLabels: false, padding: 8 }, "
+                      "sequence: { diagramMarginX: 8, diagramMarginY: 8 } })")
         self.page = page
         return page
 

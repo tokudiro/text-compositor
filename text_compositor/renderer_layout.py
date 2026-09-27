@@ -136,7 +136,8 @@ class LayoutMixin:
         そのまま反映する。"""
         if match.group('lang'):
             width, height = self._parse_size_attrs(match.group('attrs'))
-            return self._render_diagram_fence(match.group('lang'), match.group('code'), width, height).strip()
+            trim = self._parse_trim_attr(match.group('attrs'))
+            return self._render_diagram_fence(match.group('lang'), match.group('code'), width, height, trim).strip()
         src_match = re.match(r'!\[[^\]]*\]\(([^)]+)\)', match.group('image'))
         return f'#image("{self._resolve_asset(src_match.group(1))}", width: 100%, height: 100%, fit: "cover")'
 
