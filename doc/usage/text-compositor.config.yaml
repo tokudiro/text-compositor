@@ -16,8 +16,7 @@ template:
   path: "template"
 
 plugins:
-  graphviz: false
-  mermaid: false
+  structurizr: true
 
 inputs:
   dir: "."
@@ -36,3 +35,12 @@ chapters:
   - "11_troubleshooting.md"
   - "12_github_actions.md"
   - "13_python_api.md"
+  - "14_gallery_mermaid.md"
+  - "15_gallery_plantuml.md"
+  - "16_gallery_d2.md"
+  - "17_gallery_graphviz.md"
+  - "18_gallery_structurizr.md"
+  - "19_gallery_pikchr.md"
+  - "20_gallery_cetz.md"
+  - "21_gallery_fletcher.md"
+  - "22_gallery_timeliney.md"
