@@ -25,6 +25,7 @@ plugins:
   pikchr: false
   cetz: false
   fletcher: false
+  timeliney: false
 
 inputs:
   dir: "."
