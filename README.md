@@ -95,6 +95,8 @@ No extra `config.yaml` settings are needed to use ` ```plantuml ` fences in your
 
 The layout engine is the pure-Java Smetana implementation, so no external binary like Graphviz (`dot`) is required. PlantUML itself (MIT edition, ~17.6MB) is cached under the same user cache directory, and conversion results are cached under `.text-compositor/cache/`, same as Mermaid.
 
+PlantUML's sprite notation works too — both custom `sprite` definitions and the icon libraries bundled inside the jar (`aws`/`awslib14`, `azure`, `gcp`, `k8s`, `office`, `archimate`, `tupadr3`, and about 30 others). These stdlib icon sets ship inside the jar itself, so they render without network access (verified with `!include <office/Servers/database_server>` combined with `!include <tupadr3/common>`, producing an inline PNG icon in the output SVG). Some libraries (e.g. `office`, `awslib14`) need that `tupadr3/common` include alongside them for their macros (`OFF_DATABASE_SERVER(id, "label")`, etc.) — see [PlantUML's stdlib docs](https://plantuml.com/stdlib) for the full library list and exact macro names.
+
 ### Using D2 diagrams (optional)
 
 No extra `config.yaml` settings are needed to use ` ```d2 ` fences in your source documents (or to specify a `.d2` file directly in `chapters`) — `plugins.d2` defaults to `true` and no additional `pip install` is required.

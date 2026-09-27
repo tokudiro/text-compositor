@@ -95,6 +95,8 @@ Node.js/npmは不要です。ビルド時にMermaid公式配布の単一バン�
 
 レイアウトエンジンには純Java実装の Smetana を使うため、Graphviz（`dot`）等の外部バイナリは不要です。PlantUML本体（MIT版、約17.6MB）は同じユーザーキャッシュディレクトリに、変換結果はMermaidと同じく `.text-compositor/cache/` にキャッシュされます。
 
+PlantUMLのスプライト記法も使えます。独自の`sprite`定義に加え、jarへ同梱されたアイコンライブラリ（`aws`/`awslib14`・`azure`・`gcp`・`k8s`・`office`・`archimate`・`tupadr3`ほか約30種）も利用できます。これらのstdlibはplantuml.jar自体に含まれるため、ネットワークアクセスなしで描画できます（`!include <office/Servers/database_server>`と`!include <tupadr3/common>`を組み合わせた例で、出力SVGへPNGアイコンがインライン埋め込みされることを確認済みです）。一部のライブラリ（`office`・`awslib14`等）は、マクロ呼び出し（`OFF_DATABASE_SERVER(id, "label")`等）のために`tupadr3/common`の併記が要ります。ライブラリの一覧と正確なマクロ名は、[PlantUML公式のstdlibドキュメント](https://plantuml.com/stdlib)を参照してください。
+
 ### D2図を使う場合（任意）
 
 原稿の中で ` ```d2 ` フェンスを使う場合（または`.d2`ファイルを`chapters`に直接指定する場合）、`config.yaml`側の追加設定は不要です（`plugins.d2`は既定`true`。追加の`pip install`も不要）。
