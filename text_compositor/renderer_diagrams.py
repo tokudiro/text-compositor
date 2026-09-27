@@ -26,6 +26,19 @@ def _diagram_cache_key(kind, tool_version, code):
     return h.hexdigest()[:16]
 
 
+# java起動時に、JVM自体の文字コードをUTF-8に固定するオプション（#306）。JEP 400（JDK18）でfile.encodingの
+# 既定はUTF-8になったが、stdin/stdout/stderrの既定はプラットフォームのネイティブエンコーディングに従う
+# 場合があり、Windows等では日本語ラベルが文字化けし得る。3つとも明示することで、JDKバージョン・
+# プラットフォーム・ロケールに依存させない。古いJDK（stdin/stdout/stderr.encodingが無い11〜17）でも、
+# 未知の-Dは無害な追加システムプロパティとして無視されるだけなので、常に付けてよい。
+_JAVA_UTF8_ENCODING_OPTS = [
+    "-Dfile.encoding=UTF-8",
+    "-Dstdin.encoding=UTF-8",
+    "-Dstdout.encoding=UTF-8",
+    "-Dstderr.encoding=UTF-8",
+]
+
+
 class DiagramMixin:
     """図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・svg）の描画と、図のSVGのキャッシュ。"""
 
@@ -370,7 +383,7 @@ class DiagramMixin:
         """plantuml.jarへcodeを標準入力で渡し、SVGを標準出力から受け取る（PlantUML本体・
         Structurizr共通、#212）。OSError・終了コードのハンドリングは呼び出し側が行う。"""
         return subprocess.run(
-            [java_bin, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
+            [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
             input=code, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
 
     # 複数の図をまとめて1回のJVM起動で処理するときの区切り文字列（#307）。plantuml.jarの
@@ -390,7 +403,7 @@ class DiagramMixin:
         図の数とパースできた要素数が一致しない場合もあるため、呼び出し側は必ず数を確認すること。"""
         combined = "".join(codes)
         result = subprocess.run(
-            [java_bin, "-jar", jar_path, "-tsvg", "-pipe",
+            [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-jar", jar_path, "-tsvg", "-pipe",
              "-pipedelimitor", self._PLANTUML_BATCH_DELIMITER, "-Playout=smetana"],
             input=combined, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
         delim_line = self._PLANTUML_BATCH_DELIMITER + "\n"
@@ -491,7 +504,7 @@ class DiagramMixin:
             out_dir = os.path.join(tmp_dir, "out")
             try:
                 result = subprocess.run(
-                    [java_bin, "-cp", os.path.join(lib_dir, "*"),
+                    [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-cp", os.path.join(lib_dir, "*"),
                      "com.structurizr.cli.StructurizrCliApplication",
                      "export", "-workspace", dsl_path, "-format", "plantuml", "-output", out_dir],
                     capture_output=True, text=True, encoding="utf-8", timeout=60)
