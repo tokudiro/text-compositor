@@ -71,6 +71,8 @@ box "開始" fit; arrow; circle "終了"
 
 `✅`には、その機能が入った版を、確認できたものだけ添えています（例: `✅(v11.0+)`）。本ツールが同梱する版は、mermaid 11.16.1・PlantUML 1.2026.8・D2 v0.9.0・structurizr-cli v2025.11.09です。同梱の版が、必要な版以上であることを確認済みです。
 
+この表の`✅`は、対応の有無だけを示します。実際の見た目・書き方は、記法ごとのギャラリーページに、`✅`の図の種類すべての実例（コード＋出力）があります（[#323](https://github.com/tokudiro/text-compositor/issues/323)）。[Mermaid](14_gallery_mermaid.md)・[PlantUML](15_gallery_plantuml.md)・[D2](16_gallery_d2.md)・[Graphviz](17_gallery_graphviz.md)・[Structurizr](18_gallery_structurizr.md)・[Pikchr](19_gallery_pikchr.md)・[CeTZ](20_gallery_cetz.md)・[Fletcher](21_gallery_fletcher.md)・[timeliney](22_gallery_timeliney.md)。
+
 #### UML図
 
 | 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney |

@@ -2,8 +2,10 @@ name: Release
 
 # バージョンタグ（v*）をpushすると、使い方ガイド（doc/usage/）をこのツール自身でPDF化し、
 # そのタグのGitHub Releaseにアセットとして添付する（dogfooding、#31・#24）。
-# doc/usage/text-compositor.config.yaml は graphviz/mermaid とも無効なため、
-# Node.js/JRE等の追加ランタイムは不要でPython + pipのみで完結する（2章）。
+# 記法ごとのギャラリー（#323）が実際の図を描画するため、PlantUML・D2・Structurizrは、
+# 初回ビルド時に、それぞれのツールを自動取得する（既定でauto_download: true。2章）。
+# Mermaidは、ubuntu-latestに標準搭載のブラウザ（Chrome/Edge）をそのまま使うため、
+# 追加取得は発生しない（doc/usage/12_github_actions.mdの「Mermaidを使う場合の注意」）。
 #
 # doc/usage/12_github_actions.mdで案内している2つの使い方（クローンして直接叩く／
 # pipインストールする、#50・#111・#112）を、それぞれ別ジョブで実際にビルドし、
