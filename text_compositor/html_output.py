@@ -237,6 +237,10 @@ class HtmlRenderer(TypstRenderer):
             with open(md_path, "r", encoding="utf-8") as f:
                 text = f.read()
             if ext in ('.md', '.markdown'):
+                # 図ごとに毎回JVMを起動する現状のコストを減らすため、変数展開の前に
+                # ```plantuml/```structurizrフェンスを事前にまとめて1回のJVM起動で描画しておく
+                # （#307）。変数展開前のテキストでよい理由は、prefetch_plantuml_diagramsのdocstring参照。
+                self.prefetch_plantuml_diagrams([(md_path, text)])
                 if self.variables is not None:
                     text = self._substitute_variables(text, md_path)
                 body = self._render_markdown(text)

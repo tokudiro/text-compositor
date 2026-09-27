@@ -373,6 +373,32 @@ class DiagramMixin:
             [java_bin, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
             input=code, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
 
+    # 複数の図をまとめて1回のJVM起動で処理するときの区切り文字列（#307）。plantuml.jarの
+    # `-pipedelimitor`が標準出力にこの行をそのまま挟んで返す仕様を使う（実機確認）。図のコード
+    # 自身にこの文字列が現れる可能性は無視できるほど低いため、固定値のままにする。
+    _PLANTUML_BATCH_DELIMITER = "===text-compositor-plantuml-batch-delimiter==="
+
+    def _run_plantuml_batch(self, java_bin, jar_path, codes, timeout=120):
+        """複数のPlantUMLソース（codes）を、1回のJVM起動でまとめて処理する（#307）。
+        `-pipe`は標準入力に連結した複数の@startuml/@endumlブロックを読み、`-pipedelimitor`で
+        指定した区切り文字列を挟んで図の数だけSVG（または失敗時はエラー画像のSVG）を順に返す
+        仕様がある（実機確認、ヘルプ上の記載はない）。1件でも構文エラーがあると、プロセス全体の
+        終了コードが非0になり、標準エラーには最初のエラーだけしか出ない（どの図かは特定できない）ため、
+        呼び出し側はreturncode!=0の場合、1件ずつ_run_plantuml_jar()で再実行してどれが失敗かを
+        特定すること（安全側に倒す設計、#307のissueコメント参照）。
+        戻り値は(returncode, パース済みのSVG文字列のリスト, stderr)。JVM自体の異常終了等で
+        図の数とパースできた要素数が一致しない場合もあるため、呼び出し側は必ず数を確認すること。"""
+        combined = "".join(codes)
+        result = subprocess.run(
+            [java_bin, "-jar", jar_path, "-tsvg", "-pipe",
+             "-pipedelimitor", self._PLANTUML_BATCH_DELIMITER, "-Playout=smetana"],
+            input=combined, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        delim_line = self._PLANTUML_BATCH_DELIMITER + "\n"
+        parts = result.stdout.split(delim_line)
+        if parts and parts[-1] == "":
+            parts = parts[:-1]
+        return result.returncode, parts, result.stderr
+
     def _plantuml_svg_path(self, code, line=None):
         """plantumlの図のSVG（キャッシュ）のパスを返す。無ければ、ローカルのjava+plantuml.jarで作る。
         plugins.plantuml: falseなら、何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
@@ -448,16 +474,52 @@ class DiagramMixin:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _structurizr_svg_path(self, code, line=None):
-        """Structurizrの図のSVG（キャッシュ）のパスを返す。無ければ、structurizr-cliでPlantUMLへ
-        書き出し、それをローカルのjava+plantuml.jarで描画して作る。plugins.structurizr: falseなら、
-        何も作らずNoneを返す。line: 失敗時の診断に付ける行。
+    def _structurizr_dsl_to_plantuml(self, code, line=None):
+        """Structurizrのワークスペース（DSL）を、structurizr-cliでPlantUMLソースへ書き出す
+        （#212、#307で事前収集フェーズからも呼べるよう`_structurizr_svg_path`から切り出した）。
 
         structurizr-cliは、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、
         CLI引数で1つだけ選ぶ方法は無い（実機確認）。このツールは「1フェンス=1図」という他の図表と
         同じ原則を保つため、ビューは1つに限定し、0または2つ以上ならFail-fastでエラーにする
         （複数ビューを1つのモデルから使い回したい場合は、DSLの`!include`で共通モデルを別ファイルへ
         切り出し、フェンスごとに`views`ブロックだけ変えるよう案内する）。"""
+        java_bin, lib_dir, _ = self._ensure_structurizr_tools()
+        with tempfile.TemporaryDirectory(prefix="structurizr-") as tmp_dir:
+            dsl_path = os.path.join(tmp_dir, "workspace.dsl")
+            with open(dsl_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            out_dir = os.path.join(tmp_dir, "out")
+            try:
+                result = subprocess.run(
+                    [java_bin, "-cp", os.path.join(lib_dir, "*"),
+                     "com.structurizr.cli.StructurizrCliApplication",
+                     "export", "-workspace", dsl_path, "-format", "plantuml", "-output", out_dir],
+                    capture_output=True, text=True, encoding="utf-8", timeout=60)
+            except OSError as e:
+                self._error_here(f"Failed to run structurizr-cli for {self.current_file}:\n{e}")
+                for diag in (_check_isolated_env(), _check_structurizr(self.structurizr_enabled, self.structurizr_auto_download)):
+                    if diag.status != "OK":
+                        _hint(f"[{diag.status}] {diag.name}: {diag.message}")
+                sys.exit(1)
+            if result.returncode != 0:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
+                self._diagram_error("Structurizr", result.stderr or result.stdout, line)
+                sys.exit(1)
+            views = sorted(p for p in glob.glob(os.path.join(out_dir, "*.puml")) if not p.endswith("-key.puml"))
+            if len(views) != 1:
+                detail = (f"the workspace defines {len(views)} views, but exactly 1 is required per "
+                          "```structurizr fence (one output image per fence). Split into separate "
+                          "fences, one per view; share the model between them with the DSL's own "
+                          "`!include` if needed.")
+                self._diagram_error("Structurizr", detail, line)
+                sys.exit(1)
+            with open(views[0], "r", encoding="utf-8") as f:
+                return f.read()
+
+    def _structurizr_svg_path(self, code, line=None):
+        """Structurizrの図のSVG（キャッシュ）のパスを返す。無ければ、structurizr-cliでPlantUMLへ
+        書き出し、それをローカルのjava+plantuml.jarで描画して作る。plugins.structurizr: falseなら、
+        何も作らずNoneを返す。line: 失敗時の診断に付ける行。"""
         if not self.structurizr_enabled:
             if not self._structurizr_disabled_warned:
                 _log_info(f"plugins.structurizr is disabled; leaving ```structurizr fences as plain code (first seen in {self.current_file}).")
@@ -469,51 +531,113 @@ class DiagramMixin:
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering Structurizr diagram via local Java -> {os.path.basename(svg_path)}")
-            java_bin, lib_dir, jar_path = self._ensure_structurizr_tools()
-            with tempfile.TemporaryDirectory(prefix="structurizr-") as tmp_dir:
-                dsl_path = os.path.join(tmp_dir, "workspace.dsl")
-                with open(dsl_path, "w", encoding="utf-8") as f:
-                    f.write(code)
-                out_dir = os.path.join(tmp_dir, "out")
-                try:
-                    result = subprocess.run(
-                        [java_bin, "-cp", os.path.join(lib_dir, "*"),
-                         "com.structurizr.cli.StructurizrCliApplication",
-                         "export", "-workspace", dsl_path, "-format", "plantuml", "-output", out_dir],
-                        capture_output=True, text=True, encoding="utf-8", timeout=60)
-                except OSError as e:
-                    self._error_here(f"Failed to run structurizr-cli for {self.current_file}:\n{e}")
-                    for diag in (_check_isolated_env(), _check_structurizr(self.structurizr_enabled, self.structurizr_auto_download)):
-                        if diag.status != "OK":
-                            _hint(f"[{diag.status}] {diag.name}: {diag.message}")
-                    sys.exit(1)
-                if result.returncode != 0:
-                    # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
-                    self._diagram_error("Structurizr", result.stderr or result.stdout, line)
-                    sys.exit(1)
-                views = sorted(p for p in glob.glob(os.path.join(out_dir, "*.puml")) if not p.endswith("-key.puml"))
-                if len(views) != 1:
-                    detail = (f"the workspace defines {len(views)} views, but exactly 1 is required per "
-                              "```structurizr fence (one output image per fence). Split into separate "
-                              "fences, one per view; share the model between them with the DSL's own "
-                              "`!include` if needed.")
-                    self._diagram_error("Structurizr", detail, line)
-                    sys.exit(1)
-                with open(views[0], "r", encoding="utf-8") as f:
-                    puml_code = f.read()
-                try:
-                    result = self._run_plantuml_jar(java_bin, jar_path, puml_code)
-                except OSError as e:
-                    self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
-                    sys.exit(1)
-                if result.returncode != 0:
-                    self._diagram_error("Structurizr", result.stderr, line)
-                    sys.exit(1)
-                with open(svg_path, "w", encoding="utf-8") as f:
-                    f.write(result.stdout)
+            puml_code = self._structurizr_dsl_to_plantuml(code, line)
+            java_bin, _, jar_path = self._ensure_structurizr_tools()
+            try:
+                result = self._run_plantuml_jar(java_bin, jar_path, puml_code)
+            except OSError as e:
+                self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
+                sys.exit(1)
+            if result.returncode != 0:
+                self._diagram_error("Structurizr", result.stderr, line)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(result.stdout)
         else:
             _log_verbose(f"Reusing cached Structurizr diagram: {os.path.basename(svg_path)}")
         return svg_path
+
+    def prefetch_plantuml_diagrams(self, file_texts):
+        """ビルド対象のMarkdown原稿（複数ファイル分）から```plantuml/```structurizrフェンスを
+        事前に集め、未キャッシュの図をまとめて1回のJVM起動で描画する（#307）。図ごとに毎回
+        JVMを起動する現状（1個あたり実測1.5〜1.8秒、Structurizrは2回起動で2.4〜3.1秒）に対し、
+        1回のビルドに複数の図があっても、通常は起動を1回に減らせる。呼ばなくても、通常の描画経路
+        （_plantuml_svg_path/_structurizr_svg_path）が個別に描画するため、この事前フェーズは
+        「呼べれば速くなる最適化」であり省いても正しさは変わらない。
+
+        file_texts: [(filepath, text), ...]。textはfront-matter除去・{{KEY}}置換より前の生原稿でよい
+        （フェンスの中身自体はどちらの影響も受けないため。variablesがコード中に使われる稀なケースは、
+        キャッシュキーが一致せずこの事前フェーズの効果が及ばないだけで、後続の通常描画経路が
+        従来どおり個別に描画するので正しさは保たれる）。
+
+        plugins.plantuml・plugins.structurizrの両方がfalseなら何もしない。1件でも構文エラーが
+        あった場合、バッチ全体を捨てて1件ずつ個別に再実行し、既存の診断（ファイル・行・エラー内容）
+        でFail-fastする（_run_plantuml_batchのdocstring参照。バッチの標準エラーだけでは
+        どの図が失敗したか特定できないため）。"""
+        if not self.plantuml_enabled and not self.structurizr_enabled:
+            return
+
+        # cache_path -> (plantumlソース, 診断用のファイル・行, ラベル)
+        targets = {}
+        for filepath, text in file_texts:
+            for m in self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, text):
+                lang = m.group('lang')
+                if lang not in ('plantuml', 'structurizr'):
+                    continue
+                # markdown-itのfenceトークンのcontentは末尾に改行を1つ持つが、この正規表現の
+                # codeグループは直後の`\r?\n```にマッチが取られるため改行を含まない。通常の
+                # 描画経路（renderer_tokens.py、t.content）と同じキャッシュキーになるよう補う
+                # （補わないと、同じ図が事前スキャン用とレンダリング用で別キーになり二重に描画される）。
+                code = m.group('code') + '\n'
+                line = text.count('\n', 0, m.start()) + 1
+                if lang == 'plantuml':
+                    if not self.plantuml_enabled:
+                        continue
+                    cache_path, _ = self._diagram_cache_path("plantuml", PLANTUML_JAR_SHA256, code)
+                    if os.path.exists(cache_path) or cache_path in targets:
+                        continue
+                    targets[cache_path] = (code, filepath, line, "PlantUML")
+                else:
+                    if not self.structurizr_enabled:
+                        continue
+                    version = f"{STRUCTURIZR_CLI_SHA256}:{PLANTUML_JAR_SHA256}"
+                    cache_path, _ = self._diagram_cache_path("structurizr", version, code)
+                    if os.path.exists(cache_path) or cache_path in targets:
+                        continue
+                    # DSL->PlantUML変換自体はバッチ化できない（structurizr-cliに常駐/バッチモードは無い、
+                    # #307のissueコメント参照）。1図ごとに1回起動する点は変わらない。
+                    self.current_file = filepath
+                    puml_code = self._structurizr_dsl_to_plantuml(code, line)
+                    targets[cache_path] = (puml_code, filepath, line, "Structurizr")
+
+        if not targets:
+            return
+
+        if self.plantuml_enabled:
+            java_bin, jar_path = self._ensure_plantuml_tools()
+        else:
+            java_bin, _, jar_path = self._ensure_structurizr_tools()
+
+        cache_paths = list(targets.keys())
+        codes = [targets[p][0] for p in cache_paths]
+        _log_info(f"Pre-rendering {len(cache_paths)} PlantUML/Structurizr diagram(s) via a single Java process...")
+        try:
+            returncode, parts, _stderr = self._run_plantuml_batch(java_bin, jar_path, codes)
+        except OSError as e:
+            self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
+            sys.exit(1)
+
+        if returncode == 0 and len(parts) == len(cache_paths):
+            for cache_path, svg in zip(cache_paths, parts):
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    f.write(svg)
+            return
+
+        # バッチの一部（または全部）が失敗、あるいは出力の対応が取れなかった。安全側に倒し、
+        # 1件ずつ個別に再実行して、失敗した図だけをFail-fastで報告する（成功分はキャッシュに書く）。
+        for cache_path in cache_paths:
+            code, filepath, line, label = targets[cache_path]
+            self.current_file = filepath
+            try:
+                result = self._run_plantuml_jar(java_bin, jar_path, code)
+            except OSError as e:
+                self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
+                sys.exit(1)
+            if result.returncode != 0:
+                self._diagram_error(label, result.stderr, line)
+                sys.exit(1)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(result.stdout)
 
     def _ensure_d2_bin(self):
         """d2実行ファイルを遅延解決する（初回のみ）。Obunzuが配布物に同梱したもの
