@@ -105,6 +105,23 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
         table_header=global_table_header, heading_offset=0)
     entries = _expand_chapters(chapters, root_defaults, project_dir, typst_root)
 
+    # PlantUML/Structurizrの図を、通常の描画ループより前にまとめて1回のJVM起動で描画しておく
+    # （#307）。図ごとに毎回JVMを起動する現状のコストを、1回のビルドに複数の図があっても
+    # 基本1回に減らす。失敗しても正しさは変わらない（通常の描画経路が個別に描画するだけ）ため、
+    # ここでの例外は握り潰さずそのまま伝播させる（Fail-fastは、renderer側で既に処理済み）。
+    markdown_texts = []
+    for kind, ch, _d in entries:
+        if kind == "section":
+            continue
+        ch_file, _ch_dict, ch_type = _parse_chapter_entry(ch)
+        if ch_type == "aggregate" or os.path.splitext(ch_file)[1].lower() not in ('.md', '.markdown'):
+            continue
+        ch_path = os.path.join(inputs_dir, ch_file)
+        if os.path.isfile(ch_path):
+            with open(ch_path, "r", encoding="utf-8") as f:
+                markdown_texts.append((ch_path, f.read()))
+    renderer.prefetch_plantuml_diagrams(markdown_texts)
+
     try:
         for kind, ch, d in entries:
             if kind == "section":
