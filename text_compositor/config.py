@@ -30,7 +30,7 @@ _ALLOWED_INPUTS_KEYS = {"dir", "files"}
 _ALLOWED_PLUGINS_KEYS = {
     "graphviz", "mermaid", "mermaid_auto_download", "plantuml", "plantuml_auto_download",
     "d2", "d2_auto_download", "structurizr", "structurizr_auto_download",
-    "pikchr", "cetz", "fletcher", "diagram_trim",
+    "pikchr", "cetz", "fletcher", "timeliney", "diagram_trim",
 }
 
 def _collect_unknown_keys(mapping, allowed, prefix, errors):

@@ -1,4 +1,4 @@
-"""```cetz・```fletcherフェンスを、Typstのパッケージ`cetz`・`fletcher`で描く（#236）。
+"""```cetz・```fletcher・```timelineyフェンスを、Typstのパッケージ`cetz`・`fletcher`・`timeliney`で描く（#236・#294）。
 
 原稿に書かれたコードは、Typstのコードである。そのまま実行すると、原稿が、任意のファイルの読み込み（`read`・`import`など）や、
 ネットワーク越しのパッケージの取得をできてしまう。AIが書いた原稿を、レビューなしで入れる事故を防ぐため、コードを、`eval`に
@@ -21,11 +21,14 @@ from text_compositor.typst_runtime import typst_lib
 
 # 使う版。`viewer/scripts/build-dist.js`と、同じ値にする（tests/test_cetz_render.pyが、一致を確かめる）。
 # fletcherは、内部で、cetz 0.3.4とoxifmtに依存する（推移的な依存も、同梱する。build-dist.js）。
+# timelineyは、内部で、cetz 0.4.1に依存する（#294。fletcher・cetz直接利用とは別の3本目のcetzの版になる）。
 CETZ_VERSION = "0.5.2"
 FLETCHER_VERSION = "0.5.8"
+TIMELINEY_VERSION = "0.4.0"
+TIMELINEY_CETZ_VERSION = "0.4.1"
 
-KINDS = ("cetz", "fletcher")
-LABELS = {"cetz": "CeTZ", "fletcher": "Fletcher"}
+KINDS = ("cetz", "fletcher", "timeliney")
+LABELS = {"cetz": "CeTZ", "fletcher": "Fletcher", "timeliney": "timeliney"}
 
 # 実行を禁じる関数。呼ぶと、原因の分かるエラー（`panic`）になる。
 _DENIED = ("read", "json", "csv", "yaml", "toml", "xml", "cbor", "eval", "plugin", "bibliography")
@@ -43,6 +46,16 @@ def figure_body(kind: str, code_expr: str) -> str:
         return (f'import "@preview/cetz:{CETZ_VERSION}"\n{head}'
                 'let scope = (..dictionary(cetz.draw), cetz: cetz, ..blocked)\n'
                 f'let fig = cetz.canvas({{ eval({code_expr}, mode: "code", scope: scope) }})\n')
+    if kind == "timeliney":
+        # timelineyは、コードを、`timeline(show-grid: true, { ... })`の本体として書く（`headerline(...)`・
+        # `taskgroup(...)`・`task(...)`・`milestone(...)`など）。cetzのcanvasと同じ、コードブロックへの
+        # evalで組み立てる（fletcherのような文字列連結でdiagram(...)を作る形にしないのは、timelineyの
+        # 本体がcetzのcanvasと同様、複数の呼び出しを並べて自動的に結合させる形のため）。
+        return (f'import "@preview/timeliney:{TIMELINEY_VERSION}" as timeliney\n{head}'
+                'let scope = (headerline: timeliney.headerline, group: timeliney.group, '
+                'taskgroup: timeliney.taskgroup, task: timeliney.task, milestone: timeliney.milestone, '
+                'timeliney: timeliney, ..blocked)\n'
+                f'let fig = timeliney.timeline(show-grid: true, {{ eval({code_expr}, mode: "code", scope: scope) }})\n')
     # fletcherは、コードを、`diagram(...)`の引数として書く（`node(...)`・`edge(...)`・`spacing: 3em`など）。
     # 末尾の行コメントが、閉じ括弧を巻き込まないように、改行で挟む。
     return (f'import "@preview/fletcher:{FLETCHER_VERSION}" as fletcher: diagram, node, edge\n{head}'
@@ -50,10 +63,19 @@ def figure_body(kind: str, code_expr: str) -> str:
             f'let fig = eval("diagram(\\n" + {code_expr} + "\\n)", mode: "code", scope: scope)\n')
 
 
+# timelineyは、`layout(size => ...)`でコンテナの幅を読み、列の幅をその幅に対する割合で決める（cetz・fletcherは、
+# 絶対座標で描くため、幅を読まない）。ページ幅が`auto`だと、その`layout`が受け取る幅が定まらず、列の幅の計算が
+# 壊れる（実機確認: `Element 'titles' does not have a border for anchor`のようなエラーになる）。そのため、timeliney
+# だけ、幅を固定値にする（timelineyは常にその幅いっぱいに描くよう作られているため、cetz・fletcherと違い、
+# 幅をautoにして描画結果へトリミングする必要がない）。
+_TIMELINEY_HTML_WIDTH = "600pt"
+
 def _html_wrapper(kind: str) -> str:
     """図1つ分のTypstコード。余白は少し（線の端が欠けないように）・背景なし・大きさは図に合わせる。
-    フォントは、PDFのテンプレートと同じ`Noto Sans JP`。文字の大きさは、PDFの本文に近い値にした。"""
-    return ('#set page(width: auto, height: auto, margin: 4pt, fill: none)\n'
+    フォントは、PDFのテンプレートと同じ`Noto Sans JP`。文字の大きさは、PDFの本文に近い値にした。
+    timelineyだけ、幅を固定する（上のコメント参照）。"""
+    width = _TIMELINEY_HTML_WIDTH if kind == "timeliney" else "auto"
+    return (f'#set page(width: {width}, height: auto, margin: 4pt, fill: none)\n'
             '#set text(font: "Noto Sans JP", size: 11pt)\n'
             f'#{{\n{figure_body(kind, "sys.inputs.code")}fig\n}}\n')
 
@@ -63,14 +85,40 @@ _WRAPPERS = {kind: _html_wrapper(kind) for kind in KINDS}
 
 def cache_version(kind: str) -> str:
     """図のSVGのキャッシュキーに入れる、描画環境の版。パッケージ・Typst・上のTypstコードのどれかが変われば、別のキーになる。"""
-    version = CETZ_VERSION if kind == "cetz" else f"{FLETCHER_VERSION}+cetz{CETZ_VERSION}"
+    if kind == "cetz":
+        version = CETZ_VERSION
+    elif kind == "timeliney":
+        version = f"{TIMELINEY_VERSION}+cetz{TIMELINEY_CETZ_VERSION}"
+    else:
+        version = f"{FLETCHER_VERSION}+cetz{CETZ_VERSION}"
     return f"{kind}{version}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPERS[kind])}"
+
+
+def _timeliney_source(code_expr: str, width: Optional[str] = None, height: Optional[str] = None) -> str:
+    """timelineyの図のTypstコード（#294）。cetz・fletcherと違い、timelineyは絶対座標で描くのではなく、
+    `layout(size => ...)`で自分が置かれたコンテナの幅を読み、その幅いっぱいに列を割り付ける（timeliney.typの実装）。
+    そのため、他のkindと同じ`measure(fig)`後にscale()で縮小する経路は使えない: `measure()`は、その内側で
+    もう一度layout()を走らせる（測定用の仮のレイアウト）ため、timelineyの内部のアンカー解決が壊れる
+    （実機確認: `Element 'titles' does not have a border for anchor '...'`というassertion failedになる。
+    #294のissueコメント参照）。代わりに、`box(width: ...)`にコンテナの幅を渡した上で、その中でtimeline()を
+    呼ぶ（＝layout()が最初から欲しい幅を受け取る）。timelineyは常にその幅いっぱいに描くよう作られているため、
+    行の幅より広ければ縮小、という他のkindの既定動作は、timelineyには元々当てはまらない（widthを指定しなければ、
+    行の幅いっぱいになる）。heightは、timeliney自身が受け取らない値（高さは、行の数で決まる）ため、
+    blockのheightへそのまま渡すだけ（指定より内容が高ければ、あふれる。拡大・縮小の対象にはしない）。"""
+    body = figure_body("timeliney", code_expr)
+    body = "\n".join("  " + line if line else line for line in body.splitlines())
+    w = width if width else "100%"
+    h = height if height else "auto"
+    return f'#align(center)[#block(width: {w}, height: {h})[#{{\n{body}\n  fig\n}}]]\n\n'
 
 
 def pdf_source(kind: str, code: str, width: Optional[str] = None, height: Optional[str] = None) -> str:
     """PDFに埋め込む、図のTypstコード。図が、行の幅より広ければ、幅に合わせて縮小する（拡大はしない。Graphvizの`render-graph()`と同じ）。
     width・heightを指定したら、その大きさに合わせて、拡大・縮小する（縦横比は保つ。両方なら、その枠に収まる大きさ。文字が歪むため、引き伸ばさない）。
+    timelineyは別経路（`_timeliney_source`。理由は、そちらのdocstring参照）。
     テンプレートの補助関数にしない: 生成コードが読み込むテンプレートの公開名を増やすと、既存のカスタムテンプレートが壊れるため。"""
+    if kind == "timeliney":
+        return _timeliney_source(_typst_multiline_literal(code), width, height)
     body = figure_body(kind, _typst_multiline_literal(code))
     if width or height:
         # 割合（`50%`）は、幅の基準を行の幅、高さの基準を残りの高さにする
@@ -120,7 +168,7 @@ def check_code(code: str) -> None:
 
     def fail(word: str, at: int) -> None:
         raise FigureCodeError(
-            f"'{word}' cannot be used in a cetz/fletcher figure: the drawing functions are already available, "
+            f"'{word}' cannot be used in a cetz/fletcher/timeliney figure: the drawing functions are already available, "
             "and files and packages cannot be loaded.", at)
 
     while i < n:

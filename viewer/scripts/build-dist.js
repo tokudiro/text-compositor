@@ -59,11 +59,13 @@ const FONTS = {
     'NotoSansJP-Bold.otf': '1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f',
   },
 };
-// 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と、kip（Pikchr。#213）・cetz・fletcher（#236）はtext_compositor/の
-// pikchr_render.py・cetz_render.pyの版の定数と、同じ版）。fletcher 0.5.8は、cetz 0.3.4とoxifmtに依存する（cetz 0.5.2は、cetz自身がoxifmtに依存する）。
+// 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と、kip（Pikchr。#213）・cetz・fletcher（#236）・
+// timeliney（#294）はtext_compositor/のpikchr_render.py・cetz_render.pyの版の定数と、同じ版）。fletcher 0.5.8は、cetz 0.3.4と
+// oxifmtに依存する（cetz 0.5.2は、cetz自身がoxifmtに依存する）。timeliney 0.4.0は、cetz 0.4.1に依存する（3本目のcetzの版）。
 // 推移的な依存も、オフラインで動くように、すべて入れる。CeTZ（LGPL-3.0以降）の扱いは、下の`LGPL_NOTICE`。
 const TYPST_PACKAGES = [
   { name: 'cetz', version: '0.3.4', license: 'LGPL-3.0-or-later', sha256: '4f4b5a8d311d519e749940a766fe50521e40c041129e1c91af0c42e61f307514' },
+  { name: 'cetz', version: '0.4.1', license: 'LGPL-3.0-or-later', sha256: '195549e2e42035320572dddf06ba0702ed3eb31ac6969a4a5aa6d7785c8a9b83' },
   { name: 'cetz', version: '0.5.2', license: 'LGPL-3.0-or-later', sha256: '77cf8490114ae04c6e665a11efa691d284a0cadb9719771b5708c1197292f23f' },
   { name: 'diagraph', version: '0.3.7', license: 'MIT', sha256: '08b9927b047e95c661c1d7ae28806b8cbefa25a07f8ae2d4a47911028875abc6' },
   { name: 'fletcher', version: '0.5.8', license: 'MIT', sha256: 'a61883a4af4ca923a37c597900e674f40dad3f7bde3f2a3d8fe8042e6ca8a66b' },
@@ -71,6 +73,7 @@ const TYPST_PACKAGES = [
   { name: 'note-me', version: '0.6.0', license: 'MIT', sha256: '94273b3c9a7ddc3960ad86dfc02b8f864eebd918699a1a32310a6cf40aee67a6' },
   { name: 'oxifmt', version: '0.2.1', license: 'MIT-0', sha256: '16fac2923032c59727de01e84d42cac45e8790da28df56effca49f4de41b09d9' },
   { name: 'oxifmt', version: '1.0.0', license: 'MIT OR Apache-2.0', sha256: '7d17a1fc8ad01740ec3cb2b03c7360a4225ff9318e5710765fa98ea6fd59594f' },
+  { name: 'timeliney', version: '0.4.0', license: 'MIT', sha256: 'e48c5bfc4027b77ae76e9157dcacb9795b35d3fea8b3410d5d392bac1562163c' },
 ];
 
 // CeTZ（LGPL-3.0以降）を同梱する条件（#236）。Typstのパッケージは、ソースそのものなので、ソースの提供は、この配布物が満たす。
@@ -79,7 +82,7 @@ const TYPST_PACKAGES = [
 const LGPL_NOTICE = [
   '## CeTZ (LGPL-3.0-or-later)',
   '',
-  'The Typst package CeTZ (`typst-packages/preview/cetz/`, two versions) is licensed under the GNU LGPL, version 3 or later.',
+  'The Typst package CeTZ (`typst-packages/preview/cetz/`, three versions) is licensed under the GNU LGPL, version 3 or later.',
   'It is included unmodified, as separate source files, so that you can replace it with another version:',
   'put the package into the same folder layout (`typst-packages/preview/cetz/<version>/`). The license text (with the',
   'copyright notice) is `LICENSE` in each of those folders. The source is available at https://typst.app/universe/package/cetz',

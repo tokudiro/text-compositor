@@ -84,9 +84,12 @@ def test_build_dist_pins_the_same_fonts_and_packages_as_the_tool():
     common = (ROOT / "text_compositor" / "templates" / "_common.typ").read_text(encoding="utf-8")
     used = set(re.findall(r"@preview/([a-z0-9-]+):([\d.]+)", common))
     used.add(("kip", pikchr_render.KIP_VERSION))   # Pikchr（#213）は、テンプレートではなく、生成コードが読み込む
-    # CeTZ・Fletcher（#236）も、生成コードが読み込む。Fletcher 0.5.8が内部で使うcetz 0.3.4・oxifmtと、cetz 0.5.2が使うoxifmt 1.0.0は、
-    # ネットワークなしで動くように、推移的な依存として、同梱する（同梱の不足は、viewer/scripts/check-dist.jsの、オフラインでのコンパイルが検出する）
+    # CeTZ・Fletcher（#236）・timeliney（#294）も、生成コードが読み込む。Fletcher 0.5.8が内部で使うcetz 0.3.4・oxifmt、
+    # cetz 0.5.2が使うoxifmt 1.0.0、timeliney 0.4.0が使うcetz 0.4.1は、ネットワークなしで動くように、推移的な依存として、
+    # 同梱する（同梱の不足は、viewer/scripts/check-dist.jsの、オフラインでのコンパイルが検出する）
     used |= {("cetz", cetz_render.CETZ_VERSION), ("fletcher", cetz_render.FLETCHER_VERSION),
-             ("cetz", "0.3.4"), ("oxifmt", "0.2.1"), ("oxifmt", "1.0.0")}
+             ("timeliney", cetz_render.TIMELINEY_VERSION),
+             ("cetz", "0.3.4"), ("cetz", cetz_render.TIMELINEY_CETZ_VERSION),
+             ("oxifmt", "0.2.1"), ("oxifmt", "1.0.0")}
     bundled = set(re.findall(r"name: '([a-z0-9-]+)', version: '([\d.]+)'", script))
     assert used and used == bundled, (used, bundled)

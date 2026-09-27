@@ -1,4 +1,4 @@
-# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / SVG）
+# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / timeliney / SVG）
 
 通常のフェンスコードブロックとして書きます。
 
@@ -49,7 +49,7 @@ box "開始" fit; arrow; circle "終了"
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`/`timeliney`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -63,6 +63,7 @@ box "開始" fit; arrow; circle "終了"
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
+| `timeliney` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`timeliney`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「timelineyについて」） |
 
 ### 記法で描ける図の種類（対応表）
 
@@ -72,61 +73,61 @@ box "開始" fit; arrow; circle "終了"
 
 #### UML図
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| シーケンス図 | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| タイミング図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| クラス図 | ✅ | ✅ | ✅ | ❌※1 | ❌ | ❌ | ❌ | ❌ |
-| 状態遷移図 | ✅※6 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| ユースケース図 | ❌※3 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| アクティビティ図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| コンポーネント図／配置図 | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| オブジェクト図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| パッケージ図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 複合構造図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| プロファイル図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| コミュニケーション図 | ❌※9 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| 相互作用概要図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| シーケンス図 | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| タイミング図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| クラス図 | ✅ | ✅ | ✅ | ❌※1 | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 状態遷移図 | ✅※6 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ユースケース図 | ❌※3 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| アクティビティ図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| コンポーネント図／配置図 | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| オブジェクト図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| パッケージ図 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 複合構造図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| プロファイル図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| コミュニケーション図 | ❌※9 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 相互作用概要図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 #### SysML図（要求図以外は、上のUML図と共通。SysML v2.0は対象外※4）
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 要求図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| ブロック定義図（BDD） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 内部ブロック図（IBD） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| パラメトリック図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 要求図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ブロック定義図（BDD） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 内部ブロック図（IBD） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| パラメトリック図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 #### C4モデル図（UML・SysMLとは別の、独自のモデル。コミュニケーション図に相当するDynamic図は、上のUML図の表を参照）
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| System Context図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| コンテナ図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| コンポーネント図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| システムランドスケープ図 | ❌ | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| デプロイメント図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| System Context図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| コンテナ図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| コンポーネント図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| システムランドスケープ図 | ❌ | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| デプロイメント図 | ❌※9 | ❌※2 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 #### その他
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| フローチャート | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| ノードとエッジ図 | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
-| ER図 | ✅(v8.5+) | ❌※7 | ✅ | ❌※1 | ❌ | ❌ | ❌ | ❌ |
-| ガントチャート | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| データ可視化 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| マインドマップ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Git履歴図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| タイムライン | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| カンバン | ✅(v11.4+) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| アーキテクチャ図 | ✅(v11.1+) | ❌ | ❌ | ❌ | ❌※8 | ❌ | ❌ | ❌ |
-| ポジションマップ（クアドラントチャート） | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| ネットワーク構成図 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| ラック構成図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| パケット構造図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 幾何図形・自由描画 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
-| 可換図式・木構造 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| フローチャート | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| ノードとエッジ図 | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| ER図 | ✅(v8.5+) | ❌※7 | ✅ | ❌※1 | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ガントチャート | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| データ可視化 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| マインドマップ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Git履歴図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| タイムライン | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| カンバン | ✅(v11.4+) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| アーキテクチャ図 | ✅(v11.1+) | ❌ | ❌ | ❌ | ❌※8 | ❌ | ❌ | ❌ | ❌ |
+| ポジションマップ（クアドラントチャート） | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ネットワーク構成図 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ラック構成図 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| パケット構造図 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 幾何図形・自由描画 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| 可換図式・木構造 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
 
 **注記**
 
@@ -203,6 +204,29 @@ node((0, 0), [開始]), edge("->"), node((1, 0), [処理]), edge("->"), node((2,
 
 レイアウトのブロック（`::: layout-...`・`::: align`）も、PDF出力とObunzuの両方で使えます。Obunzuでは、CSSで近似するため、見た目が、PDF出力と少し違う場合があります。
 
+### timelineyについて
+
+`timeliney`（[公式](https://typst.app/universe/package/timeliney)）は、Typstのパッケージで、ガントチャートを描きます（[#294](https://github.com/tokudiro/text-compositor/issues/294)）。Mermaid/PlantUMLのガントチャートと違い、本文と同じフォント・配色で、その場に描画されます。一方、日付の自動計算・タスクの依存関係の自動連結はありません（列の位置は、数値で指定します）。
+
+`timeliney`には、`headerline`・`taskgroup`・`task`・`milestone`などの呼び出しを、1行に1つずつ書きます。
+
+````markdown
+```timeliney
+headerline(group(([*2024*], 4)))
+taskgroup(title: [開発], {
+  task("設計", (0, 1))
+  task("実装", (1, 3))
+})
+milestone(at: 3, align(center, [リリース]))
+```
+````
+
+- 列（`0`・`1`など）は、日付ではなく、`headerline`で定義した見出しの並びに対する位置（インデックス）です。日付との対応づけは、自分で行います。
+- 幅いっぱいに描くよう作られているため、`{width=...}`を指定しなければ、行の幅いっぱいになります（他の記法のような、行の幅を超えたときだけ縮小する動作ではありません）。`{height=...}`は、大きさの目安として使われるだけで、内容がそれより大きければあふれます（高さは、行の数で決まるため）。
+- `import`・`include`・ファイルを読む関数（`read`・`json`・`csv`など）は、使えません。CeTZ・Fletcherと同じ理由です。
+- PDF出力もObunzuも、同梱のTypstのパッケージ`timeliney`で描くため、同じ図になります。`plugins.timeliney: false`で、無効にできます。
+- 記法は、[公式のドキュメント](https://github.com/pta2002/typst-timeliney)を参照してください。
+
 `svg`フェンスはMermaid/PlantUML/Graphvizと異なりレンダリングを一切行いません。SVGは既にテキストで完結したベクター画像フォーマットのため、コードの内容をそのまま画像として埋め込みます。外部ツールへの依存が無いため`plugins:`の無効化対象にもなりません（常時有効）。
 
 ### 既存のSVGファイルを画像として貼る
@@ -221,7 +245,7 @@ PNG/JPEGと同じ画像として扱われるため、[Markdown画像の配置・
 
 ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
 
-図は既定でページ幅・高さの上限（Mermaid/PlantUML/D2は12cm、Graphviz/Pikchr/CeTZ/Fletcherはページ幅）を超えないよう自動縮小されます。ただし、拡大はされません。明示的にサイズを指定したい場合は、言語名の後ろに`{width=...}`/`{height=...}`を書きます。
+図は既定でページ幅・高さの上限（Mermaid/PlantUML/D2は12cm、Graphviz/Pikchr/CeTZ/Fletcherはページ幅）を超えないよう自動縮小されます。ただし、拡大はされません。timelineyは既定で行の幅いっぱいになります（上の「timelineyについて」）。明示的にサイズを指定したい場合は、言語名の後ろに`{width=...}`/`{height=...}`を書きます。
 
 ````markdown
 ```mermaid {width=50%}
@@ -234,11 +258,11 @@ digraph { A -> B }
 ```
 ````
 
-- `mermaid`/`plantuml`/`dot`/`graphviz`/`svg`/`d2`/`structurizr`/`pikchr`/`cetz`/`fletcher`のいずれのフェンスでも使えます。`width`/`height`は片方だけでも両方でも指定できます。`cetz`/`fletcher`は、縦横比を保って拡大・縮小し、両方を指定したときは、その枠に収めます。
+- `mermaid`/`plantuml`/`dot`/`graphviz`/`svg`/`d2`/`structurizr`/`pikchr`/`cetz`/`fletcher`/`timeliney`のいずれのフェンスでも使えます。`width`/`height`は片方だけでも両方でも指定できます。`cetz`/`fletcher`は、縦横比を保って拡大・縮小し、両方を指定したときは、その枠に収めます。`timeliney`は、拡大・縮小ではなく、指定した幅をそのままコンテナの幅にします（上の「timelineyについて」）。
 - 値はTypstがそのまま解釈できる文字列（`50%`、`8cm`等）です。
 - 明示指定すると自動縮小は働かなくなり、指定した値がそのまま使われます。**拡大も含めて指定どおりに反映される**ため、ページからはみ出さないかは自分で確認してください。
 - 未指定の場合は従来どおり、はみ出さないよう自動で縮小されます（拡大はされません）。
-- `layout-right`/`layout-left`/`layout-compare`内の図でも同じ記法が使えます。`layout-feature`内では、Markdown画像は写真用レイアウトの仕様上サイズ指定を無視して常に枠いっぱいに敷き詰められます。一方、Mermaid/PlantUML/Graphviz/D2/Structurizr/Pikchr/CeTZ/Fletcherのフェンスは対象外（このレイアウトの想定用途ではない使い方）のため`{width=...}`/`{height=...}`がそのまま反映されます。
+- `layout-right`/`layout-left`/`layout-compare`内の図でも同じ記法が使えます。`layout-feature`内では、Markdown画像は写真用レイアウトの仕様上サイズ指定を無視して常に枠いっぱいに敷き詰められます。一方、Mermaid/PlantUML/Graphviz/D2/Structurizr/Pikchr/CeTZ/Fletcher/timelineyのフェンスは対象外（このレイアウトの想定用途ではない使い方）のため`{width=...}`/`{height=...}`がそのまま反映されます。
 
 ## 余白のトリミング（trim）
 
@@ -260,7 +284,7 @@ graph TD
 ```
 ````
 
-- 対象はmermaid/plantuml/d2/structurizr（外部ツールが生成するSVG）です。`svg`フェンス（ユーザー自身が書いたSVG）・graphviz/pikchr/cetz/fletcher（Typst側で完結し、元から余白がほぼ無い）には効きません。
+- 対象はmermaid/plantuml/d2/structurizr（外部ツールが生成するSVG）です。`svg`フェンス（ユーザー自身が書いたSVG）・graphviz/pikchr/cetz/fletcher/timeliney（Typst側で完結し、元から余白がほぼ無い）には効きません。
 - トリミングに失敗した場合（内容の判定ができない等）は、警告を出した上で、元の（トリミングしていない）SVGのまま使います。図自体は正しく描画済みのため、ビルドは失敗しません。
 - `plugins.diagram_trim: true`にしたのに`resvg_py`・`Pillow`が入っていない場合は、Fail-fastでエラー終了します。`--check-env`で事前に確認できます。
 
@@ -303,7 +327,7 @@ graph TD
 :::
 ````
 
-`::: layout-right`/`::: layout-compare`の中に置ける図は、Mermaidに限らずPlantUML・Graphviz（`dot`/`graphviz`フェンス）・D2（`d2`フェンス）・Structurizr（`structurizr`フェンス）・Pikchr・CeTZ・Fletcher・SVG（`svg`フェンス）・Markdown画像（`![alt](path)`、単独行のみ）のいずれも使えます。`::: layout-compare ... :::` は2つの図を左右に並べます（横長の図には不向き）。2つの種類を混在させる（例: 片方はMermaid図、もう片方は写真）こともできます。
+`::: layout-right`/`::: layout-compare`の中に置ける図は、Mermaidに限らずPlantUML・Graphviz（`dot`/`graphviz`フェンス）・D2（`d2`フェンス）・Structurizr（`structurizr`フェンス）・Pikchr・CeTZ・Fletcher・timeliney・SVG（`svg`フェンス）・Markdown画像（`![alt](path)`、単独行のみ）のいずれも使えます。`::: layout-compare ... :::` は2つの図を左右に並べます（横長の図には不向き）。2つの種類を混在させる（例: 片方はMermaid図、もう片方は写真）こともできます。
 
 図を左・テキストを右に置きたい場合は`layout-right`の左右反転版`layout-left`が使えます。中に置ける図の種類・書式は`layout-right`と同じです。
 
@@ -356,7 +380,7 @@ graph TD
 :::
 ````
 
-中に置ける図/画像は`layout-right`/`layout-compare`と同じくMermaid・PlantUML・Graphviz・D2・Pikchr・CeTZ・Fletcher・SVG・Markdown画像のいずれも使えます。ただし、想定用途はほぼ写真です。写真はMarkdown側の`alt|width=`指定に関わらず枠いっぱいに敷き詰められ（トリミングあり）、縦長・横長どちらの写真でも枠からはみ出しません。
+中に置ける図/画像は`layout-right`/`layout-compare`と同じくMermaid・PlantUML・Graphviz・D2・Pikchr・CeTZ・Fletcher・timeliney・SVG・Markdown画像のいずれも使えます。ただし、想定用途はほぼ写真です。写真はMarkdown側の`alt|width=`指定に関わらず枠いっぱいに敷き詰められ（トリミングあり）、縦長・横長どちらの写真でも枠からはみ出しません。
 
 想定している用途はスライド自体と同じ横長〜正方形に近い写真です。縦長写真を置くと上下がトリミングされます（枠の高さに収まるよう左右基準で拡大されるため）。縦長写真の全体を見せたい場合はこのレイアウトの対象外とし、通常のMarkdown画像として配置してください。
 
