@@ -31,6 +31,8 @@ plugins:
 
 既定値が非対称（mermaidはfalse、plantuml・d2はtrue）なのは、ダウンロードされる実体のサイズが一桁以上違うためです。Mermaidの描画に失敗して`mermaid_auto_download: true`にしたくなった場合は、約700MBのダウンロードが実行されることを理解した上で設定してください（詳細は「図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / SVG）」の章、README）。
 
+**`plugins:`配下に、ここに載っていないキー（綴りミス等）を書くと、エラーで終了します。** 近い既知キー名（例: `plantuml_auto_downlaod` → `plantuml_auto_download`）があれば、その提案もあわせて表示されます。書いた設定が黙って無視され、原因の分からないまま既定動作にフォールバックすることを防ぐためです（`document:`/`output:`/`template:`/`inputs:`と、`config.yaml`のトップレベルのキーについても同様です）。
+
 # inputs: 原稿ファイルの基準ディレクトリ
 
 ```yaml

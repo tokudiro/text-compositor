@@ -1,4 +1,5 @@
 """config（YAML/JSON）の読み込み・既定値・変数展開と、プロジェクトのディレクトリ解決。"""
+import difflib
 import os
 import re
 import sys
@@ -9,6 +10,60 @@ try:
     import yaml
 except ImportError:
     yaml = None
+
+# config.yamlの未知キー検証（#309）。deep_update()は、読み込んだYAML/JSONの内容を検証せず既定値へ
+# マージするだけのため、キー名を1文字間違えても、エラーも警告も無く黙って既定動作にフォールバックして
+# しまう（Quartoの「設定がどこに効くか分からない」失敗と同じ、#308）。ここに定義する許可キー一覧は、
+# 各モジュールが実際に`config.get(...)`で読んでいるキーと一致させること（新しいキーを追加したら、
+# ここにも追加する）。
+_ALLOWED_TOP_LEVEL_KEYS = {"document", "output", "template", "inputs", "chapters", "plugins", "variables"}
+_ALLOWED_DOCUMENT_KEYS = {
+    "title", "subtitle", "author", "date", "diagnostics", "landscape", "paper_size",
+    "table_header", "header", "footer", "paginate", "background", "logo", "cover",
+    "cover_page_number", "toc", "revision_history", "abstract", "glossary",
+    "marp_compat", "csv_header",
+}
+_ALLOWED_OUTPUT_KEYS = {"filename", "dir"}
+_ALLOWED_TEMPLATE_KEYS = {"path"}
+_ALLOWED_INPUTS_KEYS = {"dir", "files"}
+# project.py/api.py/env_check.pyが読む、plugins:配下の許可キー一覧（issue #309本題）。
+_ALLOWED_PLUGINS_KEYS = {
+    "graphviz", "mermaid", "mermaid_auto_download", "plantuml", "plantuml_auto_download",
+    "d2", "d2_auto_download", "structurizr", "structurizr_auto_download",
+    "pikchr", "cetz", "fletcher",
+}
+
+def _collect_unknown_keys(mapping, allowed, prefix, errors):
+    """mapping（dict）のキーのうちallowedに無いものを、近い既知キー名の提案つきでerrorsへ積む。
+    dictでなければ（値の型そのものが違う等）何もしない。この関数自体はsys.exitしない
+    （load_config_file側で、全ブロックをチェックしてからまとめて1回で終了させるため）。"""
+    if not isinstance(mapping, dict):
+        return
+    allowed_strs = sorted(str(a) for a in allowed)
+    for key in sorted(str(k) for k in mapping if k not in allowed):
+        suggestion = difflib.get_close_matches(key, allowed_strs, n=1)
+        hint = f" Did you mean {suggestion[0]!r}? " if suggestion else " "
+        label = f"{prefix}.{key}" if prefix else key
+        errors.append(f"{label}: unknown key.{hint}Allowed keys: {', '.join(allowed_strs)}.")
+
+def _validate_config_keys(loaded):
+    """読み込んだ生のYAML/JSON（loaded、既定値マージ前）に対し、トップレベル・document・output・
+    template・inputs・pluginsの各ブロックの未知キーを検証し、あれば全てまとめてFail-fastする
+    （#309）。chapters（章ごとにfile/aggregate/section等でスキーマが分岐する）とvariables
+    （既に_resolve_variablesが自身の形を検証する）は、ここでは対象外。"""
+    if not isinstance(loaded, dict):
+        return
+    errors = []
+    _collect_unknown_keys(loaded, _ALLOWED_TOP_LEVEL_KEYS, "", errors)
+    _collect_unknown_keys(loaded.get("document"), _ALLOWED_DOCUMENT_KEYS, "document", errors)
+    _collect_unknown_keys(loaded.get("output"), _ALLOWED_OUTPUT_KEYS, "output", errors)
+    _collect_unknown_keys(loaded.get("template"), _ALLOWED_TEMPLATE_KEYS, "template", errors)
+    _collect_unknown_keys(loaded.get("inputs"), _ALLOWED_INPUTS_KEYS, "inputs", errors)
+    _collect_unknown_keys(loaded.get("plugins"), _ALLOWED_PLUGINS_KEYS, "plugins", errors)
+    if errors:
+        for message in errors:
+            _error(message)
+        sys.exit(1)
 
 def deep_update(d, u):
     for k, v in u.items():
@@ -67,6 +122,7 @@ def load_config_file(config_path):
             loaded = yaml.safe_load(f) or {}
         else:
             loaded = json.load(f) or {}
+    _validate_config_keys(loaded)
     deep_update(config, loaded)
     return config
 
