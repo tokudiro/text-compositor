@@ -50,9 +50,9 @@ Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約25
 
 実測値は展開後のディスク使用量、またはHTTPヘッダーから直接取得した圧縮ファイルサイズのいずれか（各行に記載の取得方法を参照）。両ツールとも、GitHub Actionsのキャッシュ機構（`actions/cache`等）を使えば2回目以降の実行コストは大きく下げられる。
 
-## 図表描画（Mermaid / Graphviz / PlantUML / D2）の対応状況
+## 図表描画の対応状況
 
-これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUML・D2は状況が異なる。
+これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUML・D2は状況が異なる。[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#212](https://github.com/tokudiro/text-compositor/issues/212)・[#236](https://github.com/tokudiro/text-compositor/issues/236)を経て、text-compositorが対応する図の種類は、Mermaid・Graphviz(dot)・PlantUML・D2・Pikchr・Structurizr・CeTZ・Fletcherの8種類まで増えた（仕様書11章）。
 
 | ツール | Mermaid | Graphviz(dot) | PlantUML | D2 |
 | --- | --- | --- | --- | --- |
@@ -62,6 +62,52 @@ Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約25
 | Vivliostyle CLI | 組み込みなし。`rehype-mermaid`等をprocessor置き換え拡張点経由で手動導入（[参照](https://zenn.dev/mura_mi/articles/4f08cc99f19887)） | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 | 情報なし、おそらく同様に手動 |
 
 Mermaid・GraphvizはQuartoが最初からネイティブに持っており、追加設定が一切要らない。text-compositorは独自に実装した図表連携（Playwright/CDP直接操作・`diagraph`）で、ダウンロード量の面では上回るようになった。ただし、「設定不要ですぐ使える」という手軽さではQuartoに及ばない。PlantUML・D2はQuartoが標準非対応な一方、text-compositorは`plugins.plantuml: true`/`plugins.d2: true`の設定だけで使え（ローカルに実行環境が無ければそれぞれEclipse Temurin JRE・D2公式CLIバイナリを自動取得）、ここは明確な差別化点になった。
+
+### 新しく加わった対応: PikchrとStructurizr
+
+CeTZ・Fletcher（#236）は、独立したエコシステムを持つ図表DSLではなく、Typst自体のネイティブな描画パッケージである。text-compositorがこれらを直接扱えるのは、Typstを変換先にしているからにすぎない。Typstを変換先にしない他ツールとの比較は、同じ形では成立しない。一方PikchrとStructurizrは事情が異なる。どちらも独立したエコシステムを持つ図表言語であるため、下表のような同じ形の比較ができる。
+
+| ツール | Pikchr | Structurizr |
+| --- | --- | --- |
+| text-compositor | 実装済み（`kip`、Typstネイティブのwasmパッケージ、#213） | 実装済み（公式`structurizr-cli`で既存のPlantUMLパイプラインへ橋渡し。CLI一式が約99MBあるため、既定で無効のオプトイン、#212） |
+| [Quarto](https://quarto.org/docs/authoring/diagrams.html) | 組み込みなし。サードパーティのR/knitrエンジンラッパー経由でのみ利用可能（Quarto本体の機能ではない） | 情報なし、標準非対応と思われる |
+| [Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/) | 組み込みバックエンド | 組み込みバックエンド |
+| Marp CLI | 情報なし | 情報なし |
+| Vivliostyle CLI | 情報なし | 情報なし |
+
+## 「対応ツールの広さ」だけでは足りない: Asciidoctor DiagramとKrokiとの比較
+
+率直に確認しておきたい論点がある。「幅広い図表ツールに対応している」こと自体は、差別化根拠になるのか、という論点である。答えは否である。この立ち位置には、既に先例がある。
+
+AsciiDoc用の拡張機能[Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/)は、20種類以上のバックエンドへディスパッチする。AsciiToSVG、BlockDiag系（BlockDiag/SeqDiag/ActDiag/NwDiag/RackDiag/PacketDiag）、Bytefield-SVG、DBML、Ditaa、Dpic、Erd、Gnuplot、GoAT、Graphviz、LilyPond、Mermaid、MscGen、Nomnoml、Penrose、Pikchr、Pintora、PlantUML、Shaape、State Machine Cat、Structurizr、SvgBob、Symbolator、Syntrax/JSyntrax、UMLet、Vega/Vega-Lite、WaveDromである。このリストは、text-compositor自身の8種類より、既に広い。したがって、「対応ツールの広さ」単体は、text-compositorが主張してよい差別化根拠ではない。より広い先例が、既に存在する。
+
+決定的な違いは、別のところにある。Asciidoctor Diagramは、各バックエンドの実行環境——Graphvizバイナリ、Java+`plantuml.jar`、一部バックエンドではNode.js等——が、利用者によって事前にインストール済みであることを前提とする。これは純粋なディスパッチ層である。20種類以上のいずれかの言語で、既に書かれたコードを渡せば、対応するローカルCLIを呼ぶだけである。text-compositorの「無ければ自動取得・SHA256固定・キャッシュ」（仕様書11章）に相当する仕組みは、無い。
+
+[Kroki](https://kroki.io/)は逆の方式を取る。20種類以上の図表DSLを、単一のAPIへ統合している。しかし、公開版のWebサービスは、図のソースを外部サーバーへ送信する方式に依存する。これは、仕様書2章の絶対要件（図表生成のための外部通信を行わない）と相反する。セルフホスト版のDocker配布は、この外部通信への依存は避けられる。しかし、代わりにDockerという、本来このツールには不要な依存を持ち込む。
+
+Quartoは、ここでもAsciidoctor Diagramの対極にある。ネイティブ対応は狭い（Mermaid/Graphvizのみ）。しかし、その2つに関しては、本当に設定不要である。
+
+| 軸 | Asciidoctor Diagram | Quarto | Kroki | text-compositor |
+| --- | --- | --- | --- | --- |
+| バックエンド対応の広さ | 広い（20種類以上） | 狭い（Mermaid/Graphvizのみネイティブ） | 広い（20種類以上） | 中程度（8種類、拡張継続中） |
+| 手動インストール不要（自動取得＋キャッシュ） | 不可。ローカル実行環境が事前導入済みという前提 | 部分的（Mermaid/Graphvizのみ） | 可能。クライアント側には何もローカルに要らないという意味では | 可能（SHA256固定、仕様書9章・11章） |
+| 外部通信・重い追加依存の回避 | 可能（ローカルCLI前提） | 可能 | 公開APIでは不可能。セルフホスト版はDocker依存 | 可能（仕様書2章の絶対要件） |
+
+この表の中に、「広さ」と「自動取得」を両立させたうえで、外部通信・重い追加依存も回避できているツールは無い。text-compositorの立ち位置は、他の広範囲対応ツールがそれぞれどちらかの方向へ手放している「外部通信をしない・重い依存を持たない」という制約を保ったまま、「広さ」と「手動インストール不要」という2つの長所を両方とも手放さずにいようとする試みである。
+
+## なぜ、この種のツールが今まで無かったのか
+
+率直な疑問にも答えておく。このワークフローが本当に有用であるなら、なぜ既存の汎用ツールが、まだ対応していないのか、という疑問である。理由は、大きく4点に整理できる。
+
+**1. 土台となる技術自体が新しい。** Typst以前、プログラマブルなPDF生成の現実的な選択肢は、LaTeX（巨大で、配布の複雑なツールチェイン）か、Chromiumを同梱した重いHTML→PDF変換（本書で既に比較したMarp・Vivliostyleが採る方式）のいずれかだった。`diagraph`/`kip`/`cetz`/`fletcher`を、外部実行環境不要の軽量なWASM/Typstパッケージとして同梱する選択肢は、Typstが変換先として存在するまで、現実的ではなかった。
+
+**2. 「ツールが必要な依存関係を、利用者に何もインストールさせず、固定・キャッシュしたうえで自動取得してくる」という発想自体が、比較的新しいUX規範である。** AsciiDoc・Sphinx・LaTeXは、いずれも10〜20年前に設計された。当時は、「Graphviz・JDKくらい自分で入れて当然」という前提が、ごく普通のことだった。「ツールが初回実行時に、自分で依存関係を解決する」という期待は、これより後、`npx`的なツール群が広まってからの規範に近い。
+
+**3. 最も本質的な理由として、text-compositorが実際に解いている課題自体、今の形では最近まで存在しなかった。** AsciiDoc・Sphinx・LaTeX・Quartoは、いずれも「1人の熟練した書き手が、時間をかけてツールを学んで使う」という前提で設計されている。本書冒頭で述べたこのツールの存在理由——複数の書き手（AIが書いた断片も含む）の寄稿を、安全にレビュー済みの本番成果物へ組み上げること——へのニーズは、LLMが日常的な執筆に入り込んだ、ここ数年の産物である。既存ツールのどれもが「未レビューコードの実行制御」（本書冒頭付近の比較表1行目）の仕組みを持たないのは、対応し損ねたからではない。より正確には、**その課題自体が、まだ存在していなかったから**である。
+
+**4. 加えて、テキストであること自体の強みも、独立した論点として明記しておく。** 原稿がプレーンテキスト（Markdown・`config.yaml`）であるため、gitの差分・履歴・プルリクエストレビューが、特別な仕組みを追加せずにそのまま使える。これは、GUIツールやバイナリ形式のツール（Word・PowerPoint・Excalidraw等）に対する、テキストベースのツール全般（AsciiDoc・Sphinx・LaTeX・Quarto）に共通する強みである。しかし、text-compositorの核心にとっては、特に土台として重要である。AIが書いた断片をレビューする作業自体が、gitの差分・プルリクエストレビューという既存の仕組みに直接乗る。この点は、3番目の論点と直結する。
+
+以上は、「text-compositorのようなツールを、もっと早く作れたはずだ」という主張ではない。作るのが妥当だと言える条件——軽量な変換先の存在、自動取得というUX規範、そして何より、AIが書いた断片と人間のレビューが実際に混ざり合う執筆スタイル——が揃ったのが、最近になってからだ、という点だけを述べている。
 
 ## 結論
 

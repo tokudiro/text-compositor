@@ -300,6 +300,8 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
 ## 11. プラグイン（図表描画アドイン）の設計方針
 2章の実行環境の要件は本章のプラグインにもそのまま適用される。重い依存関係を持つ図表描画ツールは、コアパイプライン（テキスト→PDF化）とは別に「オプトイン形式のプラグイン」として分離する。外部APIへの通信による図表生成を行わない（完全ローカル完結）という2章の絶対要件は、プラグインであっても緩めない。
 
+なぜ「自動取得・SHA256固定・キャッシュ」という設計を選んだかは、比較対象を見ると分かりやすい。Asciidoctor Diagramのような既存の広範囲対応ツールは、各バックエンドの実行環境（Graphvizバイナリ、Java+`plantuml.jar`等）を利用者が事前にインストール済みであることを前提とする、純粋なディスパッチ層である（[#308](https://github.com/tokudiro/text-compositor/issues/308)）。本章の各プラグインは、この前提を採らない。実行環境が無い場合の取得・固定・キャッシュまでを、ツール自身の責務として引き受ける。
+
 1. **Graphviz (dot)**: コミュニティ製Wasmプラグイン（`diagraph`）で、追加環境なしにローカル描画する。**（実装済み）** テンプレート側の `show raw.where(lang: "dot"/"graphviz")` が ```` ```dot ```` フェンスを自動的にレンダリングする。
 2. **PlantUML**: ローカルJava環境を要求し、純Javaレイアウトエンジン「Smetana」（`-Playout=smetana`）を採用してGraphviz(dot)等の外部バイナリへの依存を避ける。**（実装済み）**
    * **ライセンス**: 本体は`plantuml-mit-*.jar`（MIT）を採用する。`mit-light`版（DITAA等ごく一部を除き機能同等、約7.4MB）も検討した。しかし、jarの中身を比較した結果、差分は`stdlib/`配下のクラウドアイコン素材と絵文字データのみだった。原稿（Markdown、GitHub管理）には絵文字が含まれ得るため、フル機能の`mit`版（約17.6MB）を採用する（[#22](https://github.com/tokudiro/text-compositor/issues/22)）。

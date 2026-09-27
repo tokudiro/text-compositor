@@ -50,9 +50,9 @@ Including Mermaid, text-compositor (~109MB) comes in at well under half of Quart
 
 Figures are either the on-disk size after extraction, or the compressed file size read directly from HTTP headers (see each row for which method was used). For both tools, caching mechanisms on GitHub Actions (e.g. `actions/cache`) can substantially reduce the cost of runs after the first.
 
-## Diagram rendering support (Mermaid / Graphviz / PlantUML / D2)
+## Diagram rendering support
 
-Looking at this concretely, text-compositor has little edge over Quarto for Mermaid/Graphviz. PlantUML and D2 are a different story.
+Looking at this concretely, text-compositor has little edge over Quarto for Mermaid/Graphviz. PlantUML and D2 are a different story. Since [#213](https://github.com/tokudiro/text-compositor/issues/213)/[#212](https://github.com/tokudiro/text-compositor/issues/212)/[#236](https://github.com/tokudiro/text-compositor/issues/236), the set of diagram types text-compositor supports has grown to eight: Mermaid, Graphviz (dot), PlantUML, D2, Pikchr, Structurizr, CeTZ, and Fletcher (spec.md chapter 11).
 
 | Tool | Mermaid | Graphviz (dot) | PlantUML | D2 |
 | --- | --- | --- | --- | --- |
@@ -62,6 +62,52 @@ Looking at this concretely, text-compositor has little edge over Quarto for Merm
 | Vivliostyle CLI | Not built in — requires manually wiring something like `rehype-mermaid` in via its processor-replacement extension point ([reference](https://zenn.dev/mura_mi/articles/4f08cc99f19887)) | No information found; presumably manual as well | No information found; presumably manual as well | No information found; presumably manual as well |
 
 Quarto has Mermaid and Graphviz natively from the start, with zero extra configuration needed. text-compositor's own diagram integration (direct Playwright/CDP control, `diagraph`) now comes out ahead on download volume, but it doesn't match Quarto's "ready to use with zero config" convenience. On the other hand, Quarto has no standard support for PlantUML or D2, while text-compositor only needs `plugins.plantuml: true` / `plugins.d2: true` (auto-fetching the Eclipse Temurin JRE or the official D2 CLI binary respectively when no local runtime is present) — a clear point of differentiation.
+
+### Newer additions: Pikchr and Structurizr
+
+CeTZ and Fletcher (#236) are Typst-native drawing packages, not diagram DSLs with an ecosystem of their own — text-compositor can offer them directly only because Typst is its compile target, so a same-shape comparison against tools that don't target Typst doesn't quite apply. Pikchr and Structurizr are different: each is a diagram language with its own independent ecosystem, so the comparison below is meaningful the same way the table above is.
+
+| Tool | Pikchr | Structurizr |
+| --- | --- | --- |
+| text-compositor | Implemented (`kip`, a Typst-native WASM package, #213) | Implemented (bridges through the official `structurizr-cli` into the existing PlantUML pipeline; opt-in and disabled by default, since the CLI bundle is ~99MB, #212) |
+| [Quarto](https://quarto.org/docs/authoring/diagrams.html) | Not built in; reachable only through a third-party R/knitr engine wrapper, not Quarto itself | No information found; presumably not supported out of the box |
+| [Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/) | Built-in backend | Built-in backend |
+| Marp CLI | No information found | No information found |
+| Vivliostyle CLI | No information found | No information found |
+
+## Breadth of tool coverage isn't the whole story: Asciidoctor Diagram and Kroki
+
+It's worth asking directly whether "supports a wide range of diagram tools" is itself a differentiator. It isn't — that ground is already taken.
+
+[Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/), an AsciiDoc extension, dispatches to over 20 backends: AsciiToSVG, the BlockDiag family (BlockDiag/SeqDiag/ActDiag/NwDiag/RackDiag/PacketDiag), Bytefield-SVG, DBML, Ditaa, Dpic, Erd, Gnuplot, GoAT, Graphviz, LilyPond, Mermaid, MscGen, Nomnoml, Penrose, Pikchr, Pintora, PlantUML, Shaape, State Machine Cat, Structurizr, SvgBob, Symbolator, Syntrax/JSyntrax, UMLet, Vega/Vega-Lite, and WaveDrom. That list already covers more backends than text-compositor's own eight. So breadth of coverage, by itself, is not a valid claim for text-compositor to make — a wider precedent already exists.
+
+The decisive difference sits elsewhere. Asciidoctor Diagram assumes every backend's runtime — the Graphviz binary, a Java install plus `plantuml.jar`, Node.js for some backends, and so on — is already installed by the user. It is a pure dispatch layer: hand it code already written in one of those 20+ languages, and it calls the matching local CLI. There is no equivalent of text-compositor's auto-fetch-if-missing, SHA256-pinned, cached runtime acquisition (spec.md chapter 11).
+
+[Kroki](https://kroki.io/) takes the opposite approach: it unifies 20+ diagram DSLs behind a single API. But its public web service works by sending diagram source to an external server, which conflicts with spec.md chapter 2's absolute requirement of no external network calls for diagram generation. Its self-hosted Docker distribution avoids that network dependency, but trades it for a Docker dependency the tool doesn't otherwise need.
+
+Quarto, once again, sits at the opposite corner from Asciidoctor Diagram: narrow native coverage (Mermaid/Graphviz only), but genuinely zero-config for those two.
+
+| Axis | Asciidoctor Diagram | Quarto | Kroki | text-compositor |
+| --- | --- | --- | --- | --- |
+| Breadth of backend coverage | Wide (20+) | Narrow (Mermaid/Graphviz native only) | Wide (20+) | Moderate (8, still growing) |
+| No manual install (auto-fetch + cache) | No — local runtimes assumed pre-installed | Partial (Mermaid/Graphviz only) | Yes, in the sense that the client needs nothing local | Yes (SHA256-pinned, spec.md ch. 9/11) |
+| Avoids external network calls and heavy extra dependencies | Yes (local CLIs assumed present) | Yes | No for the public API; a Docker dependency for the self-hosted option | Yes (spec.md ch. 2 absolute requirement) |
+
+No tool in this table combines breadth with auto-fetch while also avoiding external calls or a heavy extra dependency. text-compositor's position is the attempt to hold onto both strengths — breadth and no-manual-install — without giving up the no-external-communication, no-heavy-dependency constraint that each of the other broad-coverage tools trades away in one direction or another.
+
+## Why didn't a tool like this exist before?
+
+It's worth asking directly: if this workflow is genuinely useful, why hasn't some general-purpose tool already covered it? Four factors seem to explain the gap.
+
+**1. The enabler itself is new.** Before Typst, the realistic choices for programmatic PDF generation were LaTeX (a large, complex-to-distribute toolchain) or a heavy HTML→PDF pipeline riding on a bundled Chromium (the approach Marp and Vivliostyle both take, compared earlier in this document). Bundling `diagraph`/`kip`/`cetz`/`fletcher` as lightweight WASM/Typst packages, with no external runtime required, was not a realistic option until Typst existed as a compile target.
+
+**2. "The tool fetches what it needs, pinned and cached, without asking the user to install anything" is itself a fairly recent UX norm.** AsciiDoc, Sphinx, and LaTeX were all designed 10-20 years ago, when "of course you install Graphviz or a JDK yourself" was the unremarkable default. The expectation that a tool resolves its own dependencies on first run is closer to the norm that spread later, once `npx`-style tools became common.
+
+**3. Most fundamentally, the problem text-compositor actually solves didn't exist in its current form until recently.** AsciiDoc, Sphinx, LaTeX, and Quarto are all designed around one skilled author who has taken the time to learn the tool. The need this document opens with — safely assembling contributions from multiple writers, including fragments an AI wrote, into a reviewed, production-ready document — is a byproduct of LLMs becoming an everyday part of writing only in the last few years. None of the existing tools has a mechanism for controlling execution of unreviewed code (the first row of the comparison table near the top of this document) — not because they failed to address it, but, more precisely, because **that problem didn't exist for them yet.**
+
+**4. Plain text itself is a strength worth naming separately.** Because the source is plain text — Markdown and `config.yaml` — git already gives you diffing, history, and pull-request review for free, with no extra machinery. This is a strength text-compositor shares with any text-based tool (AsciiDoc, Sphinx, LaTeX, Quarto) over GUI- or binary-format tools (Word, PowerPoint, Excalidraw, and the like). But it's foundational to text-compositor's core concern specifically: reviewing a fragment an AI wrote rides directly on git's existing diff and pull-request machinery, which ties directly back to point 3 above.
+
+None of this claims that no one could have built something like text-compositor earlier. It only says that the pieces which make it a reasonable thing to build — a lightweight compile target, an auto-fetch UX norm, and above all a writing process that actually mixes AI-authored fragments with human review — lined up only recently.
 
 ## Conclusion
 
