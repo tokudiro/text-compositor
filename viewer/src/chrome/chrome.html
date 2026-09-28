@@ -113,6 +113,17 @@
           <label><input type="radio" name="openDirectoryMode" value="fixed"><span>特定のフォルダ</span></label>
         </div>
       </div>
+      <div class="row">
+        <div class="text">
+          <div class="name" id="allow-external-images-name">外部の画像</div>
+          <div class="desc">Markdownの外部の画像（<code>https://</code>など）を読み込むかどうかです。既定は「読み込まない」で、代わりに
+            URLを表示し、警告を出します（文書を開くだけで外部へ通信が起きないようにするため）。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="allow-external-images-name">
+          <label><input type="radio" name="allowExternalImages" value="false"><span>読み込まない</span></label>
+          <label><input type="radio" name="allowExternalImages" value="true"><span>読み込む</span></label>
+        </div>
+      </div>
       <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->
       <div class="row sub" id="fixed-directory-row" hidden>
         <div class="text">

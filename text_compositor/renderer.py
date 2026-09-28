@@ -447,6 +447,10 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     def _resolve_asset(self, src):
         """画像の相対パスをMarkdownファイル基準から、typst_root起点のルート絶対パスへ変換する。
         temp_build.typ の実際の置き場所（.text-compositor/ 配下）に依存させないため。"""
+        if src and src.startswith('data:'):
+            abs_path = self._resolve_data_uri_asset(src)
+            root_rel_path = "/" + os.path.relpath(abs_path, self.typst_root).replace(os.sep, '/')
+            return escape_string_literal(root_rel_path)
         if not src or src.startswith('/') or re.match(r'^[a-zA-Z][a-zA-Z0-9+.\-]*://', src):
             return escape_string_literal(src)
         abs_path = os.path.normpath(os.path.join(self.current_dir, src))

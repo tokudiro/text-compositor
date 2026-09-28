@@ -164,6 +164,11 @@ function createWindow() {
   contentView.setBackgroundColor(background);
   win.contentView.addChildView(contentView);
 
+  // 二重の防御（方針2章・#238）: 変換側（Python、既定で外部画像をプレースホルダに置き換える）に漏れがあっても、
+  // http/httpsの通信そのものを、ここで止める。allowExternalImages（設定で許可）のときだけ、通す。
+  contentView.webContents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] },
+    (_details, callback) => callback({ cancel: !state.settings.allowExternalImages }));
+
   const contents = contentView.webContents;
   // content-preload.jsは、ドラッグ＆ドロップだけでなく、検索（#325）も持つようになった。失敗しても画面は白いままで
   // 気づけないため、標準エラーへ出す（サンドボックス化したプリロードは、electron以外のローカルファイルを
@@ -487,7 +492,10 @@ async function renderOnce(file, targetScrollY = null, historyNav = null) {
     // plugins.structurizrは、text-compositor本体では既定false（内部で使うstructurizr-cliが重いため、#212）。
     // Obunzuは、Mermaid/PlantUML/D2と同じく常に有効にする（#290。同梱すれば追加取得なし、無くてもPlantUML/D2と同じ
     // ライブ取得にフォールバックするだけで、CLIのconfig.yamlのような「意図しない重い取得」への配慮は要らない）。
-    result = await client.renderHtml({ path: file, csv_header: state.settings.csvHeader, plugins: { structurizr: true }, ...location.params });
+    result = await client.renderHtml({
+      path: file, csv_header: state.settings.csvHeader, allow_external_images: state.settings.allowExternalImages,
+      plugins: { structurizr: true }, ...location.params,
+    });
   } catch (error) {
     if (error instanceof PythonNotFoundError) worker = null;
     // 想定外の例外でも、アプリを落とさず、原因を診断として見せる

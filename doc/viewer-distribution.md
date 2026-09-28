@@ -222,7 +222,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 ### 被害を小さくする設計
 
 - 文書のHTMLでは、スクリプトを無効にし（CSP）、サンドボックスを使う。
-- 外部の画像を読み込まない扱いは、[#238](https://github.com/tokudiro/text-compositor/issues/238)で検討している。
+- 外部の画像（`https://...`等）は、既定で読み込まない（設定で許可できる）。CSPの`img-src`に加え、メインプロセスの`session.webRequest`で、`http`・`https`のリクエストそのものも拒否する、二重の防御にしている（[#238](https://github.com/tokudiro/text-compositor/issues/238)。詳細は`spec.md`7章）。
 
 ### 利用者への知らせ
 

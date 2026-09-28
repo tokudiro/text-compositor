@@ -118,6 +118,23 @@ class TestCsvHeaderParam:
             response = worker.handle_request(FakeSession(), {"id": 1, "method": "render_html", "params": {"path": "a.csv", "csv_header": value}})
             assert response["ok"] is False and response["error"]["code"] == "bad_request", value
 
+class TestAllowExternalImagesParam:
+    """render_htmlの`allow_external_images`（方針2章「ローカルに閉じる」。既定false。#238）。"""
+
+    def test_a_boolean_is_passed_to_the_session(self):
+        session = FakeSession()
+        response = worker.handle_request(session, {
+            "id": 1, "method": "render_html", "params": {"path": "a.md", "allow_external_images": True}})
+        assert response["ok"] is True
+        assert session.html_calls[-1][2]["allow_external_images"] is True
+
+    def test_something_that_is_not_a_boolean_is_a_protocol_error(self):
+        for value in ("false", 0, None, [True]):
+            response = worker.handle_request(FakeSession(), {
+                "id": 1, "method": "render_html", "params": {"path": "a.md", "allow_external_images": value}})
+            assert response["ok"] is False and response["error"]["code"] == "bad_request", value
+
+
 class TestCacheDirParam:
     """render_htmlの`output`・`cache_dir`（#258）。Viewerが、原稿のフォルダに書かないために渡す。"""
 

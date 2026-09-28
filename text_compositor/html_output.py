@@ -57,7 +57,9 @@ _SNIFF_BYTES = 8192
 
 # 出力するHTMLは、スクリプトを含まない（原稿の文字は、すべてエスケープする）。念のため、スクリプトとプラグインを、
 # ブラウザ側でも禁止する。Viewerは、この文書を、JavaScriptを有効にしたビューで開く（ドロップの受け口のため。#190）。
-CONTENT_SECURITY_POLICY = "script-src 'none'; object-src 'none'; base-uri 'none'"
+# img-srcは、外部（http/https）の画像を、二重の防御として禁じる（1章の方針・#238）。変換側（_asset_url）が
+# 既定で外部画像をプレースホルダに置き換えるが、漏れがあってもブラウザ側で通信そのものを止める。
+CONTENT_SECURITY_POLICY = "script-src 'none'; object-src 'none'; base-uri 'none'; img-src 'self' data:"
 
 DOCUMENT_CSS = """\
 :root { color-scheme: light dark; --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code-bg: #f6f8fa; --link: #0969da; }
@@ -110,6 +112,10 @@ table.layout { width: 100%; table-layout: fixed; }
 .feature-caption p { margin: 0; }
 .columns { column-gap: 1.5em; margin-bottom: 1em; }
 .takahashi { text-align: center; padding: 1.5em 0; line-height: 1.2; }
+.blocked-image { border: 1px dashed var(--line); border-radius: 6px; padding: 0.75em 1em; margin: 1em 0;
+  color: var(--muted); background: var(--code-bg); }
+.blocked-image p { margin: 0.25em 0; overflow-wrap: anywhere; }
+.blocked-image-title { font-weight: bold; }
 """
 
 
@@ -217,8 +223,11 @@ class HtmlRenderer(TypstRenderer):
     キャッシュ・診断の部品を引き継ぎ、出力だけを、HTMLにする（#161）。Typstを出力する側のメソッドは、使わない。
     共通の部分を、基底クラスへ切り出す整理は、#157で扱う。"""
 
-    def __init__(self, base_dir=None, **kwargs) -> None:
+    def __init__(self, base_dir=None, *, allow_external_images: bool = False, **kwargs) -> None:
         super().__init__(base_dir, **kwargs)
+        # 外部（http/https/file等のスキーム）の画像を、読み込むか（既定False。方針2章、#238）。
+        # data:のURIは、ローカルで完結するため、この設定によらず常に読み込む。
+        self.allow_external_images = allow_external_images
         self._tokens = _TokenRenderer(self)
         # 生成するHTMLの置き場所。画像・図の`src`は、ここからの相対パスにする。
         self.html_dir = self.base_dir
@@ -527,9 +536,18 @@ class HtmlRenderer(TypstRenderer):
             return Path(abs_path).as_uri()
         return urllib.parse.quote(rel.replace(os.sep, '/'))
 
-    def _asset_url(self, src: str) -> str:
-        """画像の`src`を、HTMLからたどれるURLにする。相対パスは、Markdownファイルの場所が基準。"""
-        if not src or src.startswith('//') or _URL_SCHEME_RE.match(src):
+    def _asset_url(self, src: str) -> Optional[str]:
+        """画像の`src`を、HTMLからたどれるURLにする。相対パスは、Markdownファイルの場所が基準。
+        外部（http/https/file等のスキーム）は、既定では読み込まない（方針2章、#238）。`allow_external_images`が
+        Falseなら、警告を出してNoneを返す（呼び出し側は、プレースホルダを表示する）。`data:`のURIは、
+        ローカルで完結するため、常にそのまま通す。"""
+        if not src or src.startswith('data:'):
+            return src
+        if src.startswith('//') or _URL_SCHEME_RE.match(src):
+            if not self.allow_external_images:
+                self._warn_line(f"External image blocked by default (referenced from {self.current_file}): {src}. "
+                                f"Set allow_external_images to load it (see doc/spec.md, #238).")
+                return None
             return src
         raw = urllib.parse.unquote(src.split('#', 1)[0].split('?', 1)[0])
         if raw.startswith('/'):
@@ -578,9 +596,24 @@ class HtmlRenderer(TypstRenderer):
             styles.append('display:block;margin-right:auto')
         elif align:
             self._warn_line(f"Ignoring invalid align {align!r} in {self.current_file}; expected left, center or right.")
+        src = attrs.get("src", "")
+        url = self._asset_url(src)
+        if url is None:
+            return self._blocked_image_html(src, alt)
         title = f' title="{escapeHtml(attrs["title"])}"' if attrs.get('title') else ''
         style = f' style="{";".join(styles)}"' if styles else ''
-        return f'<img src="{escapeHtml(self._asset_url(attrs.get("src", "")))}" alt="{escapeHtml(alt)}"{title}{style}>'
+        return f'<img src="{escapeHtml(url)}" alt="{escapeHtml(alt)}"{title}{style}>'
+
+    def _blocked_image_html(self, src: str, alt: str) -> str:
+        """外部（http/https/file等のスキーム）の画像を、読み込まずに、控えめな枠で示す（既定の方針、#238）。"""
+        alt_p = f'<p class="blocked-image-alt">{escapeHtml(alt)}</p>' if alt else ''
+        return (
+            '<div class="blocked-image">\n'
+            '<p class="blocked-image-title">外部の画像は、既定で読み込みません（設定で許可できます）</p>\n'
+            f'{alt_p}'
+            f'<p class="blocked-image-src">{escapeHtml(src)}</p>\n'
+            '</div>\n'
+        )
 
     # -- 文字装飾・セル ----------------------------------------------------------
 
@@ -757,6 +790,8 @@ class HtmlRenderer(TypstRenderer):
             image_html = self._diagram_or_image_html(match)
         else:
             m = re.match(r'!\[[^\]]*\]\(([^)]+)\)', match.group('image'))
-            image_html = f'<img src="{escapeHtml(self._asset_url(m.group(1)))}" alt="">\n'
+            src = m.group(1)
+            url = self._asset_url(src)
+            image_html = f'<img src="{escapeHtml(url)}" alt="">\n' if url is not None else self._blocked_image_html(src, '')
         caption_html = f'<div class="feature-caption">\n{self._segment_html(caption)}</div>\n' if caption else ''
         return f'<div class="feature">\n{image_html}{caption_html}</div>\n'

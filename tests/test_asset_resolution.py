@@ -2,6 +2,7 @@
 
 いずれも仕様9章のFail-fast方針どおり、画像欠損時はフォールバックせず即エラー終了する。
 """
+import base64
 import os
 
 import pytest
@@ -49,6 +50,47 @@ class TestResolveAsset:
         renderer.current_dir = str(project_dir)
         renderer.current_file = str(project_dir / "doc.md")
         assert renderer._resolve_asset("a.png") == "/project/a.png"
+
+
+class TestResolveDataUriAsset:
+    """`data:`のURI画像は、キャッシュへ書き出してから解決する。PDF（Typstの#image()）は、data:のURIを
+    直接受け取れないため（HTMLと挙動をそろえ、`Image not found`のエラーにしない。#238）。"""
+
+    PNG_BASE64 = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 10).decode()
+
+    def _renderer(self, tmp_path):
+        renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+        renderer.current_dir = str(tmp_path)
+        renderer.current_file = str(tmp_path / "doc.md")
+        return renderer
+
+    def test_data_uri_is_written_to_the_cache_and_resolved(self, tmp_path):
+        renderer = self._renderer(tmp_path)
+        result = renderer._resolve_asset(f"data:image/png;base64,{self.PNG_BASE64}")
+        assert result.startswith("/.text-compositor/cache/datauri_") and result.endswith(".png")
+        cache_path = tmp_path / result.lstrip("/")
+        assert cache_path.is_file()
+        assert cache_path.read_bytes() == base64.b64decode(self.PNG_BASE64)
+
+    def test_the_same_data_uri_reuses_the_cached_file(self, tmp_path):
+        renderer = self._renderer(tmp_path)
+        src = f"data:image/png;base64,{self.PNG_BASE64}"
+        first = renderer._resolve_asset(src)
+        cache_path = tmp_path / first.lstrip("/")
+        mtime = cache_path.stat().st_mtime_ns
+        second = renderer._resolve_asset(src)
+        assert second == first
+        assert cache_path.stat().st_mtime_ns == mtime
+
+    def test_unsupported_mime_type_exits(self, tmp_path):
+        renderer = self._renderer(tmp_path)
+        with pytest.raises(SystemExit):
+            renderer._resolve_asset("data:application/pdf;base64,AAAA")
+
+    def test_non_base64_data_uri_exits(self, tmp_path):
+        renderer = self._renderer(tmp_path)
+        with pytest.raises(SystemExit):
+            renderer._resolve_asset("data:image/png,not-base64-encoded")
 
 
 class TestResolveProjectImagePath:

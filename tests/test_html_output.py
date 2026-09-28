@@ -80,6 +80,8 @@ class TestApi:
         assert "<script" not in html
         # スクリプトは、ブラウザ側でも禁止する（Viewerは、JavaScriptを有効にしたビューで開く）
         assert "script-src 'none'" in html and "object-src 'none'" in html
+        # 外部の画像は、二重の防御として、ブラウザ側でも禁止する（1章の方針・#238）
+        assert "img-src 'self' data:" in html
         assert set(result.timings_ms) >= {"render", "total"}
 
     def test_the_title_falls_back_to_the_file_name(self, tmp_path):
@@ -257,9 +259,42 @@ class TestImages:
         warning = result.warnings[0]
         assert "Image not found" in warning.message and warning.line == 3
 
-    def test_external_urls_are_kept(self, tmp_path):
+    def test_external_urls_are_blocked_by_default(self, tmp_path):
+        """方針2章「ローカルに閉じる」: 既定では、外部の画像は読み込まず、プレースホルダと警告にする（#238）。"""
         result, html = convert(tmp_path, "![x](https://example.com/a.png)\n")
+        assert result.ok
+        assert "<img" not in html
+        assert 'class="blocked-image"' in html and "https://example.com/a.png" in html
+        assert "外部の画像は、既定で読み込みません" in html
+        warning = result.warnings[0]
+        assert "External image blocked" in warning.message and "https://example.com/a.png" in warning.message
+        assert warning.line == 1
+
+    def test_external_urls_are_loaded_when_explicitly_allowed(self, tmp_path):
+        result, html = convert(tmp_path, "![x](https://example.com/a.png)\n", allow_external_images=True)
         assert 'src="https://example.com/a.png"' in html and not result.warnings
+        assert 'class="blocked-image"' not in html
+
+    def test_data_uri_images_are_always_kept(self, tmp_path):
+        """`data:`のURIは、ローカルで完結するため、allow_external_imagesによらず、常に読み込む（#238）。"""
+        src = "data:image/png;base64,eA=="
+        result, html = convert(tmp_path, f"![x]({src})\n")
+        assert result.ok and not result.warnings
+        assert f'src="{src}"' in html
+        assert 'class="blocked-image"' not in html
+
+    def test_windows_absolute_paths_are_blocked_by_default(self, tmp_path):
+        """Windows絶対パス（`C:\\...`）は、通信は起きないが、原稿の外側の任意のローカルファイルへアクセス
+        できてしまうため、外部の画像と同じ扱いにする（既定で読み込まず、設定で許可。`file:`のURIと同じ理由、#238。
+        `file:`のURI自体は、markdown-it-py側が既に危険なスキームとして拒否し、リンクにならない）。"""
+        result, html = convert(tmp_path, "![x](C:/Windows/win.ini)\n")
+        assert result.ok
+        assert "<img" not in html
+        assert 'class="blocked-image"' in html
+        assert result.warnings and "External image blocked" in result.warnings[0].message
+
+        result, html = convert(tmp_path, "![x](C:/Windows/win.ini)\n", allow_external_images=True)
+        assert 'src="C:/Windows/win.ini"' in html and not result.warnings
 
     def test_invalid_size_units_are_ignored_with_a_warning(self, tmp_path):
         write(tmp_path / "p.png", "x")
@@ -281,6 +316,8 @@ class TestDependencies:
 
     def test_the_markdown_itself_and_external_urls_are_not_included(self, tmp_path):
         result, _ = convert(tmp_path, "# a\n\n![x](https://example.com/a.png)\n")
+        assert result.dependencies == []
+        result, _ = convert(tmp_path, "# a\n\n![x](https://example.com/a.png)\n", allow_external_images=True)
         assert result.dependencies == []
 
     def test_a_missing_image_is_included_so_that_creating_it_triggers_an_update(self, tmp_path):
