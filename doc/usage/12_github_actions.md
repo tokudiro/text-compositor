@@ -73,13 +73,13 @@ jobs:
 
 ## Mermaidを使う場合の注意
 
-`plugins.mermaid: true`のプロジェクトでは、クローン方式なら`pip install playwright==1.62.0`を追加で実行する（`requirements.txt`には含まれない。任意依存のため）。pipインストール方式なら`pip install "text-compositor[mermaid]"`でまとめて入る。ブラウザは前述のとおりランナー標準搭載のChromeを再利用するため、Node.jsのインストールは不要。
+`plugins.mermaid: true`のプロジェクトでは、クローン方式なら`pip install playwright==1.63.0`を追加で実行する（`requirements.txt`には含まれない。任意依存のため）。pipインストール方式なら`pip install "text-compositor[mermaid]"`でまとめて入る。ブラウザは前述のとおりランナー標準搭載のChromeを再利用するため、Node.jsのインストールは不要。
 
 ```yaml
       - name: Install dependencies
         run: |
           pip install -r text-compositor/requirements.txt
-          pip install playwright==1.62.0
+          pip install playwright==1.63.0
 ```
 
 Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）は初回ビルド時にOS標準のユーザーキャッシュディレクトリ（Linuxランナーでは`~/.cache/text-compositor/`）へダウンロードされる。`actions/checkout`は毎回新規チェックアウトのため、このキャッシュは引き継がれない。ただし、サイズが小さいため実用上は都度取得でも問題にならない。

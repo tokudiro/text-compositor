@@ -69,13 +69,13 @@ This is only needed if your source documents use ` ```mermaid ` fences (or speci
 
 ```bash
 pipx install "text-compositor[mermaid]"
-# or, if already installed: pipx inject text-compositor playwright==1.62.0
+# or, if already installed: pipx inject text-compositor playwright==1.63.0
 ```
 
 With Option B (clone and run directly):
 
 ```bash
-pip install playwright==1.62.0
+pip install playwright==1.63.0
 ```
 
 - **A Google Chrome or Microsoft Edge installation already present on your system** (no new download by default; it's auto-detected and reused at build time)

@@ -47,7 +47,7 @@ class MermaidBrowser:
             from playwright.sync_api import sync_playwright
         except ImportError:
             _error("The 'playwright' package is required for mermaid rendering (plugins.mermaid: true). "
-                  "Install it with: pip install playwright==1.62.0")
+                  "Install it with: pip install playwright==1.63.0")
             sys.exit(1)
 
         browser_path = find_system_browser()

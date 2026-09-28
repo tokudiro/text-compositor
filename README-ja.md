@@ -69,13 +69,13 @@ Typstコンパイラ本体はバイナリを同梱せず、上記の `pip instal
 
 ```bash
 pipx install "text-compositor[mermaid]"
-# 既にインストール済みの場合: pipx inject text-compositor playwright==1.62.0
+# 既にインストール済みの場合: pipx inject text-compositor playwright==1.63.0
 ```
 
 方法B（クローンして直接実行）の場合:
 
 ```bash
-pip install playwright==1.62.0
+pip install playwright==1.63.0
 ```
 
 - **システムにインストール済みのGoogle ChromeまたはMicrosoft Edge**（既定では新規ダウンロードしない。ビルド時に自動検出して再利用する）

@@ -49,6 +49,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r text-compositor/requirements.txt
 
+      # 使い方ガイドのMermaidギャラリー（#324）を描画するため、任意依存のplaywrightが要る
+      # （requirements.txtには含まれない。11章）。ランナー標準搭載のブラウザを再利用するため、
+      # Node.jsやブラウザ自体の追加取得は不要。版は、pyproject.tomlの`mermaid`エクストラと合わせる。
+      - name: "Install playwright (for the Mermaid gallery, plugins.mermaid: true)"
+        run: pip install "playwright==$(grep -oP 'playwright==\K[0-9.]+' text-compositor/pyproject.toml)"
+
       - name: Build usage guide PDF
         run: python text-compositor/build.py --config this-repo/doc/usage/text-compositor.config.yaml
 
@@ -83,8 +89,9 @@ jobs:
         with:
           python-version: "3.x"
 
+      # [mermaid]エクストラで、使い方ガイドのMermaidギャラリー（#324）に要るplaywrightも入れる（11章）。
       - name: Install text-compositor via pip
-        run: pip install "git+https://github.com/tokudiro/text-compositor.git@master"
+        run: pip install "text-compositor[mermaid] @ git+https://github.com/tokudiro/text-compositor.git@master"
 
       - name: Build usage guide PDF via the text-compositor command
         run: text-compositor --config this-repo/doc/usage/text-compositor.config.yaml

@@ -114,7 +114,7 @@ def _check_mermaid(mermaid_enabled, mermaid_auto_download):
     try:
         import playwright.sync_api  # noqa: F401
     except ImportError:
-        return CheckResult("mermaid", "NG", "the 'playwright' package is not installed. Run: pip install playwright==1.62.0")
+        return CheckResult("mermaid", "NG", "the 'playwright' package is not installed. Run: pip install playwright==1.63.0")
     browser_path = find_system_browser()
     if browser_path:
         return CheckResult("mermaid", "OK", f"system browser found: {browser_path}")
