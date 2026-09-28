@@ -44,6 +44,7 @@ If no Python is found, the window still opens and explains what to do.
 | Reload | `F5` / `Ctrl+R` / the reload button. The scroll position is kept. |
 | CSV header row | While a `.csv` is open, the table button in the toolbar (or View > "CSV: 1行目を見出しにする") switches between a header row and all data rows. The choice is remembered. |
 | Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%). Clicking the percentage in the toolbar also resets it. |
+| Search (#325) | The magnifying-glass button, or `Ctrl+F`, opens a search bar under the toolbar. Matches are highlighted in yellow, the current one in orange, with a count. `Enter` / `Shift+Enter` (or the ▲▼ buttons) move to the next/previous match. The `.*` button switches to regular expressions, `Aa` toggles case sensitivity (an invalid regular expression is shown as an error in the bar and is not run). Close with `Esc` or the ✕ button. |
 | Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **← 戻る** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
 | Show or hide error details | Click the error/warning bar |
 
@@ -97,7 +98,9 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/workdir.js` | Where the converted HTML and the diagram cache go (app folder or next to the document), and the cache size and delete (#258) |
 | `src/watcher.js` | Watches the open file and the files it references |
+| `src/search-match.js` | The text/regex matching behind in-document search (#325); the part with no DOM, so it is unit-tested |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/check-search.js` | Starts the viewer and checks in-document search (count, move, regex, case sensitivity, `Ctrl+F`/`Esc`) (manual) |
 | `scripts/check-work-location.js` | Starts the viewer with a throwaway user folder and checks where the converted files go, the cache size and delete, and the switch to "next to the document" (manual) |
 | `scripts/check-open-files.js` | Opens .txt, .csv, .svg, diagram files, unsupported files, a folder, a missing file and a large file from the command line and checks what is shown (manual) |
 | `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |

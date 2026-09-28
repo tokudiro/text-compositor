@@ -55,6 +55,9 @@ const state = {
   settings: { ...DEFAULTS },
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
   diagnostics: summarize([]),
+  // 文書内検索（#325）。ハイライトそのものは、内容のビューのプリロードが持つ（DOMを持っているのは、そちら）。
+  // ここは、検索欄の入力と、その結果（件数・現在位置・正規表現エラー）だけを覚える。
+  search: { open: false, query: '', regex: false, caseSensitive: false, count: 0, current: 0, error: null },
 };
 
 let settingsFile = null;
@@ -155,6 +158,10 @@ function createWindow() {
   win.contentView.addChildView(contentView);
 
   const contents = contentView.webContents;
+  // content-preload.jsは、ドラッグ＆ドロップだけでなく、検索（#325）も持つようになった。失敗しても画面は白いままで
+  // 気づけないため、標準エラーへ出す（サンドボックス化したプリロードは、electron以外のローカルファイルを
+  // requireできない、という実測を、この行で見つけた）。
+  contents.on('preload-error', (_e, path, error) => process.stderr.write(`[preload-error] ${path}: ${error.stack || error}\n`));
   contents.setWindowOpenHandler(({ url }) => { handleNavigation(url); return { action: 'deny' }; });
   // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
   contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url); });
@@ -188,12 +195,19 @@ function layout() {
     : { x: 0, y, width: 0, height: 0 });
 }
 
-/** Escで、設定画面を閉じる（設定画面のときは、文書の側は、隠れていてキーを受けないため、メインプロセスで受ける）。 */
+/**
+ * Escで、設定画面・検索欄を閉じる。設定画面のときは、文書の側は、隠れていてキーを受けないため、メインプロセスで受ける。
+ * 検索欄は、文書の側（内容のビュー）にフォーカスがあるときも、閉じられるようにする（検索欄自身のEscは、chrome.js側で扱う）。
+ */
 function handleEscape(webContents) {
   webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.key === 'Escape' && state.settingsOpen) {
+    if (input.type !== 'keyDown' || input.key !== 'Escape') return;
+    if (state.settingsOpen) {
       event.preventDefault();
       setSettingsOpen(false);
+    } else if (state.search.open) {
+      event.preventDefault();
+      setSearchOpen(false);
     }
   });
 }
@@ -218,6 +232,48 @@ function setSettingsOpen(open) {
   // Escで閉じられない（実測）。閉じたら、文書へ戻す（スクロール・キー操作が、そのまま使える）。
   if (state.settingsOpen) { win.webContents.focus(); void refreshCacheUsage(); }
   else if (state.hasDocument) contentView.webContents.focus();
+}
+
+// -- 文書内検索（#325） ---------------------------------------------------------
+// 検索欄（入力・トグル・件数）は、ツールバーの側（chrome.js）が持つ。ハイライトは、内容のビューのプリロードが、
+// 表示中のDOMへ直接行う（生成したHTMLはscript-src 'none'で、ページ自身はスクリプトを持てないため）。
+// ここ（メインプロセス）は、両者の間を、状態として仲立ちする。
+
+/** 内容のビューへ送る、検索語一式。 */
+function searchPayload() {
+  return { query: state.search.query, regex: state.search.regex, caseSensitive: state.search.caseSensitive };
+}
+
+function setSearchOpen(open) {
+  open = Boolean(open);
+  if (open === state.search.open) return;   // Escが、複数の経路から二重に届いても、無害にする
+  state.search = { ...state.search, open };
+  if (open) {
+    // 前回の検索語を覚えていれば、開いたときに、もう一度ハイライトする（ブラウザのCtrl+Fに合わせる）
+    if (state.hasDocument && state.search.query) contentView.webContents.send('search-run', searchPayload());
+  } else {
+    state.search = { ...state.search, count: 0, current: 0, error: null };
+    if (state.hasDocument) { contentView.webContents.send('search-clear'); contentView.webContents.focus(); }
+  }
+  push();
+}
+
+/** 検索語・正規表現/大文字小文字の切り替え。入力のたびに呼ばれる。 */
+function setSearchQuery({ query, regex, caseSensitive }) {
+  state.search = { ...state.search, query: String(query ?? ''), regex: Boolean(regex), caseSensitive: Boolean(caseSensitive) };
+  if (state.hasDocument) contentView.webContents.send('search-run', searchPayload());
+  else state.search = { ...state.search, count: 0, current: 0, error: null };
+  push();
+}
+
+function moveSearch(delta) {
+  if (state.hasDocument && state.search.count > 0) contentView.webContents.send('search-move', delta);
+}
+
+/** 内容のビューから届いた、検索結果（件数・現在位置・正規表現エラー）。 */
+function onSearchResult({ count, current, error }) {
+  state.search = { ...state.search, count, current, error: error ?? null };
+  push();
 }
 
 // -- ウィンドウの大きさ・位置の記憶（#192） ------------------------------------------
@@ -473,7 +529,11 @@ async function showHtml(md, html, sameDocument, dependencies = []) {
   await loaded;
   shown = { md, html, deps: dependencies };
   if (!state.hasDocument) { state.hasDocument = true; layout(); }
-  if (!state.settingsOpen) contents.focus();
+  // 表示し直すたび（自動更新を含む）、内容のビューは、プリロードから作り直される。検索語が残っていれば、
+  // 新しいDOMへ、もう一度ハイライトを掛け直す（ハイライトは、内容のビュー側の状態のため、こちらでは持ち越せない）。
+  if (state.search.open && state.search.query) contents.send('search-run', searchPayload());
+  // 検索欄に入力中は、フォーカスを奪わない（自動更新中でも、続けて打てるように）
+  if (!state.settingsOpen && !state.search.open) contents.focus();
 }
 
 // -- ナビゲーション・ズーム -------------------------------------------------------
@@ -573,6 +633,8 @@ function buildMenu() {
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
+        { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!state.search.open) },
+        { type: 'separator' },
         { id: 'csv-header', label: 'CSV: 1行目を見出しにする', type: 'checkbox', checked: state.settings.csvHeader, enabled: false, click: (item) => setCsvHeader(item.checked) },
         { type: 'separator' },
         { label: '設定…', accelerator: 'CommandOrControl+,', click: () => setSettingsOpen(!state.settingsOpen) },
@@ -595,3 +657,8 @@ ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
+ipcMain.on('search-toggle', () => setSearchOpen(!state.search.open));
+ipcMain.on('search-close', () => setSearchOpen(false));
+ipcMain.on('search-set', (_event, payload) => setSearchQuery(payload ?? {}));
+ipcMain.on('search-move', (_event, delta) => moveSearch(delta));
+ipcMain.on('search-result', (_event, result) => onSearchResult(result ?? {}));
