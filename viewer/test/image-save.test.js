@@ -116,6 +116,17 @@ describe('suggestedImageFilename', () => {
     });
     assert.equal(filename, 'diagram.svg');
   });
+
+  test('data: URL ignores base64 payload and falls back to altText or document name', () => {
+    const base64 = Buffer.from('<svg></svg>').toString('base64');
+    const filename = suggestedImageFilename({
+      srcURL: `data:image/svg+xml;base64,${base64}`,
+      altText: 'mermaid diagram',
+      documentFile: '/work/spec.md',
+      format: 'png',
+    });
+    assert.equal(filename, 'mermaid-diagram.png');
+  });
 });
 
 describe('imageSaveDirectory', () => {
@@ -125,19 +136,19 @@ describe('imageSaveDirectory', () => {
   const lastDir = path.resolve(path.sep, 'saved', 'pics');
   const downloads = path.resolve(path.sep, 'users', 'me', 'Downloads');
 
-  test('lastDirectory wins if it exists', () => {
+  test('document directory is preferred if document is open', () => {
     const statSync = statOf([lastDir, docDir, downloads]);
     const dir = imageSaveDirectory({ lastDirectory: lastDir, documentFile: docFile, defaultFallback: downloads, statSync });
-    assert.equal(dir, lastDir);
-  });
-
-  test('document directory is used when lastDirectory is not set', () => {
-    const statSync = statOf([docDir, downloads]);
-    const dir = imageSaveDirectory({ lastDirectory: null, documentFile: docFile, defaultFallback: downloads, statSync });
     assert.equal(dir, docDir);
   });
 
-  test('fallback is used when document directory does not exist or is null', () => {
+  test('lastDirectory is used when no document file is open', () => {
+    const statSync = statOf([lastDir, downloads]);
+    const dir = imageSaveDirectory({ lastDirectory: lastDir, documentFile: null, defaultFallback: downloads, statSync });
+    assert.equal(dir, lastDir);
+  });
+
+  test('fallback is used when neither document nor lastDirectory exists', () => {
     const statSync = statOf([downloads]);
     const dir = imageSaveDirectory({ lastDirectory: null, documentFile: null, defaultFallback: downloads, statSync });
     assert.equal(dir, downloads);
@@ -145,16 +156,18 @@ describe('imageSaveDirectory', () => {
 });
 
 describe('imageSaveFilters', () => {
-  test('svg format puts SVG first then PNG', () => {
+  test('svg format includes only SVG and all files', () => {
     const filters = imageSaveFilters('svg');
+    assert.equal(filters.length, 2);
     assert.equal(filters[0].extensions[0], 'svg');
-    assert.equal(filters[1].extensions[0], 'png');
+    assert.equal(filters[1].extensions[0], '*');
   });
 
-  test('png format puts PNG first then SVG', () => {
+  test('png format includes only PNG and all files', () => {
     const filters = imageSaveFilters('png');
+    assert.equal(filters.length, 2);
     assert.equal(filters[0].extensions[0], 'png');
-    assert.equal(filters[1].extensions[0], 'svg');
+    assert.equal(filters[1].extensions[0], '*');
   });
 
   test('other formats include format and all files', () => {
@@ -220,6 +233,11 @@ describe('fetchImageData', () => {
     assert.equal(data.toString(), '<svg></svg>');
   });
 
+  test('handles non-base64 data URLs with unescaped % without throwing', async () => {
+    const data = await fetchImageData('data:image/svg+xml,<svg><text>50%</text></svg>');
+    assert.equal(data.toString(), '<svg><text>50%</text></svg>');
+  });
+
   test('fetches from custom protocol (#260) or http via netFetch', async () => {
     const mockFetch = async (url) => ({
       ok: true,
@@ -246,7 +264,7 @@ describe('fetchImageData', () => {
 });
 
 describe('rasterizeSvg', () => {
-  test('creates hidden window and captures page', async () => {
+  test('creates hidden window with CSP and captures page', async () => {
     let capturedOptions = null;
     let windowCreated = false;
     let destroyed = false;
@@ -258,6 +276,7 @@ describe('rasterizeSvg', () => {
       isDestroyed() { return destroyed; },
       destroy() { destroyed = true; },
       webContents: {
+        async executeJavaScript() {},
         async capturePage(opts) {
           capturedOptions = opts;
           return { toPNG: () => Buffer.from('FAKE_PNG') };
@@ -274,13 +293,15 @@ describe('rasterizeSvg', () => {
 
     const png = await rasterizeSvg('<svg viewBox="0 0 400 300"></svg>', {
       createWindow,
-      captureDelay: 0,
       scale: 2,
     });
 
     assert.equal(windowCreated, true);
     assert.equal(destroyed, true);
     assert.match(loadedUrl, /^data:text\/html/);
+    const decodedHtml = decodeURIComponent(loadedUrl.replace('data:text/html;charset=utf-8,', ''));
+    assert.match(decodedHtml, /Content-Security-Policy/);
+    assert.match(decodedHtml, /<img src="data:image\/svg\+xml;base64,/);
     assert.deepEqual(capturedOptions, { x: 0, y: 0, width: 800, height: 600 });
     assert.equal(png.toString(), 'FAKE_PNG');
   });

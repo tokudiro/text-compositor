@@ -5,8 +5,11 @@
 // 右クリックのコンテキストメニューから、ベクターのままのSVG、または高解像度（2倍スケール・最大4096px）に
 // ラスタライズしたPNGとして保存できる。
 //
-// PNG変換には、Electronに同梱のChromiumのオフスクリーン描画（BrowserWindow + capturePage）を利用し、
+// PNG変換には、Electronに同梱のChromiumオフスクリーン描画（BrowserWindow + capturePage）を利用し、
 // 新たな依存ライブラリを追加しない。
+// セキュリティ対策として、ラスタライズ時はSVGを<img>タグ経由で読み込み、
+// かつ厳格なCSP（script-src 'none'; default-src 'none'）を適用することで、
+// 埋め込まれたスクリプトの実行や外部通信を完全に遮断する。
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -67,21 +70,25 @@ function isDiagramCacheBasename(basename) {
 
 /**
  * 画像保存ダイアログの既定ファイル名を決める。
- * 1. URLのファイル名が意味のある名前（ハッシュでない）なら、それを優先する。
- * 2. ハッシュや空なら、画像のalt属性（例: "mermaid diagram"）をサニタイズして使う。
- * 3. altも無ければ、開いている文書のファイル名（例: "spec-diagram"）を使う。
- * 4. それも無ければ、"diagram" にフォールバックする。
+ * 1. data: URLの場合はファイル名を持たないため、altや文書名へフォールバックする。
+ * 2. URLのファイル名が意味のある名前（ハッシュでない）なら、それを優先する。
+ * 3. ハッシュや空なら、画像のalt属性（例: "mermaid diagram"）をサニタイズして使う。
+ * 4. altも無ければ、開いている文書のファイル名（例: "spec-diagram"）を使う。
+ * 5. それも無ければ、"diagram" にフォールバックする。
  *
  * @param {{srcURL: string, altText?: string, documentFile?: string|null, format?: string}} options
  * @returns {string}
  */
 function suggestedImageFilename({ srcURL, altText, documentFile, format = 'svg' }) {
   let urlBasename = '';
-  try {
-    const parsed = new URL(srcURL);
-    urlBasename = path.basename(parsed.pathname);
-  } catch {
-    urlBasename = path.basename(String(srcURL || ''));
+  // data: URLはパス名にbase64データが含まれるためファイル名としては使用しない
+  if (typeof srcURL === 'string' && !srcURL.startsWith('data:')) {
+    try {
+      const parsed = new URL(srcURL);
+      urlBasename = path.basename(parsed.pathname);
+    } catch {
+      urlBasename = path.basename(String(srcURL || ''));
+    }
   }
 
   const stemFromUrl = urlBasename ? urlBasename.replace(/\.[^.]+$/, '') : '';
@@ -123,22 +130,22 @@ function isExistingDirectory(dir, statSync) {
 
 /**
  * 画像保存ダイアログの初期表示フォルダを決める。
- * 1. 同一セッション内で前回保存したフォルダ
- * 2. 開いている文書のフォルダ
+ * 1. 開いている文書のフォルダ
+ * 2. 前回のフォルダ（lastDirectory）
  * 3. フォールバック（DownloadsまたはDocuments）
  *
  * @param {{lastDirectory?: string|null, documentFile?: string|null, defaultFallback?: string, statSync?: Function}} options
  * @returns {string|undefined}
  */
 function imageSaveDirectory({ lastDirectory, documentFile, defaultFallback, statSync = fs.statSync } = {}) {
-  if (isExistingDirectory(lastDirectory, statSync)) {
-    return lastDirectory;
-  }
   if (documentFile) {
     const docDir = path.dirname(documentFile);
     if (isExistingDirectory(docDir, statSync)) {
       return docDir;
     }
+  }
+  if (isExistingDirectory(lastDirectory, statSync)) {
+    return lastDirectory;
   }
   if (isExistingDirectory(defaultFallback, statSync)) {
     return defaultFallback;
@@ -148,6 +155,8 @@ function imageSaveDirectory({ lastDirectory, documentFile, defaultFallback, stat
 
 /**
  * 保存ダイアログのフィルター一覧を返す。
+ * ユーザーがメニューで選択した形式に絞り、拡張子の曖昧さを排除する。
+ *
  * @param {'svg'|'png'|string} format
  * @returns {Array<{name: string, extensions: string[]}>}
  */
@@ -155,14 +164,12 @@ function imageSaveFilters(format) {
   if (format === 'svg') {
     return [
       { name: 'SVG画像 (*.svg)', extensions: ['svg'] },
-      { name: 'PNG画像 (*.png)', extensions: ['png'] },
       { name: 'すべてのファイル (*.*)', extensions: ['*'] },
     ];
   }
   if (format === 'png') {
     return [
       { name: 'PNG画像 (*.png)', extensions: ['png'] },
-      { name: 'SVG画像 (*.svg)', extensions: ['svg'] },
       { name: 'すべてのファイル (*.*)', extensions: ['*'] },
     ];
   }
@@ -243,7 +250,13 @@ async function fetchImageData(url, { readFile = fs.promises.readFile, netFetch =
     if (header.includes(';base64')) {
       return Buffer.from(data, 'base64');
     }
-    return Buffer.from(decodeURIComponent(data), 'utf8');
+    // %XX 形式をデコード。50% など不完全な % があっても壊れないようにする
+    try {
+      return Buffer.from(decodeURIComponent(data), 'utf8');
+    } catch {
+      const decoded = data.replace(/%([0-9a-fA-F]{2})/g, (_m, hex) => String.fromCharCode(parseInt(hex, 16)));
+      return Buffer.from(decoded, 'utf8');
+    }
   }
   const fetcher = netFetch || (typeof fetch === 'function' ? fetch : null);
   if (!fetcher) throw new Error(`URLから画像を取得できません: ${url}`);
@@ -257,12 +270,13 @@ async function fetchImageData(url, { readFile = fs.promises.readFile, netFetch =
 
 /**
  * SVGのテキストを、ElectronのChromiumオフスクリーン描画を用いてPNG画像（Buffer）へ変換する。
+ * セキュリティ: <img>タグ参照 + CSPにより、SVG内のスクリプト実行や外部通信を完全に防ぐ。
  *
  * @param {string} svgText
- * @param {{dimensions?: {width: number, height: number}, scale?: number, createWindow: Function, captureDelay?: number}} options
+ * @param {{dimensions?: {width: number, height: number}, scale?: number, createWindow: Function}} options
  * @returns {Promise<Buffer>}
  */
-async function rasterizeSvg(svgText, { dimensions, scale = 2, createWindow, captureDelay = 60 } = {}) {
+async function rasterizeSvg(svgText, { dimensions, scale = 2, createWindow } = {}) {
   const dims = dimensions || parseSvgDimensions(svgText);
   const { width, height } = calculateRasterDimensions(dims, { scale });
   const win = createWindow({
@@ -282,17 +296,34 @@ async function rasterizeSvg(svgText, { dimensions, scale = 2, createWindow, capt
   });
 
   try {
+    const base64Svg = Buffer.from(svgText, 'utf8').toString('base64');
     const html = `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;">
 <style>
   html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
-  svg { display: block; width: ${width}px !important; height: ${height}px !important; max-width: none !important; }
+  img { display: block; width: ${width}px; height: ${height}px; }
 </style>
-</head><body>${svgText}</body></html>`;
+</head><body><img src="data:image/svg+xml;base64,${base64Svg}"></body></html>`;
 
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    if (captureDelay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, captureDelay));
+
+    // 画像のデコード完了を待機（固定タイマーに依存せず、準備完了を検知）
+    if (win.webContents?.executeJavaScript) {
+      await win.webContents.executeJavaScript(`
+        new Promise((resolve) => {
+          const img = document.querySelector('img');
+          if (!img) return resolve();
+          const finish = () => requestAnimationFrame(() => resolve());
+          if (img.complete) {
+            img.decode().then(finish, finish);
+          } else {
+            img.onload = () => img.decode().then(finish, finish);
+            img.onerror = finish;
+          }
+        })
+      `).catch(() => {});
     }
+
     const image = await win.webContents.capturePage({ x: 0, y: 0, width, height });
     return image.toPNG();
   } finally {
@@ -355,9 +386,9 @@ async function executeSaveImage(params, requestedFormat, {
   if (format === 'auto') {
     try {
       const ext = path.extname(new URL(params.srcURL).pathname).replace(/^\./, '');
-      format = ext || 'png';
+      format = ext || (isSvg ? 'svg' : 'png');
     } catch {
-      format = 'png';
+      format = isSvg ? 'svg' : 'png';
     }
   }
 
@@ -386,22 +417,26 @@ async function executeSaveImage(params, requestedFormat, {
 
   if (result.canceled || !result.filePath) return { saved: false, canceled: true };
 
-  const chosenExt = path.extname(result.filePath).toLowerCase();
-  const shouldSaveAsPng = chosenExt === '.png' || (format === 'png' && chosenExt !== '.svg');
-
   const rawData = await fetchImageData(params.srcURL, {
     readFile,
     netFetch,
   });
 
-  if (isSvg && shouldSaveAsPng) {
-    const svgText = rawData.toString('utf8');
-    const pngBuffer = await rasterizeSvg(svgText, {
-      createWindow,
-      scale: 2,
-    });
-    await writeFile(result.filePath, pngBuffer);
+  if (format === 'png') {
+    if (isSvg) {
+      // SVGをPNGにラスタライズして書き出す
+      const svgText = rawData.toString('utf8');
+      const pngBuffer = await rasterizeSvg(svgText, {
+        createWindow,
+        scale: 2,
+      });
+      await writeFile(result.filePath, pngBuffer);
+    } else {
+      // 元が既にPNGや他画像ならそのまま書き出す
+      await writeFile(result.filePath, rawData);
+    }
   } else {
+    // SVG保存、または元形式での保存
     await writeFile(result.filePath, rawData);
   }
 

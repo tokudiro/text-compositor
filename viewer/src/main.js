@@ -84,18 +84,8 @@ const createHiddenWindow = (options = {}) => new BrowserWindow({
   show: false,
   width: 800,
   height: 600,
-  useContentSize: true,
-  frame: false,
-  transparent: true,
-  backgroundColor: '#00000000',
+  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, ...options.webPreferences },
   ...options,
-  webPreferences: {
-    sandbox: true,
-    contextIsolation: true,
-    nodeIntegration: false,
-    backgroundThrottling: false,
-    ...options.webPreferences,
-  },
 });
 const mermaidHost = new MermaidHost({ createWindow: createHiddenWindow });
 
@@ -663,8 +653,6 @@ async function chooseOpenDirectory() {
 
 // -- 画像の保存（#327） ---------------------------------------------------------
 
-let lastSavedImageDirectory = null;
-
 function handleContextMenu(params) {
   if (params.mediaType !== 'image' || !params.srcURL) return;
 
@@ -681,14 +669,14 @@ async function saveImageFromContextMenu(params, requestedFormat) {
     const result = await executeSaveImage(params, requestedFormat, {
       win,
       documentFile: state.file,
-      lastDirectory: lastSavedImageDirectory,
+      lastDirectory: state.settings.lastDirectory,
       downloadsDirectory: app.getPath('downloads'),
       showSaveDialog: (w, opts) => dialog.showSaveDialog(w, opts),
       createWindow: createHiddenWindow,
       netFetch: net.fetch,
     });
     if (result.saved && result.directory) {
-      lastSavedImageDirectory = result.directory;
+      rememberDirectory(result.directory);
     }
   } catch (error) {
     state.diagnostics = summarize([{
