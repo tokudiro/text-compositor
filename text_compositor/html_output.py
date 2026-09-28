@@ -7,7 +7,8 @@ Markdownの解釈（属性・alert・`:::`ブロック・フェンスの属性�
 - 出力するHTMLは、外部のCSS・JavaScriptを使わない、1ファイルで完結した文書である。
 - レイアウトブロック（`:::`）は、CSS 2.1の表・`position`と、`column-count`だけで近似する。表示側のエンジンが
   対応しない場合は、見た目が崩れる（#180で確認する）。
-- 対象外（別issue）: `typst-exec`（#182）、数式（#183）、生のHTML（#184）。
+- 数式（#183）: LaTeX記法。Typst（mitex）でSVGにし、`<img>`で表示する（JS不要）。
+- 対象外（別issue）: `typst-exec`（#182）、生のHTML（#184）。
   これらは内容を消さず、コードブロックにして、警告を出す。
 """
 from __future__ import annotations
@@ -84,11 +85,14 @@ th { background: var(--code-bg); }
 hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
 img { max-width: 100%; }
 .diagram { text-align: center; margin: 1em 0; }
+.math-block { text-align: center; margin: 1em 0; }
+.math-inline { vertical-align: -0.2em; max-height: 2em; }
 /* 図のSVGは、ライト用の配色で描画される。ダークの背景に重ねると、線・矢印・辺のラベルが溶けて読めない（#209）ため、
    ダークのときだけ、図の明暗を反転する（invert）。色相は、hue-rotate(180deg)で元に戻す（青は青のまま）。
    PlantUML・D2のSVGは、不透明な白い背景を持ち、反転すると黒い四角になる。lightenで、ページの背景より暗い部分を、
    背景の色に置き換えて、なじませる。再描画もキャッシュの二重化も要らず、すべての図（Mermaid・PlantUML・D2・SVG）に効く。 */
 @media (prefers-color-scheme: dark) { .diagram img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
+@media (prefers-color-scheme: dark) { .math-block img, img.math-inline { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
 .alert { margin: 0 0 1em; padding: 0.5em 1em; border-left: 4px solid var(--alert, #0969da); background: var(--code-bg); }
 .alert p { margin: 0.4em 0; }
 .alert-title { font-weight: bold; color: var(--alert, #0969da); }
@@ -194,6 +198,18 @@ class _TokenRenderer(RendererHTML):
 
     def html_inline(self, tokens, idx, options, env):
         return self.owner._html_inline(tokens[idx], env)
+
+    def math_inline(self, tokens, idx, options, env):
+        return self.owner._math_inline_html(tokens[idx], display_mode=False)
+
+    def math_inline_double(self, tokens, idx, options, env):
+        return self.owner._math_inline_html(tokens[idx], display_mode=True)
+
+    def math_block(self, tokens, idx, options, env):
+        return self.owner._math_block_html(tokens[idx])
+
+    def math_block_label(self, tokens, idx, options, env):
+        return self.owner._math_block_html(tokens[idx], label=tokens[idx].info)
 
 
 class HtmlRenderer(TypstRenderer):
@@ -414,9 +430,34 @@ class HtmlRenderer(TypstRenderer):
             svg_path = self._diagram_svg_path(lang, code, trim, line, code_line)
             if svg_path is not None:
                 return self._diagram_html(lang, svg_path, width, height)
+        elif lang == 'math':
+            return self._math_block_html(code, line=line, code_line=code_line)
         elif lang in _UNSUPPORTED_FENCES:
             self._warn_line(f"{_UNSUPPORTED_FENCES[lang]}; showing the source as a code block.", line)
         return self._code_block(code, lang)
+
+    def _math_inline_html(self, token, display_mode: bool = False) -> str:
+        latex = token.content.strip()
+        line = self._abs_line(token) or self._block_line
+        svg_path = self._math_svg_path(latex, display_mode=display_mode, line=line)
+        if not svg_path:
+            return f'<code class="math-error">{escapeHtml(latex)}</code>'
+        return f'<img class="math-inline" src="{escapeHtml(self._url_for(svg_path))}" alt="{escapeHtml(latex)}">'
+
+    def _math_block_html(self, token_or_code, label: Optional[str] = None, line: Optional[int] = None, code_line: Optional[int] = None) -> str:
+        if hasattr(token_or_code, "content"):
+            latex = token_or_code.content.strip()
+            line = self._abs_line(token_or_code) if line is None else line
+            code_line = line + 1 if line else None
+        else:
+            latex = str(token_or_code).strip()
+        at_line = line if line is not None else self._block_line
+        svg_path = self._math_svg_path(latex, display_mode=True, line=at_line, code_line=code_line)
+        id_attr = f' id="{escapeHtml(label)}"' if label else ''
+        if not svg_path:
+            return f'<pre{id_attr} class="language-math"><code>{escapeHtml(latex)}</code></pre>\n'
+        return f'<div{id_attr} class="math-block"><img src="{escapeHtml(self._url_for(svg_path))}" alt="{escapeHtml(latex)}"></div>\n'
+
 
     def _diagram_svg_path(self, lang: str, code: str, trim=None, line=None, code_line=None) -> Optional[str]:
         """図のSVGファイルのパス。無効なプラグインの図は、Noneを返す（呼び出し側が、コード表示にする）。

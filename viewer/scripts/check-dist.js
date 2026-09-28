@@ -122,7 +122,8 @@ with open(src, 'w', encoding='utf-8') as f:
             '#import "@preview/fletcher:0.5.8": diagram, node, edge\\n#import "@preview/cetz:0.5.2"\\n'
             '#diagram(node((0, 0), [あ]), edge("->"), node((1, 0), [い]))\\n#cetz.canvas({ import cetz.draw: *; circle((0, 0)) })\\n'
             '#import "@preview/timeliney:0.4.0" as timeliney\\n'
-            '#timeliney.timeline(show-grid: true, { timeliney.headerline(timeliney.group(([*2024*], 1))); timeliney.taskgroup(title: [あ], { timeliney.task("A", (0, 1)) }) })\\n')
+            '#timeliney.timeline(show-grid: true, { timeliney.headerline(timeliney.group(([*2024*], 1))); timeliney.taskgroup(title: [あ], { timeliney.task("A", (0, 1)) }) })\\n'
+            '#import "@preview/mitex:0.2.7": mi\\n#mi("x+y")\\n')
 fonts = ensure_fonts()
 pdf = typst_lib.compile(src, root=d, font_paths=[fonts], ignore_system_fonts=True, **typst_package_options())
 print(fonts)

@@ -6,6 +6,7 @@ import re
 import sys
 from text_compositor.emphasis_lint import find_unapplied_bold, unapplied_bold_message
 from text_compositor.log import _error, _log_info, _warn
+from text_compositor.typst_literal import _typst_multiline_literal
 
 
 class TokenMixin:
@@ -220,11 +221,16 @@ class TokenMixin:
                         width, height = self._parse_size_attrs(attrs_str)
                         trim = self._parse_trim_attr(attrs_str)
                         result.append(self._render_diagram_fence(lang, t.content, width, height, trim))
+                    elif lang == 'math':
+                        result.append(f'#mimath({_typst_multiline_literal(t.content.strip())})\n\n')
                     else:
                         # ```` ``` ````フェンス構文で直接組み立てると、コード内容自体に```が
                         # 含まれる場合にTypst側のフェンスが早期に閉じて壊れる。文字列リテラルとして
                         # 渡すraw()なら安全（#15の_render_raw_textと同じ理由）。
                         result.append(self._render_raw_text(t.content, lang or None))
+            elif t.type in ['math_block', 'math_block_label']:
+                self._emit_srcmap(result, t)
+                result.append(f'#mimath({_typst_multiline_literal(t.content.strip())})\n\n')
             elif t.type in ['html_inline', 'html_block']:
                 result.append(self._handle_html_token(t))
             elif t.type == 'th_open':

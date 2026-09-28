@@ -370,6 +370,37 @@ class DiagramMixin:
             _log_verbose(f"Reusing cached {label} diagram: {os.path.basename(svg_path)}")
         return svg_path
 
+    def _math_svg_path(self, code, display_mode=False, line=None, code_line=None):
+        """数式のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージ`mitex`で作る（#183）。
+        line: 失敗したときの診断に付ける、原稿での行。"""
+        from text_compositor import math_render
+        try:
+            version = math_render.cache_version(display_mode)
+        except ImportError as e:
+            self._diagram_error("Math", str(e), line)
+            sys.exit(1)
+        kind = "math-block" if display_mode else "math-inline"
+        svg_path, _ = self._diagram_cache_path(kind, version, code)
+
+        if not os.path.exists(svg_path):
+            _log_info(f"Rendering math via Typst (mitex) -> {os.path.basename(svg_path)}")
+            try:
+                svg = math_render.render_svg(code, display_mode)
+            except math_render.MathRenderError as e:
+                at = code_line if code_line else line
+                self._diagram_error("Math", str(e), at)
+                sys.exit(1)
+            except Exception as e:
+                at = code_line if code_line else line
+                self._diagram_error("Math", f"{type(e).__name__}: {e}", at)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached math: {os.path.basename(svg_path)}")
+        return svg_path
+
+
     def _ensure_plantuml_tools(self):
         """PlantUML実行に必要なjava実行ファイルとplantuml.jarを遅延解決する（初回のみ）。
         Obunzuが配布物に同梱したもの（`TEXT_COMPOSITOR_JAVA_BIN`・`TEXT_COMPOSITOR_PLANTUML_JAR`。
