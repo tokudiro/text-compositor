@@ -366,21 +366,17 @@ function targetFromArgv(argv, cwd) {
   return fileFromArgv(args, { cwd });
 }
 /** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。 */
-async function openFile(file, { targetScrollY = null, isHistoryNav = false, onFail = null } = {}) {
+function openFile(file, { targetScrollY = null, historyNav = null } = {}) {
   const full = path.resolve(file);
   const target = checkOpenTarget(full);
   if (!target.ok) {
     state.diagnostics = summarize([{ severity: 'error', message: target.message }]);
-    if (onFail) onFail();
     push();
     return;
   }
-  if (!isHistoryNav && state.file && state.file !== full) {
-    const scrollY = await getScrollPosition();
-    history.updateCurrentScroll(scrollY);
-  }
-  rememberDirectory(path.dirname(full));
-  queued = { file: full, targetScrollY, isHistoryNav, onFail };
+  // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
+  if (!historyNav) rememberDirectory(path.dirname(full));
+  queued = { file: full, targetScrollY, historyNav };
   if (!inFlight) void drain();
 }
 
@@ -402,7 +398,7 @@ async function drain() {
     while (queued) {
       const task = queued;
       queued = null;
-      await renderOnce(task.file, task.targetScrollY, task.isHistoryNav, task.onFail);
+      await renderOnce(task.file, task.targetScrollY, task.historyNav);
     }
   } finally {
     inFlight = false;
@@ -415,7 +411,7 @@ function whenIdle() {
   return inFlight ? new Promise((resolve) => idleWaiters.push(resolve)) : Promise.resolve();
 }
 
-async function renderOnce(file, targetScrollY = null, isHistoryNav = false, onFail = null) {
+async function renderOnce(file, targetScrollY = null, historyNav = null) {
   const sameDocument = shown?.md === file;
   state.file = file;
   state.busy = true;
@@ -446,7 +442,13 @@ async function renderOnce(file, targetScrollY = null, isHistoryNav = false, onFa
   state.diagnostics = summarize(result.diagnostics);
   if (result.ok && result.html) {
     await showHtml(file, result.html, sameDocument, result.dependencies, targetScrollY);
-    if (!isHistoryNav) {
+    // 変換に成功して表示できた段階で、履歴の位置を更新する（#342レビュー指摘）。
+    // 失敗したときはインデックスを動かさないため、ロールバックや永続的な食い違いが起きない。
+    if (historyNav === 'back') {
+      history.back();
+    } else if (historyNav === 'forward') {
+      history.forward();
+    } else {
       history.push(file);
     }
     const total = result.timings_ms.total;
@@ -458,7 +460,6 @@ async function renderOnce(file, targetScrollY = null, isHistoryNav = false, onFa
     // 失敗しても、直前に成功した表示を残す。ファイル名も、表示中の文書に戻す。
     state.file = shown ? shown.md : file;
     state.status = shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
-    if (onFail) onFail();
   }
   state.busy = false;
   updateWatch();
@@ -523,47 +524,24 @@ async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY
 
 // -- ナビゲーション・ズーム -------------------------------------------------------
 
-async function getScrollPosition() {
-  if (!contentView || !state.hasDocument) return 0;
-  try {
-    return (await contentView.webContents.executeJavaScript('window.scrollY')) || 0;
-  } catch {
-    return 0;
-  }
+/**
+ * 戻る・進むナビゲーションを行う（#330）。
+ * 到達可能性チェックはopenFileに任せ、ここではガードとキューイングのみを同期的に行う（#342レビュー指摘）。
+ */
+function navigateHistory(direction) {
+  leaveSettings();
+  if (inFlight || state.busy) return;
+  const target = direction === 'back' ? history.peekBack() : history.peekForward();
+  if (!target) return;
+  openFile(target.file, { targetScrollY: target.scrollY, historyNav: direction });
 }
 
-async function goBack() {
-  leaveSettings();
-  if (!history.canGoBack || inFlight || state.busy) return;
-  const target = history.peekBack();
-  if (!target) return;
-  const check = checkOpenTarget(target.file);
-  if (!check.ok) {
-    state.diagnostics = summarize([{ severity: 'error', message: check.message }]);
-    push();
-    return;
-  }
-  const currentScrollY = await getScrollPosition();
-  history.updateCurrentScroll(currentScrollY);
-  history.back();
-  openFile(target.file, { targetScrollY: target.scrollY, isHistoryNav: true, onFail: () => history.forward() });
+function goBack() {
+  navigateHistory('back');
 }
 
-async function goForward() {
-  leaveSettings();
-  if (!history.canGoForward || inFlight || state.busy) return;
-  const target = history.peekForward();
-  if (!target) return;
-  const check = checkOpenTarget(target.file);
-  if (!check.ok) {
-    state.diagnostics = summarize([{ severity: 'error', message: check.message }]);
-    push();
-    return;
-  }
-  const currentScrollY = await getScrollPosition();
-  history.updateCurrentScroll(currentScrollY);
-  history.forward();
-  openFile(target.file, { targetScrollY: target.scrollY, isHistoryNav: true, onFail: () => history.back() });
+function goForward() {
+  navigateHistory('forward');
 }
 
 function handleNavigation(url) {
@@ -678,6 +656,11 @@ function buildMenu() {
 ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
+ipcMain.on('content-scroll', (_event, scrollY) => {
+  if (typeof scrollY === 'number' && Number.isFinite(scrollY)) {
+    history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
+  }
+});
 ipcMain.on('go-back', () => goBack());
 ipcMain.on('go-forward', () => goForward());
 ipcMain.on('reload', reload);
