@@ -48,7 +48,11 @@ $('choose-directory').addEventListener('click', () => api.chooseOpenDirectory())
 $('clear-cache').addEventListener('click', () => api.clearCache());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
 $('settings').addEventListener('change', (event) => {
-  if (event.target.matches('input[type="radio"]')) api.setSetting(event.target.name, event.target.value);
+  if (event.target.matches('input[type="radio"]')) {
+    // 真偽値の設定（allowExternalImages）は、ラジオの値が"true"/"false"の文字列のため、送る前に戻す
+    const value = event.target.value === 'true' ? true : event.target.value === 'false' ? false : event.target.value;
+    api.setSetting(event.target.name, value);
+  }
 });
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
 
@@ -73,7 +77,7 @@ function render(state) {
   $('settings').hidden = !state.settingsOpen;
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
   for (const [name, value] of Object.entries(state.settings)) {
-    for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === value;
+    for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === String(value);
   }
   const fixed = state.settings.openDirectoryMode === 'fixed';
   $('fixed-directory-row').hidden = !fixed;

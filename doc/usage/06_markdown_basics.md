@@ -254,6 +254,17 @@ f(x) = \sum_{n=0}^{\infty} \frac{f^{(n)}(a)}{n!} (x - a)^n
 - `width`/`height`と`align`は組み合わせて指定できます（順不同）。
 - Mermaid/PlantUML/Graphviz/D2/Pikchr/CeTZ/Fletcherのフェンス（「図表（Mermaid / Graphviz / PlantUML / D2 / Pikchr / CeTZ / Fletcher / SVG）」の章）には`align`は無く、常に中央寄せです。
 
+### 外部の画像（`https://...`）は、既定で読み込まない
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
+`![alt](https://...)`のような外部URLの画像は、HTML出力・Obunzuとも、**既定では読み込みません**。文書を開く・変換するだけで、外部のサーバーへ通信が起きないようにするためです（「文書を開くだけで、外部と通信が起きない」という、このツールの基本方針）。代わりに、altテキストとURLを、控えめな枠で示し、原稿の行つきの警告を出します。
+
+- 同じ理由で、`C:\...`のようなOS絶対パスの画像も、既定では読み込みません（原稿の外側の任意のローカルファイルへアクセスできてしまうため）。
+- `data:`のURI（`![](data:image/png;base64,...)`）は、ローカルで完結するため、常に読み込みます。PDFでも使えます。
+- 読み込みたい場合は、Obunzuの設定画面の「外部の画像」を「読み込む」にするか、Python APIの`render_html(..., allow_external_images=True)`を使ってください。
+- PDF出力（Typst）は、外部URLを取得できないため、従来どおりエラーになります。
+
 ## 水平線・改ページ
 
 ![Marp](badges/marp.svg) ![text-compositor](badges/text-compositor.svg)

@@ -2,6 +2,7 @@
 
 `TypstRenderer`（renderer.py）に、ミックスインとして取り込まれる。状態（`self`の属性）は、`TypstRenderer`と共有する（#225）。
 """
+import base64
 import glob
 import os
 import re
@@ -178,6 +179,37 @@ class DiagramMixin:
         svg_path = self._svg_fence_path(code)
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
+
+    # `data:`のURIから、画像の種類（MIME）→ 書き出す拡張子。Typstのimage()が扱える形式に限る。
+    _DATA_URI_EXTS = {
+        'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif',
+        'image/svg+xml': 'svg', 'image/webp': 'webp',
+    }
+    _DATA_URI_RE = re.compile(
+        r'^data:(?P<mime>[\w.+-]+/[\w.+-]+)?(?:;charset=[^;,]+)?(?:;(?P<enc>base64))?,(?P<data>.*)$', re.DOTALL)
+
+    def _resolve_data_uri_asset(self, src):
+        """`data:`のURIの画像を、図のSVGと同じキャッシュフォルダへ書き出し、絶対パスを返す。
+        Typstの`#image()`は、ファイルパスしか受け取らず、`data:`のURIをそのまま渡せないため
+        （HTMLはブラウザが`data:`を直接解釈できるが、PDFは、一度ファイルに書き出す必要がある。#238）。"""
+        m = self._DATA_URI_RE.match(src)
+        mime = (m.group('mime') or '').lower() if m else ''
+        ext = self._DATA_URI_EXTS.get(mime)
+        if not m or m.group('enc') != 'base64' or not ext:
+            self._error_here(f"Unsupported data: URI image (referenced from {self.current_file}): "
+                             f"only base64-encoded {', '.join(sorted(self._DATA_URI_EXTS))} are supported.")
+            sys.exit(1)
+        try:
+            raw = base64.b64decode(m.group('data'), validate=True)
+        except Exception:
+            self._error_here(f"Invalid base64 in data: URI image (referenced from {self.current_file}).")
+            sys.exit(1)
+        digest = hashlib.sha256(raw).hexdigest()[:16]
+        path = os.path.join(self._diagram_cache_dir(), f"datauri_{digest}.{ext}")
+        if not os.path.exists(path):
+            with open(path, "wb") as f:
+                f.write(raw)
+        return path
 
     def _diagram_cache_path(self, kind, tool_version, code):
         """図のSVGキャッシュのパスとキー（ハッシュ）を返す。キーの設計は_diagram_cache_key()参照（#26）。"""

@@ -108,6 +108,24 @@ describe('real worker + WorkerClient (#172)', { skip: prepared.reason ? `${prepa
     assert.match(html, /Alice/);
   });
 
+  test('allow_external_images decides whether an external image is loaded or blocked (the option the viewer sends, #238)', async () => {
+    const file = path.join(dir, 'external.md');
+    fs.writeFileSync(file, '![x](https://example.com/a.png)\n', 'utf8');
+
+    const blocked = await client.renderHtml({ path: file, plugins: PLAIN });
+    assert.equal(blocked.ok, true);
+    const blockedHtml = htmlOf(blocked);
+    assert.doesNotMatch(blockedHtml, /<img/);
+    assert.match(blockedHtml, /blocked-image/);
+    assert.ok(blocked.diagnostics.some((d) => d.severity === 'warning' && d.message.includes('External image blocked')));
+
+    const allowed = await client.renderHtml({ path: file, plugins: PLAIN, allow_external_images: true });
+    assert.equal(allowed.ok, true);
+    const allowedHtml = htmlOf(allowed);
+    assert.match(allowedHtml, /<img src="https:\/\/example\.com\/a\.png"/);
+    assert.deepEqual(allowed.diagnostics, []);
+  });
+
   test('a file that does not exist fails as a result, not as a crash, and the worker keeps working', async () => {
     const result = await client.renderHtml({ path: path.join(dir, 'missing.md'), plugins: PLAIN });
 

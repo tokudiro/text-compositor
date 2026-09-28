@@ -16,6 +16,8 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
   - `render_html`: Markdown（または図の単体ファイル）をHTMLにする（実験的、#161）。params: `path`（必須）・
                `output`・`plugins`・`variables`・`config`・`csv_header`（意味は、`Session.render_html`と同じ。
                `csv_header`は、真偽値。`.csv`の1行目を見出し行にするか。既定`true`。#220）。
+               `allow_external_images`は、真偽値。外部の画像（`https://...`等）を読み込むか。既定`false`
+               （方針2章「ローカルに閉じる」。#238）。
                `cache_dir`は、文字列。図のSVGのキャッシュのフォルダ。`output`とともに指定すると、原稿のフォルダに、
                何も書かない。#258）。
   - `ping`   : 生きているかの確認。
@@ -57,7 +59,7 @@ from text_compositor.api import Session
 PROTOCOL_VERSION = 1
 
 _BUILD_PARAMS = ("output", "template", "plugins", "document", "variables", "config", "keep_temp")
-_HTML_PARAMS = ("output", "plugins", "variables", "config", "csv_header", "cache_dir")
+_HTML_PARAMS = ("output", "plugins", "variables", "config", "csv_header", "allow_external_images", "cache_dir")
 
 
 def _write(out: TextIO, obj: Dict[str, Any]) -> None:
@@ -92,6 +94,8 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
             return _protocol_error(request_id, "bad_request", f"Unknown params: {', '.join(unknown)}.")
         if "csv_header" in params and not isinstance(params["csv_header"], bool):
             return _protocol_error(request_id, "bad_request", "'params.csv_header' must be a boolean.")
+        if "allow_external_images" in params and not isinstance(params["allow_external_images"], bool):
+            return _protocol_error(request_id, "bad_request", "'params.allow_external_images' must be a boolean.")
         for name in ("output", "cache_dir"):
             if name in params and params[name] is not None and not isinstance(params[name], str):
                 return _protocol_error(request_id, "bad_request", f"'params.{name}' must be a string.")

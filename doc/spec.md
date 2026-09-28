@@ -32,7 +32,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
    * **pip版（PyPIのパッケージ）は、例外とする。** `pip install`は、導入のためのネットワーク接続を前提とする利用者（開発者・CI）が対象であり、パッケージを小さく保つことを優先して、フォント・図表ツールなどは、初回に取得してよい（取得したものは、キャッシュして、以後は取得しない）。
    * **CIは、例外とする。** GitHub Actionsなど、毎回まっさらな、使い捨ての環境（CI）では、実行時に取得してよい。取得するのは、必要なものだけにし、取得物は、`actions/cache`で保存して、取得する量と回数を、できるだけ減らす（下の「取得の再試行」）。方針（2）（原稿を外へ送らない）は、CIでも保つ。
 
-**現状と方針の差**（2026-09-20時点、Mermaid/PlantUML/D2/Structurizrの同梱（#290・#310）後に更新。pip版とCIでの取得は、例外なので、差に含めない。ObunzuのZIPの実行時の取得は、Mermaid用のブラウザ（Electron自身のChromiumのため、そもそも不要）を除き解消し、残る差は、外部の画像だけである）:
+**現状と方針の差**（2026-09-29時点、外部の画像の扱い（#238）を実装後に更新。pip版とCIでの取得は、例外なので、差に含めない。ObunzuのZIPの実行時の取得は、Mermaid用のブラウザ（Electron自身のChromiumのため、そもそも不要）を除き解消し、外部の画像（下表）も、既定で読み込まない扱いにしたため、差はない）:
 
 | 対象 | 現状 | 方針との差 |
 |---|---|---|
@@ -43,7 +43,6 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 | Structurizr（JRE 約50 MB＋structurizr-cli一式 約99 MB） | 既定オフ（`plugins.structurizr`）。有効時、初回の描画で取得する（11章8） | 例外（pip版・CI）。既定オフのため、有効化しない限り取得は起きない。Obunzuは、下の行のとおり同梱済み・常時有効 |
 | Mermaid（PDF・CLI） | `playwright`（任意の依存）と、システムのChrome/Edge。なければ、Chromium（約700 MB）を取得する。`mermaid.min.js`（約3.4 MB）も取得する | 例外（pip版・CI。ブラウザが要るため、原理的にも難しい） |
 | Obunzuの図（Mermaid・PlantUML・D2・Structurizr） | すべてZIPに同梱済み（Java・`plantuml.jar`・D2本体・structurizr-cli絞り込み版・`mermaid.min.js`。[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）。Graphviz・Pikchr・CeTZ・Fletcher・timelineyは、同梱のtypstと、そのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`・`timeliney`）で描くため、そもそも取得しない（[#264](https://github.com/tokudiro/text-compositor/issues/264)・[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#236](https://github.com/tokudiro/text-compositor/issues/236)・[#294](https://github.com/tokudiro/text-compositor/issues/294)） | **差はない**（方針（3）を達成。Obunzuの初回起動時の追加ダウンロードは、ゼロになった） |
-| 外部の画像（`![](https://...)`） | HTML出力・Obunzuは、URLのまま`<img>`にする（CSPは、画像を制限していない）。文書を開くだけで、外部へ通信が起きうる | **方針（2）**: 通信が起きないようにする。扱いは、[#238](https://github.com/tokudiro/text-compositor/issues/238)で決める（PDFは、Typstが取得できず、エラーになるので、通信は起きない） |
 
 取得するときも、原稿の内容は、外部へ送らない（ツールやフォントのダウンロードだけである）。取得したものは、SHA256で確認する（該当するもの）。
 
@@ -509,7 +508,11 @@ with Session() as session:                              # 繰り返すなら（M
 * **数式はLaTeX記法をTypst/mitexでSVG描画する**（[#183](https://github.com/tokudiro/text-compositor/issues/183)）: HTML出力のインライン数式（`$...$`）とブロック数式（`$$...$$`・```` ```math ````）は、PDFと同じTypstパッケージ`mitex`（`MITEX_VERSION: 0.2.7`）を用いてTypst経由でSVGに変換して埋め込む。外部JavaScript（MathJax/KaTeX等）を使わず、CSP（`script-src 'none'`）を保つ。ダークモード反転に対応する。
   * **ZIPへの同梱**: `mitex` 0.2.7（Apache-2.0、WASM含む約351 KB）を、`typst-packages/`に同梱する（`build-dist.js`の`TYPST_PACKAGES`）。オフライン環境でも完全動作する。
 * **`typst`なしで動く**（[#168](https://github.com/tokudiro/text-compositor/issues/168)）: `typst`（PDF用のコンパイラ）は、Typstを通すときに、初めて`import`する。Graphviz以外のHTML出力は、`typst`と`playwright`に、依存しない（`tests/test_distribution.py`が、この2つを`import`できない状態で、成功することを確認する）。Graphviz（[#264](https://github.com/tokudiro/text-compositor/issues/264)）は、`typst`が要る（`typst`は、pipの必須の依存）。`typst`がないときは、`typst`が要ることを示すエラーの診断になる。Viewerの配布物は、`playwright`を同梱しない。`typst`は、Typstを通す処理（Graphviz・[#237](https://github.com/tokudiro/text-compositor/issues/237)）のために、フォント・Typstのパッケージとともに、同梱する（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[viewer-distribution.md](viewer-distribution.md)）。同梱のフォントとパッケージは、環境変数`TEXT_COMPOSITOR_FONT_DIR`・`TEXT_COMPOSITOR_TYPST_PACKAGES`で、ワーカーに教える（ワーカーは、ダウンロードしない）。`typst`がないままPDFを作ろうとしても、`typst`が要ることを示すエラーになる。
-* **セキュリティ**: 原稿の文字は、すべてエスケープする。生のHTMLは通さず、`javascript:`のリンクはリンクにしない。`style`に入れる値（色・寸法・サイズ）は、CSSの構文を壊さない形だけを通す。JavaScriptは、出力しない。念のため、出力するHTMLに、スクリプトとプラグインを禁止するCSP（`script-src 'none'; object-src 'none'; base-uri 'none'`）を入れる（Viewerは、ドロップの受け口のために、JavaScriptを有効にしたビューで開くため。#190）。
+* **セキュリティ**: 原稿の文字は、すべてエスケープする。生のHTMLは通さず、`javascript:`のリンクはリンクにしない。`style`に入れる値（色・寸法・サイズ）は、CSSの構文を壊さない形だけを通す。JavaScriptは、出力しない。念のため、出力するHTMLに、スクリプトとプラグインを禁止するCSP（`script-src 'none'; object-src 'none'; base-uri 'none'; img-src 'self' data:`）を入れる（Viewerは、ドロップの受け口のために、JavaScriptを有効にしたビューで開くため。#190）。
+  * **外部の画像**（`![](https://...)`・`C:\...`のようなOS絶対パス。`file:`のURI自体は、markdown-it-pyが危険なスキームとして拒否し、リンクにならない）は、方針（2章）「ローカルに閉じる」に従い、**既定では読み込まない**（[#238](https://github.com/tokudiro/text-compositor/issues/238)）。代わりに、altテキストとURLを、控えめな枠（`.blocked-image`）で示し、原稿の行つきの警告を出す。`data:`のURIは、ローカルで完結するため、常に読み込む。
+  * 読み込むかどうかは、`render_html`の引数`allow_external_images`（既定`false`。`csv_header`と同じ位置づけの、第一級の引数）で切り替える。Obunzuは、設定画面のトグル（既定オフ）から、常駐ワーカーのプロトコル（`render_html`の`params.allow_external_images`）を経由して渡す。
+  * **二重の防御**: 変換側の遮断に漏れがあっても、通信そのものを止めるため、CSPの`img-src`（上）に加え、Obunzuのメインプロセスが、内容のビューの`session.webRequest.onBeforeRequest`で、`http:`・`https:`のリクエストを、`allowExternalImages`が真のとき以外、すべて拒否する。
+  * **PDF**: `https://...`等の外部URLは、従来どおりTypstが取得できずエラーになる（通信は起きない）。`data:`のURIは、以前は同様にエラーになっていたが、HTMLとの挙動をそろえるため、図のSVGと同じキャッシュフォルダへ一度書き出してから`#image()`に渡すようにした（`renderer.py`の`_resolve_data_uri_asset`）。
 * **範囲外**: `config.yaml`由来の機能（章立て・目次・表紙・改版履歴・巻末用語索引など）と、複数ファイルの出力・ファイル間リンクの変換（[#185](https://github.com/tokudiro/text-compositor/issues/185)）。CLIの`--format html`は、単一ファイルのCLI（#179）の後に扱う。
 * **レイアウトブロックのHTML**は、表示側のエンジン（[#180](https://github.com/tokudiro/text-compositor/issues/180)）が決まったあとに、見直す可能性がある。
 

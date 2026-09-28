@@ -183,6 +183,7 @@ class Session:
                     variables: Optional[Mapping[str, Any]] = None,
                     config: Optional[Mapping[str, Any]] = None,
                     csv_header: bool = True,
+                    allow_external_images: bool = False,
                     cache_dir: Optional[str] = None) -> HtmlResult:
         """Markdownファイル（または、図の単体ファイル`.mmd`・`.puml`・`.d2`）を、HTMLにする（#161、実験的）。
         失敗しても例外は出さず、`ok=False`の結果を返す。
@@ -197,6 +198,9 @@ class Session:
         output_html: 出力先。省略時は、原稿の隣の`.text-compositor/preview.html`。
         plugins・variables・config: `build`と同じ（`config`は、config全体への上書き。上級者向け）。
         csv_header: `.csv`の1行目を、見出し行にするか（既定`True`。`False`なら、すべての行がデータ行。#220）。
+        allow_external_images: Markdownの外部の画像（`![](https://...)`・`file:`の絶対パス）を、読み込むか
+            （既定`False`）。方針（2章）は「ローカルに閉じる」であり、既定では読み込まず、altテキストとURLを
+            プレースホルダとして示す。`data:`のURIは、ローカルで完結するため、この設定によらず常に読み込む（#238）。
         cache_dir: 図のSVGのキャッシュのフォルダ。省略時は、原稿の隣の`.text-compositor/cache/`。`output_html`と
             ともに指定すると、原稿のフォルダには、何も書かない（Viewerが使う。#258）。
         """
@@ -205,7 +209,7 @@ class Session:
         with self._lock, diagnostics.collect() as collected:
             ok, html_path, dependencies = self._render_html_locked(
                 markdown_path, output_html, plugins, variables, config, timings, csv_header=bool(csv_header),
-                cache_dir=cache_dir)
+                allow_external_images=bool(allow_external_images), cache_dir=cache_dir)
         timings["total"] = (time.perf_counter() - started) * 1000.0
         return HtmlResult(ok=ok, html_path=html_path if ok else None, diagnostics=list(collected.items),
                           timings_ms=timings, dependencies=dependencies if ok else [])
@@ -275,7 +279,7 @@ class Session:
 
 
     def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings, csv_header=True,
-                            cache_dir=None):
+                            allow_external_images=False, cache_dir=None):
         from text_compositor.config import _resolve_variables
         from text_compositor.html_output import HtmlRenderer
         from text_compositor.mermaid import MermaidBrowser
@@ -316,7 +320,8 @@ class Session:
                     fletcher_enabled=bool(plugins_config.get("fletcher", True)),
                     timeliney_enabled=bool(plugins_config.get("timeliney", True)),
                     variables=_resolve_variables(config),
-                    mermaid_browser=self._mermaid, csv_header=csv_header, cache_dir=cache_dir)
+                    mermaid_browser=self._mermaid, csv_header=csv_header,
+                    allow_external_images=allow_external_images, cache_dir=cache_dir)
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)
             timings["render"] = (time.perf_counter() - started) * 1000.0
