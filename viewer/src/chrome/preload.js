@@ -21,4 +21,8 @@ contextBridge.exposeInMainWorld('viewer', {
   openPath: (filePath) => ipcRenderer.send('open-path', filePath),
   pathForFile: (file) => webUtils.getPathForFile(file),
   setChromeHeight: (height) => ipcRenderer.send('chrome-height', height),
+  toggleSearch: () => ipcRenderer.send('search-toggle'),
+  closeSearch: () => ipcRenderer.send('search-close'),
+  setSearch: (payload) => ipcRenderer.send('search-set', payload),
+  moveSearch: (delta) => ipcRenderer.send('search-move', delta),
 });

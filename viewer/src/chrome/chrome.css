@@ -20,7 +20,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); o
 #toolbar { display: flex; align-items: center; gap: 2px; padding: 5px 10px; border-bottom: 1px solid var(--line); min-height: 40px; }
 /* ツールバーを下にする設定（#200）。帯・一覧も、ツールバーの側にまとめ、ツールバーが、いちばん端に来る */
 .toolbar-bottom #top { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column-reverse; }
-.toolbar-bottom #toolbar, .toolbar-bottom #details { border-bottom: 0; border-top: 1px solid var(--line); }
+.toolbar-bottom #toolbar, .toolbar-bottom #details, .toolbar-bottom #search { border-bottom: 0; border-top: 1px solid var(--line); }
 button { font: inherit; color: var(--fg); background: transparent; border: 0; border-radius: 4px; padding: 0 8px; height: 28px; cursor: pointer; }
 button:hover:not(:disabled) { background: var(--button); }
 button:active:not(:disabled) { filter: brightness(0.92); }
@@ -46,6 +46,15 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 #busy[hidden] { display: none; }
 .bar { width: 56px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent 0, currentColor 50%, transparent 100%); background-size: 200% 100%; animation: slide 1s linear infinite; }
 @keyframes slide { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* 文書内検索（#325）。ツールバーの下に固定行として出す（設定画面と違い、内容のビューは隠さない） */
+#search { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+#search[hidden] { display: none; }
+#search-input { flex: 1; min-width: 0; max-width: 320px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 8px; height: 26px; }
+#search-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* .*・Aaは、SVGでなく文字のアイコン（issueの想定どおり、エディタでよく見る形） */
+button.icon.text { font-weight: 700; font-size: 12px; }
+#search-count { color: var(--muted); min-width: 5em; white-space: nowrap; }
+#search-count.error { color: var(--error-fg); }
 #banner { display: flex; gap: 12px; padding: 6px 12px; cursor: pointer; background: var(--error-bg); color: var(--error-fg); }
 #banner.warning { background: var(--warn-bg); color: var(--warn-fg); }
 #banner[hidden], #details[hidden] { display: none; }

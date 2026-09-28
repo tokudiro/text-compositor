@@ -34,6 +34,9 @@
       <!-- 右: 状態と、拡大縮小 -->
       <span id="busy" hidden><span class="bar"></span>変換中…</span>
       <span id="status"></span>
+      <button id="search-button" class="icon toggle" aria-pressed="false" title="検索（Ctrl+F）" aria-label="検索">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20"/></svg>
+      </button>
       <span class="sep"></span>
       <button id="zoom-out" class="icon" title="縮小（Ctrl+−）" aria-label="縮小">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
@@ -45,6 +48,22 @@
       <span class="sep"></span>
       <button id="settings-button" class="icon toggle" aria-pressed="false" title="設定（Ctrl+,）" aria-label="設定">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg>
+      </button>
+    </div>
+    <!-- 文書内検索（#325）。ハイライトそのものは、内容のビュー（別プロセス）が持つため、ここは入力と結果の表示だけ -->
+    <div id="search" hidden>
+      <input id="search-input" type="text" placeholder="検索" autocomplete="off" spellcheck="false" aria-label="検索する文字列">
+      <button id="search-regex" class="icon toggle text" role="switch" aria-checked="false" title="正規表現" aria-label="正規表現">.*</button>
+      <button id="search-case" class="icon toggle text" role="switch" aria-checked="false" title="大文字・小文字を区別する" aria-label="大文字・小文字を区別する">Aa</button>
+      <span id="search-count" aria-live="polite"></span>
+      <button id="search-prev" class="icon" title="前を検索（Shift+Enter）" aria-label="前を検索" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14l5-5 5 5"/></svg>
+      </button>
+      <button id="search-next" class="icon" title="次を検索（Enter）" aria-label="次を検索" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+      </button>
+      <button id="search-close" class="icon" title="検索を閉じる（Esc）" aria-label="検索を閉じる">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
     <div id="banner" hidden>
