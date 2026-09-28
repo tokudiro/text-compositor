@@ -200,16 +200,16 @@ class _TokenRenderer(RendererHTML):
         return self.owner._html_inline(tokens[idx], env)
 
     def math_inline(self, tokens, idx, options, env):
-        return self.owner._math_inline_html(tokens[idx], display_mode=False)
+        return self.owner._math_inline_html(tokens[idx])
 
     def math_inline_double(self, tokens, idx, options, env):
-        return self.owner._math_inline_html(tokens[idx], display_mode=True)
+        return self.owner._math_inline_html(tokens[idx])
 
     def math_block(self, tokens, idx, options, env):
-        return self.owner._math_block_html(tokens[idx])
+        return self.owner._math_block_token_html(tokens[idx])
 
     def math_block_label(self, tokens, idx, options, env):
-        return self.owner._math_block_html(tokens[idx], label=tokens[idx].info)
+        return self.owner._math_block_token_html(tokens[idx], label=tokens[idx].info)
 
 
 class HtmlRenderer(TypstRenderer):
@@ -436,26 +436,28 @@ class HtmlRenderer(TypstRenderer):
             self._warn_line(f"{_UNSUPPORTED_FENCES[lang]}; showing the source as a code block.", line)
         return self._code_block(code, lang)
 
-    def _math_inline_html(self, token, display_mode: bool = False) -> str:
+    def _math_inline_html(self, token) -> str:
         latex = token.content.strip()
         line = self._abs_line(token) or self._block_line
-        svg_path = self._math_svg_path(latex, display_mode=display_mode, line=line)
-        if not svg_path:
-            return f'<code class="math-error">{escapeHtml(latex)}</code>'
+        svg_path = self._math_svg_path(latex, display_mode=False, line=line)
         return f'<img class="math-inline" src="{escapeHtml(self._url_for(svg_path))}" alt="{escapeHtml(latex)}">'
 
-    def _math_block_html(self, token_or_code, label: Optional[str] = None, line: Optional[int] = None, code_line: Optional[int] = None) -> str:
-        if hasattr(token_or_code, "content"):
-            latex = token_or_code.content.strip()
-            line = self._abs_line(token_or_code) if line is None else line
-            code_line = line + 1 if line else None
+    def _math_block_token_html(self, token, label: Optional[str] = None) -> str:
+        latex = token.content.strip()
+        line = self._abs_line(token)
+        # 1行で完結する$$...$$ブロック（$$ a=b $$）は開始行自身がコード行。
+        # 複数行の$$ブロック（$$\n...\n$$）は開始行の次の行がコード行（#183）。
+        if line:
+            code_line = line + 1 if token.content.startswith("\n") else line
         else:
-            latex = str(token_or_code).strip()
+            code_line = None
+        return self._math_block_html(latex, label=label, line=line, code_line=code_line)
+
+    def _math_block_html(self, latex: str, label: Optional[str] = None, line: Optional[int] = None, code_line: Optional[int] = None) -> str:
+        latex = latex.strip()
         at_line = line if line is not None else self._block_line
         svg_path = self._math_svg_path(latex, display_mode=True, line=at_line, code_line=code_line)
         id_attr = f' id="{escapeHtml(label)}"' if label else ''
-        if not svg_path:
-            return f'<pre{id_attr} class="language-math"><code>{escapeHtml(latex)}</code></pre>\n'
         return f'<div{id_attr} class="math-block"><img src="{escapeHtml(self._url_for(svg_path))}" alt="{escapeHtml(latex)}"></div>\n'
 
 

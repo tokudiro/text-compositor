@@ -3,8 +3,8 @@
 PDFと同じ経路（Typst + mitex）のため、PDF・HTML出力（Viewer）で、同じ数式になる。
 LaTeXは、`sys.inputs.latex`で渡す（エスケープが要らず、原稿のLaTeXがTypstのコードとして解釈されない）。
 """
-import os
 import re
+from typing import Optional
 
 from text_compositor.graphviz_render import compiler_for, wrapper_digest
 from text_compositor.typst_runtime import typst_lib
@@ -13,18 +13,32 @@ from text_compositor.typst_runtime import typst_lib
 # （tests/test_math_render.pyが、一致を確かめる）。
 MITEX_VERSION = "0.2.7"
 
-# 図1つ分のTypstコード。余白なし・透明背景。フォントは、PDFのテンプレートと同じ`Noto Sans JP`。
-_WRAPPER_INLINE = f'''#import "@preview/mitex:{MITEX_VERSION}": mi
-#set page(width: auto, height: auto, margin: 0pt, fill: none)
-#set text(font: "Noto Sans JP", size: 11pt)
-#mi(sys.inputs.latex)
-'''
+# inline/blockの正準な種類名（renderer_diagrams.pyのキャッシュパスと共通で使用する）。
+KIND_INLINE = "math-inline"
+KIND_BLOCK = "math-block"
+KINDS = (KIND_INLINE, KIND_BLOCK)
 
-_WRAPPER_BLOCK = f'''#import "@preview/mitex:{MITEX_VERSION}": mimath
-#set page(width: auto, height: auto, margin: 0pt, fill: none)
-#set text(font: "Noto Sans JP", size: 11pt)
-#mimath(sys.inputs.latex)
-'''
+_FUNCS = {
+    KIND_INLINE: "mi",
+    KIND_BLOCK: "mimath",
+}
+
+
+def kind_for(display_mode: bool) -> str:
+    """display_modeの真偽値から、正準なkind文字列を返す。"""
+    return KIND_BLOCK if display_mode else KIND_INLINE
+
+
+def _html_wrapper(kind: str) -> str:
+    """数式1つ分のTypstコード。余白なし・透明背景。フォントは、PDFのテンプレートと同じ`Noto Sans JP`。"""
+    func = _FUNCS[kind]
+    return (f'#import "@preview/mitex:{MITEX_VERSION}": {func}\n'
+            '#set page(width: auto, height: auto, margin: 0pt, fill: none)\n'
+            '#set text(font: "Noto Sans JP", size: 11pt)\n'
+            f'#{func}(sys.inputs.latex)\n')
+
+
+_WRAPPERS = {kind: _html_wrapper(kind) for kind in KINDS}
 
 
 class MathRenderError(Exception):
@@ -34,17 +48,19 @@ class MathRenderError(Exception):
         super().__init__(message)
 
 
-def cache_version(display_mode: bool = False) -> str:
+def cache_version(kind: str = KIND_INLINE, display_mode: Optional[bool] = None) -> str:
     """数式のSVGのキャッシュキーに入れる、描画環境の版。"""
-    wrapper = _WRAPPER_BLOCK if display_mode else _WRAPPER_INLINE
-    mode_str = "block" if display_mode else "inline"
-    return f"mitex{MITEX_VERSION}+{mode_str}+typst{typst_lib.__version__}+w{wrapper_digest(wrapper)}"
+    if display_mode is not None:
+        kind = kind_for(display_mode)
+    wrapper = _WRAPPERS[kind]
+    return f"mitex{MITEX_VERSION}+{kind}+typst{typst_lib.__version__}+w{wrapper_digest(wrapper)}"
 
 
-def render_svg(latex: str, display_mode: bool = False) -> str:
+def render_svg(latex: str, kind: str = KIND_INLINE, display_mode: Optional[bool] = None) -> str:
     """LaTeX数式を、SVGの文字列にする。失敗時は`MathRenderError`。"""
-    wrapper = _WRAPPER_BLOCK if display_mode else _WRAPPER_INLINE
-    kind = "mitex_block" if display_mode else "mitex_inline"
+    if display_mode is not None:
+        kind = kind_for(display_mode)
+    wrapper = _WRAPPERS[kind]
     compiler = compiler_for(wrapper, kind)
     try:
         svg = compiler.compile(format="svg", sys_inputs={"latex": latex})

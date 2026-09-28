@@ -374,18 +374,18 @@ class DiagramMixin:
         """数式のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージ`mitex`で作る（#183）。
         line: 失敗したときの診断に付ける、原稿での行。"""
         from text_compositor import math_render
+        kind = math_render.kind_for(display_mode)
         try:
-            version = math_render.cache_version(display_mode)
+            version = math_render.cache_version(kind)
         except ImportError as e:
             self._diagram_error("Math", str(e), line)
             sys.exit(1)
-        kind = "math-block" if display_mode else "math-inline"
         svg_path, _ = self._diagram_cache_path(kind, version, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering math via Typst (mitex) -> {os.path.basename(svg_path)}")
             try:
-                svg = math_render.render_svg(code, display_mode)
+                svg = math_render.render_svg(code, kind)
             except math_render.MathRenderError as e:
                 at = code_line if code_line else line
                 self._diagram_error("Math", str(e), at)
