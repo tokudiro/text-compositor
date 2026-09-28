@@ -189,6 +189,13 @@ python build.py --config <path/to/text-compositor.config.yaml>
 * タスクリストのチェックボックスは、`tasklists_plugin`が生HTML（`<input class="task-list-item-checkbox" ...>`）として出力するため、他のHTMLタグと同じ「未対応HTML」警告で消えてしまう問題があった。このパターンだけを`render_inline`内で特別に認識し、Unicodeのチェックボックス記号（☐/☑）に変換する。それ以外のHTMLは従来どおり警告のみ（HTMLは「対応した」のではなく、狭い許可リストへの1パターン追加として扱う方針。[#46](https://github.com/tokudiro/text-compositor/issues/46)で議論・記録）。
 * GitHub Wiki拡張: `[[用語]]`によるMarkdown内リンク記法。用語索引機能（[#47](https://github.com/tokudiro/text-compositor/issues/47)、**実装済み**。10章を参照）で利用する。
 * このスコープに含まれないもの: Obsidian固有の拡張（コールアウト・埋め込み・`==ハイライト==`等）。文字色指定（[#46](https://github.com/tokudiro/text-compositor/issues/46)、**実装済み**、10章）はGFM/GitHub Wikiどちらにも属さない例外として個別に採用した。それ以外のPandoc記法・生HTML全般は非対応のまま。
+* **数式記法（LaTeX）**（[#183](https://github.com/tokudiro/text-compositor/issues/183)、**実装済み**）: GitHub標準のLaTeX数式記法に対応する。
+  * **インライン数式**: `$x + y$`。前後に空白がある`$ a + b $`は数式にならない（CommonMark/GitHub準拠、`dollarmath_plugin(allow_space=False)`）。
+  * **ブロック数式（ディスプレイ数式）**: `$$...$$` または ```` ```math ```` コードブロック。
+  * **ドル記号・金額との衝突防止**: `$100`や`10$`のように数字と隣接するドル記号は数式デリミタとして認識しない（`dollarmath_plugin(allow_digits=False)`）。地の文で生の`$`を出力したい場合は`\$`とエスケープする。
+  * **PDF出力**: Typst Universeのパッケージ`@preview/mitex:0.2.7`（Apache-2.0、WASMベースのLaTeX→Typst数式トランスレータ）を用いて、インライン数式は`#mi(...)`、ブロック数式は`#mimath(...)`として変換する。数式内の日本語（`\text{...}`）も利用可能（フォントはNoto Sans JP）。
+  * **HTML出力**: PDFと同じく`mitex:0.2.7`を用いて、Typstコンパイラ経由で透過背景のSVG画像として事前レンダリングし、`<img>`タグとして埋め込む。JavaScriptやMathJax/KaTeX等の外部CDNスクリプトを一切使用せず、CSP（`script-src 'none'`）を完全に維持する。ダークモード時はCSSフィルタ（`filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten;`）により自動的に反転表示される。
+  * **エラー検出**: LaTeX数式の文法に誤りがある場合は、該当する行番号付きで診断エラーを出力する（9章のFail-fast方針）。
 
 **効かなかった太字の警告**（[#215](https://github.com/tokudiro/text-compositor/issues/215)、**実装済み**）: AIが書いたMarkdownでは、`これは**「重要」**です。`のように、`**`の内側の端が句読点・括弧で、外側に空白がない書き方が多い。CommonMarkの規則では、この`**`は、太字の開始・終了になれず、`**`が、そのまま本文に出る（エラーにならない）。そこで、パーサーの結果を調べ、`text`のトークンに`**...**`の対が残っているとき（＝太字が効かなかったとき）、警告する（`emphasis_lint.py`。PDF・HTML出力（Obunzu）で共通。行は、段落の中の行まで、原稿の行にする）。検出の対象は、`**`だけである。`__`は、識別子に現れやすく、誤検出が多いため、対象にしない。コードスパン・エスケープ（`\*\*`）・文字参照（`&ast;`）・開きの直後や閉じの直前が空白の`**`（`a ** b ** c`）は、対象外。本文は、直さない（`**`が、そのまま出る）。太字が入れ子に誤って解釈される場合（`**「A」**と**「B」**`）は、`**`が残らないため、検出できない。
 
@@ -251,7 +258,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
 * **Unixフィルタとしての設計は意図的に採用していない**: `build.py`は標準入力/標準出力で連鎖する小さなフィルタ群ではなく、`config.yaml`というマニフェストを読んで複数ファイルをオーケストレーションする単一プロセスである。これは複数の断片を1つの文書へ集約するという1章の核である目的そのものが、全入力を同時に見る必要がある（目次・章番号等）ためで、Pandocの複数ファイル結合や`make`と同様、集約系ツールでは一般的な形である。図表レンダリング（Mermaid/Graphviz、11章）やTypstコンパイル自体は専門ツールへの委譲（Playwright経由のCDP直接操作・`diagraph`・`typst`パッケージ）という形でフィルタ的な境界を保っている。
   * かつてMarpディレクティブ（7章、`<!-- header: X -->`等）がチャプター（ファイル）をまたいで持続する機能を実装したことがあったが（[#16](https://github.com/tokudiro/text-compositor/issues/16)）、これは「1つのファイルだけを見て1つのTypst断片を返す」という純粋な変換から外れるだけでなく、このツールの核である**章の並べ替えの安全性**（並べ替えると意図しないヘッダーが混入しうる）とも衝突したため撤回した（[#41](https://github.com/tokudiro/text-compositor/issues/41)）。今後同種の「チャプターをまたいで持続する状態」を持つ機能を検討する際は、この失敗を踏まえること。代わりに採用した安全な設計（`chapters[].header`/`footer`/`paginate`、状態を持続させず各章が毎回自分の値を独立に解決する）は10章、[#42](https://github.com/tokudiro/text-compositor/issues/42)を参照。
 * **ASTベースの変換**: Markdownを単なる文字列置換（正規表現等）で処理するとテーブル等で破綻しやすいため、`markdown-it-py` でAST（抽象構文木）を生成し、そこからTypst構文へ決定論的にマッピングする。
-* **特殊文字のエスケープ**: AI出力テキスト内のTypstマークアップと衝突する文字（`#`, `$`, `@`, `_`, `*`, `<`, `>`, `[`, `]` 等）は専用のエスケープ処理で必ず無害化する。
+* **特殊文字のエスケープ**: AI出力テキスト内のTypstマークアップと衝突する文字（`#`, `$`, `@`, `_`, `*`, `<`, `>`, `[`, `]` 等）は専用のエスケープ処理で必ず無害化する。数式（`$...$`・`$$...$$`・```` ```math ````）は専用トークンとしてパースされ、Typstの文字列リテラルとして安全に`#mi`・`#mimath`へ渡されるため、地の文のTypstマークアップ衝突やエスケープ破壊は生じない。
   * **行頭ブロック記法のエスケープ**: 行頭の `=` `-` `+` `/` `1.` は Typst の見出し・リスト等として解釈され、地の文が勝手に見出し化して目次にまで混入する。改行直後のテキストは行頭記号をエスケープする（実測で確認済みの実害）。
 * **リスト構造の忠実な再現**: markdown-it はタイトなリストの段落トークンに `hidden` を立てる。これを無視すると Typst 側が loose list と解釈し、箇条書きが間延びする。リストの入れ子はスタックの深さに応じたインデントで出力し、階層を保持する。
 * **決定論的出力とバージョン固定**: `requirements.txt` のパーサーライブラリに加え、Typstコンパイラ本体および利用する全プラグイン（例: `diagraph:0.3.7`）のバージョンを厳密固定する。Typstコンパイラ自体はPyPIパッケージ（3章）で版固定されているため、同梱バイナリとの食い違いは構造的に起きない。
@@ -499,9 +506,11 @@ with Session() as session:                              # 繰り返すなら（M
   * **記法**: `headerline(...)`・`taskgroup(...)`・`task(...)`・`milestone(...)`などの呼び出しを、1行に1つずつ書く。`{width= height=}`の扱いは、CeTZ・Fletcherと違う（縮小ではなく、コンテナの幅として渡す。上記9番の実装済み欄を参照）。
   * **実行**: コードは、`eval(コード, mode: "code", scope: ...)`に、文字列として渡す（セキュリティは、8章）。CeTZの`canvas`と同じ形で、`timeline(show-grid: true, { eval(...) })`のコードブロックの中で評価する。
   * **ZIPへの同梱**: `timeliney` 0.4.0と、その依存（`cetz` 0.4.1。fletcher・cetz直接利用とは別の3本目のcetzの版）を、`typst-packages/`に同梱する。CeTZ（LGPL-3.0以降）の扱いは、上と同じ。
+* **数式はLaTeX記法をTypst/mitexでSVG描画する**（[#183](https://github.com/tokudiro/text-compositor/issues/183)）: HTML出力のインライン数式（`$...$`）とブロック数式（`$$...$$`・```` ```math ````）は、PDFと同じTypstパッケージ`mitex`（`MITEX_VERSION: 0.2.7`）を用いてTypst経由でSVGに変換して埋め込む。外部JavaScript（MathJax/KaTeX等）を使わず、CSP（`script-src 'none'`）を保つ。ダークモード反転に対応する。
+  * **ZIPへの同梱**: `mitex` 0.2.7（Apache-2.0、WASM含む約351 KB）を、`typst-packages/`に同梱する（`build-dist.js`の`TYPST_PACKAGES`）。オフライン環境でも完全動作する。
 * **`typst`なしで動く**（[#168](https://github.com/tokudiro/text-compositor/issues/168)）: `typst`（PDF用のコンパイラ）は、Typstを通すときに、初めて`import`する。Graphviz以外のHTML出力は、`typst`と`playwright`に、依存しない（`tests/test_distribution.py`が、この2つを`import`できない状態で、成功することを確認する）。Graphviz（[#264](https://github.com/tokudiro/text-compositor/issues/264)）は、`typst`が要る（`typst`は、pipの必須の依存）。`typst`がないときは、`typst`が要ることを示すエラーの診断になる。Viewerの配布物は、`playwright`を同梱しない。`typst`は、Typstを通す処理（Graphviz・[#237](https://github.com/tokudiro/text-compositor/issues/237)）のために、フォント・Typstのパッケージとともに、同梱する（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[viewer-distribution.md](viewer-distribution.md)）。同梱のフォントとパッケージは、環境変数`TEXT_COMPOSITOR_FONT_DIR`・`TEXT_COMPOSITOR_TYPST_PACKAGES`で、ワーカーに教える（ワーカーは、ダウンロードしない）。`typst`がないままPDFを作ろうとしても、`typst`が要ることを示すエラーになる。
 * **セキュリティ**: 原稿の文字は、すべてエスケープする。生のHTMLは通さず、`javascript:`のリンクはリンクにしない。`style`に入れる値（色・寸法・サイズ）は、CSSの構文を壊さない形だけを通す。JavaScriptは、出力しない。念のため、出力するHTMLに、スクリプトとプラグインを禁止するCSP（`script-src 'none'; object-src 'none'; base-uri 'none'`）を入れる（Viewerは、ドロップの受け口のために、JavaScriptを有効にしたビューで開くため。#190）。
-* **範囲外**: `config.yaml`由来の機能（章立て・目次・表紙・改版履歴・巻末用語索引など）と、複数ファイルの出力・ファイル間リンクの変換（[#185](https://github.com/tokudiro/text-compositor/issues/185)）、数式（[#183](https://github.com/tokudiro/text-compositor/issues/183)）。CLIの`--format html`は、単一ファイルのCLI（#179）の後に扱う。
+* **範囲外**: `config.yaml`由来の機能（章立て・目次・表紙・改版履歴・巻末用語索引など）と、複数ファイルの出力・ファイル間リンクの変換（[#185](https://github.com/tokudiro/text-compositor/issues/185)）。CLIの`--format html`は、単一ファイルのCLI（#179）の後に扱う。
 * **レイアウトブロックのHTML**は、表示側のエンジン（[#180](https://github.com/tokudiro/text-compositor/issues/180)）が決まったあとに、見直す可能性がある。
 
 ### CLIとの関係（#25）

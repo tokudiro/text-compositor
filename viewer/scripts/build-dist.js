@@ -70,6 +70,7 @@ const TYPST_PACKAGES = [
   { name: 'diagraph', version: '0.3.7', license: 'MIT', sha256: '08b9927b047e95c661c1d7ae28806b8cbefa25a07f8ae2d4a47911028875abc6' },
   { name: 'fletcher', version: '0.5.8', license: 'MIT', sha256: 'a61883a4af4ca923a37c597900e674f40dad3f7bde3f2a3d8fe8042e6ca8a66b' },
   { name: 'kip', version: '0.1.0', license: 'MIT', sha256: '4b90dc0e3e0bcc2f273940a15a3c8855f9aa65bd972791f49018154017cb90d0' },
+  { name: 'mitex', version: '0.2.7', license: 'Apache-2.0', sha256: '0159e214845e49cbdc332d9d572da112dae5ad248072e0a7680d38c8307c2e15' },
   { name: 'note-me', version: '0.6.0', license: 'MIT', sha256: '94273b3c9a7ddc3960ad86dfc02b8f864eebd918699a1a32310a6cf40aee67a6' },
   { name: 'oxifmt', version: '0.2.1', license: 'MIT-0', sha256: '16fac2923032c59727de01e84d42cac45e8790da28df56effca49f4de41b09d9' },
   { name: 'oxifmt', version: '1.0.0', license: 'MIT OR Apache-2.0', sha256: '7d17a1fc8ad01740ec3cb2b03c7360a4225ff9318e5710765fa98ea6fd59594f' },

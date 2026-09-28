@@ -10,6 +10,8 @@ from mdit_py_plugins.tasklists import tasklists_plugin
 # 文字色指定（#46）。[text]{color=red}というPandoc由来のブラケット+属性記法をパースする
 # （spans=Trueでspan_open/span_closeトークンとして出力される。既定では無効なので明示的に有効化）。
 from mdit_py_plugins.attrs import attrs_plugin
+# 数式（LaTeX記法、#183）。GitHub標準の$...$/$$...$$をパースする。
+from mdit_py_plugins.dollarmath import dollarmath_plugin
 from text_compositor.config import yaml
 from text_compositor.log import _error
 from text_compositor.mermaid import MermaidBrowser
@@ -136,11 +138,14 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         # variables: {{KEY}}プレースホルダの置換表（#72）。Noneなら置換機構自体を無効にし、
         # 本文中の{{...}}には一切触れない（configに`variables:`が無い既存プロジェクトの互換性維持）。
         self.variables = variables
-        # 対応するMarkdown記法のスコープはGFM + GitHub Wiki（#48）。table/strikethroughはGFM拡張だが
+        # 対応するMarkdown記法のスコープはGFM + GitHub Wiki（#48）+ 数式（#183）。table/strikethroughはGFM拡張だが
         # commonmarkプリセットにコアルールとして同梱されており、enable()するだけで使える。
+        # dollarmath_plugin（#183）はGitHub標準の数式（LaTeX記法）。金額表記（$100等）の誤認識を防ぐため、
+        # allow_space=False・allow_digits=Falseとする。
         self.md = (MarkdownIt("commonmark").enable("table").enable("strikethrough")
                    .use(tasklists_plugin)
-                   .use(attrs_plugin, spans=True, span_after="link", allowed=["color", "size", "bg", "border"]))
+                   .use(attrs_plugin, spans=True, span_after="link", allowed=["color", "size", "bg", "border"])
+                   .use(dollarmath_plugin, allow_space=False, allow_digits=False, double_inline=True))
         self.list_stack = []
         self._block_line = None
         self.current_file = ""

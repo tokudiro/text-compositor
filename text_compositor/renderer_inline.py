@@ -3,7 +3,7 @@
 `TypstRenderer`（renderer.py）に、ミックスインとして取り込まれる。状態（`self`の属性）は、`TypstRenderer`と共有する（#225）。
 """
 import re
-from text_compositor.typst_literal import escape_string_literal, insert_soft_break_hints
+from text_compositor.typst_literal import escape_string_literal, insert_soft_break_hints, _typst_multiline_literal
 
 
 class InlineMixin:
@@ -198,6 +198,8 @@ class InlineMixin:
                         res.append(checkbox)
                     else:
                         self._warn_html(t)
+            elif t.type in ['math_inline', 'math_inline_double']:
+                res.append(f'#mi({_typst_multiline_literal(t.content.strip())})')
             else:
                 line_no = self._line_of(t)
                 self._warn_here(f"Unhandled inline token '{t.type}' at {self.current_file}:{line_no if line_no else '?'}", line=line_no)

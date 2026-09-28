@@ -65,6 +65,7 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 | 記法 | 種別 | 対応状況 |
 | --- | --- | --- |
 | テーブル（` \| a \| b \| `） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応 |
+| 数式（`$...$` / `$$...$$` / ```` ```math ````） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（インライン `$...$`、ブロック `$$...$$` または ```` ```math ````。下記） |
 | 取り消し線（`~~text~~`） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応 |
 | タスクリスト（`- [ ]` / `- [x]`） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（☐/☑のUnicode記号で表示。実際に操作できるチェックボックスにはならない） |
 | 自動リンク（`<https://example.com>`、山括弧付き） | ![CommonMark](badges/commonmark.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（CommonMark標準） |
@@ -170,6 +171,47 @@ GitHub形式のalert記法（`> [!NOTE]`等）で、本文と区別した囲み�
 - マーカー（`[!NOTE]`等）は、引用ブロックの最初の行に単独で書く必要があります。それ以外の内容と同じ行に書いても認識されません。
 - 実体は[note-me](https://github.com/FlandiaYingman/note-me)（MITライセンス、`@preview/note-me:0.6.0`）というTypst Universeのパッケージにそのまま委譲しています。色・アイコンはこのパッケージの既定のままです。
 - マーカーに一致しない通常の引用（`>`）は、従来どおり装飾なしの引用として表示されます。
+
+## 数式（LaTeX記法）
+
+![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
+GitHub標準のLaTeX数式記法に対応しています（[#183](https://github.com/tokudiro/text-compositor/issues/183)）。PDF出力でもObunzu（HTML出力）でも同じ記法で美しく描画されます。
+
+### インライン数式
+
+本文中に `$数式$` と書きます。
+
+```markdown
+アインシュタインの式は $E = mc^2$ です。
+```
+
+- 開始の `$` の直後、および終了の `$` の直前に空白を入れないでください（`$ 1 + 2 $` は数式になりません）。
+- ドル記号と数字が隣接する金額表記（`$100` や `10$` など）は数式とみなされません。
+- 本文で生の `$` をそのまま表示したい場合は、`\$` とエスケープしてください。
+
+### ブロック数式（ディスプレイ数式）
+
+独立した行に `$$...$$`、または ```` ```math ```` コードブロックとして書きます。
+
+```markdown
+$$
+\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
+$$
+```
+
+````markdown
+```math
+f(x) = \sum_{n=0}^{\infty} \frac{f^{(n)}(a)}{n!} (x - a)^n
+```
+````
+
+### 特徴と注意点
+
+- **日本語の利用**: `\text{日本語}` のように数式内に日本語を含めることもできます（フォントはNoto Sans JP）。
+- **エラー検出**: LaTeX数式の文法に誤りがある場合は、ビルド時に該当する行番号付きでエラーが報告されます（Fail-fast）。
+- **オフライン動作と安全性**: HTML出力では外部CDNやJavaScript（MathJax / KaTeX）を使わず、ビルド時にSVGとして事前レンダリングします。CSP（`script-src 'none'`）を維持したまま、完全オフラインで動作します。
+- **ダークモード対応**: Obunzuなどのダークモード表示時は、数式画像が自動的に反転され白く見やすく表示されます。
 
 ## [[用語]]: 巻末用語索引
 

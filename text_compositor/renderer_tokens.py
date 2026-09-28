@@ -6,6 +6,7 @@ import re
 import sys
 from text_compositor.emphasis_lint import find_unapplied_bold, unapplied_bold_message
 from text_compositor.log import _error, _log_info, _warn
+from text_compositor.typst_literal import _typst_multiline_literal
 
 
 class TokenMixin:
@@ -36,6 +37,14 @@ class TokenMixin:
     # 上記の探索前に、引用符で囲まれた属性値（`key="a.b"`等）を取り除くための正規表現。値の中に
     # ピリオドが含まれる場合（バージョン番号等）、先頭クラスより先に見つかって誤爆するため。
     PANDOC_FENCE_QUOTED_VALUE_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
+
+    def _render_math_block_typst(self, content: str, label: str = "") -> str:
+        """数式ブロック（#mimath）のTypstコードを生成する。ラベルがあれば末尾に<label>を付与する。"""
+        body = f'#mimath({_typst_multiline_literal(content.strip())})'
+        clean_label = re.sub(r'[^a-zA-Z0-9_\-]', '-', label.strip()) if label else ''
+        if clean_label:
+            return f'{body} <{clean_label}>\n\n'
+        return f'{body}\n\n'
 
     def _pandoc_fence_lang(self, info):
         """フェンスのinfo string全体が`{...}`のPandoc属性ブロックのときの言語名の取り出し（#84）。
@@ -220,11 +229,17 @@ class TokenMixin:
                         width, height = self._parse_size_attrs(attrs_str)
                         trim = self._parse_trim_attr(attrs_str)
                         result.append(self._render_diagram_fence(lang, t.content, width, height, trim))
+                    elif lang == 'math':
+                        result.append(self._render_math_block_typst(t.content))
                     else:
                         # ```` ``` ````フェンス構文で直接組み立てると、コード内容自体に```が
                         # 含まれる場合にTypst側のフェンスが早期に閉じて壊れる。文字列リテラルとして
                         # 渡すraw()なら安全（#15の_render_raw_textと同じ理由）。
                         result.append(self._render_raw_text(t.content, lang or None))
+            elif t.type in ['math_block', 'math_block_label']:
+                self._emit_srcmap(result, t)
+                label = t.info if t.type == 'math_block_label' else ''
+                result.append(self._render_math_block_typst(t.content, label))
             elif t.type in ['html_inline', 'html_block']:
                 result.append(self._handle_html_token(t))
             elif t.type == 'th_open':

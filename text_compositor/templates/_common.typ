@@ -58,6 +58,9 @@
 #let callout-fns = (note: note, tip: tip, important: important, warning: warning, caution: caution)
 #let callout(kind: "note", body) = (callout-fns.at(kind, default: note))(body)
 
+// 数式（LaTeX記法、#183）。Typstのパッケージmitexで描く。PDFとHTML（事前SVG化）で共有する。
+#import "@preview/mitex:0.2.7": mi, mimath
+
 // 本文ページのヘッダー・フッター（#42）。chapters[]/front-matterによるチャプター単位の上書きは
 // build.py側が章ごとに#set page(header: render-header(...), footer: render-footer(...))を
 // 再発行する形で実現する（state()は使わない。#16の反省点。landscape/paper_sizeと同じ

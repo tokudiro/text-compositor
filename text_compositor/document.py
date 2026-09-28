@@ -5,6 +5,7 @@ import shutil
 from datetime import datetime
 from text_compositor.config import _resolve_project_image_path, resolve_template_path
 from text_compositor.log import _error
+from text_compositor.math_render import MITEX_VERSION
 from text_compositor.typst_literal import _typst_multiline_literal, _typst_str_or_none, escape_string_literal
 
 def _page_set_fragment(paper, landscape, header, footer, paginate, background, logo):
@@ -208,6 +209,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
 
     preamble = f"""
 #import "{template_root_rel_path.replace(os.sep, '/')}": conf, fit-image, render-graph, render-header, render-footer, render-background, callout
+#import "@preview/mitex:{MITEX_VERSION}": mi, mimath
 #show: doc => conf(
   title: "{safe_title}",
   subtitle: "{safe_subtitle}",
