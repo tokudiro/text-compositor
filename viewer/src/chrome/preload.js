@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('viewer', {
   onState: (callback) => ipcRenderer.on('state', (_event, state) => callback(state)),
   ready: () => ipcRenderer.send('chrome-ready'),
   openDialog: () => ipcRenderer.send('open-dialog'),
+  goBack: () => ipcRenderer.send('go-back'),
+  goForward: () => ipcRenderer.send('go-forward'),
   reload: () => ipcRenderer.send('reload'),
   setAutoReload: (value) => ipcRenderer.send('auto-reload', value),
   setCsvHeader: (value) => ipcRenderer.send('csv-header', value),

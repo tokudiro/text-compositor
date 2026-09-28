@@ -6,6 +6,8 @@ const $ = (id) => document.getElementById(id);
 let detailsOpen = false;
 let lastState = null;
 
+$('back').addEventListener('click', () => api.goBack());
+$('forward').addEventListener('click', () => api.goForward());
 $('open').addEventListener('click', () => api.openDialog());
 $('reload').addEventListener('click', () => api.reload());
 $('zoom-in').addEventListener('click', () => api.zoomIn());
@@ -94,6 +96,8 @@ function render(state) {
   $('csv-header').title = `CSV: 1行目を見出しにする（${state.settings.csvHeader ? 'オン' : 'オフ'}）`;
   $('auto-reload').title = `保存したら自動で更新する（${state.autoReload ? 'オン' : 'オフ'}）`;
   $('reload').disabled = !state.file || state.busy;
+  $('back').disabled = !state.canGoBack || state.busy;
+  $('forward').disabled = !state.canGoForward || state.busy;
   // 文書が無いときは、拡大縮小・検索の対象が無い
   for (const id of ['zoom-in', 'zoom-out', 'zoom', 'search-button']) $(id).disabled = !state.hasDocument;
   $('busy').hidden = !state.busy;
