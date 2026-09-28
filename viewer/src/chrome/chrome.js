@@ -16,6 +16,32 @@ $('empty-open').addEventListener('click', () => api.openDialog());
 $('csv-header').addEventListener('click', () => api.setCsvHeader($('csv-header').getAttribute('aria-checked') !== 'true'));
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
+$('search-button').addEventListener('click', () => api.toggleSearch());
+$('search-close').addEventListener('click', () => api.closeSearch());
+$('search-prev').addEventListener('click', () => api.moveSearch(-1));
+$('search-next').addEventListener('click', () => api.moveSearch(1));
+$('search-regex').addEventListener('click', () => sendSearch({ regex: $('search-regex').getAttribute('aria-checked') !== 'true' }));
+$('search-case').addEventListener('click', () => sendSearch({ caseSensitive: $('search-case').getAttribute('aria-checked') !== 'true' }));
+// 入力は、打つたびに送ると重いことがあるため、少し待ってから送る（変換の自動更新と同じ考え方。#170）
+let searchDebounce = null;
+$('search-input').addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => sendSearch(), 150);
+});
+$('search-input').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); api.moveSearch(event.shiftKey ? -1 : 1); }
+  else if (event.key === 'Escape') { event.preventDefault(); api.closeSearch(); }
+});
+/** 今の入力欄・トグルの状態を、まとめて送る。トグルのクリックは、待たずにすぐ送る。 */
+function sendSearch(overrides = {}) {
+  clearTimeout(searchDebounce);
+  api.setSearch({
+    query: $('search-input').value,
+    regex: $('search-regex').getAttribute('aria-checked') === 'true',
+    caseSensitive: $('search-case').getAttribute('aria-checked') === 'true',
+    ...overrides,
+  });
+}
 $('choose-directory').addEventListener('click', () => api.chooseOpenDirectory());
 $('clear-cache').addEventListener('click', () => api.clearCache());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
@@ -37,9 +63,11 @@ window.addEventListener('drop', (event) => {
 function render(state) {
   if (!state) return;
   const previousErrors = lastState?.diagnostics.hasError;
+  const searchWasOpen = lastState?.search.open;
   lastState = state;
   const d = state.diagnostics;
   document.body.classList.toggle('toolbar-bottom', state.settings.toolbarPosition === 'bottom');
+  renderSearch(state.search, searchWasOpen);
   $('settings').hidden = !state.settingsOpen;
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
   for (const [name, value] of Object.entries(state.settings)) {
@@ -66,8 +94,8 @@ function render(state) {
   $('csv-header').title = `CSV: 1行目を見出しにする（${state.settings.csvHeader ? 'オン' : 'オフ'}）`;
   $('auto-reload').title = `保存したら自動で更新する（${state.autoReload ? 'オン' : 'オフ'}）`;
   $('reload').disabled = !state.file || state.busy;
-  // 文書が無いときは、拡大縮小の対象が無い
-  for (const id of ['zoom-in', 'zoom-out', 'zoom']) $(id).disabled = !state.hasDocument;
+  // 文書が無いときは、拡大縮小・検索の対象が無い
+  for (const id of ['zoom-in', 'zoom-out', 'zoom', 'search-button']) $(id).disabled = !state.hasDocument;
   $('busy').hidden = !state.busy;
   $('status').textContent = state.busy ? '' : state.status;
   // 案内は、何も開いていないときだけ。ファイルを開いている最中に、「開いてください」と出さない
@@ -91,6 +119,26 @@ function render(state) {
   details.hidden = !(showBanner && detailsOpen);
   details.replaceChildren(...d.items.map(itemElement));
   requestAnimationFrame(reportHeight);
+}
+
+/** 検索欄（#325）。入力欄の値は、状態から書き戻さない（入力中に、キー操作と競合させないため）。開いた瞬間だけ、そろえる。 */
+function renderSearch(search, wasOpen) {
+  const input = $('search-input');
+  $('search').hidden = !search.open;
+  $('search-button').setAttribute('aria-pressed', String(search.open));
+  $('search-regex').setAttribute('aria-checked', String(search.regex));
+  $('search-case').setAttribute('aria-checked', String(search.caseSensitive));
+  $('search-count').textContent = !search.query ? ''
+    : search.error ? '正規表現が不正です'
+    : search.count ? `${search.current} / ${search.count}`
+    : '見つかりません';
+  $('search-count').classList.toggle('error', Boolean(search.error));
+  $('search-prev').disabled = $('search-next').disabled = !search.count;
+  if (search.open && !wasOpen) {
+    input.value = search.query;
+    input.focus();
+    input.select();
+  }
 }
 
 /** 使用量の表示。1 MB未満はKB、それ以上はMB（小数1桁）。 */
