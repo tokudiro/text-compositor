@@ -11,6 +11,7 @@ const path = require('node:path');
 const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, screen, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
+const { NavigationHistory } = require('./history');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('./targets');
@@ -55,7 +56,11 @@ const state = {
   settings: { ...DEFAULTS },
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
   diagnostics: summarize([]),
+  canGoBack: false,      // 戻るナビゲーションができるか（#330）
+  canGoForward: false,   // 進むナビゲーションができるか（#330）
 };
+
+const history = new NavigationHistory();
 
 let settingsFile = null;
 
@@ -171,6 +176,12 @@ function createWindow() {
   win.on('closed', () => { mermaidHost.dispose(); });
   handleEscape(win.webContents);
   handleEscape(contents);
+  handleNavigationShortcuts(win.webContents);
+  handleNavigationShortcuts(contents);
+  win.on('app-command', (_event, cmd) => {
+    if (cmd === 'browser-backward') goBack();
+    else if (cmd === 'browser-forward') goForward();
+  });
   nativeTheme.on('updated', applyBackground);
   layout();
   trace('window-created');
@@ -194,6 +205,21 @@ function handleEscape(webContents) {
     if (input.type === 'keyDown' && input.key === 'Escape' && state.settingsOpen) {
       event.preventDefault();
       setSettingsOpen(false);
+    }
+  });
+}
+
+/** Alt+← / Alt+→ で、戻る・進むナビゲーションを行う（#330）。Chromiumの既定の動作を防ぎ、Viewerの履歴を動かす。 */
+function handleNavigationShortcuts(webContents) {
+  webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.alt && !input.control && !input.shift && !input.meta) {
+      if (input.key === 'ArrowLeft') {
+        event.preventDefault();
+        goBack();
+      } else if (input.key === 'ArrowRight') {
+        event.preventDefault();
+        goForward();
+      }
     }
   });
 }
@@ -284,8 +310,15 @@ function changeSetting(key, value) {
 
 function push() {
   state.isCsv = /\.csv$/i.test(state.file ?? '');
+  state.canGoBack = history.canGoBack;
+  state.canGoForward = history.canGoForward;
+  const menu = Menu.getApplicationMenu();
+  const backItem = menu?.getMenuItemById('go-back');
+  if (backItem) backItem.enabled = state.canGoBack;
+  const forwardItem = menu?.getMenuItemById('go-forward');
+  if (forwardItem) forwardItem.enabled = state.canGoForward;
   // 「表示」メニューの、CSVの見出し行の項目は、.csvを開いているときだけ、有効にする
-  const csvItem = Menu.getApplicationMenu()?.getMenuItemById('csv-header');
+  const csvItem = menu?.getMenuItemById('csv-header');
   if (csvItem) { csvItem.enabled = state.isCsv; csvItem.checked = state.settings.csvHeader; }
   if (win && !win.isDestroyed()) win.webContents.send('state', state);
 }
@@ -333,16 +366,21 @@ function targetFromArgv(argv, cwd) {
   return fileFromArgv(args, { cwd });
 }
 /** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。 */
-function openFile(file) {
+async function openFile(file, { targetScrollY = null, isHistoryNav = false, onFail = null } = {}) {
   const full = path.resolve(file);
   const target = checkOpenTarget(full);
   if (!target.ok) {
     state.diagnostics = summarize([{ severity: 'error', message: target.message }]);
+    if (onFail) onFail();
     push();
     return;
   }
+  if (!isHistoryNav && state.file && state.file !== full) {
+    const scrollY = await getScrollPosition();
+    history.updateCurrentScroll(scrollY);
+  }
   rememberDirectory(path.dirname(full));
-  queued = full;
+  queued = { file: full, targetScrollY, isHistoryNav, onFail };
   if (!inFlight) void drain();
 }
 
@@ -362,9 +400,9 @@ async function drain() {
   inFlight = true;
   try {
     while (queued) {
-      const file = queued;
+      const task = queued;
       queued = null;
-      await renderOnce(file);
+      await renderOnce(task.file, task.targetScrollY, task.isHistoryNav, task.onFail);
     }
   } finally {
     inFlight = false;
@@ -377,7 +415,7 @@ function whenIdle() {
   return inFlight ? new Promise((resolve) => idleWaiters.push(resolve)) : Promise.resolve();
 }
 
-async function renderOnce(file) {
+async function renderOnce(file, targetScrollY = null, isHistoryNav = false, onFail = null) {
   const sameDocument = shown?.md === file;
   state.file = file;
   state.busy = true;
@@ -407,7 +445,10 @@ async function renderOnce(file) {
   }
   state.diagnostics = summarize(result.diagnostics);
   if (result.ok && result.html) {
-    await showHtml(file, result.html, sameDocument, result.dependencies);
+    await showHtml(file, result.html, sameDocument, result.dependencies, targetScrollY);
+    if (!isHistoryNav) {
+      history.push(file);
+    }
     const total = result.timings_ms.total;
     // 警告の件数は、帯に出るため、状態の表示には、入れない（同じ内容を2か所に出さない）
     state.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}`;
@@ -417,6 +458,7 @@ async function renderOnce(file) {
     // 失敗しても、直前に成功した表示を残す。ファイル名も、表示中の文書に戻す。
     state.file = shown ? shown.md : file;
     state.status = shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
+    if (onFail) onFail();
   }
   state.busy = false;
   updateWatch();
@@ -461,7 +503,7 @@ function clock() {
 }
 
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
-async function showHtml(md, html, sameDocument, dependencies = []) {
+async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY = null) {
   const contents = contentView.webContents;
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
@@ -471,12 +513,58 @@ async function showHtml(md, html, sameDocument, dependencies = []) {
   if (sameDocument && shown?.html === html) contents.reloadIgnoringCache();
   else contents.loadFile(html).catch(() => {});
   await loaded;
+  if (targetScrollY !== null && targetScrollY > 0) {
+    contents.executeJavaScript(`window.scrollTo(0, ${targetScrollY}); requestAnimationFrame(() => window.scrollTo(0, ${targetScrollY}));`).catch(() => {});
+  }
   shown = { md, html, deps: dependencies };
   if (!state.hasDocument) { state.hasDocument = true; layout(); }
   if (!state.settingsOpen) contents.focus();
 }
 
 // -- ナビゲーション・ズーム -------------------------------------------------------
+
+async function getScrollPosition() {
+  if (!contentView || !state.hasDocument) return 0;
+  try {
+    return (await contentView.webContents.executeJavaScript('window.scrollY')) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function goBack() {
+  leaveSettings();
+  if (!history.canGoBack || inFlight || state.busy) return;
+  const target = history.peekBack();
+  if (!target) return;
+  const check = checkOpenTarget(target.file);
+  if (!check.ok) {
+    state.diagnostics = summarize([{ severity: 'error', message: check.message }]);
+    push();
+    return;
+  }
+  const currentScrollY = await getScrollPosition();
+  history.updateCurrentScroll(currentScrollY);
+  history.back();
+  openFile(target.file, { targetScrollY: target.scrollY, isHistoryNav: true, onFail: () => history.forward() });
+}
+
+async function goForward() {
+  leaveSettings();
+  if (!history.canGoForward || inFlight || state.busy) return;
+  const target = history.peekForward();
+  if (!target) return;
+  const check = checkOpenTarget(target.file);
+  if (!check.ok) {
+    state.diagnostics = summarize([{ severity: 'error', message: check.message }]);
+    push();
+    return;
+  }
+  const currentScrollY = await getScrollPosition();
+  history.updateCurrentScroll(currentScrollY);
+  history.forward();
+  openFile(target.file, { targetScrollY: target.scrollY, isHistoryNav: true, onFail: () => history.back() });
+}
 
 function handleNavigation(url) {
   const target = classifyNavigation(url);
@@ -568,6 +656,11 @@ function buildMenu() {
     {
       label: '表示',
       submenu: [
+        { id: 'go-back', label: '戻る', accelerator: 'Alt+Left', enabled: state.canGoBack, click: goBack },
+        { label: '戻る', accelerator: 'CommandOrControl+[', enabled: state.canGoBack, click: goBack, visible: false },
+        { id: 'go-forward', label: '進む', accelerator: 'Alt+Right', enabled: state.canGoForward, click: goForward },
+        { label: '進む', accelerator: 'CommandOrControl+]', enabled: state.canGoForward, click: goForward, visible: false },
+        { type: 'separator' },
         { label: '拡大', accelerator: 'CommandOrControl+Plus', click: () => zoomBy(1) },
         { label: '拡大', accelerator: 'CommandOrControl+=', click: () => zoomBy(1), visible: false },
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
@@ -585,6 +678,8 @@ function buildMenu() {
 ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
+ipcMain.on('go-back', () => goBack());
+ipcMain.on('go-forward', () => goForward());
 ipcMain.on('reload', reload);
 ipcMain.on('auto-reload', (_event, value) => setAutoReload(value));
 ipcMain.on('csv-header', (_event, value) => setCsvHeader(value));
