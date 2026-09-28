@@ -8,10 +8,11 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, net, screen, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
 const { NavigationHistory } = require('./history');
+const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('./targets');
@@ -78,12 +79,13 @@ let queued = null;
 let idleWaiters = [];   // 変換が終わるのを待つ処理（キャッシュの削除）
 let watcher = null;
 const workRoot = cacheRoot();   // アプリの領域（#258）
-// Mermaidの描画（非表示のウィンドウ。最初の図で作る。#207）。ワーカーが、標準入出力で、依頼してくる。Graphvizは、ワーカーが、Typstのdiagraphで描く（#264）。
-const createHiddenWindow = () => new BrowserWindow({
+// Mermaidの描画（非表示のウィンドウ。最初の図で作る。#207）および画像のラスタライズ（#327）。
+const createHiddenWindow = (options = {}) => new BrowserWindow({
   show: false,
   width: 800,
   height: 600,
-  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, ...options.webPreferences },
+  ...options,
 });
 const mermaidHost = new MermaidHost({ createWindow: createHiddenWindow });
 
@@ -172,6 +174,7 @@ function createWindow() {
   contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url); });
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
   contents.on('did-finish-load', () => contents.setZoomLevel(zoomLevel));
+  contents.on('context-menu', (_event, params) => handleContextMenu(params));
 
   if (saved.maximized) win.maximize();
   win.on('resize', () => { layout(); scheduleWindowSave(); });
@@ -646,6 +649,42 @@ async function chooseOpenDirectory() {
   state.settings = normalizeSettings({ ...state.settings, fixedDirectory: result.filePaths[0] });
   saveSettings(settingsFile, state.settings);
   push();
+}
+
+// -- 画像の保存（#327） ---------------------------------------------------------
+
+function handleContextMenu(params) {
+  if (params.mediaType !== 'image' || !params.srcURL) return;
+
+  const template = buildImageContextMenuTemplate(params, {
+    onSave: (p, format) => void saveImageFromContextMenu(p, format),
+  });
+
+  const menu = Menu.buildFromTemplate(template);
+  menu.popup({ window: win });
+}
+
+async function saveImageFromContextMenu(params, requestedFormat) {
+  try {
+    const result = await executeSaveImage(params, requestedFormat, {
+      win,
+      documentFile: state.file,
+      lastDirectory: state.settings.lastDirectory,
+      downloadsDirectory: app.getPath('downloads'),
+      showSaveDialog: (w, opts) => dialog.showSaveDialog(w, opts),
+      createWindow: createHiddenWindow,
+      netFetch: net.fetch,
+    });
+    if (result.saved && result.directory) {
+      rememberDirectory(result.directory);
+    }
+  } catch (error) {
+    state.diagnostics = summarize([{
+      severity: 'error',
+      message: `画像の保存に失敗しました: ${error.message}`,
+    }]);
+    push();
+  }
 }
 
 // -- アプリの領域（変換したHTML・図のキャッシュ）の管理（#258） ----------------------------
