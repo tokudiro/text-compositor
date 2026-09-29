@@ -279,7 +279,7 @@ class TestProcess:
                 "path": str(md), "output": str(out), "plugins": plugins}})
             response = self.receive(proc)
             assert response["ok"] is True, response
-            assert response["html"] == str(out) and "<h1>見出し</h1>" in out.read_text(encoding="utf-8")
+            assert response["html"] == str(out) and '<h1 data-line="1">見出し</h1>' in out.read_text(encoding="utf-8")
             # 失敗（存在しないファイル）でも、ワーカーは、同じまま動き続ける
             self.send(proc, {"id": 2, "method": "render_html", "params": {"path": str(tmp_path / "none.md")}})
             failed = self.receive(proc)

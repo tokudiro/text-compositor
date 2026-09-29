@@ -124,6 +124,17 @@
           <label><input type="radio" name="allowExternalImages" value="true"><span>読み込む</span></label>
         </div>
       </div>
+      <div class="row">
+        <div class="text">
+          <div class="name" id="line-badge-name">行番号の表示</div>
+          <div class="desc">段落・見出し・リスト・表・図などにマウスを乗せると、右上に、元のMarkdownの行番号を出します。
+            クリックすると、行番号をコピーします。長い原稿を、直しに戻るときの目印です。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="line-badge-name">
+          <label><input type="radio" name="lineBadge" value="true"><span>出す</span></label>
+          <label><input type="radio" name="lineBadge" value="false"><span>出さない</span></label>
+        </div>
+      </div>
       <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->
       <div class="row sub" id="fixed-directory-row" hidden>
         <div class="text">

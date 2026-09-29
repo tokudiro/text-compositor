@@ -76,7 +76,7 @@ class TestApi:
         assert result.html_path == str(tmp_path / ".text-compositor" / "preview.html")
         assert html.startswith("<!DOCTYPE html>")
         assert "<title>見出し</title>" in html
-        assert "<h1>見出し</h1>" in html
+        assert '<h1 data-line="1">見出し</h1>' in html
         assert "<script" not in html
         # スクリプトは、ブラウザ側でも禁止する（Viewerは、JavaScriptを有効にしたビューで開く）
         assert "script-src 'none'" in html and "object-src 'none'" in html
@@ -142,7 +142,7 @@ class TestMarkdown:
         assert "<strong>b</strong>" in b and "<em>i</em>" in b and "<s>s</s>" in b and "<code>c</code>" in b
         assert '<a href="https://example.com">l</a>' in b
         assert "<ul>" in b and "<ol>" in b
-        assert '<pre><code class="language-python">print(1)\n</code></pre>' in b
+        assert re.search(r'<pre data-line="\d+"><code class="language-python">print\(1\)\n</code></pre>', b)
 
     def test_line_breaks_are_kept_like_the_pdf(self, tmp_path):
         _, html = convert(tmp_path, "one\ntwo\n")
@@ -467,12 +467,12 @@ class TestFences:
 
     def test_a_disabled_plugin_falls_back_to_code_without_a_warning(self, tmp_path):
         result, html = convert(tmp_path, "```mermaid\ngraph TD\n A-->B\n```\n\n```plantuml\n@startuml\n@enduml\n```\n\n```d2\na -> b\n```\n")
-        assert body(html).count("<pre>") == 3 and "<img" not in html
+        assert len(re.findall(r"<pre[ >]", body(html))) == 3 and "<img" not in html
         assert not result.warnings
 
     def test_other_languages_are_plain_code_blocks(self, tmp_path):
         _, html = convert(tmp_path, "```\n<b>&\n```\n")
-        assert "<pre><code>&lt;b&gt;&amp;\n</code></pre>" in html
+        assert '<pre data-line="1"><code>&lt;b&gt;&amp;\n</code></pre>' in html
 
     def test_a_diagram_source_file_is_a_page_with_that_diagram(self, tmp_path):
         result, html = convert(tmp_path, "graph TD\n A-->B\n", name="flow.mmd")

@@ -117,7 +117,28 @@ table.layout { width: 100%; table-layout: fixed; }
   color: var(--muted); background: var(--code-bg); }
 .blocked-image p { margin: 0.25em 0; overflow-wrap: anywhere; }
 .blocked-image-title { font-weight: bold; }
+/* 行番号バッジ（#328）。ブロックの`data-line`（原稿の行番号）を、Viewerが`<html data-line-badge="on">`にしたときだけ、
+   ホバーしたブロックの右上に出す。文書自身は、スクリプトを持てない（CSP）ため、CSSだけで行う。入れ子のブロックは、
+   いちばん内側の1つだけ。クリックでコピーする処理は、Viewerのプリロード（コピーしたブロックに`data-copied`を付ける）。 */
+[data-line] { position: relative; }
+html[data-line-badge="on"] [data-line]:hover:not(:has([data-line]:hover))::after {
+  content: attr(data-line); position: absolute; top: 0; right: 0; z-index: 1; cursor: pointer; box-sizing: border-box; width: max-content; white-space: nowrap;
+  font: 12px/1.4 "Cascadia Mono", Consolas, Menlo, monospace; color: var(--muted); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
+html[data-line-badge="on"] [data-line][data-copied]:hover:not(:has([data-line]:hover))::after { content: "コピーしました"; }
+/* 表は、内容の幅しかなく、右上に重ねると、セルの文字を隠す。表の右外に出す。 */
+html[data-line-badge="on"] table[data-line]:hover::after { right: auto; left: 100%; margin-left: 6px; }
 """
+
+
+_FIRST_TAG_RE = re.compile(r"<([A-Za-z][A-Za-z0-9]*)")
+
+
+def _with_data_line(html: str, line: Optional[int]) -> str:
+    """ブロックのHTMLの、最初のタグへ、原稿の行番号`data-line`を足す（#328）。行を持たない、または、タグで始まらないときは、そのまま返す。"""
+    if not line or not html.startswith("<"):
+        return html
+    return _FIRST_TAG_RE.sub(lambda m: f'<{m.group(1)} data-line="{line}"', html, count=1)
 
 
 class _TokenRenderer(RendererHTML):
@@ -131,7 +152,30 @@ class _TokenRenderer(RendererHTML):
 
     # -- 全体 ------------------------------------------------------------
 
+    def _annotate_lines(self, tokens):
+        """ブロック要素の開きタグに、原稿の行番号`data-line`を足す（#328）。Viewerが、ホバーしたブロックの隅に、行番号を出すため。
+        対象は、段落・見出し・表・リスト項目。フェンス・数式のブロックは、それぞれの変換ルールで足す。
+        入れ子（引用・リストの中の段落）で、同じ行番号が重なって出ないように、次のものは、付けない。
+        - 引用（blockquote）: 中の段落が、自分の行を持つ。
+        - 緊密なリスト（段落が隠れている）でない、ゆるいリストの項目: 中の段落が、自分の行を持つ。"""
+        for i, token in enumerate(tokens):
+            if not token.map:
+                continue
+            if token.type == "list_item_open":
+                following = tokens[i + 1] if i + 1 < len(tokens) else None
+                if following is not None and following.type == "paragraph_open" and not following.hidden:
+                    continue
+            elif token.type == "paragraph_open":
+                if token.hidden:
+                    continue
+            elif token.type not in ("heading_open", "table_open"):
+                continue
+            line = self.owner._abs_line(token)
+            if line:
+                token.attrSet("data-line", str(line))
+
     def render(self, tokens, options, env):
+        self._annotate_lines(tokens)
         result = ""
         for i, token in enumerate(tokens):
             if token.map:
@@ -175,7 +219,7 @@ class _TokenRenderer(RendererHTML):
         return "</div>\n" if kind else self.renderToken(tokens, idx, options, env)
 
     def fence(self, tokens, idx, options, env):
-        return self.owner._fence_html(tokens[idx])
+        return _with_data_line(self.owner._fence_html(tokens[idx]), self.owner._abs_line(tokens[idx]))
 
     def html_block(self, tokens, idx, options, env):
         return self.owner._html_block(tokens[idx])
@@ -213,10 +257,10 @@ class _TokenRenderer(RendererHTML):
         return self.owner._math_inline_html(tokens[idx])
 
     def math_block(self, tokens, idx, options, env):
-        return self.owner._math_block_token_html(tokens[idx])
+        return _with_data_line(self.owner._math_block_token_html(tokens[idx]), self.owner._abs_line(tokens[idx]))
 
     def math_block_label(self, tokens, idx, options, env):
-        return self.owner._math_block_token_html(tokens[idx], label=tokens[idx].info)
+        return _with_data_line(self.owner._math_block_token_html(tokens[idx], label=tokens[idx].info), self.owner._abs_line(tokens[idx]))
 
 
 class HtmlRenderer(TypstRenderer):

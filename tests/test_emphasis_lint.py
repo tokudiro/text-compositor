@@ -93,7 +93,7 @@ class TestHtmlOutput:
     def test_the_text_is_still_shown(self, tmp_path):
         result, _ = _html_warnings(tmp_path, "これは**「重要」**です。\n")
         with open(result.html_path, encoding="utf-8") as f:
-            assert "<p>これは**「重要」**です。</p>" in f.read()
+            assert '<p data-line="1">これは**「重要」**です。</p>' in f.read()
 
     def test_a_table_cell_and_a_list_item_are_checked(self, tmp_path):
         text = "| a | b |\n| - | - |\n| **「x」**です | y |\n\n- 項目**（仮）**です\n"
