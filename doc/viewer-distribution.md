@@ -5,7 +5,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 ## 配布の形式
 
 - **ポータブルなZIP**（`Obunzu-<バージョン>-win-x64.zip`）。展開して、`obunzu.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
-- ZIPの大きさは、**約293.0 MB**。展開後は、**約685.1 MB**。Electron（Chromium）が、展開後の半分強を占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから約468 MBへ増え（ZIPで+35 MB）、PlantUML・D2・Structurizr・Mermaidの同梱（[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）で、さらに展開後+約217 MB（Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsの合計。実測は下の表）、**ZIPで+約93 MB**（約200 MBから約293 MBへ）増えた。
+- ZIPの大きさは、**約293.5 MB**。展開後は、**約687.0 MB**。Electron（Chromium）が、展開後の半分強を占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから約468 MBへ増え（ZIPで+35 MB）、PlantUML・D2・Structurizr・Mermaidの同梱（[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）で、さらに展開後+約217 MB（Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsの合計。実測は下の表）、**ZIPで+約93 MB**（約200 MBから約293 MBへ）増えた。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
@@ -21,6 +21,7 @@ Obunzu-0.4.1-win-x64/
   d2/d2.exe                  D2公式CLIバイナリ（#290）
   structurizr-cli/lib/       Structurizr CLI（絞り込み版。#290）
   mermaid/mermaid.min.js     Mermaid公式配布の単一バンドルJS（#310）
+  vega/vega.min.js, vega-lite.min.js   Vega・Vega-Lite公式配布の単一バンドルJS（#351）
   licenses/                  サードパーティのライセンス表記
   LICENSE, LICENSES.chromium.html   ElectronとChromiumのライセンス
 ```
@@ -43,6 +44,7 @@ Obunzu-0.4.1-win-x64/
 | D2のCLI v0.9.0（`d2/`） | **同梱**（#290） | 約40.8 MB |
 | Structurizr CLI（絞り込み版。`structurizr-cli/`） | **同梱**（#290） | 約13.5 MB |
 | `mermaid.min.js`（`mermaid/`） | **同梱**（[#310](https://github.com/tokudiro/text-compositor/issues/310)） | 約3.4 MB |
+| `vega.min.js`・`vega-lite.min.js`（`vega/`。BSD-3-Clause） | **同梱**（[#351](https://github.com/tokudiro/text-compositor/issues/351)）。Vega・Vega-Liteは、Mermaidと同じく、Electronで描画する | 約0.7 MB |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
 | **`playwright`**（Mermaid用のブラウザ操作） | **同梱しない**。Mermaidは、Electronで描画する（下記） | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
 
@@ -133,6 +135,7 @@ node scripts/check-dist.js
 - ワーカーが、同梱の`python-embed/python.exe`で動いている。
 - 日本語のフォルダ名・ファイル名の原稿が、表示できる。
 - Mermaidの図が、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`mermaid.min.js`を取得できる。
+- Vega-Lite・Vegaの図が、同梱のjsだけで、Electronで描画され、表示される。外部データ（`url`）の参照は、原稿の行つきで、一覧に出る（[#351](https://github.com/tokudiro/text-compositor/issues/351)）。
 - Graphviz（`dot`・`graphviz`）の図が、システムのGraphvizなしで、同梱の`typst`と`diagraph`で描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る（ネットワークは、使わない）。
 
 実測（2026-09-19、開発機）: すべて成功。起動（プロセスの開始から、文書の表示まで）は、5回で、0.82〜0.90秒。開発時（`npm start`）の0.86秒と、同じ範囲である。

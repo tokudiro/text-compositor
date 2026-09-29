@@ -128,11 +128,25 @@ class TestRenderWithFakePage:
         error = [d for d in result.diagnostics if d.severity == "error"][0]
         assert error.detail == "Unrecognized function: nosuchfn"
 
-    def test_the_viewer_host_gets_a_clear_message_instead_of_a_playwright_error(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(host_renderers, "_mermaid_host_renderer", lambda *a: FAKE_SVG)
-        result, _ = convert_html(tmp_path, "# T\n\n" + FENCE)
-        error = [d for d in result.diagnostics if d.severity == "error"][0]
-        assert "not supported in this application yet" in error.detail
+    def test_a_host_renderer_is_used_instead_of_the_browser(self, tmp_path, monkeypatch):
+        calls = []
+
+        def host(diagram_id, lang, spec, script, js):
+            calls.append((lang, spec, script, js))
+            return FAKE_SVG
+        monkeypatch.setattr(host_renderers, "_vega_host_renderer", host)
+        monkeypatch.setattr("text_compositor.renderer_diagrams.ensure_vega_js", lambda: ("v.js", "vl.js"))
+        result, html = convert_html(tmp_path, "# T\n\n" + FENCE)   # ensure_vega_pageは、呼ばれない（偽のページも、使わない）
+        assert result.ok, result.diagnostics
+        assert calls == [("vega-lite", SPEC, vega_render.RENDER_SCRIPT, {"vega": "v.js", "vega_lite": "vl.js"})]
+
+    def test_the_bundled_js_dir_env_is_used_without_downloading(self, tmp_path, monkeypatch):
+        from text_compositor import deps
+        (tmp_path / "vega.min.js").write_text("/* v */", encoding="utf-8")
+        (tmp_path / "vega-lite.min.js").write_text("/* vl */", encoding="utf-8")
+        monkeypatch.setenv(deps.VEGA_JS_DIR_ENV, str(tmp_path))
+        monkeypatch.setattr(deps, "_download", lambda *a, **k: pytest.fail("must not download"))
+        assert deps.ensure_vega_js() == (str(tmp_path / "vega.min.js"), str(tmp_path / "vega-lite.min.js"))
 
     def test_plugins_vega_is_an_allowed_config_key(self):
         from text_compositor.config import _ALLOWED_PLUGINS_KEYS

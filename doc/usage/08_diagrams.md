@@ -77,7 +77,7 @@ box "開始" fit; arrow; circle "終了"
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
-| `vega-lite` / `vega` | ![text-compositor](badges/text-compositor.svg) | PDF出力とHTML出力（Python API）で使えます。Obunzuでは、まだ描画できません（必要なヘッドレスブラウザを同梱していないため。[#351](https://github.com/tokudiro/text-compositor/issues/351)）。エラーで、その旨を伝えます |
+| `vega-lite` / `vega` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`vega.min.js`・`vega-lite.min.js`を使います。[#351](https://github.com/tokudiro/text-compositor/issues/351)） |
 | `timeliney` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`timeliney`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「timelineyについて」） |
 
 ### 記法で描ける図の種類（対応表）

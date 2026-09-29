@@ -8,7 +8,7 @@ import threading
 
 import pytest
 
-from text_compositor import worker
+from text_compositor import host_renderers, vega_render, worker
 import text_compositor.renderer_diagrams as diagrams_mod
 from text_compositor.host_renderers import _mermaid_host_renderer
 from text_compositor.api import BuildResult, HtmlResult
@@ -318,13 +318,18 @@ class TestHostMermaid:
     mermaid.min.jsの取得は、差し替える（ネットワークを使わない）。"""
 
     EVENT = "render_mermaid"
+    PLUGINS = {"mermaid": True, "plantuml": False, "d2": False, "graphviz": False, "vega": False}
+
+    @staticmethod
+    def _patch_js(monkeypatch):
+        monkeypatch.setattr(diagrams_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
 
     FENCE_DOC = "# T\n\n本文。\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
 
     def _drive(self, tmp_path, monkeypatch, on_event, doc=FENCE_DOC, requests=1):
         """ワーカー（serve）を、スレッドで動かし、render_htmlを`requests`回依頼する。`on_event(event, host_in)`が、描画の依頼に応える。
         戻り値: (各依頼の応答, 出たイベントの一覧)。"""
-        monkeypatch.setattr(diagrams_mod, "ensure_mermaid_js", lambda: "fake-mermaid.min.js")
+        self._patch_js(monkeypatch)
         md = tmp_path / "doc.md"
         md.write_text(doc, encoding="utf-8")
         stdin_r, stdin_w = os.pipe()
@@ -338,7 +343,7 @@ class TestHostMermaid:
 
         events, responses = [], []
         assert json.loads(host_out.readline())["event"] == "ready"
-        plugins = {"mermaid": True, "plantuml": False, "d2": False, "graphviz": False}
+        plugins = self.PLUGINS
         for number in range(1, requests + 1):
             host_in.write(json.dumps({"id": number, "method": "render_html", "params": {"path": str(md), "plugins": plugins}}) + "\n")
             host_in.flush()
@@ -419,6 +424,59 @@ class TestHostMermaid:
         assert "closed the connection" in error["detail"]
 
     def test_without_the_flag_the_host_hooks_are_not_installed(self, tmp_path):
-        assert _mermaid_host_renderer is None
+        assert _mermaid_host_renderer is None and host_renderers._vega_host_renderer is None
         worker.serve(io.StringIO(""), io.StringIO())
-        assert _mermaid_host_renderer is None
+        assert _mermaid_host_renderer is None and host_renderers._vega_host_renderer is None
+
+
+class TestHostVega:
+    """Vega・Vega-Liteの描画を、呼び出し元（ViewerのElectron）に任せる通信（#351）。通信の仕組みは、Mermaidと同じ（TestHostMermaid）。"""
+
+    EVENT = "render_vega"
+    PLUGINS = {"mermaid": False, "plantuml": False, "d2": False, "graphviz": False, "vega": True}
+    FENCE_DOC = '# T\n\n```vega-lite\n{"data": {"values": [{"a": 1}]}, "mark": "bar"}\n```\n'
+    _drive = TestHostMermaid._drive
+    _reply = staticmethod(TestHostMermaid._reply)
+
+    @staticmethod
+    def _patch_js(monkeypatch):
+        monkeypatch.setattr(diagrams_mod, "ensure_vega_js", lambda: ("fake-vega.min.js", "fake-vega-lite.min.js"))
+
+    def test_the_host_renders_the_diagram_from_the_spec_and_the_script(self, tmp_path, monkeypatch):
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>from the host</text></svg>'
+
+        def on_event(event, host_in):
+            host_in.write(self._reply(event["callback"], ok=True, svg=svg))
+            host_in.flush()
+
+        responses, events = self._drive(tmp_path, monkeypatch, on_event, doc=self.FENCE_DOC, requests=2)
+        assert [r["ok"] for r in responses] == [True, True]
+        assert len(events) == 1   # 2回目は、キャッシュ。ホストに、頼まない
+        event = events[0]
+        assert event["lang"] == "vega-lite" and event["diagram_id"].startswith("vega-lite-")
+        assert event["spec"] == {"data": {"values": [{"a": 1}]}, "mark": "bar"}
+        assert event["script"] == vega_render.RENDER_SCRIPT   # 描画の処理は、Python側に1つだけ持つ
+        assert event["js"] == {"vega": "fake-vega.min.js", "vega_lite": "fake-vega-lite.min.js"}
+        cached = list((tmp_path / ".text-compositor" / "cache").glob("vega-lite_*.svg"))
+        assert len(cached) == 1 and cached[0].read_text(encoding="utf-8") == svg
+        assert host_renderers._vega_host_renderer is None   # 終わったら、外す
+
+    def test_a_render_error_from_the_host_is_a_diagnostic_with_the_line(self, tmp_path, monkeypatch):
+        def on_event(event, host_in):
+            host_in.write(self._reply(event["callback"], ok=False, error="Unrecognized function: nosuchfn"))
+            host_in.flush()
+
+        responses, _ = self._drive(tmp_path, monkeypatch, on_event, doc=self.FENCE_DOC)
+        assert responses[0]["ok"] is False
+        error = [d for d in responses[0]["diagnostics"] if d["severity"] == "error"][0]
+        assert error["message"] == "Vega-Lite diagram failed to render" and error["line"] == 3
+        assert error["detail"] == "Unrecognized function: nosuchfn"
+
+    def test_an_external_reference_never_reaches_the_host(self, tmp_path, monkeypatch):
+        doc = '# T\n\n```vega-lite\n{"data": {"url": "x.csv"}, "mark": "bar"}\n```\n'
+
+        def on_event(event, host_in):
+            raise AssertionError("the host must not be asked")
+
+        responses, events = self._drive(tmp_path, monkeypatch, on_event, doc=doc)
+        assert responses[0]["ok"] is False and events == []

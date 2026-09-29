@@ -143,3 +143,9 @@ def test_build_dist_pins_the_same_java_plantuml_d2_structurizr_and_mermaid_as_th
 
     assert deps_mod.MERMAID_JS_URL in script
     assert deps_mod.MERMAID_JS_SHA256 in script
+
+    # Vega・Vega-Lite（#351）
+    assert deps_mod.VEGA_JS_URL in script
+    assert deps_mod.VEGA_JS_SHA256 in script
+    assert deps_mod.VEGA_LITE_JS_URL in script
+    assert deps_mod.VEGA_LITE_JS_SHA256 in script
