@@ -8,7 +8,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, net, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
 const { NavigationHistory } = require('./history');
@@ -181,7 +181,7 @@ function createWindow() {
   // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
   contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url); });
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
-  contents.on('did-finish-load', () => contents.setZoomLevel(zoomLevel));
+  contents.on('did-finish-load', () => { contents.setZoomLevel(zoomLevel); sendLineBadge(); });
   contents.on('context-menu', (_event, params) => handleContextMenu(params));
 
   if (saved.maximized) win.maximize();
@@ -362,6 +362,11 @@ function leaveSettings() {
   if (state.settingsOpen) setSettingsOpen(false);
 }
 
+/** 行番号バッジ（#328）の、オン・オフを、内容のビューへ伝える。文書は、スクリプトを持てないため、プリロードが、html要素の属性にする。 */
+function sendLineBadge() {
+  if (contentView && !contentView.webContents.isDestroyed()) contentView.webContents.send('line-badge', state.settings.lineBadge);
+}
+
 /** 設定を1つ変えて、すぐに反映し、保存する。想定外のキー・値は、無視する。 */
 function changeSetting(key, value) {
   if (!EDITABLE.includes(key)) return;   // ウィンドウの状態などは、画面から変えさせない
@@ -370,6 +375,7 @@ function changeSetting(key, value) {
   state.settings = next;
   if (key === 'theme') applyTheme();
   if (key === 'autoReload') state.autoReload = next.autoReload;
+  if (key === 'lineBadge') sendLineBadge();
   saveSettings(settingsFile, state.settings);
   layout();
   push();
@@ -785,6 +791,10 @@ ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
+// 行番号バッジのクリック（#328）。内容のビューからだけ、数字だけを、クリップボードへ入れる
+ipcMain.on('copy-line-number', (event, text) => {
+  if (event.sender === contentView?.webContents && /^\d{1,9}$/.test(String(text))) clipboard.writeText(String(text));
+});
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
 ipcMain.on('search-toggle', () => setSearchOpen(!state.search.open));
 ipcMain.on('search-close', () => setSearchOpen(false));

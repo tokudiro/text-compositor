@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, lineBadge: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, lineBadge: true, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, lineBadge: false, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -77,6 +77,12 @@ test('csvHeader is a boolean setting that defaults to true and is kept when vali
   assert.equal(normalizeSettings({}).csvHeader, true);
   assert.equal(normalizeSettings({ csvHeader: false }).csvHeader, false);
   for (const bad of ['false', 0, null, undefined, [false]]) assert.equal(normalizeSettings({ csvHeader: bad }).csvHeader, true, String(bad));
+});
+test('lineBadge is a boolean setting that defaults to true, is editable, and is kept when valid (#328)', () => {
+  assert.equal(normalizeSettings({}).lineBadge, true);
+  assert.equal(normalizeSettings({ lineBadge: false }).lineBadge, false);
+  for (const bad of ['false', 0, null, undefined, [false]]) assert.equal(normalizeSettings({ lineBadge: bad }).lineBadge, true, String(bad));
+  assert.ok(EDITABLE.includes('lineBadge'));
 });
 test('allowExternalImages is a boolean setting that defaults to false and is kept when valid (#238)', () => {
   assert.equal(normalizeSettings({}).allowExternalImages, false);
