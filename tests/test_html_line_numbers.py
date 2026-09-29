@@ -1,4 +1,4 @@
-"""HTML出力の、ブロック要素の`data-line`（原稿の行番号。Viewerの行番号バッジ用、#328）のテスト。"""
+"""HTML出力の、ブロック要素の`data-line`（原稿の行番号。Viewerが、ツールバーに出す。#328・#357）のテスト。"""
 import re
 
 import pytest
@@ -83,12 +83,11 @@ class TestWithDataLine:
         assert _with_data_line(html, line) == html
 
 
-class TestBadgeCss:
-    def test_the_badge_is_hover_only_and_needs_the_viewer_switch(self):
-        assert 'html[data-line-badge="on"] [data-line]:hover' in DOCUMENT_CSS
-        assert "content: attr(data-line)" in DOCUMENT_CSS
-        # 入れ子は、いちばん内側のブロックだけ
-        assert ":not(:has([data-line]:hover))" in DOCUMENT_CSS
+class TestNoBadgeCss:
+    """行番号は、ツールバーに出す（#357）。文書のCSSには、バッジ（疑似要素）を、持たせない。"""
+
+    def test_the_document_css_has_no_badge(self):
+        assert "data-line-badge" not in DOCUMENT_CSS and "attr(data-line)" not in DOCUMENT_CSS
 
     def test_the_document_still_has_no_script(self, tmp_path):
         _, body = lines_by_tag(tmp_path, DOC)

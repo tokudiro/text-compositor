@@ -93,6 +93,11 @@ function render(state) {
   $('file-name').textContent = state.file ? state.file.slice(split + 1) : '';
   $('file-dir').textContent = split > 0 ? state.file.slice(0, split) : '';
   $('file').title = state.file ?? '';
+  // 行番号（#328）。マウスを乗せたブロックの行を、ファイル名の右横に出す。乗せていない間も、最後の行を保つ
+  const lineRef = $('line-ref');
+  lineRef.hidden = !(state.file && state.settings.showLineNumber && state.line);
+  lineRef.textContent = `:${state.line}`;
+  lineRef.title = `マウスを乗せたブロックの、元のMarkdownの行（内容を右クリックすると、コピーできます）`;
   $('zoom').textContent = `${state.zoomPercent}%`;
   $('auto-reload').setAttribute('aria-checked', String(state.autoReload));
   $('csv-header').hidden = !state.isCsv;

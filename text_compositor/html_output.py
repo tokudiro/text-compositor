@@ -117,17 +117,6 @@ table.layout { width: 100%; table-layout: fixed; }
   color: var(--muted); background: var(--code-bg); }
 .blocked-image p { margin: 0.25em 0; overflow-wrap: anywhere; }
 .blocked-image-title { font-weight: bold; }
-/* 行番号バッジ（#328）。ブロックの`data-line`（原稿の行番号）を、Viewerが`<html data-line-badge="on">`にしたときだけ、
-   ホバーしたブロックの右上に出す。文書自身は、スクリプトを持てない（CSP）ため、CSSだけで行う。入れ子のブロックは、
-   いちばん内側の1つだけ。クリックでコピーする処理は、Viewerのプリロード（コピーしたブロックに`data-copied`を付ける）。 */
-[data-line] { position: relative; }
-html[data-line-badge="on"] [data-line]:hover:not(:has([data-line]:hover))::after {
-  content: attr(data-line); position: absolute; top: 0; right: 0; z-index: 1; cursor: pointer; box-sizing: border-box; width: max-content; white-space: nowrap;
-  font: 12px/1.4 "Cascadia Mono", Consolas, Menlo, monospace; color: var(--muted); background: var(--bg);
-  border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
-html[data-line-badge="on"] [data-line][data-copied]:hover:not(:has([data-line]:hover))::after { content: "コピーしました"; }
-/* 表は、内容の幅しかなく、右上に重ねると、セルの文字を隠す。表の右外に出す。 */
-html[data-line-badge="on"] table[data-line]:hover::after { right: auto; left: 100%; margin-left: 6px; }
 """
 
 
@@ -153,9 +142,9 @@ class _TokenRenderer(RendererHTML):
     # -- 全体 ------------------------------------------------------------
 
     def _annotate_lines(self, tokens):
-        """ブロック要素の開きタグに、原稿の行番号`data-line`を足す（#328）。Viewerが、ホバーしたブロックの隅に、行番号を出すため。
+        """ブロック要素の開きタグに、原稿の行番号`data-line`を足す（#328）。Viewerが、マウスを乗せたブロックの行を、ツールバーのファイル名の右横に出すため（#357）。
         対象は、段落・見出し・表・リスト項目。フェンス・数式のブロックは、それぞれの変換ルールで足す。
-        入れ子（引用・リストの中の段落）で、同じ行番号が重なって出ないように、次のものは、付けない。
+        入れ子（引用・リストの中の段落）で、外側の要素が、中の段落と同じ行を、二重に持たないように、次のものは、付けない。
         - 引用（blockquote）: 中の段落が、自分の行を持つ。
         - 緊密なリスト（段落が隠れている）でない、ゆるいリストの項目: 中の段落が、自分の行を持つ。"""
         for i, token in enumerate(tokens):
