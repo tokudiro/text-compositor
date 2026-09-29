@@ -319,6 +319,7 @@ class Session:
                     cetz_enabled=bool(plugins_config.get("cetz", True)),
                     fletcher_enabled=bool(plugins_config.get("fletcher", True)),
                     timeliney_enabled=bool(plugins_config.get("timeliney", True)),
+                    vega_enabled=bool(plugins_config.get("vega", True)),
                     variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header,
                     allow_external_images=allow_external_images, cache_dir=cache_dir)

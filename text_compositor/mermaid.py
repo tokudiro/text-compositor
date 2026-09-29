@@ -5,7 +5,7 @@ import subprocess
 import shutil
 import time
 import tempfile
-from text_compositor.deps import ensure_mermaid_js, find_system_browser
+from text_compositor.deps import ensure_mermaid_js, ensure_vega_js, find_system_browser
 from text_compositor.env_check import _check_mermaid
 from text_compositor.log import _error, _hint, _log_info
 
@@ -19,6 +19,7 @@ class MermaidBrowser:
 
     def __init__(self):
         self.page = None
+        self.vega_page = None   # Vega・Vega-Lite用のページ（#211）。同じブラウザに、別のタブとして開く
         self.browser = None
         self.playwright = None
         self.chrome_proc = None
@@ -41,6 +42,63 @@ class MermaidBrowser:
                 pass
             # 常駐して使い回す間に、ブラウザが落ちた場合（#167）。片付けてから、起動し直す
             _log_info("Mermaid browser is no longer available; restarting it.")
+            self.close()
+
+        self._ensure_browser(mermaid_enabled, mermaid_auto_download)
+        mermaid_js_path = ensure_mermaid_js()
+        page = self._new_page()
+        page.set_content("<div id='container'></div>")
+        with open(mermaid_js_path, "r", encoding="utf-8") as f:
+            page.add_script_tag(content=f.read())
+        # Typstのraw SVGレンダラーは<foreignObject>内のHTMLを描画できないため、mermaid既定の
+        # HTMLラベルを無効化し、通常のSVG<text>要素で出力させる（トップレベルとflowchart配下
+        # 両方に指定する必要がある。PoCで確認済み）。
+        # flowchart.padding（既定15）・sequence.diagramMarginX/Y（既定50/10）は、本文へ埋め込む
+        # 小さな図には過大なため、D2と同じ8pxへ縮める（#315）。これらは内容のレイアウト後に
+        # 外側へ付け足す余白で、内容自体の大きさは変えないため、値を縮めても見切れる心配はない
+        # （実機確認: 長いnoteを含む図で、内容のバウンディングボックスが変化しないことを確認）。
+        # 他の図の種類（class/state/er/gantt等）は、種類ごとに別のキー・既定値を持つため未対応。
+        page.evaluate("mermaid.initialize({ startOnLoad: false, htmlLabels: false, "
+                      "flowchart: { htmlLabels: false, padding: 8 }, "
+                      "sequence: { diagramMarginX: 8, diagramMarginY: 8 } })")
+        self.page = page
+        return page
+
+    def ensure_vega_page(self, mermaid_enabled, mermaid_auto_download):
+        """Vega・Vega-Lite描画用のページを遅延起動して返す（#211）。Mermaidと同じヘッドレスブラウザに、別のタブとして開く
+        （ブラウザの起動は、約1.3秒かかるため、共有する）。vega.min.jsとvega-lite.min.js（合わせて約772KB）を読み込ませ、
+        `vega.View`・`vegaLite.compile`を直接呼ぶ（Node.jsやvega-cliは、要らない）。"""
+        if self.vega_page is not None:
+            try:
+                if not self.vega_page.is_closed() and self.browser.is_connected():
+                    return self.vega_page
+            except Exception:
+                pass
+            _log_info("Vega browser is no longer available; restarting it.")
+            self.close()
+
+        self._ensure_browser(mermaid_enabled, mermaid_auto_download)
+        vega_js_path, vega_lite_js_path = ensure_vega_js()
+        page = self._new_page()
+        page.set_content("<div id='container'></div>")
+        for path in (vega_js_path, vega_lite_js_path):
+            with open(path, "r", encoding="utf-8") as f:
+                page.add_script_tag(content=f.read())
+        self.vega_page = page
+        return page
+
+    def _new_page(self):
+        context = self.browser.contexts[0] if self.browser.contexts else self.browser.new_context()
+        return context.new_page()
+
+    def _ensure_browser(self, mermaid_enabled, mermaid_auto_download):
+        """ヘッドレスブラウザを、まだ起動していなければ起動する（Mermaidと、Vega・Vega-Liteで共有する）。"""
+        if self.browser is not None:
+            try:
+                if self.browser.is_connected():
+                    return
+            except Exception:
+                pass
             self.close()
 
         try:
@@ -85,27 +143,6 @@ class MermaidBrowser:
                   "(downloads Playwright's own Chromium, approx. 700MB), or set plugins.mermaid: false.")
             sys.exit(1)
 
-        mermaid_js_path = ensure_mermaid_js()
-
-        context = self.browser.contexts[0] if self.browser.contexts else self.browser.new_context()
-        page = context.new_page()
-        page.set_content("<div id='container'></div>")
-        with open(mermaid_js_path, "r", encoding="utf-8") as f:
-            page.add_script_tag(content=f.read())
-        # Typstのraw SVGレンダラーは<foreignObject>内のHTMLを描画できないため、mermaid既定の
-        # HTMLラベルを無効化し、通常のSVG<text>要素で出力させる（トップレベルとflowchart配下
-        # 両方に指定する必要がある。PoCで確認済み）。
-        # flowchart.padding（既定15）・sequence.diagramMarginX/Y（既定50/10）は、本文へ埋め込む
-        # 小さな図には過大なため、D2と同じ8pxへ縮める（#315）。これらは内容のレイアウト後に
-        # 外側へ付け足す余白で、内容自体の大きさは変えないため、値を縮めても見切れる心配はない
-        # （実機確認: 長いnoteを含む図で、内容のバウンディングボックスが変化しないことを確認）。
-        # 他の図の種類（class/state/er/gantt等）は、種類ごとに別のキー・既定値を持つため未対応。
-        page.evaluate("mermaid.initialize({ startOnLoad: false, htmlLabels: false, "
-                      "flowchart: { htmlLabels: false, padding: 8 }, "
-                      "sequence: { diagramMarginX: 8, diagramMarginY: 8 } })")
-        self.page = page
-        return page
-
     def close(self):
         """ensure_pageで起動したヘッドレスブラウザを片付ける（一度も起動していなければ何もしない）。
         何度呼んでも安全で、片付けた後は再びensure_pageで起動できる。"""
@@ -127,7 +164,7 @@ class MermaidBrowser:
                 self.chrome_proc.kill()
         if self.profile_dir and os.path.exists(self.profile_dir):
             shutil.rmtree(self.profile_dir, ignore_errors=True)
-        self.page = self.browser = self.playwright = self.chrome_proc = self.profile_dir = None
+        self.page = self.vega_page = self.browser = self.playwright = self.chrome_proc = self.profile_dir = None
 
 def _launch_headless_chrome(browser_path, user_data_dir):
     """browser_pathをリモートデバッグ有効・ヘッドレスで起動し、(Popen, ポート番号)を返す。

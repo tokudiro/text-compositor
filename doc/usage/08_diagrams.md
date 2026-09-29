@@ -1,4 +1,4 @@
-# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / timeliney / SVG）
+# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / timeliney / Vega-Lite / Vega / SVG）
 
 通常のフェンスコードブロックとして書きます。
 
@@ -42,6 +42,20 @@ workspace {
 box "開始" fit; arrow; circle "終了"
 ```
 
+```vega-lite
+{
+  "data": {"values": [
+    {"month": 1, "sales": 10},
+    {"month": 2, "sales": 20}
+  ]},
+  "mark": "line",
+  "encoding": {
+    "x": {"field": "month", "type": "quantitative"},
+    "y": {"field": "sales", "type": "quantitative"}
+  }
+}
+```
+
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
   <rect x="10" y="10" width="180" height="80" fill="lightblue"/>
@@ -49,7 +63,7 @@ box "開始" fit; arrow; circle "終了"
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`/`timeliney`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`vega`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -63,6 +77,7 @@ box "開始" fit; arrow; circle "終了"
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
+| `vega-lite` / `vega` | ![text-compositor](badges/text-compositor.svg) | PDF出力とHTML出力（Python API）で使えます。Obunzuでは、まだ描画できません（必要なヘッドレスブラウザを同梱していないため。[#351](https://github.com/tokudiro/text-compositor/issues/351)）。エラーで、その旨を伝えます |
 | `timeliney` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`timeliney`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「timelineyについて」） |
 
 ### 記法で描ける図の種類（対応表）
@@ -229,6 +244,39 @@ milestone(at: 3, align(center, [リリース]))
 - PDF出力もObunzuも、同梱のTypstのパッケージ`timeliney`で描くため、同じ図になります。`plugins.timeliney: false`で、無効にできます。
 - 記法は、[公式のドキュメント](https://github.com/pta2002/typst-timeliney)を参照してください。
 
+### Vega-Lite / Vegaについて
+
+`vega-lite`と`vega`（[Vega-Lite](https://vega.github.io/vega-lite/)・[Vega](https://vega.github.io/vega/)）は、JSONの仕様でグラフを描く記法です（[#211](https://github.com/tokudiro/text-compositor/issues/211)）。Mermaidの`xychart-beta`（棒グラフと折れ線グラフのみ）では描けない、ファセット分割（同じ軸で複数のグラフを並べる）・対数軸・散布図・ヒストグラムなどが使えます。単純な円グラフや棒グラフは、Mermaidのほうが短く書けます。
+
+````markdown
+```vega-lite
+{
+  "data": {"values": [
+    {"region": "east", "month": 1, "sales": 10},
+    {"region": "east", "month": 2, "sales": 20},
+    {"region": "west", "month": 1, "sales": 100},
+    {"region": "west", "month": 2, "sales": 300}
+  ]},
+  "mark": "line",
+  "encoding": {
+    "x": {"field": "month", "type": "quantitative"},
+    "y": {"field": "sales", "type": "quantitative", "scale": {"type": "log"}},
+    "facet": {"field": "region", "type": "nominal"}
+  },
+  "width": 120,
+  "height": 80
+}
+```
+````
+
+- **第一選択は`vega-lite`です。** `vega`は、Vega-Liteで表現できない図（力学レイアウト・ワードクラウドなど）を描くときの、上級者向けの記法です。記述量は、Vegaのほうが多くなります。
+- **データは、`data.values`に、インラインで書きます。** `data.url`（外部ファイルやURLの読み込み）は、使えません。ネットワークへ出ないようにするため、`url`というキーが仕様のどこかにあると、エラーで止めます（`image`マークの`url`も同じです）。外部のCSV・JSONの参照は、今後の対応です（[#350](https://github.com/tokudiro/text-compositor/issues/350)）。
+- **diffを見やすくする書き方があります。** データは1行に1件、それ以外は1キー1行で書くと、値や設定の変更が、1行の差分になります。データの1件を5行に展開すると、差分が読みにくくなります。
+- 仕様は、JSONです（YAMLやコメントは使えません）。JSONの誤りは、エラーの行と桁で報告します。
+- 描画には、Mermaidと同じヘッドレスブラウザ（Chrome/Edge）を使います。初回だけ、`vega.min.js`・`vega-lite.min.js`（合わせて約772KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。`plugins.mermaid_auto_download`は、Vega・Vega-Liteにも効きます。
+- サイズは、仕様の`width`・`height`で決まります。フェンスの`{width=...}`でも指定できます。
+- `plugins.vega: false`で、無効にできます。
+
 `svg`フェンスはMermaid/PlantUML/Graphvizと異なりレンダリングを一切行いません。SVGは既にテキストで完結したベクター画像フォーマットのため、コードの内容をそのまま画像として埋め込みます。外部ツールへの依存が無いため`plugins:`の無効化対象にもなりません（常時有効）。
 
 ### 既存のSVGファイルを画像として貼る
@@ -292,7 +340,7 @@ graph TD
 
 ## ローカルにブラウザ／Java／D2が無い場合
 
-MermaidはChrome/Edge、PlantUML・StructurizrはJava（11以上）、D2はD2 CLI本体が必要です。システムに見つからない場合の挙動は`plugins.mermaid_auto_download`/`plugins.plantuml_auto_download`/`plugins.d2_auto_download`/`plugins.structurizr_auto_download`で制御します（「plugins: 図表プラグインの有効・無効」の章）。既定はMermaidがエラー終了、PlantUML・D2・Structurizrが自動取得（それぞれ約50MB・約13MB・Java約50MB+structurizr-cli約99MB）です。**Mermaid側を`true`にすると、Playwright自身のChromium（約700MB）をダウンロードする**点に注意してください。GitHub Actionsの`ubuntu-latest`にはMermaid用のブラウザ・PlantUML/Structurizr用のJavaが標準搭載されているため、CI上では追加取得は発生しません。一方、D2 CLI・structurizr-cliは標準搭載されていないため、初回ビルド時に自動取得されます（`structurizr`は既定無効のため、有効化しない限り取得自体が発生しません）。
+Mermaid・Vega-LiteはChrome/Edge、PlantUML・StructurizrはJava（11以上）、D2はD2 CLI本体が必要です。システムに見つからない場合の挙動は`plugins.mermaid_auto_download`/`plugins.plantuml_auto_download`/`plugins.d2_auto_download`/`plugins.structurizr_auto_download`で制御します（「plugins: 図表プラグインの有効・無効」の章）。既定はMermaidがエラー終了、PlantUML・D2・Structurizrが自動取得（それぞれ約50MB・約13MB・Java約50MB+structurizr-cli約99MB）です。**Mermaid側を`true`にすると、Playwright自身のChromium（約700MB）をダウンロードする**点に注意してください。GitHub Actionsの`ubuntu-latest`にはMermaid用のブラウザ・PlantUML/Structurizr用のJavaが標準搭載されているため、CI上では追加取得は発生しません。一方、D2 CLI・structurizr-cliは標準搭載されていないため、初回ビルド時に自動取得されます（`structurizr`は既定無効のため、有効化しない限り取得自体が発生しません）。
 
 ## Mermaid固有の注意点
 

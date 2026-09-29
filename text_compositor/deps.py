@@ -264,6 +264,42 @@ def ensure_mermaid_js():
 
     return js_path
 
+# Vega・Vega-Lite公式配布の単一バンドルJS（UMD形式。どちらもBSD-3-Clause。#211）。合わせて実測約772KBで、
+# Mermaidと同じヘッドレスブラウザに読み込ませて描画する。Vega-LiteはVegaへコンパイルされるため、両方を読み込む
+# （Vega本体の仕様は、vega.min.jsだけで描ける）。バージョン・SHA256を固定し、Mermaidと同様に決定論的にする。
+VEGA_JS_URL = "https://cdn.jsdelivr.net/npm/vega@6.4.0/build/vega.min.js"
+VEGA_JS_SHA256 = "8f6a3587cf8d4f42c7e08120e3eb05d067e746d554e39d2dcf52acc0bd5ba28f"
+VEGA_LITE_JS_URL = "https://cdn.jsdelivr.net/npm/vega-lite@6.4.3/build/vega-lite.min.js"
+VEGA_LITE_JS_SHA256 = "35a9821df838825b05a6a73e9414b58747a1b18321583858ed903c66393a5c7e"
+
+def _ensure_verified_js(url, sha256, cache_subdir, filename):
+    """urlのJSをユーザーキャッシュのcache_subdir/へ取得し、SHA256を確認して、パスを返す（2回目以降は、ネットワーク不要）。"""
+    cache_dir = os.path.join(_user_cache_dir(), cache_subdir)
+    os.makedirs(cache_dir, exist_ok=True)
+    js_path = os.path.join(cache_dir, filename)
+    if os.path.exists(js_path):
+        return js_path
+
+    _log_info(f"Downloading {filename} (one-time; cached under {cache_dir})...")
+    try:
+        _download(url, js_path)
+    except OSError as e:
+        _error(f"Failed to download {filename}: {e}")
+        sys.exit(1)
+
+    with open(js_path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    if digest != sha256:
+        os.remove(js_path)
+        _error(f"Checksum mismatch for {filename}: expected {sha256}, got {digest}")
+        sys.exit(1)
+    return js_path
+
+def ensure_vega_js():
+    """(vega.min.jsのパス, vega-lite.min.jsのパス)を返す。無ければ、取得して、SHA256を確認する。"""
+    return (_ensure_verified_js(VEGA_JS_URL, VEGA_JS_SHA256, "vega", "vega.min.js"),
+            _ensure_verified_js(VEGA_LITE_JS_URL, VEGA_LITE_JS_SHA256, "vega", "vega-lite.min.js"))
+
 # ローカルにJava 11+が見つからない場合のみ取得するEclipse Temurin JRE（Adoptium配布、
 # GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統で安心度が高い）。CI
 # （GitHub Actions ubuntu-latest等）はJavaが標準搭載されているためこの取得は発生しない（#22）。
