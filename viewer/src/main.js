@@ -17,6 +17,7 @@ const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
+const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { MermaidHost } = require('./mermaid-host');
 const { VegaHost } = require('./vega-host');
 const { cacheRoot, cacheUsage, clearCache, workLocation } = require('./workdir');
@@ -48,6 +49,7 @@ const trace = process.env.VIEWER_TRACE
 
 const state = {
   file: null,            // 開いている（または、開こうとしている）ファイル
+  line: null,            // マウスを乗せた、ブロックの、原稿での行（ツールバーに出す。#328）。乗せていない間も、最後の行を保つ。表示し直すと、消す
   busy: false,
   status: '',
   zoomPercent: 100,
@@ -181,8 +183,8 @@ function createWindow() {
   // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
   contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url); });
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
-  contents.on('did-finish-load', () => { contents.setZoomLevel(zoomLevel); sendLineBadge(); });
-  contents.on('context-menu', (_event, params) => handleContextMenu(params));
+  contents.on('did-finish-load', () => { contents.setZoomLevel(zoomLevel); resetLine(); sendLineIndicator(); });
+  contents.on('context-menu', (_event, params) => { void handleContextMenu(params); });
 
   if (saved.maximized) win.maximize();
   win.on('resize', () => { layout(); scheduleWindowSave(); });
@@ -362,9 +364,16 @@ function leaveSettings() {
   if (state.settingsOpen) setSettingsOpen(false);
 }
 
-/** 行番号バッジ（#328）の、オン・オフを、内容のビューへ伝える。文書は、スクリプトを持てないため、プリロードが、html要素の属性にする。 */
-function sendLineBadge() {
-  if (contentView && !contentView.webContents.isDestroyed()) contentView.webContents.send('line-badge', state.settings.lineBadge);
+/** 行番号の表示（#328）の、オン・オフを、内容のビューへ伝える。オンのときだけ、プリロードが、乗せたブロックの行を送ってくる。 */
+function sendLineIndicator() {
+  if (contentView && !contentView.webContents.isDestroyed()) contentView.webContents.send('line-indicator', state.settings.showLineNumber);
+}
+
+/** 行番号を消す。文書を表示し直したとき（自動更新を含む）と、表示をオフにしたとき。行が、ずれているかもしれないため。 */
+function resetLine() {
+  if (state.line === null) return;
+  state.line = null;
+  push();
 }
 
 /** 設定を1つ変えて、すぐに反映し、保存する。想定外のキー・値は、無視する。 */
@@ -375,7 +384,7 @@ function changeSetting(key, value) {
   state.settings = next;
   if (key === 'theme') applyTheme();
   if (key === 'autoReload') state.autoReload = next.autoReload;
-  if (key === 'lineBadge') sendLineBadge();
+  if (key === 'showLineNumber') { resetLine(); sendLineIndicator(); }
   saveSettings(settingsFile, state.settings);
   layout();
   push();
@@ -671,12 +680,38 @@ async function chooseOpenDirectory() {
 
 // -- 画像の保存（#327） ---------------------------------------------------------
 
-function handleContextMenu(params) {
-  if (params.mediaType !== 'image' || !params.srcURL) return;
+/** 右クリックの位置の、いちばん内側のブロックの行（原稿での行）。ブロックの外・失敗は、null。 */
+async function lineAtPoint(params) {
+  try {
+    const line = await contentView.webContents.executeJavaScript(
+      lineAtPointScript(params.x, params.y, contentView.webContents.getZoomFactor()));
+    return Number.isInteger(line) ? line : null;
+  } catch {
+    return null;
+  }
+}
 
-  const template = buildImageContextMenuTemplate(params, {
-    onSave: (p, format) => void saveImageFromContextMenu(p, format),
-  });
+/**
+ * 内容のビューの右クリックのメニュー。項目は、次の2種類で、両方あれば、区切り線で分ける。
+ *   - 画像の保存（#327）
+ *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
+ *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
+ */
+async function handleContextMenu(params) {
+  const template = [];
+  if (params.mediaType === 'image' && params.srcURL) {
+    template.push(...buildImageContextMenuTemplate(params, {
+      onSave: (p, format) => void saveImageFromContextMenu(p, format),
+    }));
+  }
+  if (state.settings.showLineNumber && state.file) {
+    const line = await lineAtPoint(params);
+    if (line !== null) {
+      if (template.length) template.push({ type: 'separator' });
+      template.push(...buildLineContextMenuTemplate({ file: state.file, line, onCopy: (text) => clipboard.writeText(text) }));
+    }
+  }
+  if (!template.length) return;
 
   const menu = Menu.buildFromTemplate(template);
   menu.popup({ window: win });
@@ -791,9 +826,12 @@ ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
-// 行番号バッジのクリック（#328）。内容のビューからだけ、数字だけを、クリップボードへ入れる
-ipcMain.on('copy-line-number', (event, text) => {
-  if (event.sender === contentView?.webContents && /^\d{1,9}$/.test(String(text))) clipboard.writeText(String(text));
+// 行番号の表示（#328）。内容のビューが、マウスを乗せたブロックの行を、変わったときだけ送ってくる。値は、正の整数だけ受け付ける
+ipcMain.on('content-line', (event, line) => {
+  if (event.sender !== contentView?.webContents || !state.settings.showLineNumber) return;
+  if (!Number.isInteger(line) || line < 1 || line > 999999999 || line === state.line) return;
+  state.line = line;
+  push();
 });
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
 ipcMain.on('search-toggle', () => setSearchOpen(!state.search.open));

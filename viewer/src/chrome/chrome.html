@@ -29,7 +29,7 @@
       <button id="csv-header" class="icon toggle" role="switch" aria-checked="true" aria-label="1行目を見出しにする" title="CSV: 1行目を見出しにする（オン）" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none"/><path d="M4 10.5h16M10 10.5V19" fill="none"/><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3.5H4z" stroke="none"/></svg>
       </button>      <span class="sep"></span>
-      <span id="file"><span id="file-name"></span><span id="file-dir"></span></span>
+      <span id="file"><span id="file-name"></span><span id="line-ref" hidden></span><span id="file-dir"></span></span>
       <span class="spacer"></span>
       <!-- 右: 状態と、拡大縮小 -->
       <span id="busy" hidden><span class="bar"></span>変換中…</span>
@@ -126,13 +126,13 @@
       </div>
       <div class="row">
         <div class="text">
-          <div class="name" id="line-badge-name">行番号の表示</div>
-          <div class="desc">段落・見出し・リスト・表・図などにマウスを乗せると、右上に、元のMarkdownの行番号を出します。
-            クリックすると、行番号をコピーします。長い原稿を、直しに戻るときの目印です。</div>
+          <div class="name" id="show-line-number-name">行番号の表示</div>
+          <div class="desc">段落・見出し・リスト・表・図などにマウスを乗せると、ツールバーのファイル名の右横に、元のMarkdownの
+            行番号（<code>check.md:14</code>の<code>:14</code>）を出します。右クリックのメニューの「行番号をコピー」で、<code>ファイル名:行</code>をコピーできます。長い原稿を、直しに戻るときの目印です。</div>
         </div>
-        <div class="segmented" role="radiogroup" aria-labelledby="line-badge-name">
-          <label><input type="radio" name="lineBadge" value="true"><span>出す</span></label>
-          <label><input type="radio" name="lineBadge" value="false"><span>出さない</span></label>
+        <div class="segmented" role="radiogroup" aria-labelledby="show-line-number-name">
+          <label><input type="radio" name="showLineNumber" value="true"><span>出す</span></label>
+          <label><input type="radio" name="showLineNumber" value="false"><span>出さない</span></label>
         </div>
       </div>
       <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->

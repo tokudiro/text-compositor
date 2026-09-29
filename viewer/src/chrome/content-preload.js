@@ -182,49 +182,25 @@ ipcRenderer.on('search-run', (_event, payload) => ipcRenderer.send('search-resul
 ipcRenderer.on('search-move', (_event, delta) => ipcRenderer.send('search-result', moveSearch(delta)));
 ipcRenderer.on('search-clear', () => clearMarks());
 
-// -- 行番号バッジ（#328） -----------------------------------------------------------
-// 各ブロックの`data-line`（元のMarkdownの行番号）を、ホバーしたときだけ、右上に出す。出すのは、文書のCSS
-// （`html[data-line-badge="on"]`のときの`::after`）で、ここでは、その属性の切り替えと、バッジのクリックだけを行う
-// （文書自身は、script-src 'none'で、スクリプトを持てない）。バッジは、疑似要素で、クリックの対象にならないため、
-// クリックの位置が、疑似要素の四角の中かを、計算して判定する。
-const BADGE_ATTRIBUTE = 'data-line-badge';
-const COPIED_ATTRIBUTE = 'data-copied';
-const COPIED_MS = 1200;
-let lineBadgeOn = false;
+// -- 行番号の表示（#328） -----------------------------------------------------------
+// マウスを乗せたブロックの`data-line`（元のMarkdownの行番号）を、メインプロセスへ送る。ツールバーが、ファイル名の右横に
+// 出す（表示・クリックでコピーは、ツールバー側）。文書自身は、script-src 'none'で、スクリプトを持てないため、
+// ここ（プリロード）で、`mouseover`を受ける。ブロックが変わったときだけ送り、ブロックの外（余白）に乗ったときは、送らない
+// （ツールバーは、最後の行を保つ）。オフのときは、何も送らない。
+let lineIndicatorOn = false;
+let lastLine = null;
 
-function applyLineBadge() {
-  const root = document.documentElement;
-  if (!root) return;
-  if (lineBadgeOn) root.setAttribute(BADGE_ATTRIBUTE, 'on');
-  else root.removeAttribute(BADGE_ATTRIBUTE);
-}
-
-ipcRenderer.on('line-badge', (_event, on) => {
-  lineBadgeOn = on === true;
-  applyLineBadge();
+ipcRenderer.on('line-indicator', (_event, on) => {
+  lineIndicatorOn = on === true;
+  lastLine = null;
 });
-// 表示し直すたびに、内容のビューは、新しい文書になる。読み込みの途中でも、属性が付くようにする
-window.addEventListener('DOMContentLoaded', applyLineBadge);
 
-/** クリックが、要素の右上の、バッジ（`::after`）の中か。 */
-function isOnBadge(element, event) {
-  const badge = getComputedStyle(element, '::after');
-  if (badge.content === 'none' || badge.content === 'normal') return false;
-  const rect = element.getBoundingClientRect();
-  const width = parseFloat(badge.width);
-  const height = parseFloat(badge.height);
-  if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
-  const right = rect.right - (parseFloat(badge.right) || 0);
-  const top = rect.top + (parseFloat(badge.top) || 0);
-  return event.clientX >= right - width && event.clientX <= right && event.clientY >= top && event.clientY <= top + height;
-}
-
-window.addEventListener('click', (event) => {
-  if (!lineBadgeOn || event.button !== 0 || !(event.target instanceof Element)) return;
+window.addEventListener('mouseover', (event) => {
+  if (!lineIndicatorOn || !(event.target instanceof Element)) return;
   const element = event.target.closest('[data-line]');
-  if (!element || !isOnBadge(element, event)) return;
-  event.preventDefault();
-  ipcRenderer.send('copy-line-number', element.getAttribute('data-line'));
-  element.setAttribute(COPIED_ATTRIBUTE, '');
-  setTimeout(() => element.removeAttribute(COPIED_ATTRIBUTE), COPIED_MS);
+  if (!element) return;
+  const line = Number.parseInt(element.getAttribute('data-line'), 10);
+  if (!Number.isInteger(line) || line === lastLine) return;
+  lastLine = line;
+  ipcRenderer.send('content-line', line);
 }, true);

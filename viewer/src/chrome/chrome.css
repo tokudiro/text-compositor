@@ -40,6 +40,8 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 #file { display: flex; min-width: 0; overflow: hidden; white-space: nowrap; }
 /* 60%はウィンドウ幅基準（親の#fileはフォルダの場所が短いと狭くなり、幅が足りていても省略される。#276） */
 #file-name { flex: none; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+/* 行番号（#328）。ファイル名の右横に、続けて出す（check.md:14）。コピーは、内容の右クリックのメニュー（#357） */
+#line-ref { flex: none; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
 #file-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); margin-left: 8px; }
 #status { color: var(--muted); font-size: 12px; white-space: nowrap; margin-right: 4px; }
 #busy { display: inline-flex; align-items: center; gap: 8px; padding: 2px 10px; border-radius: 10px; background: var(--busy-bg); color: var(--busy-fg); white-space: nowrap; }
