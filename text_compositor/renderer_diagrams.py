@@ -11,7 +11,7 @@ import subprocess
 import hashlib
 import tempfile
 from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render
-from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
+from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
 from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
@@ -299,15 +299,18 @@ class DiagramMixin:
         svg_path, digest = self._diagram_cache_path(lang, version, code)
 
         if not os.path.exists(svg_path):
-            if host_renderers._mermaid_host_renderer:
-                # ViewerのElectronは、まだVegaを描画できない（Pythonのブラウザ（playwright）が無い）。黙って失敗させず、理由を伝える
-                self._diagram_error(label, f"{label} diagrams are not supported in this application yet "
-                                    "(it does not include the headless browser they need).", line)
-                sys.exit(1)
-            _log_info(f"Rendering {label} diagram via headless browser -> {os.path.basename(svg_path)}")
+            host = host_renderers._vega_host_renderer
+            _log_info(f"Rendering {label} diagram via {'the host application' if host else 'headless browser'} -> {os.path.basename(svg_path)}")
             try:
-                page = self._mermaid.ensure_vega_page(self.mermaid_enabled, self.mermaid_auto_download)
-                svg = page.evaluate(vega_render.RENDER_SCRIPT, [lang, spec])
+                if host:
+                    # 描画は、呼び出し元（ViewerのElectron）が行う。JSの取得・検証は、こちらで行い、パスを渡す。
+                    # 描画スクリプトも、こちらから渡す（ブラウザ版と、同じ処理を使うため）
+                    vega_js, vega_lite_js = ensure_vega_js()
+                    svg = host(f"{lang}-{digest}", lang, spec, vega_render.RENDER_SCRIPT,
+                               {"vega": vega_js, "vega_lite": vega_lite_js})
+                else:
+                    page = self._mermaid.ensure_vega_page(self.mermaid_enabled, self.mermaid_auto_download)
+                    svg = page.evaluate(vega_render.RENDER_SCRIPT, [lang, spec])
             except Exception as e:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
                 message = "\n".join(l for l in str(e).splitlines() if not re.match(r"\s+at ", l))

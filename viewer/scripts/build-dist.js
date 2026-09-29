@@ -126,6 +126,29 @@ const MERMAID_LICENSE = {
   sha256: 'ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80',
 };
 
+// Vega・Vega-Lite公式配布の単一バンドルJS（deps.pyのVEGA_JS_URL/SHA256・VEGA_LITE_JS_URL/SHA256と同じ）。#351。どちらもBSD-3-Clause。
+// ライセンス全文は、jsの中に無いため、Mermaidと同じ手順で、GitHub上の対応するタグのLICENSEを、別途取得・固定する。
+const VEGA_JS = {
+  version: '6.4.0',
+  file: 'vega.min.js',
+  url: 'https://cdn.jsdelivr.net/npm/vega@6.4.0/build/vega.min.js',
+  sha256: '8f6a3587cf8d4f42c7e08120e3eb05d067e746d554e39d2dcf52acc0bd5ba28f',
+};
+const VEGA_LICENSE = {
+  url: 'https://raw.githubusercontent.com/vega/vega/v6.4.0/LICENSE',
+  sha256: '63727832aaf62004a2b249c933e327f3c90caf49e41a72f4bf436edf632cbda8',
+};
+const VEGA_LITE_JS = {
+  version: '6.4.3',
+  file: 'vega-lite.min.js',
+  url: 'https://cdn.jsdelivr.net/npm/vega-lite@6.4.3/build/vega-lite.min.js',
+  sha256: '35a9821df838825b05a6a73e9414b58747a1b18321583858ed903c66393a5c7e',
+};
+const VEGA_LITE_LICENSE = {
+  url: 'https://raw.githubusercontent.com/vega/vega-lite/v6.4.3/LICENSE',
+  sha256: 'f618900fd0d64046963b29f40590cdd1e341a2f41449f99110d82fd81fea808c',
+};
+
 // D2公式CLIバイナリ（deps.pyのD2_ASSETSと同じ、win32/x86_64の1件）。アーカイブ自身にLICENSE.txtが入っている。
 const D2 = {
   version: 'v0.9.0',
@@ -331,7 +354,7 @@ async function bundleTypstAssets(appDir) {
 }
 
 /**
- * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.jsを、取得して、同梱する（#290・#310）。
+ * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.js・vega.min.js・vega-lite.min.jsを、取得して、同梱する（#290・#310・#351）。
  * 実行時は、Electronが、環境変数（TEXT_COMPOSITOR_JAVA_BIN等）で、ワーカーに教える（初回起動から、
  * 追加のダウンロードなしで、Mermaid・PlantUML・D2・Structurizrの図が使えるようにするため）。
  * @returns ライセンス表記の行
@@ -414,6 +437,21 @@ async function bundleDiagramTools(appDir) {
   fs.copyFileSync(mermaidLicense, path.join(appDir, 'licenses', 'Mermaid-LICENSE.txt'));
   rows.push({ name: `Mermaid (${MERMAID_JS.version}; mermaid/mermaid.min.js)`, version: MERMAID_JS.version, license: 'MIT',
     url: 'https://github.com/mermaid-js/mermaid', file: 'Mermaid-LICENSE.txt' });
+
+  // vega.min.js・vega-lite.min.js（vega/。固定名にする。#351）。Vega・Vega-Liteの図を、追加の取得なしで描くため。
+  const vegaDir = path.join(appDir, 'vega');
+  fs.mkdirSync(vegaDir, { recursive: true });
+  for (const [js, license, licenseFile, name] of [
+    [VEGA_JS, VEGA_LICENSE, 'Vega-LICENSE.txt', 'Vega'],
+    [VEGA_LITE_JS, VEGA_LITE_LICENSE, 'Vega-Lite-LICENSE.txt', 'Vega-Lite'],
+  ]) {
+    const jsFile = await fetchVerified(js, js.file);
+    fs.copyFileSync(jsFile, path.join(vegaDir, js.file));
+    const licenseCopy = await fetchVerified({ ...license, file: licenseFile }, `${name}のBSD-3-Clauseライセンス全文`);
+    fs.copyFileSync(licenseCopy, path.join(appDir, 'licenses', licenseFile));
+    rows.push({ name: `${name} (${js.version}; vega/${js.file})`, version: js.version, license: 'BSD-3-Clause',
+      url: `https://github.com/vega/${name.toLowerCase()}`, file: licenseFile });
+  }
 
   return rows;
 }
@@ -498,7 +536,8 @@ function report(appDir, embed, sitePackages, zip) {
   const d2 = sizeOf(path.join(appDir, 'd2'));
   const structurizrCli = sizeOf(path.join(appDir, 'structurizr-cli'));
   const mermaid = sizeOf(path.join(appDir, 'mermaid'));
-  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid
+  const vega = sizeOf(path.join(appDir, 'vega'));
+  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid - vega
     - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
   rows.push(['アプリ（resources/）', sizeOf(path.join(appDir, 'resources'))]);
   rows.push(['組込版Python本体', python - packages]);
@@ -510,6 +549,7 @@ function report(appDir, embed, sitePackages, zip) {
   rows.push(['D2（d2/）', d2]);
   rows.push(['Structurizr CLI（structurizr-cli/、絞り込み版）', structurizrCli]);
   rows.push(['Mermaid（mermaid/）', mermaid]);
+  rows.push(['Vega・Vega-Lite（vega/）', vega]);
   rows.push(['ライセンス表記（licenses/）', sizeOf(path.join(appDir, 'licenses'))]);
   console.log('\n同梱物のサイズ（展開後）');
   for (const [name, bytes] of rows) console.log(`  ${name.padEnd(40)} ${mb(bytes).padStart(10)}`);

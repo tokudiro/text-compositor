@@ -31,10 +31,15 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
   ローカルのファイル（画像など）の絶対パスで、変更を検知して自動で更新するために使う（成功時のみ）。他は、`build`と同じ。
   プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
 図の描画の依頼（ワーカーから、呼び出し元へ）。環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`で起動されたときだけ、
-Mermaidの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207）に描画してもらう。
+Mermaidと、Vega・Vega-Liteの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207・#351）に描画してもらう。
 （Graphvizは、呼び出し元に任せず、ワーカーが、Typstのdiagraphで描く。#264）
 依頼（`build`・`render_html`）の処理中に、標準出力へ、1行のイベントを出し、標準入力で、応答を1行待つ。
   ワーカー → 呼び出し元: {"event": "render_mermaid", "callback": <番号>, "diagram_id": ..., "code": "...", "js": "<mermaid.min.jsのパス>"}
+  Vega・Vega-Liteの図も、同じ形で依頼する（#351）:
+  ワーカー → 呼び出し元: {"event": "render_vega", "callback": <番号>, "diagram_id": ..., "lang": "vega-lite"|"vega", "spec": {...},
+                         "script": "<ブラウザで実行する描画スクリプト>", "js": {"vega": "<vega.min.jsのパス>", "vega_lite": "<vega-lite.min.jsのパス>"}}
+  呼び出し元は、両方のjsを読み込んだページで、`script`（`async ([lang, spec]) => svg`という関数の式）を、`[lang, spec]`で呼び、SVGを返す。
+  応答は、`render_mermaid`と同じ。
   呼び出し元 → ワーカー: {"callback": <同じ番号>, "ok": true, "svg": "..."} または {"callback": <同じ番号>, "ok": false, "error": "..."}
   待っている間に届いた、番号の違う行は、読み捨てる。呼び出し元が、標準入力を閉じたときは、描画の失敗になる。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
@@ -130,12 +135,16 @@ class HostRenderer:
         self._next = 0
 
     def render_mermaid(self, diagram_id: str, code: str, js_path: str) -> str:
-        return self._request("render_mermaid", "Mermaid", diagram_id, code, js_path)
+        return self._request("render_mermaid", "Mermaid", {"diagram_id": diagram_id, "code": code, "js": js_path})
 
-    def _request(self, event: str, label: str, diagram_id: str, code: str, js_path: str) -> str:
+    def render_vega(self, diagram_id: str, lang: str, spec: dict, script: str, js: dict) -> str:
+        """Vega・Vega-Liteの描画を依頼する（#351）。`script`は、ブラウザで実行する描画スクリプト（vega_render.RENDER_SCRIPT）。"""
+        return self._request("render_vega", "Vega", {"diagram_id": diagram_id, "lang": lang, "spec": spec, "script": script, "js": js})
+
+    def _request(self, event: str, label: str, fields: Dict[str, Any]) -> str:
         self._next += 1
         number = self._next
-        _write(self._out, {"event": event, "callback": number, "diagram_id": diagram_id, "code": code, "js": js_path})
+        _write(self._out, {"event": event, "callback": number, **fields})
         while True:
             line = self._stdin.readline()
             if not line:
@@ -157,6 +166,7 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     if host_renderer:
         host = HostRenderer(stdin, out)
         _host_renderers.set_mermaid_host_renderer(host.render_mermaid)
+        _host_renderers.set_vega_host_renderer(host.render_vega)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
         for line in stdin:
@@ -181,6 +191,7 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     finally:
         if host_renderer:
             _host_renderers.set_mermaid_host_renderer(None)
+            _host_renderers.set_vega_host_renderer(None)
         session.close()
 
 

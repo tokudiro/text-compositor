@@ -295,8 +295,18 @@ def _ensure_verified_js(url, sha256, cache_subdir, filename):
         sys.exit(1)
     return js_path
 
+# 呼び出し元が、同梱したvega.min.js・vega-lite.min.jsのフォルダを教える環境変数（#351）。ViewerのZIPは、これを`vega/`に
+# 同梱しており、MERMAID_JS_ENVと同じ仕組みで、ダウンロードせずに、これを使う。
+VEGA_JS_DIR_ENV = "TEXT_COMPOSITOR_VEGA_JS_DIR"
+
 def ensure_vega_js():
-    """(vega.min.jsのパス, vega-lite.min.jsのパス)を返す。無ければ、取得して、SHA256を確認する。"""
+    """(vega.min.jsのパス, vega-lite.min.jsのパス)を返す。無ければ、取得して、SHA256を確認する。
+    環境変数`TEXT_COMPOSITOR_VEGA_JS_DIR`のフォルダに、2つのファイルがあれば、それを使う（ダウンロードしない。#351）。"""
+    bundled = os.environ.get(VEGA_JS_DIR_ENV)
+    if bundled:
+        paths = (os.path.join(bundled, "vega.min.js"), os.path.join(bundled, "vega-lite.min.js"))
+        if all(os.path.isfile(p) for p in paths):
+            return paths
     return (_ensure_verified_js(VEGA_JS_URL, VEGA_JS_SHA256, "vega", "vega.min.js"),
             _ensure_verified_js(VEGA_LITE_JS_URL, VEGA_LITE_JS_SHA256, "vega", "vega-lite.min.js"))
 

@@ -8,6 +8,7 @@
 //   - 日本語のファイル名・フォルダ名の原稿も、表示できる。
 //   - Mermaidの図が、playwrightもシステムのブラウザもなしで、ElectronのChromiumで描画され、表示される（#207）。
 //   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
+//   - Vega-Lite・Vegaの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。外部データの参照は、エラーで止まる（#351）。
 //   - Graphviz（dot・graphviz）が、システムのGraphvizなしで、Typstのdiagraph（同梱）で描画され、構文エラーは、原稿の行つきで出る（#264）。
 //   - 同梱のワーカーが、package.jsonと同じ版を、`ready`で報告する（#235）。
 //   - 同梱しないもの（typst・playwright）が、なくても、HTML出力は成功する。
@@ -261,6 +262,21 @@ async function main() {
     const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
     check('Structurizrの図が、画像として読み込まれている', images.length === 1 && images.every(Boolean), JSON.stringify(images));
   }, 15000);
+
+  // Vega-Lite・Vega（#351）。mermaidと同じく、ElectronのChromiumで描画される。同梱のvega/を使うため、追加の取得はない。
+  const vegaDoc = '# Vega\n\n```vega-lite\n{"data": {"values": [{"a": "あ", "b": 1}, {"a": "い", "b": 3}]}, "mark": "bar", '
+    + '"encoding": {"x": {"field": "a", "type": "nominal"}, "y": {"field": "b", "type": "quantitative"}}}\n```\n\n'
+    + '```vega\n{"width": 40, "height": 40, "marks": [{"type": "rect", "encode": {"enter": {"width": {"value": 20}, "height": {"value": 20}}}}]}\n```\n';
+  await runCase('Vega-Lite・Vegaの図', vegaDoc, path.join(work, 'vega.md'), async (state, _pythons, { content }) => {
+    check('Vega-Lite・Vegaを含む文書が、表示される（エラーの帯がない。同梱のjsだけで、追加の取得なし）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram-vega-lite img, .diagram-vega img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('Vega-Lite・Vegaの2つの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
+  }, 12000);
+  await runCase('Vega-Liteの外部データ', '# エラー\n\n本文。\n\n```vega-lite\n{"data": {"url": "x.csv"}, "mark": "bar"}\n```\n', path.join(work, 'vega-error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('外部データ（url）の参照が、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('vega-error.md:5'), JSON.stringify(item.head));
+    check('エラーの内容が、詳細に出る', /External resources are not supported/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);
