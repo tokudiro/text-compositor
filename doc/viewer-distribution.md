@@ -100,6 +100,23 @@ Obunzu-0.4.1-win-x64/
 - **構文エラー**: `diagraph`の`Diagraph error: syntax error in line N`を、原稿の行（フェンスの開始行＋N）にして、診断にする。Viz.jsより、位置の情報が、少ない。
 - **環境変数`TEXT_COMPOSITOR_MERMAID_HOST`**: Mermaidだけの意味になった（Graphvizは、Electronに任せない）。名前は、互換のため、据え置いた。
 
+## ZIPの展開時間の調査（[#335](https://github.com/tokudiro/text-compositor/issues/335)。改善は見送り）
+
+一般的なノートPCで、展開が遅いという指摘を受けて調べた。**結論は、改善を見送る。Full版・Lite版の分け方や、追加パック方式、7z形式の配布は、インストーラーを作成するときに、あわせて検討する。** 次は、そのときの材料である（v0.4.1。計測は、性能の高い開発機。ウイルス対策などの影響が大きい一般的なノートPCでは、再現できていない）。
+
+- **ファイル数は、主因ではない。** 全体で1,109ファイル: `python-embed/` 454（88 MB）、`jre/` 315（146 MB）、`typst-packages/` 207（5 MB）、`locales/` 55（49 MB）、その他78（約400 MB。`obunzu.exe` 235 MB、D2 41 MB、PlantUML 17 MBなど）。容量が支配的である。
+- **展開時間**（ZIP 293.5 MB → 展開後 687 MB）: `tar` 4秒、.NETの`ZipFile` 4秒、`Expand-Archive` 7秒、7-Zip 7秒、エクスプローラーと同じ処理 15秒（Mark of the Web付きのZIPで 17秒）。エクスプローラーと同じ処理は、展開後の全ファイルに、Mark of the Webを引き継ぐ（`tar`・.NETは引き継がない）。
+- **圧縮**: ZIPは、Deflateで、206ファイルは無圧縮（Store）。7z形式（LZMA2）では、206.8 MB（ZIPの約7割）で、展開は12.6秒。ただし、Windows標準のエクスプローラーは、7zを開けない。
+- **一般的なノートPCで遅い原因**（推測。未確認）: ファイルごとのウイルス対策の検査、遅い記憶装置、エクスプローラーの展開の遅さ。
+- **削減候補**（いずれも、実施していない）:
+
+| 案 | 削減量 | 備考 |
+| --- | --- | --- |
+| `locales/`を、`en-US`と`ja`だけにする | 約47.6 MB（測定） | 低リスク |
+| JREの`classes_nocoops.jsa`を削る | 約11.9 MB（測定） | 低リスク（32 GB超のヒープ用の起動高速化ファイル） |
+| JREを`jlink`で絞る | 約50〜60 MB（見積もり。未検証） | ビルド時にJDK 21の取得が要る。PlantUMLが`java.desktop`を使う |
+| Java・PlantUML・Structurizr・D2を、別パックにする | 約230 MB | 「追加のダウンロードなしで、全部の図が使える」（#290）という方針の変更 |
+
 ## ライセンス表記
 
 - 配布物の`licenses/`に、`THIRD-PARTY-NOTICES.md`（一覧）と、各ライセンスの全文を入れる。ビルドが、パッケージのメタデータ（`*.dist-info`）から、自動で作る。
