@@ -5,13 +5,33 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+/**
+ * 「表示する機能」の一覧（#326）。画面に、常時、要素を足す機能（行番号・目次パネルなど）は、ここに1行足すだけで、
+ * 設定（既定値・正規化・保存）と、設定画面の行が、そろう。方針（何を、ここに入れるか。既定値の基準）は、
+ * `doc/viewer-visual-design.md`の「機能を足すときの基準」。
+ *   key: 設定のキー（`state.settings[key]`で、機能を使う側が読む）。 default: 既定値（真偽値）。
+ *   label・description: 設定画面の名前と説明（文字列。HTMLは使えない）。 on・off: 選択肢の文字。
+ */
+const FEATURES = Object.freeze([
+  Object.freeze({
+    key: 'showLineNumber',
+    default: true,   // ツールバーの、既存の行の中で完結する、小さな表示のため、既定は「出す」（#328・#357）
+    label: '行番号の表示',
+    description: '段落・見出し・リスト・表・図などにマウスを乗せると、ツールバーのファイル名の右横に、元のMarkdownの行番号'
+      + '（check.md:14の:14）を出します。右クリックのメニューの「行番号をコピー」で、ファイル名:行をコピーできます。'
+      + '長い原稿を、直しに戻るときの目印です。',
+    on: '出す',
+    off: '出さない',
+  }),
+]);
+
 const DEFAULTS = Object.freeze({
+  ...Object.fromEntries(FEATURES.map((feature) => [feature.key, feature.default])),
   toolbarPosition: 'top',   // 'top' | 'bottom'
   theme: 'system',          // 'system' | 'light' | 'dark'
   autoReload: true,         // 保存したら、自動で更新する（#170）
   csvHeader: true,          // .csvの1行目を、見出し行にする（#220）。ツールバーで切り替え、覚える
   allowExternalImages: false, // 外部の画像（https://...等）を読み込むか（既定false。方針2章「ローカルに閉じる」。#238）
-  showLineNumber: true,     // ブロックにマウスを乗せたとき、ツールバーのファイル名の右横に、原稿の行番号を出す（#328）。コピーは、内容の右クリックのメニュー（#357）
   window: null,             // 前回のウィンドウの大きさ・位置（#192）。設定画面では変えない
   openDirectoryMode: 'last', // ファイルを開くダイアログの、最初の場所（#226）。'os'（OSにゆだねる） | 'last'（前回開いたフォルダ） | 'fixed'（特定のフォルダ）
   fixedDirectory: null,     // 'fixed'のときのフォルダ。設定画面の、フォルダを選ぶボタンで決める
@@ -20,7 +40,7 @@ const DEFAULTS = Object.freeze({
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', 'showLineNumber', 'openDirectoryMode', 'workLocation']);
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'openDirectoryMode', 'workLocation']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -62,7 +82,9 @@ function normalizeSettings(value) {
   if (typeof source.autoReload === 'boolean') result.autoReload = source.autoReload;
   if (typeof source.csvHeader === 'boolean') result.csvHeader = source.csvHeader;
   if (typeof source.allowExternalImages === 'boolean') result.allowExternalImages = source.allowExternalImages;
-  if (typeof source.showLineNumber === 'boolean') result.showLineNumber = source.showLineNumber;
+  for (const feature of FEATURES) {
+    if (typeof source[feature.key] === 'boolean') result[feature.key] = source[feature.key];
+  }
   result.window = normalizeWindow(source.window);
   for (const key of ['lastDirectory', 'fixedDirectory']) {
     if (typeof source[key] === 'string' && path.isAbsolute(source[key])) result[key] = source[key];
@@ -92,4 +114,4 @@ function saveSettings(file, settings) {
   }
 }
 
-module.exports = { CHOICES, DEFAULTS, EDITABLE, loadSettings, normalizeSettings, normalizeWindow, saveSettings };
+module.exports = { CHOICES, DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, normalizeWindow, saveSettings };
