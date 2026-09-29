@@ -66,6 +66,47 @@ window.addEventListener('drop', (event) => {
   if (file) api.openPath(api.pathForFile(file));
 });
 
+/** 「表示する機能」の行を、機能の一覧（state.features。settings.jsのFEATURES）から作る（#326）。一覧が変わらない間は、作り直さない。 */
+let renderedFeatures = '';
+function renderFeatures(features) {
+  const signature = JSON.stringify(features);
+  if (signature === renderedFeatures) return;
+  renderedFeatures = signature;
+  const container = $('feature-rows');
+  container.textContent = '';
+  for (const feature of features) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const text = document.createElement('div');
+    text.className = 'text';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.id = `feature-${feature.key}-name`;
+    name.textContent = feature.label;
+    const desc = document.createElement('div');
+    desc.className = 'desc';
+    desc.textContent = feature.description;
+    text.append(name, desc);
+    const group = document.createElement('div');
+    group.className = 'segmented';
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-labelledby', name.id);
+    for (const [value, caption] of [['true', feature.on], ['false', feature.off]]) {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = feature.key;
+      input.value = value;
+      const span = document.createElement('span');
+      span.textContent = caption;
+      label.append(input, span);
+      group.append(label);
+    }
+    row.append(text, group);
+    container.append(row);
+  }
+}
+
 function render(state) {
   if (!state) return;
   const previousErrors = lastState?.diagnostics.hasError;
@@ -75,6 +116,7 @@ function render(state) {
   document.body.classList.toggle('toolbar-bottom', state.settings.toolbarPosition === 'bottom');
   renderSearch(state.search, searchWasOpen);
   $('settings').hidden = !state.settingsOpen;
+  renderFeatures(state.features ?? []);
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
   for (const [name, value] of Object.entries(state.settings)) {
     for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === String(value);

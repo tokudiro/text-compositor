@@ -124,17 +124,8 @@
           <label><input type="radio" name="allowExternalImages" value="true"><span>読み込む</span></label>
         </div>
       </div>
-      <div class="row">
-        <div class="text">
-          <div class="name" id="show-line-number-name">行番号の表示</div>
-          <div class="desc">段落・見出し・リスト・表・図などにマウスを乗せると、ツールバーのファイル名の右横に、元のMarkdownの
-            行番号（<code>check.md:14</code>の<code>:14</code>）を出します。右クリックのメニューの「行番号をコピー」で、<code>ファイル名:行</code>をコピーできます。長い原稿を、直しに戻るときの目印です。</div>
-        </div>
-        <div class="segmented" role="radiogroup" aria-labelledby="show-line-number-name">
-          <label><input type="radio" name="showLineNumber" value="true"><span>出す</span></label>
-          <label><input type="radio" name="showLineNumber" value="false"><span>出さない</span></label>
-        </div>
-      </div>
+      <!-- 「表示する機能」の行（#326）。settings.jsのFEATURESから、chrome.jsが作る（機能を足すときは、FEATURESに1行足す） -->
+      <div id="feature-rows"></div>
       <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->
       <div class="row sub" id="fixed-directory-row" hidden>
         <div class="text">

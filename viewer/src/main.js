@@ -14,7 +14,7 @@ const { summarize } = require('./diagnostics');
 const { NavigationHistory } = require('./history');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
-const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, saveSettings } = require('./settings');
+const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
@@ -58,6 +58,7 @@ const state = {
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
   isCsv: false,          // 開いているのが、.csvか（ツールバーの、見出し行の切り替えを出す。#220）
   settings: { ...DEFAULTS },
+  features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
   diagnostics: summarize([]),
   canGoBack: false,      // 戻るナビゲーションができるか（#330）

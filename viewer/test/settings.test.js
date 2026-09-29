@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { DEFAULTS, EDITABLE, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
+const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
 
 function temporaryFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-settings-'));
@@ -122,4 +122,37 @@ test('workLocation is app or beside, defaults to app, and can be changed from th
   // 「ファイルを作らない」は、まだ実装していないため、選べない（保存された値でも、既定に戻す）
   for (const bad of ['none', 'memory', 'App', '', 1, null, ['app']]) assert.equal(normalizeSettings({ workLocation: bad }).workLocation, 'app', JSON.stringify(bad));
   assert.ok(EDITABLE.includes('workLocation'));
+});
+
+// -- 「表示する機能」の一覧（#326） ---------------------------------------------------
+
+test('FEATURES: every entry is well-formed, has a unique key, and is wired into the defaults and the editable list', () => {
+  assert.ok(FEATURES.length >= 1);
+  const keys = FEATURES.map((feature) => feature.key);
+  assert.equal(new Set(keys).size, keys.length, 'keys are unique');
+  for (const feature of FEATURES) {
+    assert.match(feature.key, /^[a-z][A-Za-z0-9]*$/);
+    assert.equal(typeof feature.default, 'boolean', `${feature.key}: default is a boolean`);
+    for (const field of ['label', 'description', 'on', 'off']) {
+      assert.equal(typeof feature[field], 'string', `${feature.key}.${field}`);
+      assert.ok(feature[field].length > 0, `${feature.key}.${field} is not empty`);
+      assert.ok(!/[<>]/.test(feature[field]), `${feature.key}.${field} has no HTML`);
+    }
+    assert.equal(DEFAULTS[feature.key], feature.default, `${feature.key} is in DEFAULTS`);
+    assert.ok(EDITABLE.includes(feature.key), `${feature.key} is editable`);
+  }
+});
+
+test('FEATURES: normalizeSettings keeps a valid boolean, and falls back to the feature default for anything else', () => {
+  for (const feature of FEATURES) {
+    assert.equal(normalizeSettings({ [feature.key]: !feature.default })[feature.key], !feature.default);
+    assert.equal(normalizeSettings({})[feature.key], feature.default);
+    for (const bad of ['true', 0, 1, null, undefined, [true]]) {
+      assert.equal(normalizeSettings({ [feature.key]: bad })[feature.key], feature.default, `${feature.key}: ${String(bad)}`);
+    }
+  }
+});
+
+test('FEATURES: the line number is on by default (a small display inside the existing toolbar row, #326)', () => {
+  assert.equal(FEATURES.find((feature) => feature.key === 'showLineNumber')?.default, true);
 });
