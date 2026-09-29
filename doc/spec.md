@@ -106,6 +106,7 @@ text-compositor --config <path/to/text-compositor.config.yaml>
 python build.py --config <path/to/text-compositor.config.yaml>
 ```
 
+* **`FILE.md`（位置引数）・`-o/--output`・`-t/--template`**（[#179](https://github.com/tokudiro/text-compositor/issues/179)）: 単一のMarkdownファイルを、`config.yaml`なしでPDFにする。`text-compositor FILE.md`。Python API（`Session.build`。[#167](https://github.com/tokudiro/text-compositor/issues/167)）と同じ、単一Markdownのconfigの組み立て（`_single_markdown_config`）と、ビルド本体（`_build_project`）を呼ぶ薄いラッパーである（`text_compositor/build.py`の`_build_single_markdown`）。詳細は、下の「単一ファイルの直接指定（#179）」。
 * **`--config <path>`**: 設定ファイル（yaml/json）へのパス。省略した場合はカレントディレクトリ直下の `text-compositor.config.yaml`/`text-compositor.config.json` を探す（5章）。どちらも指定・発見できなければエラー終了する。
 * **`--config-list <path>`**: ビルド対象のconfigファイルパスを1行1件で列挙したテキストファイルを渡し、1回の実行で複数PDFをビルドする（[#73](https://github.com/tokudiro/text-compositor/issues/73)）。`--config`とは同時指定できない。
 * **`--check-env`**: 実行環境の前提（隔離環境（venv/pipx）の使用有無、依存パッケージ、Typstバージョン、キャッシュ済みアセット、Mermaid/PlantUML/D2の前提条件）を、ビルドを実行せずに確認する（[#37](https://github.com/tokudiro/text-compositor/issues/37)、[#113](https://github.com/tokudiro/text-compositor/issues/113)）。
@@ -537,8 +538,25 @@ with Session() as session:                              # 繰り返すなら（M
 
 ### CLIとの関係（#25）
 
-* `text-compositor file.md`（複数ファイル・ディレクトリの直接指定、[#25](https://github.com/tokudiro/text-compositor/issues/25)）は、**本章では追加しない**。出力先の決め方・オプションの体系が、#25で未決のため。APIは、CLIから同じ関数を呼べる形（configなしで、単一のMarkdownからPDFを作る）にしてあるため、#25で決めた後に、薄く追加できる。
+* `text-compositor file.md`のうち、**単一のMarkdownの直接指定は、#179で追加した**（下の「単一ファイルの直接指定（#179）」）。複数ファイル・ディレクトリの直接指定は、見送る（章の順序を決める手段が、configの他にない。ファイル名順にすると、意図しない並びになりやすい）。APIは、CLIから同じ関数を呼べる形（configなしで、単一のMarkdownからPDFを作る）にしてある。#179は、これを呼ぶ形で追加した。
 * 既存のCLI（`--config`等）は、内部の`_build_project`を共有するが、動作は変えていない（全テストとサンプルの出力で確認した）。
+
+### 単一ファイルの直接指定（#179）
+
+`text-compositor FILE.md [-o OUTPUT] [-t TEMPLATE]`。決めたことは、次のとおり。
+
+* **対象は、単一のMarkdown（`.md`・`.markdown`）だけ。** 他の拡張子は、`argparse`のエラー（終了コード2）。存在しないファイルは、`[Error] Markdown file not found`と、終了コード1（CLIの従来の失敗と同じ）。
+* **既定は、Python APIと同じ規則にそろえる**（同じ関数を呼ぶため。CLIとAPIで、同じ原稿の出力が変わらない）: `document.cover: markdown`（テンプレートの表紙を出さず、先頭の見出しを落とさない）、タイトルはファイル名、目次なし、`template`テンプレート。画像などの相対パスは、原稿の場所が基準。
+* **出力先の既定は、原稿と同じフォルダの`<ファイル名>.pdf`。** APIの`.text-compositor/preview.pdf`とは違う（APIは、GUIが出力先を必ず指定するため）。`-o`は、ファイルのパスか、既存のフォルダ（または区切り文字で終わる値）。フォルダなら、その中に`<ファイル名>.pdf`を作る。相対パスは、カレントディレクトリが基準（コマンドラインの一般的な慣習）。出力先のフォルダは、なければ作る。
+* **`-t`は、同梱テンプレートの名前（`template`・`slide`・`paper`）か、`.typ`のパス**（相対パスは、カレントディレクトリが基準）。未知の名前は、エラー（終了コード1）。
+* **`--paper`・`--landscape`等は、追加しない。** 「文書の内容は`config.yaml`に一本化する」という#52の方針を維持する。必要なときは、front-matterか、`config.yaml`を使う。
+* **併用できるのは、`-q`・`-v`・`--keep-temp`・`-o`・`-t`だけ。** `--config`・`--config-list`・`--check-env`・`--watch`・`--if-changed`・`--clean`・`--clean-cache`と一緒に指定すると、`argparse`のエラー（終了コード2）。`-o`・`-t`だけを指定した場合も同じ。
+  * **`--config`・`--config-list`**: どちらが正か、あいまいになるため。
+  * **`--watch`・`--if-changed`**: 依存物の判定（`_watch_targets`・`_is_up_to_date`）が、configを起点に作られているため。単一ファイルでも使いたい場合は、`config.yaml`を使う（後から、必要になった時点で、判定を単一ファイルに広げる）。
+  * **`--clean`・`--clean-cache`**: 削除対象（configの`output`）が決まらないため。出力PDFと、原稿の隣の`.text-compositor/`を、手で消せば足りる。
+  * **`--check-env`**: ビルドをしないため、原稿の指定と意味が合わない。
+* **出力先に既存のPDFがあれば、確認なしで上書きする**（既存のCLIと同じ）。
+* **原稿の隣に、作業用の`.text-compositor/`を作る**（図表のキャッシュ・中間ファイル。configの場合の`project_dir`直下と同じ）。書き込めない場所の原稿は、`Permission denied`のエラー（終了コード1）で止まる。`-o`で出力先を変えても、作業用のフォルダは、原稿の隣にできる。
 
 ### 制約
 

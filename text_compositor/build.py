@@ -17,6 +17,14 @@ from text_compositor.project import _build_one
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Markdown -> Typst -> PDF ドキュメントビルダー")
+    parser.add_argument("markdown", nargs="?", metavar="FILE.md",
+                         help="単一のMarkdownファイルを、設定ファイルなしでPDFにする（#179）。出力先の既定は、原稿と同じフォルダの"
+                              "<ファイル名>.pdf。表紙は出さず（先頭の見出しを落とさない）、タイトルはファイル名。"
+                              "--config・--config-list・--check-env・--watch・--if-changed・--cleanとは同時指定できない。")
+    parser.add_argument("-o", "--output", help="FILE.mdを指定したときの、出力PDFのパス（相対パスはカレントディレクトリ基準）。"
+                                               "既存のフォルダ、または区切り文字で終わる値なら、その中に<ファイル名>.pdfを作る。")
+    parser.add_argument("-t", "--template", help="FILE.mdを指定したときのテンプレート。同梱テンプレートの名前（template・slide・paper）、"
+                                                 ".typファイルのパス（相対パスはカレントディレクトリ基準）。既定はtemplate。")
     parser.add_argument("--config", help="設定ファイル(yaml/json)へのパス。省略時はカレントディレクトリの text-compositor.config.yaml/.json を探す。")
     parser.add_argument("--config-list", help="ビルド対象のconfigファイルパスを1行1件で列挙したテキストファイル。空行と'#'で始まる行は無視される。--configとは同時指定できない。相対パスはこのファイル自身の置き場所が基準。")
     parser.add_argument("--check-env", action="store_true",
@@ -50,6 +58,17 @@ def parse_args():
     args = parser.parse_args()
     if args.clean_cache:
         args.clean = True
+    if args.markdown:
+        # 単一ファイルの直接指定（#179）。薄いラッパーのため、configを前提にする機能とは併用しない。
+        # 併用できるのは、-q・-v・--keep-temp・-o・-tだけ。
+        for flag, used in (("--config", args.config), ("--config-list", args.config_list), ("--check-env", args.check_env),
+                           ("--watch", args.watch), ("--if-changed", args.if_changed), ("--clean/--clean-cache", args.clean)):
+            if used:
+                parser.error(f"FILE.md と {flag} は同時に指定できません（単一ファイルの直接指定は、configを使う機能とは併用できません）。")
+        if os.path.splitext(args.markdown)[1].lower() not in (".md", ".markdown"):
+            parser.error(f"FILE.md には、.md または .markdown のファイルを指定してください: {args.markdown}")
+    elif args.output or args.template:
+        parser.error("-o/--output と -t/--template は、FILE.md を指定したときだけ使えます。")
     if args.quiet and args.verbose:
         parser.error("-q/--quiet と -v/--verbose は同時に指定できません。")
     if args.config and args.config_list:
@@ -105,6 +124,50 @@ def _clean_all(config_paths, include_cache):
     for config_path in config_paths:
         _clean_one(config_path, include_cache)
 
+_BUNDLED_TEMPLATES = ("template", "slide", "paper")
+
+def _single_markdown_output(markdown_path, output):
+    """FILE.mdの出力PDFのパス（絶対パス）。未指定なら、原稿と同じフォルダの<ファイル名>.pdf。"""
+    stem = os.path.splitext(os.path.basename(markdown_path))[0]
+    if not output:
+        return os.path.join(os.path.dirname(markdown_path), stem + ".pdf")
+    out = os.path.abspath(output)
+    if os.path.isdir(out) or output.endswith(("/", os.sep)):
+        return os.path.join(out, stem + ".pdf")
+    return out
+
+def _build_single_markdown(tool_dir, repo_root, font_dir, markdown, output, template, keep_temp):
+    """単一のMarkdownを、configなしでPDFにする（#179）。Python API（api.Session.build）と同じ、単一Markdownのconfigの
+    組み立て（_single_markdown_config）と、ビルド本体（_build_project）を呼ぶ。そのため、表紙（`markdown`）・タイトル
+    （ファイル名）・目次なしの既定が、APIと同じ規則になる。APIと違い、失敗は、エラーの表示と終了コード1（CLIの従来の動作）。
+    画像などの相対パスは、原稿の場所が基準。作業用の`.text-compositor/`は、原稿の隣に作る。"""
+    from text_compositor.api import _single_markdown_config
+    from text_compositor.project import _build_project
+
+    md_path = os.path.abspath(markdown)
+    if not os.path.isfile(md_path):
+        _error(f"Markdown file not found: {md_path}")
+        sys.exit(1)
+    out_pdf = _single_markdown_output(md_path, output)
+    if template is None:
+        template = "template"
+    elif template.endswith(".typ"):
+        template = os.path.abspath(template)   # コマンドラインの相対パスは、カレントディレクトリ基準
+    elif template not in _BUNDLED_TEMPLATES:
+        _error(f"Unknown template: {template!r} (expected {' / '.join(_BUNDLED_TEMPLATES)}, or the path of a .typ file)")
+        sys.exit(1)
+    config = _single_markdown_config(md_path, template, None, None, None, None)
+    try:
+        os.makedirs(os.path.dirname(out_pdf), exist_ok=True)
+        _build_project(tool_dir, repo_root, font_dir, os.path.dirname(md_path), config, config["chapters"],
+                       keep_temp=keep_temp, out_pdf=out_pdf)
+    except PermissionError as e:
+        # 読み取り専用の場所の原稿（作業用の.text-compositor/を原稿の隣に作れない）や、出力先に書けない場合。
+        # 別の場所へ出すには-oを使えるが、作業用のフォルダは原稿の隣にできるため、原稿を書き込める場所へ写す必要がある
+        _error(f"Permission denied: {e.filename or e}. The work folder (.text-compositor/) is created next to the "
+               f"manuscript, and the PDF is written to the output path; both must be writable.")
+        sys.exit(1)
+
 def build():
     # tool_dir: ツール自身に同梱されたリソース（templates/）の場所。パッケージ化後は
     # text_compositor/ パッケージのディレクトリを指す（#111）。
@@ -127,6 +190,10 @@ def build():
 
     check_typst_version(repo_root)
     font_dir = ensure_fonts()
+
+    if args.markdown:
+        _build_single_markdown(tool_dir, repo_root, font_dir, args.markdown, args.output, args.template, args.keep_temp)
+        return
 
     if args.config_list:
         config_paths = _read_config_list(args.config_list)
