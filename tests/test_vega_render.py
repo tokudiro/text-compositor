@@ -108,12 +108,12 @@ class TestRenderWithFakePage:
         assert fake_page.calls == []
 
     def test_an_external_reference_fails_before_touching_the_browser(self, tmp_path, fake_page):
-        bad = json.dumps({"data": {"url": "sales.csv"}, "mark": "bar"})
+        bad = json.dumps({"layer": [{"mark": {"type": "image", "url": "http://example.com/a.png"}}]})
         result, _ = convert_html(tmp_path, "# T\n\n```vega-lite\n" + bad + "\n```\n")
         assert not result.ok
         error = [d for d in result.diagnostics if d.severity == "error"][0]
         assert error.message == "Vega-Lite diagram failed to render" and error.line == 3
-        assert "External resources are not supported" in error.detail and "$.data.url" in error.detail
+        assert "External resources are not supported" in error.detail and "$.layer[0].mark.url" in error.detail
         assert fake_page.calls == []
 
     def test_broken_json_is_an_error_with_the_fence_line(self, tmp_path, fake_page):
@@ -157,6 +157,142 @@ class TestRenderWithFakePage:
         result, html = convert_html(tmp_path, md)
         assert result.ok, result.diagnostics
         assert 'alt="vega-lite diagram"' in html
+
+
+CSV = "month,sales\n1,10\n2,20\n"
+
+
+def data_spec(url, **extra):
+    return json.dumps({"data": {"url": url, **extra}, "mark": "bar",
+                       "encoding": {"x": {"field": "month", "type": "quantitative"}, "y": {"field": "sales", "type": "quantitative"}}})
+
+
+class TestInlineDataFiles:
+    """データ定義の`url`を、ファイルの中身へ置き換える処理（#350）。ファイルを読む関数は、偽物にする。"""
+
+    @staticmethod
+    def load(url):
+        return f"<{url}>", "csv"
+
+    def test_the_url_becomes_values_with_the_detected_format(self):
+        spec = json.loads(data_spec("d/sales.csv"))
+        assert vega_render.inline_data_files(spec, self.load) == 1
+        assert spec["data"] == {"values": "<d/sales.csv>", "format": {"type": "csv"}}
+
+    def test_an_explicit_format_type_wins_and_other_format_keys_are_kept(self):
+        spec = json.loads(data_spec("d/x.csv", format={"type": "tsv", "parse": {"month": "number"}}))
+        vega_render.inline_data_files(spec, self.load)
+        assert spec["data"]["format"] == {"type": "tsv", "parse": {"month": "number"}}
+
+    @pytest.mark.parametrize("spec,count", [
+        ({"layer": [{"data": {"url": "a.csv"}}, {"data": {"url": "b.csv"}}]}, 2),
+        ({"data": [{"name": "t", "url": "a.csv"}, {"name": "u", "values": []}]}, 1),
+        ({"transform": [{"lookup": "k", "from": {"data": {"url": "a.csv"}, "key": "k"}}]}, 1),
+        ({"marks": [{"type": "group", "data": [{"name": "t", "url": "a.csv"}]}]}, 1),
+    ])
+    def test_data_definitions_are_found_wherever_the_spec_nests_them(self, spec, count):
+        assert vega_render.inline_data_files(spec, self.load) == count
+        assert vega_render.find_external_reference(spec) is None
+
+    def test_a_url_outside_a_data_definition_is_left_for_the_check_to_reject(self):
+        spec = {"layer": [{"mark": {"type": "image", "url": "a.png"}}]}
+        assert vega_render.inline_data_files(spec, self.load) == 0
+        with pytest.raises(vega_render.SpecError, match="External resources are not supported"):
+            vega_render.parse_spec(json.dumps(spec), load=self.load)
+
+    @pytest.mark.parametrize("data,message", [
+        ({"url": 3}, "must be a file path"),
+        ({"url": "a.csv", "values": []}, "both 'url' and 'values'"),
+        ({"url": "a.csv", "format": "csv"}, "'format'"),
+    ])
+    def test_malformed_definitions_are_rejected(self, data, message):
+        with pytest.raises(vega_render.SpecError, match=message):
+            vega_render.parse_spec(json.dumps({"data": data}), load=self.load)
+
+
+class TestDataFiles:
+    """ローカルのデータファイルの参照（#350）。読める範囲（プロジェクトのルートの中）と、キャッシュ・更新の検知を確かめる。"""
+
+    @pytest.fixture
+    def project(self, tmp_path):
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data" / "sales.csv").write_bytes(CSV.encode("utf-8"))   # 改行を変換しない
+        return tmp_path
+
+    def render(self, project, url, name="doc.md", **extra):
+        md = project / name
+        md.write_text("# T\n\n```vega-lite\n" + data_spec(url, **extra) + "\n```\n", encoding="utf-8")
+        result = render_html(str(md), plugins={"mermaid": False, "plantuml": False, "d2": False})
+        return result
+
+    def error_detail(self, result):
+        assert not result.ok
+        return [d for d in result.diagnostics if d.severity == "error"][0].detail
+
+    def test_a_csv_file_is_inlined_and_sent_to_the_renderer(self, project, fake_page):
+        result = self.render(project, "data/sales.csv")
+        assert result.ok, result.diagnostics
+        sent = fake_page.calls[0][1][1]
+        assert sent["data"] == {"values": CSV, "format": {"type": "csv"}}
+        assert str(project / "data" / "sales.csv") in result.dependencies   # 保存し直すと、Viewerが更新する
+
+    def test_a_json_and_a_tsv_file_get_their_own_format(self, project, fake_page):
+        (project / "data" / "a.json").write_text('[{"month": 1, "sales": 1}]', encoding="utf-8")
+        (project / "data" / "b.tsv").write_text("month" + chr(9) + "sales" + chr(10) + "1" + chr(9) + "2" + chr(10), encoding="utf-8")
+        assert self.render(project, "data/a.json").ok and self.render(project, "data/b.tsv").ok
+        assert [c[1][1]["data"]["format"]["type"] for c in fake_page.calls] == ["json", "tsv"]
+
+    def test_changing_the_file_redraws_and_leaving_it_reuses_the_cache(self, project, fake_page):
+        assert self.render(project, "data/sales.csv").ok
+        assert self.render(project, "data/sales.csv").ok
+        assert len(fake_page.calls) == 1
+        (project / "data" / "sales.csv").write_text(CSV + "3,30" + chr(10), encoding="utf-8")
+        assert self.render(project, "data/sales.csv").ok
+        assert len(fake_page.calls) == 2
+
+    @pytest.mark.parametrize("url,message", [
+        ("http://example.com/x.csv", "External URLs are not supported"),
+        ("https://example.com/x.csv", "External URLs are not supported"),
+        ("file:///etc/x.csv", "External URLs are not supported"),
+        ("//example.com/x.csv", "External URLs are not supported"),
+        ("/etc/x.csv", "Absolute paths are not allowed"),
+        ("C:/x.csv", "Absolute paths are not allowed"),
+        ("../outside.csv", "outside the project"),
+        ("data/notes.txt", "Unsupported data file type"),
+        ("data/missing.csv", "Data file not found"),
+    ])
+    def test_unsafe_or_unusable_references_fail_before_touching_the_browser(self, project, fake_page, url, message):
+        assert message in self.error_detail(self.render(project, url))
+        assert fake_page.calls == []
+
+    def test_the_error_points_at_the_fence_line(self, project, fake_page):
+        result = self.render(project, "nope/x.csv")
+        error = [d for d in result.diagnostics if d.severity == "error"][0]
+        assert error.line == 3 and error.message == "Vega-Lite diagram failed to render"
+
+    def test_a_file_that_is_too_large_or_not_utf8_is_rejected(self, project, fake_page, monkeypatch):
+        (project / "data" / "sjis.csv").write_bytes("月,売上".encode("cp932"))
+        assert "not UTF-8" in self.error_detail(self.render(project, "data/sjis.csv"))
+        monkeypatch.setattr(vega_render, "MAX_DATA_BYTES", 4)
+        assert "too large" in self.error_detail(self.render(project, "data/sales.csv"))
+        assert fake_page.calls == []
+
+    def test_a_symlink_pointing_outside_the_project_is_rejected(self, project, tmp_path_factory, fake_page):
+        outside = tmp_path_factory.mktemp("outside") / "secret.csv"
+        outside.write_text(CSV, encoding="utf-8")
+        link = project / "data" / "link.csv"
+        try:
+            link.symlink_to(outside)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks are not available")
+        assert "outside the project" in self.error_detail(self.render(project, "data/link.csv"))
+
+    def test_the_pdf_side_resolves_the_same_way(self, project, fake_page):
+        renderer = TypstRenderer(str(project), typst_root=str(project), line_mapping="off")
+        renderer.current_dir = str(project / "docs")
+        assert renderer._vega_svg_path("vega-lite", data_spec("../data/sales.csv")) is not None
+        with pytest.raises(SystemExit):
+            renderer._vega_svg_path("vega-lite", data_spec("../../x.csv"))
 
 
 def _has_browser():
@@ -212,3 +348,19 @@ class TestRealBrowser:
                 page.evaluate(vega_render.RENDER_SCRIPT, ["vega-lite", spec])
         finally:
             browser.close()
+
+
+@pytest.mark.skipif(not _has_browser(), reason="needs playwright and a system Chrome/Edge")
+def test_a_csv_file_is_rendered_with_the_real_browser(tmp_path):
+    """CSVを埋め込んだ仕様が、実際に描画される（数値・日付の型の判定は、Vega自身が行う。#350）。"""
+    (tmp_path / "sales.csv").write_bytes(b"date,sales" + bytes([10]) + b"2026-01-01,10" + bytes([10]) + b"2026-02-01,300" + bytes([10]))
+    spec = {"data": {"url": "sales.csv"}, "mark": "line",
+            "encoding": {"x": {"field": "date", "type": "temporal"},
+                         "y": {"field": "sales", "type": "quantitative", "scale": {"type": "log"}}}}
+    md = tmp_path / "doc.md"
+    md.write_text("```vega-lite" + chr(10) + json.dumps(spec) + chr(10) + "```" + chr(10), encoding="utf-8")
+    result = render_html(str(md), plugins={"mermaid": False, "plantuml": False, "d2": False})
+    assert result.ok, result.diagnostics
+    svg_path = next((tmp_path / ".text-compositor" / "cache").glob("vega-lite_*.svg"))
+    svg = svg_path.read_text(encoding="utf-8")
+    assert "<path" in svg and "300" in svg   # 折れ線と、y軸の値
