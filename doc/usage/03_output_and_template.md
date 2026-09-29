@@ -30,6 +30,24 @@ template:
 
 独自テンプレートの書き方は「独自テンプレートを使う」の章を参照してください。
 
+# 単一のMarkdownを、configなしでPDFにする
+
+`config.yaml`を書かずに、1つのMarkdownを、試しにPDFにできます（[#179](https://github.com/tokudiro/text-compositor/issues/179)）。
+
+```bash
+text-compositor note.md                      # note.md と同じフォルダに note.pdf
+text-compositor note.md -o out/report.pdf    # 出力先を指定
+text-compositor note.md -o out/              # フォルダを指定すると、out/note.pdf
+text-compositor note.md -t slide             # テンプレート（template・slide・paper、または .typ のパス）
+```
+
+- 表紙は出さず、先頭の見出しも、そのまま本文に残ります。タイトルは、ファイル名です（Python APIと同じ規則です）。
+- 画像などの相対パスは、Markdownファイルの場所が基準です。`-o`・`-t`の相対パスは、カレントディレクトリが基準です。
+- 原稿の隣に、作業用の`.text-compositor/`（図表のキャッシュ・中間ファイル）を作ります。書き込めない場所の原稿は、エラーになります。
+- 出力先に同名のPDFがあれば、確認なしで上書きします。
+- 併用できるのは、`-q`・`-v`・`--keep-temp`だけです。`--config`・`--config-list`・`--watch`・`--if-changed`・`--clean`・`--check-env`とは、併用できません。用紙・向きなどの設定は、`config.yaml`か、Markdownの先頭のfront-matterで指定します。
+- 複数のファイルやフォルダを、まとめて指定することは、できません（章の順序を、`config.yaml`の`chapters`で決めます）。
+
 # 複数PDFをまとめて出力する
 
 `text-compositor` は「1 `config.yaml` = 1 PDF」が基本の単位です。複数のPDFが必要な場合は、`--config-list` にconfigファイルのパスを1行1件で列挙したテキストファイルを渡します。
