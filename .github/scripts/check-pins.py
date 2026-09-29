@@ -39,6 +39,8 @@ def read_pins():
     common = read("text_compositor/templates/_common.typ")
     pins = {
         "Mermaid": find(deps, r"npm/mermaid@([\d.]+)/"),
+        "Vega": find(deps, r"npm/vega@([\d.]+)/"),
+        "Vega-Lite": find(deps, r"npm/vega-lite@([\d.]+)/"),
         "PlantUML": find(deps, r"download/v([\d.]+)/plantuml-mit"),
         "D2": find(deps, r'D2_RELEASE = "v([\d.]+)"'),
         "Structurizr CLI": find(deps, r'STRUCTURIZR_CLI_RELEASE = "v([\d.]+)"'),
@@ -147,6 +149,8 @@ def latest_versions(pins):
     """部品名 -> (最新版, 注記) または、取得に失敗したときは、例外を値にして返す。"""
     fetchers = {
         "Mermaid": lambda: (latest_npm("mermaid"), ""),
+        "Vega": lambda: (latest_npm("vega"), ""),
+        "Vega-Lite": lambda: (latest_npm("vega-lite"), ""),
         "PlantUML": lambda: (latest_github_release("plantuml/plantuml", "v"), ""),
         "D2": lambda: (latest_github_release("d2lang/d2", "v"), ""),
         "Structurizr CLI": lambda: (latest_github_release("structurizr/cli", "v"), ""),

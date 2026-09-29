@@ -10,8 +10,8 @@ import sys
 import subprocess
 import hashlib
 import tempfile
-from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim
-from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
+from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render
+from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
 from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
@@ -79,6 +79,8 @@ class DiagramMixin:
             return self._render_pikchr(code, width, height)
         elif lang in cetz_render.KINDS:
             return self._render_figure(lang, code, width, height)
+        elif lang in vega_render.LANGS:
+            return self._render_vega(lang, code, width, height)
         return self._render_graphviz(lang, code, width, height)
 
     def _render_diagram_or_image_match(self, m):
@@ -264,6 +266,59 @@ class DiagramMixin:
         # ルート絶対パス（--root 起点の "/..." 形式）にして、どこから呼んでも解決できるようにする。
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
+
+    def _render_vega(self, lang, code, width=None, height=None):
+        """```vega-lite・```vegaフェンス（JSONの仕様）を、ヘッドレスブラウザ上のVega・Vega-LiteでSVG化し、Typstのimage呼び出しに
+        変換する（#211）。外部APIへの通信は行わず、ローカルのブラウザで完結させる。plugins.vega: falseなら、素のコード表示にする。"""
+        svg_path = self._vega_svg_path(lang, code)
+        if svg_path is None:
+            return f"```{lang}\n{code}```\n\n"
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _vega_svg_path(self, lang, code, line=None):
+        """```vega-lite・```vegaの図のSVG（キャッシュ）のパスを返す。無ければ、ヘッドレスブラウザで描画して作る。
+        plugins.vega: falseなら、何も作らずNoneを返す（呼び出し側が、素のコード表示にフォールバックする）。
+        仕様は、描画の前に検査する（vega_render.parse_spec）。JSONの誤りと、外部リソースの参照（`url`）は、Fail-fastでエラーにする。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行（分かる場合）。"""
+        label = vega_render.LABELS[lang]
+        if not self.vega_enabled:
+            if not self._vega_disabled_warned:
+                _log_info(f"plugins.vega is disabled; leaving ```vega-lite / ```vega fences as plain code (first seen in {self.current_file}).")
+                self._vega_disabled_warned = True
+            return None
+
+        try:
+            spec = vega_render.parse_spec(code)
+        except vega_render.SpecError as e:
+            self._diagram_error(label, str(e), line)
+            sys.exit(1)
+
+        # 固定済みJS（vega・vega-lite）のSHA256を、バージョンとして使う（どちらかが変われば、別キーになる）。
+        version = f"{VEGA_JS_SHA256}:{VEGA_LITE_JS_SHA256}:v1"
+        svg_path, digest = self._diagram_cache_path(lang, version, code)
+
+        if not os.path.exists(svg_path):
+            if host_renderers._mermaid_host_renderer:
+                # ViewerのElectronは、まだVegaを描画できない（Pythonのブラウザ（playwright）が無い）。黙って失敗させず、理由を伝える
+                self._diagram_error(label, f"{label} diagrams are not supported in this application yet "
+                                    "(it does not include the headless browser they need).", line)
+                sys.exit(1)
+            _log_info(f"Rendering {label} diagram via headless browser -> {os.path.basename(svg_path)}")
+            try:
+                page = self._mermaid.ensure_vega_page(self.mermaid_enabled, self.mermaid_auto_download)
+                svg = page.evaluate(vega_render.RENDER_SCRIPT, [lang, spec])
+            except Exception as e:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
+                message = "\n".join(l for l in str(e).splitlines() if not re.match(r"\s+at ", l))
+                message = re.sub(r"^Page\.evaluate: (Error: )?", "", message)
+                self._diagram_error(label, message, line)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached {label} diagram: {os.path.basename(svg_path)}")
+        return svg_path
 
     def _mermaid_svg_path(self, code, line=None, trim=None):
         """mermaidの図のSVG（キャッシュ）のパスを返す。無ければ、ヘッドレスブラウザで描画して作る。

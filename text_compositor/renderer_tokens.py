@@ -224,7 +224,7 @@ class TokenMixin:
                     # 後ろへ空白区切りでサイズ指定属性を書ける（#82）。
                     parts = info.split(None, 1)
                     lang = parts[0] if parts else ''
-                    if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg', 'd2', 'structurizr', 'pikchr', 'cetz', 'fletcher', 'timeliney'):
+                    if lang in ('mermaid', 'plantuml', 'dot', 'graphviz', 'svg', 'd2', 'structurizr', 'pikchr', 'cetz', 'fletcher', 'timeliney', 'vega-lite', 'vega'):
                         attrs_str = parts[1] if len(parts) > 1 else ''
                         width, height = self._parse_size_attrs(attrs_str)
                         trim = self._parse_trim_attr(attrs_str)
