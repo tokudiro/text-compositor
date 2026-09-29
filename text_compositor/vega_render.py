@@ -37,19 +37,78 @@ def find_external_reference(node, path='$'):
     return None
 
 
-def parse_spec(code):
-    """フェンスの内容（JSON）を、仕様（dict）にして返す。壊れた仕様や、外部参照を含む仕様は、SpecErrorにする。"""
+# データファイルとして読める拡張子と、そのVegaの形式名（#350）。これ以外の拡張子は、読まない（プロジェクトの中の、
+# 別の種類のファイルを、図の入力として取り込まないため）。
+DATA_EXTENSIONS = {'.csv': 'csv', '.tsv': 'tsv', '.json': 'json'}
+# データファイル1つの、大きさの上限（バイト）。原稿のdiffと、描画の時間を、現実的な範囲に保つ。
+MAX_DATA_BYTES = 10 * 1024 * 1024
+
+
+def inline_data_files(spec, load, path='$'):
+    """仕様のデータ定義（`data`キーの下の`url`）を、ファイルの中身に置き換える（#350）。仕様を、その場で書き換える。
+
+    ブラウザには、ファイルを読ませない。ワーカー（Python）が、`load(url)`でファイルを読み、中身の文字列を`values`へ、
+    形式を`format.type`へ入れる。Vega・Vega-Liteは、文字列の`values`を、`format`に従って、自分で解釈する
+    （CSVの数値の型の判定も、そのまま働く。実測済み）。そのため、描画側のloader（すべて拒否）は、緩めない。
+    `load(url)`は、`(文字列, 形式名)`を返し、置き換えられない`url`は、SpecErrorにする。
+    `data`の外の`url`（`image`マークなど）は、置き換えず、後段の検査（find_external_reference）が止める。
+    戻り値: 置き換えたデータ定義の数。"""
+    count = 0
+    if isinstance(spec, dict):
+        for key, value in spec.items():
+            if key in _INLINE_DATA_KEYS:
+                continue
+            if key == 'data':
+                definitions = [value] if isinstance(value, dict) else value if isinstance(value, list) else []
+                for index, definition in enumerate(definitions):
+                    if isinstance(definition, dict) and 'url' in definition:
+                        where = f"{path}.data" if isinstance(value, dict) else f"{path}.data[{index}]"
+                        _inline_one(definition, load, where)
+                        count += 1
+            count += inline_data_files(value, load, f"{path}.{key}")
+    elif isinstance(spec, list):
+        for index, value in enumerate(spec):
+            count += inline_data_files(value, load, f"{path}[{index}]")
+    return count
+
+
+def _inline_one(definition, load, where):
+    url = definition['url']
+    if not isinstance(url, str) or not url:
+        raise SpecError(f"'url' at {where} must be a file path (a string).")
+    if 'values' in definition:
+        raise SpecError(f"{where} has both 'url' and 'values'. Use only one of them.")
+    fmt = definition.get('format')
+    if fmt is not None and not isinstance(fmt, dict):
+        raise SpecError(f"'format' at {where} must be an object.")
+    try:
+        text, detected = load(url)
+    except OSError as e:
+        raise SpecError(f"Cannot read '{url}' (at {where}): {e.strerror or e}") from None
+    del definition['url']
+    definition['values'] = text
+    # 仕様が`format.type`を、明示していれば、それを優先する（例: 拡張子が`.txt`ではなく、拡張子で決まる形式と違うとき）
+    definition.setdefault('format', {}).setdefault('type', detected)
+
+
+def parse_spec(code, load=None):
+    """フェンスの内容（JSON）を、仕様（dict）にして返す。壊れた仕様や、外部参照を含む仕様は、SpecErrorにする。
+    loadを渡すと、データ定義の`url`（ローカルのファイル）を、ファイルの中身に置き換える（inline_data_files。#350）。
+    渡さないときは、`url`は、すべて外部参照として、エラーにする。"""
     try:
         spec = json.loads(code)
     except json.JSONDecodeError as e:
         raise SpecError(f"Invalid JSON: {e.msg} (line {e.lineno}, column {e.colno})") from None
     if not isinstance(spec, dict):
         raise SpecError("The spec must be a JSON object.")
+    if load is not None:
+        inline_data_files(spec, load)
     external = find_external_reference(spec)
     if external:
-        raise SpecError(
-            f"External resources are not supported ('url' at {external}). "
-            "Write the data inline with \"data\": {\"values\": [...]}.")
+        hint = ("Only data files inside the project can be referenced, by 'data.url' with a relative path. "
+                "Image URLs and other external resources are not allowed." if load is not None else
+                "Write the data inline with \"data\": {\"values\": [...]}.")
+        raise SpecError(f"External resources are not supported ('url' at {external}). {hint}")
     return spec
 
 

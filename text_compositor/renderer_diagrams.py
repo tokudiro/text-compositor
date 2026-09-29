@@ -288,15 +288,19 @@ class DiagramMixin:
                 self._vega_disabled_warned = True
             return None
 
+        used_files = []
         try:
-            spec = vega_render.parse_spec(code)
+            spec = vega_render.parse_spec(code, load=self._vega_data_loader(used_files))
         except vega_render.SpecError as e:
             self._diagram_error(label, str(e), line)
             sys.exit(1)
 
         # 固定済みJS（vega・vega-lite）のSHA256を、バージョンとして使う（どちらかが変われば、別キーになる）。
         version = f"{VEGA_JS_SHA256}:{VEGA_LITE_JS_SHA256}:v1"
-        svg_path, digest = self._diagram_cache_path(lang, version, code)
+        # データファイルを読んだときは、その内容のハッシュも、キーに含める（データを変えたら、描き直す。#350）。
+        # 読まなかったときは、キーを変えない（`url`を使わない図の、既存のキャッシュを、無効にしない）。
+        key_code = code + "".join(f"\0{digest}" for _, digest in used_files)
+        svg_path, digest = self._diagram_cache_path(lang, version, key_code)
 
         if not os.path.exists(svg_path):
             host = host_renderers._vega_host_renderer
@@ -322,6 +326,53 @@ class DiagramMixin:
         else:
             _log_verbose(f"Reusing cached {label} diagram: {os.path.basename(svg_path)}")
         return svg_path
+
+    def _vega_data_loader(self, used_files):
+        """Vega・Vega-Liteのデータ定義の`url`を、ファイルの中身にするための関数を返す（#350）。
+        読めるのは、プロジェクトのルート（base_dir）の中にある、`.csv`・`.tsv`・`.json`だけ。相対パスは、原稿の場所が基準
+        （画像と同じ）。外へ出るもの（`../`・絶対パス・シンボリックリンク）と、URLは、失敗クローズにする。
+        画像の参照には、この制限がない。データは、複数の書き手が、原稿の外のファイルを、図へ取り込めないように、より厳しくする。
+        読んだファイルは、used_filesへ`(絶対パス, 内容のSHA256)`で足し、HTMLでは、変更の検知（dependencies）にも加える。"""
+        root = os.path.realpath(self.base_dir)
+        origin = self.current_dir or self.base_dir
+
+        def within_root(path):
+            try:
+                return os.path.commonpath([os.path.normcase(root), os.path.normcase(path)]) == os.path.normcase(root)
+            except ValueError:   # 別のドライブ
+                return False
+
+        def load(url):
+            if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]+:', url) or url.startswith('//'):
+                raise vega_render.SpecError(f"External URLs are not supported: '{url}'. Use a data file inside the project.")
+            if os.path.isabs(url) or url.startswith(('/', '\\')) or re.match(r'^[a-zA-Z]:', url):
+                raise vega_render.SpecError(f"Absolute paths are not allowed: '{url}'. Use a path relative to the manuscript.")
+            ext = os.path.splitext(url)[1].lower()
+            if ext not in vega_render.DATA_EXTENSIONS:
+                raise vega_render.SpecError(
+                    f"Unsupported data file type: '{url}'. Supported: {', '.join(sorted(vega_render.DATA_EXTENSIONS))}.")
+            path = os.path.realpath(os.path.join(origin, url))
+            if not within_root(path):
+                raise vega_render.SpecError(f"The data file is outside the project: '{url}'. Only files inside {root} can be used.")
+            dependencies = getattr(self, 'dependencies', None)
+            if dependencies is not None:
+                dependencies.add(path)   # 無いファイルも入れる（あとから作られたときに、更新できるように。画像と同じ）
+            if not os.path.isfile(path):
+                raise vega_render.SpecError(f"Data file not found: {path}")
+            size = os.path.getsize(path)
+            if size > vega_render.MAX_DATA_BYTES:
+                raise vega_render.SpecError(
+                    f"The data file is too large: '{url}' ({size / 1048576:.1f} MB; the limit is {vega_render.MAX_DATA_BYTES // 1048576} MB).")
+            with open(path, 'rb') as f:
+                raw = f.read()
+            try:
+                text = raw.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                raise vega_render.SpecError(f"The data file is not UTF-8: '{url}'.") from None
+            used_files.append((path, hashlib.sha256(raw).hexdigest()))
+            return text, vega_render.DATA_EXTENSIONS[ext]
+
+        return load
 
     def _mermaid_svg_path(self, code, line=None, trim=None):
         """mermaidの図のSVG（キャッシュ）のパスを返す。無ければ、ヘッドレスブラウザで描画して作る。
