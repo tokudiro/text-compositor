@@ -174,6 +174,16 @@ This generates `sample/SampleDocument.pdf`. Two more samples show other template
 
 The core feature implemented so far is combining multiple files into a single PDF according to the config file specified via `--config` (or auto-detected). Expanding CLI options (e.g., overriding the output path) is still in the planning stage. See [GitHub Issues](https://github.com/tokudiro/text-compositor/issues) for known issues and upcoming plans.
 
+## Policy for adding diagram notations
+
+This tool is free for commercial use, runs locally, and puts no restrictions on the people who use it (see chapter 2 of [doc/spec.md](doc/spec.md)). A diagram tool or notation is therefore **not** added when it has one of these:
+
+- **A strong license constraint.** Strong copyleft such as GPL or AGPL, a watermark or credit that must stay in the output, a fee, or a usage limit.
+- **A heavy runtime.** It needs Docker or a similar container, or a large runtime that most users do not have.
+- **An external service.** It sends the manuscript to a server.
+
+Candidates that fail these checks are closed as "not planned" on [GitHub Issues](https://github.com/tokudiro/text-compositor/issues), with the reason recorded.
+
 ## License
 
 [MIT License](LICENSE)
