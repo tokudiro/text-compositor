@@ -71,7 +71,9 @@ jobs:
 
 `--if-changed` は、出力PDFの更新日時を、入力・config・テンプレートと比較して、生成をスキップします。`actions/checkout` は、全ファイルの更新日時を取得した時刻にするため、`--if-changed` を付けるだけでは、CIでは常に再生成されます。出力先を `actions/cache` で復元する運用が必要です。ただし、復元したPDFの更新日時も復元した時刻になるため、`checkout` より後に復元しないと、スキップされません。実際にスキップされるかは、運用する環境での確認が必要です（本ツールでは未検証）。
 
-## Mermaidを使う場合の注意
+## MermaidとVega-Lite・Vegaを使う場合の注意
+
+`vega-lite`・`vega`のフェンスも、Mermaidと同じブラウザ（playwright）で描くため、必要なもの（`pip install`・ブラウザ）は、Mermaidと共通です。以下の説明は、両方に当てはまります。
 
 `plugins.mermaid: true`のプロジェクトでは、クローン方式なら`pip install playwright==1.63.0`を追加で実行する（`requirements.txt`には含まれない。任意依存のため）。pipインストール方式なら`pip install "text-compositor[mermaid]"`でまとめて入る。ブラウザは前述のとおりランナー標準搭載のChromeを再利用するため、Node.jsのインストールは不要。
 
@@ -83,6 +85,8 @@ jobs:
 ```
 
 Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）は初回ビルド時にOS標準のユーザーキャッシュディレクトリ（Linuxランナーでは`~/.cache/text-compositor/`）へダウンロードされる。`actions/checkout`は毎回新規チェックアウトのため、このキャッシュは引き継がれない。ただし、サイズが小さいため実用上は都度取得でも問題にならない。
+
+Vega・Vega-Liteの単一バンドルJS（`vega.min.js`・`vega-lite.min.js`、合わせて約772KB）も、`vega-lite`・`vega`のフェンスを初めて描くときに、同じユーザーキャッシュのフォルダへダウンロードされる（版とSHA256を固定して検証する）。キャッシュが引き継がれない点と、サイズが小さく、都度取得でも問題にならない点は、`mermaid.min.js`と同じ。`data.url`で読むデータファイルは、リポジトリの中のファイルを読むだけで、ネットワークには出ない。このツールのCI（`test.yml`）は、Vega・Mermaidを実際のブラウザで描くテストを、`ubuntu-latest`で毎回動かしている。
 
 ## D2を使う場合の注意
 
