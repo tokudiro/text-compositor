@@ -215,3 +215,46 @@ window.addEventListener('mouseover', (event) => {
   lastLine = line;
   ipcRenderer.send('content-line', line);
 }, true);
+
+// -- リンク先の表示（#362） --------------------------------------------------------------
+// リンクにマウスを乗せたとき、飛び先を、画面の左下に出す（Chromeのステータスバブルと同じ）。表示する文字列は、
+// メインプロセスが作る（相対リンクは、原稿のフォルダを基準にした場所にするため）。ここは、乗せた・離れたを伝え、返ってきた文字列を描く。
+let hoveredHref = null;
+let bubble = null;
+
+function ensureBubble() {
+  if (bubble && bubble.isConnected) return bubble;
+  bubble = document.createElement('div');
+  bubble.id = 'tc-link-bubble';
+  bubble.style.cssText = 'position:fixed;left:0;bottom:0;z-index:2147483647;max-width:70%;padding:2px 8px;'
+    + 'font:12px/1.5 system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;'
+    + 'border:1px solid #d0d7de;border-left:0;border-bottom:0;border-radius:0 6px 0 0;background:#f6f8fa;color:#1f2328;display:none;';
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    bubble.style.background = '#161b22'; bubble.style.color = '#e6edf3'; bubble.style.borderColor = '#30363d';
+  }
+  document.documentElement.appendChild(bubble);
+  return bubble;
+}
+
+window.addEventListener('mouseover', (event) => {
+  const href = event.target instanceof Element ? event.target.closest('a[href]')?.getAttribute('href') ?? null : null;
+  if (href === hoveredHref) return;
+  hoveredHref = href;
+  if (href === null && bubble) bubble.style.display = 'none';
+  else ipcRenderer.send('link-hover', href);
+}, true);
+
+// ウィンドウの外へ出たときは、mouseoverが来ないため、ここで消す
+window.addEventListener('mouseout', (event) => {
+  if (event.relatedTarget !== null) return;
+  hoveredHref = null;
+  if (bubble) bubble.style.display = 'none';
+}, true);
+
+ipcRenderer.on('link-hover-text', (_event, text) => {
+  if (hoveredHref === null || !text) { if (bubble) bubble.style.display = 'none'; return; }
+  const element = ensureBubble();
+  element.textContent = text;
+  element.title = text;
+  element.style.display = 'block';
+});
