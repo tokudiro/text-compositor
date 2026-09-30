@@ -11,6 +11,7 @@ import html
 import re
 from typing import Optional
 
+from text_compositor.fonts import fonts_signature
 from text_compositor.graphviz_render import compiler_for, wrapper_digest
 from text_compositor.typst_runtime import typst_lib
 
@@ -37,7 +38,7 @@ class PikchrRenderError(Exception):
 
 def cache_version() -> str:
     """図のSVGのキャッシュキーに入れる、描画環境の版。kip・Typst・上のTypstコードのどれかが変われば、別のキーになる。"""
-    return f"kip{KIP_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}"
+    return f"kip{KIP_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}{fonts_signature()}"
 
 
 _PANIC_RE = re.compile(r'Pikchr error:\s*(.*)', re.DOTALL)

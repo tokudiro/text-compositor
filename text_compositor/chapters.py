@@ -3,6 +3,7 @@ import os
 import sys
 import json
 from collections import namedtuple
+from text_compositor.fonts import warn_missing_glyphs
 from text_compositor.config import _resolve_project_image_path, yaml
 from text_compositor.document import _page_set_fragment
 from text_compositor.log import _error, _warn
@@ -229,6 +230,7 @@ def _render_markdown_chapter(ch_dict, ch_file, inputs_dir, renderer, current_lan
 
     with open(md_path, "r", encoding="utf-8") as f:
         md_text = f.read()
+    warn_missing_glyphs(md_text, md_path)   # フォントに無い文字（□で出る）の警告（#376）
     chapter_typst = renderer.render_chapter(
         md_text, filepath=md_path,
         drop_leading_title=is_first_chapter and cover_mode in ('replace', 'none'))

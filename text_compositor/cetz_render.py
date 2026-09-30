@@ -15,6 +15,7 @@
 import re
 from typing import List, Optional, Tuple
 
+from text_compositor.fonts import fonts_signature
 from text_compositor.graphviz_render import compiler_for, wrapper_digest
 from text_compositor.typst_literal import _typst_multiline_literal
 from text_compositor.typst_runtime import typst_lib
@@ -91,7 +92,7 @@ def cache_version(kind: str) -> str:
         version = f"{TIMELINEY_VERSION}+cetz{TIMELINEY_CETZ_VERSION}"
     else:
         version = f"{FLETCHER_VERSION}+cetz{CETZ_VERSION}"
-    return f"{kind}{version}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPERS[kind])}"
+    return f"{kind}{version}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPERS[kind])}{fonts_signature()}"
 
 
 def _timeliney_source(code_expr: str, width: Optional[str] = None, height: Optional[str] = None) -> str:

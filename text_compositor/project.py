@@ -5,6 +5,7 @@ from text_compositor.changes import _is_up_to_date
 from text_compositor.chapters import ChapterDefaults, _expand_chapters, _parse_chapter_entry, _parse_csv_header, _render_aggregate_chapter, _render_markdown_chapter, _render_section_heading
 from text_compositor.compiler import _compile_and_cleanup
 from text_compositor.config import _load_project_config, _resolve_line_mapping, _resolve_project_dirs, _resolve_variables, find_config_in_cwd
+from text_compositor.fonts import resolve_extra_font_dirs, set_extra_font_dirs
 from text_compositor.document import _build_document_preamble, _build_glossary_section, _page_set_fragment, _prepare_template
 from text_compositor.log import _log_info, _log_verbose
 from text_compositor.renderer import TypstRenderer
@@ -38,6 +39,8 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
         compile（Typstコンパイル・PDFの書き出し・中間ファイルの削除）。
     """
     started = time.perf_counter()
+    # 追加のフォント（config.yamlのfonts.dir。#376）。PDFと、図（Graphviz等）の文字が、これらのフォントも使う。
+    set_extra_font_dirs(resolve_extra_font_dirs(config, project_dir))
     # plugins: Graphviz/PlantUML/Mermaid/D2の有効・無効切り替え（6章、#21、#90）。未指定時は
     # 既存動作を維持する既定値（graphviz/mermaid/plantuml/d2はいずれも常時有効）。
     # *_auto_download は、システムに必要なツール（ブラウザ/Java/D2）が無い場合の振る舞いを制御する
