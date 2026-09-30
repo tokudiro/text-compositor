@@ -1,6 +1,6 @@
 // fit-image・render-graph・callout・render-backgroundは、template.typと同一実装のため_common.typに
 // 置いている（#63）。render-header/render-footerはスライド固有の見た目のため、このファイルに持つ。
-#import "_common.typ": fit-image, render-graph, callout, render-background
+#import "_common.typ": fit-image, render-graph, callout, render-background, meta-date
 
 // 本文ページのヘッダー・フッター（#42）。template.typと同じ関数名でエクスポートし、build.py側が
 // テンプレート種別を意識せず同じ呼び出し方でチャプター単位の上書きを再発行できるようにする。
@@ -56,6 +56,14 @@
   logo: none,
   doc,
 ) = {
+  // PDFのメタデータ（プロパティ）。document:のtitle・subtitle・author・dateを、Title・Subject・Author・作成日に入れる（#317）。
+  // 未指定の項目は、設定しない（Typstの既定のまま）。dateは、YYYY-MM-DDのときだけ、作成日にする。
+  set document(
+    title: if title != none { title } else { auto },
+    description: if subtitle != none { subtitle } else { none },
+    author: if author != none { author } else { () },
+    date: meta-date(date),
+  )
   // フォント設定（CJKフォントは build.py が取得・キャッシュした Noto Sans JP を --font-path 経由で渡す。
   // OSフォントは直接指定しない。Noto Sans JP に無いグリフはTypstが自動でシステムフォントにフォールバックする）
   set text(font: "Noto Sans JP", size: 18pt)

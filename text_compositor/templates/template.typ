@@ -1,7 +1,7 @@
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // _common.typへ切り出した（#63）。build.pyが生成するコードはこのモジュールからも
 // 同じ名前でimportするため、ここで読み込むだけで（再エクスポートされて）そのまま使える。
-#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background
+#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background, meta-date
 
 #let conf(
   title: none,
@@ -23,6 +23,14 @@
   logo: none,
   doc,
 ) = {
+  // PDFのメタデータ（プロパティ）。document:のtitle・subtitle・author・dateを、Title・Subject・Author・作成日に入れる（#317）。
+  // 未指定の項目は、設定しない（Typstの既定のまま）。dateは、YYYY-MM-DDのときだけ、作成日にする。
+  set document(
+    title: if title != none { title } else { auto },
+    description: if subtitle != none { subtitle } else { none },
+    author: if author != none { author } else { () },
+    date: meta-date(date),
+  )
   // フォント設定（CJKフォントは build.py が取得・キャッシュした Noto Sans JP を --font-path 経由で渡す。
   // OSフォントは直接指定しない。Noto Sans JP に無いグリフはTypstが自動でシステムフォントにフォールバックする）
   set text(font: "Noto Sans JP", size: 10.5pt)

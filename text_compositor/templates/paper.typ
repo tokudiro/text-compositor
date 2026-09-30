@@ -5,7 +5,7 @@
 //
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // template.typと同一実装のため_common.typから読み込む（#63）。
-#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background
+#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background, meta-date
 
 #let conf(
   title: none,
@@ -31,6 +31,14 @@
   logo: none,
   doc,
 ) = {
+  // PDFのメタデータ（プロパティ）。document:のtitle・subtitle・author・dateを、Title・Subject・Author・作成日に入れる（#317）。
+  // 未指定の項目は、設定しない（Typstの既定のまま）。dateは、YYYY-MM-DDのときだけ、作成日にする。
+  set document(
+    title: if title != none { title } else { auto },
+    description: if subtitle != none { subtitle } else { none },
+    author: if author != none { author } else { () },
+    date: meta-date(date),
+  )
   set text(font: "Noto Sans JP", size: 10pt)
 
   show raw.where(lang: "dot"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
