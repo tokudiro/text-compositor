@@ -12,6 +12,14 @@ import sys
 import pytest
 
 import text_compositor.build as build_mod
+from text_compositor import log
+
+@pytest.fixture(autouse=True)
+def _restore_verbosity():
+    """`build()`は、-q/-vを、プロセスグローバルへ反映する。他のテストへ、残さない（残すと、後の警告の検査が落ちる）。"""
+    yield
+    log.set_verbosity(False, False)
+
 
 # 本文・見出し・太字・斜体・コード（等幅）・数式・表・Graphviz・SVGの文字を含む、1つの文書。
 # Mermaid・PlantUML・D2は、ブラウザ・Java・外部の実行ファイルが要るため、含めない（PDFに入る文字は、同じ経路のため）。
