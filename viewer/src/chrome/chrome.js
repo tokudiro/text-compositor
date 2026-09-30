@@ -155,6 +155,8 @@ function render(state) {
   $('status').textContent = state.busy ? '' : state.status;
   // 案内は、何も開いていないときだけ。ファイルを開いている最中に、「開いてください」と出さない
   $('empty').hidden = state.hasDocument || state.busy || state.settingsOpen;
+  // 文書をまだ表示していない間（起動・別の文書への切り替え前）に、変換中なら、中央に大きく出す。ツールバーの「変換中…」は小さく、気づきにくい（#369）
+  $('loading').hidden = state.hasDocument || !state.busy || state.settingsOpen;
 
   const showBanner = d.hasError || d.warnings > 0;
   $('banner').hidden = !showBanner;
