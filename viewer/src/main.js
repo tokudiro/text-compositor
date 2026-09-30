@@ -115,11 +115,14 @@ if (!app.requestSingleInstanceLock()) {
     state.settings = loadSettings(settingsFile);
     state.autoReload = state.settings.autoReload;
     applyTheme();
+    const file = targetFromArgv(process.argv, process.cwd());
+    // 起動引数のファイルがあるときは、ウィンドウが出る前から、変換中にしておく。しないと、最初の状態が届くまで、
+    // 空の案内（「ファイルを開く…」）が見えて、開いている最中か分からない（#369）。開けないファイルは、openFileが案内を出す。
+    if (file && checkOpenTarget(path.resolve(file)).ok) state.busy = true;
     createWindow();
     watcher = new FileWatcher({ onChange: onFilesChanged });
     Menu.setApplicationMenu(buildMenu());
     startWorker();
-    const file = targetFromArgv(process.argv, process.cwd());
     if (file) openFile(file);
   });
 }
