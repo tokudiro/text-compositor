@@ -15,7 +15,7 @@ const { NavigationHistory } = require('./history');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
-const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('./targets');
+const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { MermaidHost } = require('./mermaid-host');
@@ -450,7 +450,7 @@ function targetFromArgv(argv, cwd) {
   return fileFromArgv(args, { cwd });
 }
 /** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。 */
-function openFile(file, { targetScrollY = null, historyNav = null } = {}) {
+function openFile(file, { targetScrollY = null, historyNav = null, fragment = null } = {}) {
   const full = path.resolve(file);
   const target = checkOpenTarget(full);
   if (!target.ok) {
@@ -460,7 +460,7 @@ function openFile(file, { targetScrollY = null, historyNav = null } = {}) {
   }
   // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
   if (!historyNav) rememberDirectory(path.dirname(full));
-  queued = { file: full, targetScrollY, historyNav };
+  queued = { file: full, targetScrollY, historyNav, fragment };
   if (!inFlight) void drain();
 }
 
@@ -482,7 +482,7 @@ async function drain() {
     while (queued) {
       const task = queued;
       queued = null;
-      await renderOnce(task.file, task.targetScrollY, task.historyNav);
+      await renderOnce(task.file, task.targetScrollY, task.historyNav, task.fragment);
     }
   } finally {
     inFlight = false;
@@ -495,7 +495,7 @@ function whenIdle() {
   return inFlight ? new Promise((resolve) => idleWaiters.push(resolve)) : Promise.resolve();
 }
 
-async function renderOnce(file, targetScrollY = null, historyNav = null) {
+async function renderOnce(file, targetScrollY = null, historyNav = null, fragment = null) {
   const sameDocument = shown?.md === file;
   state.file = file;
   state.busy = true;
@@ -528,7 +528,7 @@ async function renderOnce(file, targetScrollY = null, historyNav = null) {
   }
   state.diagnostics = summarize(result.diagnostics);
   if (result.ok && result.html) {
-    await showHtml(file, result.html, sameDocument, result.dependencies, targetScrollY);
+    await showHtml(file, result.html, sameDocument, result.dependencies, targetScrollY, fragment);
     // 変換に成功して表示できた段階で、履歴の位置を更新する（#342レビュー指摘）。
     // 失敗したときはインデックスを動かさないため、ロールバックや永続的な食い違いが起きない。
     if (historyNav === 'back') {
@@ -591,7 +591,7 @@ function clock() {
 }
 
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
-async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY = null) {
+async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY = null, fragment = null) {
   const contents = contentView.webContents;
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
@@ -603,6 +603,10 @@ async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY
   await loaded;
   if (targetScrollY !== null && targetScrollY > 0) {
     contents.executeJavaScript(`window.scrollTo(0, ${targetScrollY}); requestAnimationFrame(() => window.scrollTo(0, ${targetScrollY}));`).catch(() => {});
+  }
+  // `other.md#見出し`のリンクで開いたときは、その見出しへ（#361）
+  if (fragment) {
+    contents.executeJavaScript(`document.getElementById(${JSON.stringify(fragment)})?.scrollIntoView()`).catch(() => {});
   }
   shown = { md, html, deps: dependencies };
   if (!state.hasDocument) { state.hasDocument = true; layout(); }
@@ -639,6 +643,12 @@ function handleNavigation(url) {
   const target = classifyNavigation(url);
   if (target.type === 'external') shell.openExternal(target.url);
   else if (target.type === 'open') openFile(target.path);
+}
+
+/** 文書内の相対リンクを、原稿のフォルダを基準に開く（#361）。 */
+function handleRelativeLink(href) {
+  const target = state.file ? resolveRelativeLink(href, state.file) : null;
+  if (target) openFile(target.path, { fragment: target.fragment });
 }
 
 function zoomBy(delta) {
@@ -811,6 +821,7 @@ function buildMenu() {
 ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
+ipcMain.on('open-link', (_event, href) => handleRelativeLink(href));
 ipcMain.on('content-scroll', (_event, scrollY) => {
   if (typeof scrollY === 'number' && Number.isFinite(scrollY)) {
     history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));

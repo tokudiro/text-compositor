@@ -193,6 +193,8 @@ class _TokenRenderer(RendererHTML):
     def heading_open(self, tokens, idx, options, env):
         if self.owner._title is None and idx + 1 < len(tokens) and tokens[idx + 1].type == "inline":
             self.owner._title = tokens[idx + 1].content
+        if idx + 1 < len(tokens) and tokens[idx + 1].type == "inline":
+            tokens[idx].attrSet("id", self.owner._heading_id(tokens[idx + 1].content))
         return self.renderToken(tokens, idx, options, env)
 
     def blockquote_open(self, tokens, idx, options, env):
@@ -274,6 +276,14 @@ class HtmlRenderer(TypstRenderer):
         # 使う（#170）。存在しないファイルも含める（あとから作られたときに、更新できるように）。
         self.dependencies: set = set()
 
+    def _heading_id(self, text: str) -> str:
+        """見出しの`id`（文書内リンク`#見出し`の飛び先）。GitHubと同じ規則: 小文字にし、文字・数字・`_`・`-`・空白だけを残し、
+        空白を`-`にする。同じ見出しが続くときは、`-1`・`-2`を付ける。Obunzuで、`[…](#見出し)`が飛べるようにするため（#361）。"""
+        base = re.sub(r"\s", "-", re.sub(r"[^\w\s-]", "", text.strip().lower())) or "section"
+        count = self._heading_ids.get(base, 0)
+        self._heading_ids[base] = count + 1
+        return base if count == 0 else f"{base}-{count}"
+
     def _abs_line(self, token) -> Optional[int]:
         """トークンの、原稿での行番号（1始まり）。行を持たないトークンは、None。"""
         return token.map[0] + 1 + self._line_base if token.map else None
@@ -288,6 +298,7 @@ class HtmlRenderer(TypstRenderer):
         self.current_dir = os.path.dirname(md_path)
         self.front_matter = {}
         self._title = None
+        self._heading_ids = {}
         self._pagebreaks = 0
         self._line_base = 0
         self.dependencies = set()

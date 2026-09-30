@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { describe, test } = require('node:test');
 
-const { checkOpenTarget, classifyNavigation, fileFromArgv, openDialogDirectory, openDialogFilters } = require('../src/targets');
+const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('../src/targets');
 
 describe('openDialogFilters', () => {
   const filters = openDialogFilters();
@@ -132,5 +132,23 @@ describe('classifyNavigation', () => {
     assert.equal(classifyNavigation('javascript:alert(1)').type, 'ignore');
     assert.equal(classifyNavigation('data:text/html,<b>x</b>').type, 'ignore');
     assert.equal(classifyNavigation('not a url').type, 'ignore');
+  });
+});
+
+describe('resolveRelativeLink', () => {
+  const md = path.resolve('docs', 'a.md');
+
+  test('resolves against the manuscript folder', () => {
+    assert.deepEqual(resolveRelativeLink('other.md', md), { path: path.resolve('docs', 'other.md'), fragment: null });
+    assert.deepEqual(resolveRelativeLink('../x/b.md', md), { path: path.resolve('x', 'b.md'), fragment: null });
+  });
+
+  test('keeps the decoded fragment', () => {
+    assert.equal(resolveRelativeLink('other.md#%E8%A6%8B%E5%87%BA%E3%81%97', md).fragment, '見出し');
+    assert.equal(resolveRelativeLink('other.md#x', md).fragment, 'x');
+  });
+
+  test('leaves anchors and links with a scheme alone', () => {
+    for (const href of ['#sec', 'https://example.com', 'mailto:a@b.c', 'file:///C:/a.md', '', null]) assert.equal(resolveRelativeLink(href, md), null, String(href));
   });
 });

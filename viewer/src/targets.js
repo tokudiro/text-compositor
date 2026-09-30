@@ -3,7 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { fileURLToPath } = require('node:url');
+const { fileURLToPath, pathToFileURL } = require('node:url');
 
 /**
  * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・Text（.txt）。
@@ -111,4 +111,23 @@ function classifyNavigation(url) {
   return { type: 'ignore' };
 }
 
-module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, openDialogFilters, openDialogDirectory };
+/**
+ * 文書内の相対リンク（`other.md`・`../a.md#見出し`）を、原稿のフォルダを基準に解決する（#361）。
+ * 表示中のHTMLは、変換結果の置き場所（`.text-compositor`・アプリの領域）にあり、ブラウザに任せると、そこを基準に解決されてしまう。
+ * スキーム付き（http・file など）と、文書内のアンカー（`#…`）は、ここでは扱わない（null）。
+ * @returns {{path: string, fragment: string|null} | null}
+ */
+function resolveRelativeLink(href, markdownFile) {
+  if (typeof href !== 'string' || !href || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return null;
+  let parsed;
+  try { parsed = new URL(href, pathToFileURL(markdownFile)); } catch { return null; }
+  let file;
+  try { file = fileURLToPath(parsed); } catch { return null; }
+  let fragment = null;
+  if (parsed.hash.length > 1) {
+    try { fragment = decodeURIComponent(parsed.hash.slice(1)); } catch { fragment = parsed.hash.slice(1); }
+  }
+  return { path: file, fragment };
+}
+
+module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, resolveRelativeLink, openDialogFilters, openDialogDirectory };

@@ -15,6 +15,17 @@ window.addEventListener('drop', (event) => {
   if (file) ipcRenderer.send('open-path', webUtils.getPathForFile(file));
 }, true);
 
+// 相対パスのリンク（`other.md`）は、ブラウザに解決させない。表示中のHTMLは、変換結果の置き場所にあり、原稿の隣の
+// ファイルに届かないため、属性の値をそのままメインプロセスへ渡し、原稿のフォルダを基準に解決してもらう（#361）。
+// スキーム付きのリンクと、文書内のアンカー（`#…`）は、これまでどおり（前者はwill-navigate、後者はブラウザ）。
+window.addEventListener('click', (event) => {
+  if (event.button !== 0 || !(event.target instanceof Element)) return;
+  const href = event.target.closest('a[href]')?.getAttribute('href');
+  if (!href || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
+  event.preventDefault();
+  ipcRenderer.send('open-link', href);
+}, true);
+
 // スクロール位置をメインプロセスへ伝える（#330）。
 // 画面遷移時に非同期IPCで問い合わせると、openFileのキュー順序が崩れる（#342レビュー指摘）。
 // スクロール時に最新の位置をメインプロセスへ送っておき、キュー処理は同期のまま保つ。
