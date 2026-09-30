@@ -2,6 +2,8 @@
 // リンク先の表示（#362）。ホバーで下方に出す文字列と、右クリックのメニューの項目を、Electronなしで作る。
 // 相対リンクは、ブラウザに任せると、変換結果の置き場所（キャッシュ）が基準になる。ここでは、原稿のフォルダを基準にした場所を示す（#361）。
 
+const path = require('node:path');
+
 const { resolveRelativeLink } = require('./targets');
 
 /**
@@ -42,4 +44,13 @@ function buildLinkContextMenuTemplate({ href, markdownFile, onCopy, onOpen }) {
   ];
 }
 
-module.exports = { describeLink, linkAtPointScript, buildLinkContextMenuTemplate };
+/**
+ * 見出しのリンク（#337）としてコピーする文字列。`ファイル名#見出しのid`（フォルダは付けない）。別の文書から`[…](ファイル名#見出し)`と
+ * 書けば、隣のファイルの見出しへ飛べる（#361）。idが空のときは、null。
+ */
+function headingLinkRef(file, id) {
+  if (typeof id !== 'string' || !id || !file) return null;
+  return `${path.basename(file)}#${id}`;
+}
+
+module.exports = { describeLink, linkAtPointScript, buildLinkContextMenuTemplate, headingLinkRef };

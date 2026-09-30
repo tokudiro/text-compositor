@@ -18,7 +18,7 @@ const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSetti
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
-const { buildLinkContextMenuTemplate, describeLink, linkAtPointScript } = require('./link-info');
+const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
 const { VegaHost } = require('./vega-host');
 const { cacheRoot, cacheUsage, clearCache, workLocation } = require('./workdir');
@@ -185,7 +185,7 @@ function createWindow() {
   // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
   contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url); });
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
-  contents.on('did-finish-load', () => { contents.setZoomLevel(zoomLevel); resetLine(); sendLineIndicator(); });
+  contents.on('did-finish-load', () => { contents.setZoomLevel(zoomLevel); resetLine(); sendLineIndicator(); sendContentFeatures(); });
   contents.on('context-menu', (_event, params) => { void handleContextMenu(params); });
 
   if (saved.maximized) win.maximize();
@@ -367,6 +367,15 @@ function leaveSettings() {
 }
 
 /** 行番号の表示（#328）の、オン・オフを、内容のビューへ伝える。オンのときだけ、プリロードが、乗せたブロックの行を送ってくる。 */
+/** 見出しのリンク（#337）・コードのコピーボタン（#336）の、オン・オフを、内容のビューへ伝える。表示・操作は、プリロードが行う。 */
+function sendContentFeatures() {
+  if (!contentView || contentView.webContents.isDestroyed()) return;
+  contentView.webContents.send('content-features', {
+    headingAnchor: state.settings.showHeadingAnchor,
+    codeCopy: state.settings.showCodeCopy,
+  });
+}
+
 function sendLineIndicator() {
   if (contentView && !contentView.webContents.isDestroyed()) contentView.webContents.send('line-indicator', state.settings.showLineNumber);
 }
@@ -387,6 +396,7 @@ function changeSetting(key, value) {
   if (key === 'theme') applyTheme();
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') { resetLine(); sendLineIndicator(); }
+  if (key === 'showHeadingAnchor' || key === 'showCodeCopy') sendContentFeatures();
   saveSettings(settingsFile, state.settings);
   layout();
   push();
@@ -855,6 +865,17 @@ ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
 ipcMain.on('open-link', (_event, href) => handleRelativeLink(href));
+// 内容のビューの、見出しの「#」・コードの「コピー」（#337・#336）。クリップボードへの書き込みは、こちらで行う
+ipcMain.on('copy-heading-link', (event, id) => {
+  if (event.sender !== contentView?.webContents || !state.settings.showHeadingAnchor || !state.file) return;
+  const text = headingLinkRef(state.file, id);
+  if (text) clipboard.writeText(text);
+});
+const COPY_CODE_MAX = 5 * 1024 * 1024;   // 巨大なコードでも、メモリを使い切らないための上限（超えたら、コピーしない）
+ipcMain.on('copy-code', (event, text) => {
+  if (event.sender !== contentView?.webContents || !state.settings.showCodeCopy) return;
+  if (typeof text === 'string' && text.length <= COPY_CODE_MAX) clipboard.writeText(text);
+});
 // ホバー中のリンクの飛び先を、内容のビューの下方に出す（#362）。表示する文字列は、こちらで作り、送り返す
 ipcMain.on('link-hover', (event, href) => {
   event.sender.send('link-hover-text', describeLink(href, state.file));
