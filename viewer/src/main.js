@@ -18,6 +18,7 @@ const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSetti
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
+const { buildLinkContextMenuTemplate, describeLink, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
 const { VegaHost } = require('./vega-host');
 const { cacheRoot, cacheUsage, clearCache, workLocation } = require('./workdir');
@@ -702,9 +703,34 @@ async function lineAtPoint(params) {
   }
 }
 
+/** 右クリックした位置のリンクの、href属性の値（#362）。リンクの外では、null。 */
+async function linkAtPoint(params) {
+  try {
+    const href = await contentView.webContents.executeJavaScript(
+      linkAtPointScript(params.x, params.y, contentView.webContents.getZoomFactor()));
+    return typeof href === 'string' && href ? href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 「リンクを開く」。文書内のアンカーは、その見出しへスクロールし、相対リンク・外部リンクは、クリックと同じ扱いにする。 */
+function openLink(href) {
+  if (href.startsWith('#')) {
+    let id = href.slice(1);
+    try { id = decodeURIComponent(id); } catch { /* そのまま使う */ }
+    contentView.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.scrollIntoView()`).catch(() => {});
+  } else if (resolveRelativeLink(href, state.file ?? '')) {
+    handleRelativeLink(href);
+  } else {
+    handleNavigation(href);
+  }
+}
+
 /**
- * 内容のビューの右クリックのメニュー。項目は、次の2種類で、両方あれば、区切り線で分ける。
+ * 内容のビューの右クリックのメニュー。項目は、次の3種類で、両方あれば、区切り線で分ける。
  *   - 画像の保存（#327）
+ *   - リンクを開く・リンクのアドレスをコピー（#362）
  *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
  *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
  */
@@ -713,6 +739,13 @@ async function handleContextMenu(params) {
   if (params.mediaType === 'image' && params.srcURL) {
     template.push(...buildImageContextMenuTemplate(params, {
       onSave: (p, format) => void saveImageFromContextMenu(p, format),
+    }));
+  }
+  const href = await linkAtPoint(params);
+  if (href !== null) {
+    if (template.length) template.push({ type: 'separator' });
+    template.push(...buildLinkContextMenuTemplate({
+      href, markdownFile: state.file, onCopy: (text) => clipboard.writeText(text), onOpen: openLink,
     }));
   }
   if (state.settings.showLineNumber && state.file) {
@@ -822,6 +855,10 @@ ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
 ipcMain.on('open-link', (_event, href) => handleRelativeLink(href));
+// ホバー中のリンクの飛び先を、内容のビューの下方に出す（#362）。表示する文字列は、こちらで作り、送り返す
+ipcMain.on('link-hover', (event, href) => {
+  event.sender.send('link-hover-text', describeLink(href, state.file));
+});
 ipcMain.on('content-scroll', (_event, scrollY) => {
   if (typeof scrollY === 'number' && Number.isFinite(scrollY)) {
     history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
