@@ -1,0 +1,14 @@
+[package]
+name = "native-blitz"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+base64 = "0.22"
+blitz = { version = "0.3.0-beta.2", features = ["scrollbars"] }
+# blitzは、blitz-domの既定の機能を切っている。フォント・SVG・浮動要素は、ここで有効にする
+blitz-dom = { version = "=0.3.0-beta.2", default-features = false, features = ["system-fonts", "svg", "woff", "floats"] }
+blitz-paint = { version = "=0.3.0-beta.2", features = ["svg"] }
+
+[profile.release]
+opt-level = 3

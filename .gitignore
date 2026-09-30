@@ -24,6 +24,8 @@ benchmarks/gui-startup/pdfium/
 benchmarks/html-view/wv2/bin/
 benchmarks/html-view/wv2/obj/
 benchmarks/html-view/wry/target/
+benchmarks/html-view/blitz/target/
+benchmarks/html-view/blitz/measure-results.csv
 
 # 作業用の一時ファイル置き場
 temp/
