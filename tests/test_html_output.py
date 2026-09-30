@@ -69,6 +69,11 @@ def messages(result, severity):
 
 
 class TestApi:
+    def test_headings_get_github_style_ids_for_in_document_links(self, tmp_path):
+        # 文書内リンク[…](#見出し)の飛び先（#361）。重複には-1・-2を付ける
+        _, html = convert(tmp_path, "# Hello, World!\n\n## 日本語 見出し\n\n## Hello, World!\n")
+        assert 'id="hello-world"' in html and 'id="日本語-見出し"' in html and 'id="hello-world-1"' in html
+
     def test_writes_a_standalone_document_next_to_the_markdown(self, tmp_path):
         result, html = convert(tmp_path, "# 見出し\n\n本文。\n")
         assert isinstance(result, HtmlResult)
@@ -76,7 +81,7 @@ class TestApi:
         assert result.html_path == str(tmp_path / ".text-compositor" / "preview.html")
         assert html.startswith("<!DOCTYPE html>")
         assert "<title>見出し</title>" in html
-        assert '<h1 data-line="1">見出し</h1>' in html
+        assert '<h1 data-line="1" id="見出し">見出し</h1>' in html
         assert "<script" not in html
         # スクリプトは、ブラウザ側でも禁止する（Viewerは、JavaScriptを有効にしたビューで開く）
         assert "script-src 'none'" in html and "object-src 'none'" in html
