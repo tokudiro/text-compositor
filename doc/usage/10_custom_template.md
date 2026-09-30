@@ -76,6 +76,8 @@ conf(title:, subtitle:, author:, date:, paper_size:, landscape:,
      graphviz:, header:, footer:, paginate:, background:, logo:, doc)
 ```
 
+**PDFのプロパティ（#317）**: `title`・`subtitle`・`author`・`date`を、PDFのタイトル・サブジェクト・作成者・作成日にするには、`conf()`の中で、`set document(title: ..., description: ..., author: ..., date: ...)`を書く。同梱のテンプレート（`template.typ`・`paper.typ`・`slide.typ`）は、`_common.typ`の`meta-date`（`YYYY-MM-DD`の文字列を`datetime`にする）を使って、書いている。書かないテンプレートは、プロパティに入らない（ビルドは、失敗しない）。
+
 ## conf() の任意引数
 
 以下は`config.yaml`側で明示指定したときだけ`conf()`へ渡される。未指定なら引数自体を渡さないため、テンプレートが持たなくても即座には壊れない（そのテンプレートを使う人が該当のconfig.yamlキーを使わない限り安全）。

@@ -107,3 +107,12 @@
 } else {
   none
 }
+
+// PDFのメタデータ（#317）用: 日付（document.date）の文字列を、datetimeにする。YYYY-MM-DD（例: 2026-08-14）だけを解釈し、
+// それ以外（自由な文字列・未指定）は、autoにする（Typstが、ビルドの日時を入れる。従来どおり）。
+#let meta-date(d) = if type(d) == str {
+  let m = d.trim().match(regex("^(\d{4})-(\d{2})-(\d{2})$"))
+  if m != none {
+    datetime(year: int(m.captures.at(0)), month: int(m.captures.at(1)), day: int(m.captures.at(2)))
+  } else { auto }
+} else { auto }
