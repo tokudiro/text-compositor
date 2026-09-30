@@ -23,6 +23,23 @@ const FEATURES = Object.freeze([
     on: '出す',
     off: '出さない',
   }),
+  Object.freeze({
+    key: 'showHeadingAnchor',
+    default: true,   // ホバーしたときだけ出す、小さな表示のため、既定は「出す」（#337）
+    label: '見出しのリンク',
+    description: '見出しにマウスを乗せると、右に「#」が出ます。クリックすると、その見出しへのリンク（check.md#見出し）をコピーします。'
+      + '別の文書から[…](check.md#見出し)と書くと、Obunzuで、その見出しへ飛べます。',
+    on: '出す',
+    off: '出さない',
+  }),
+  Object.freeze({
+    key: 'showCodeCopy',
+    default: true,   // ホバーしたときだけ出す、小さな表示のため、既定は「出す」（#336）
+    label: 'コードのコピーボタン',
+    description: 'コードブロックにマウスを乗せると、右上に「コピー」が出ます。クリックすると、コードの内容（フェンスの中身）をコピーします。',
+    on: '出す',
+    off: '出さない',
+  }),
 ]);
 
 const DEFAULTS = Object.freeze({

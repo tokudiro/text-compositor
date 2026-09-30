@@ -61,3 +61,18 @@ describe('linkAtPointScript', () => {
     assert.equal(linkAtPointScript(undefined, undefined), 'null');
   });
 });
+
+describe('headingLinkRef', () => {
+  test('is the file name (without the folder) and the heading id', () => {
+    const { headingLinkRef } = require('../src/link-info');
+    assert.equal(headingLinkRef(path.resolve('docs', 'note.md'), '見出し'), 'note.md#見出し');
+    assert.equal(headingLinkRef('check.md', 'a-1'), 'check.md#a-1');
+  });
+
+  test('is null when there is no id or no file', () => {
+    const { headingLinkRef } = require('../src/link-info');
+    assert.equal(headingLinkRef('check.md', ''), null);
+    assert.equal(headingLinkRef('check.md', undefined), null);
+    assert.equal(headingLinkRef(null, 'a'), null);
+  });
+});

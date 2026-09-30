@@ -116,7 +116,8 @@ function collectTextNodes() {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!parent || !node.nodeValue) return NodeFilter.FILTER_REJECT;
-      if (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.closest('svg')) return NodeFilter.FILTER_REJECT;
+      // 見出しの「#」・コードの「コピー」（#337・#336）は、原稿の文字ではない。検索の対象から外す
+      if (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.closest('svg, .tc-ui')) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
@@ -257,4 +258,93 @@ ipcRenderer.on('link-hover-text', (_event, text) => {
   element.textContent = text;
   element.title = text;
   element.style.display = 'block';
+});
+
+// -- 見出しのリンク（#337）・コードのコピーボタン（#336） ------------------------------------
+// ホバーしたときだけ出す、小さな部品。文書のHTMLは、script-src 'none'でスクリプトを持てないため、プリロードが、
+// 表示中のDOMへ足す。足した要素は`tc-ui`クラスで印を付け、検索の対象から外す（「#」「コピー」が、一致しないように）。
+// クリップボードへの書き込みは、メインプロセスが行う（ここは、何をコピーするかを伝えるだけ）。
+const UI_CLASS = 'tc-ui';
+let contentFeatures = { headingAnchor: false, codeCopy: false };
+const flashTimers = new WeakMap();
+
+function ensureUiStyle() {
+  if (document.getElementById('tc-ui-style')) return;
+  const style = document.createElement('style');
+  style.id = 'tc-ui-style';
+  style.textContent = `
+    .tc-ui { user-select: none; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+    .tc-anchor { margin-left: 0.4em; color: #59636e; font-weight: normal; text-decoration: none; }
+    :is(h1, h2, h3, h4, h5, h6):hover > .tc-anchor { opacity: 1; }
+    pre { position: relative; }
+    .tc-copy { position: absolute; top: 6px; right: 6px; padding: 2px 8px; font: 12px/1.5 system-ui, sans-serif;
+      color: #1f2328; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; }
+    pre:hover > .tc-copy { opacity: 1; }
+    @media (prefers-color-scheme: dark) {
+      .tc-anchor { color: #9198a1; }
+      .tc-copy { color: #e6edf3; background: #161b22; border-color: #30363d; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+/** 押した直後だけ、表示を変えて（コピーした合図）、少しして戻す。 */
+function flash(element, doneLabel, restoreLabel) {
+  clearTimeout(flashTimers.get(element));
+  element.textContent = doneLabel;
+  element.style.opacity = '1';
+  flashTimers.set(element, setTimeout(() => { element.textContent = restoreLabel; element.style.opacity = ''; }, 1200));
+}
+
+function makeUi(className, label, title) {
+  const element = document.createElement('span');
+  element.className = `${UI_CLASS} ${className}`;
+  element.textContent = label;
+  element.title = title;
+  element.setAttribute('role', 'button');
+  return element;
+}
+
+/** コードブロックの中身（<pre>の直下のうち、足した部品を除いた文字）。 */
+function codeText(pre) {
+  return Array.from(pre.childNodes).filter((node) => !(node.classList && node.classList.contains(UI_CLASS))).map((node) => node.textContent).join('');
+}
+
+function removeUi() {
+  for (const element of document.querySelectorAll(`.${UI_CLASS}`)) element.remove();
+}
+
+function buildUi() {
+  removeUi();
+  if (!document.body || (!contentFeatures.headingAnchor && !contentFeatures.codeCopy)) return;
+  ensureUiStyle();
+  if (contentFeatures.headingAnchor) {
+    for (const heading of document.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]')) {
+      const anchor = makeUi('tc-anchor', '#', 'この見出しへのリンクをコピー');
+      anchor.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        ipcRenderer.send('copy-heading-link', heading.id);
+        flash(anchor, '✓', '#');
+      });
+      heading.appendChild(anchor);
+    }
+  }
+  if (contentFeatures.codeCopy) {
+    for (const pre of document.querySelectorAll('pre')) {
+      const button = makeUi('tc-copy', 'コピー', 'コードをコピー');
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        ipcRenderer.send('copy-code', codeText(pre));
+        flash(button, 'コピーしました', 'コピー');
+      });
+      pre.appendChild(button);
+    }
+  }
+}
+
+ipcRenderer.on('content-features', (_event, features) => {
+  contentFeatures = { headingAnchor: features?.headingAnchor === true, codeCopy: features?.codeCopy === true };
+  buildUi();
 });
