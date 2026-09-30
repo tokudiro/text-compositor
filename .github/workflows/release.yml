@@ -4,8 +4,9 @@ name: Release
 # そのタグのGitHub Releaseにアセットとして添付する（dogfooding、#31・#24）。
 # 記法ごとのギャラリー（#323）が実際の図を描画するため、PlantUML・D2・Structurizrは、
 # 初回ビルド時に、それぞれのツールを自動取得する（既定でauto_download: true。2章）。
-# Mermaidは、ubuntu-latestに標準搭載のブラウザ（Chrome/Edge）をそのまま使うため、
-# 追加取得は発生しない（doc/usage/12_github_actions.mdの「Mermaidを使う場合の注意」）。
+# Mermaid・Vega-Lite・Vegaは、ubuntu-latestに標準搭載のブラウザ（Chrome/Edge）をそのまま使うため、
+# ブラウザの追加取得は発生しない（描画用のJS、mermaid.min.jsとvega.min.js・vega-lite.min.jsは、初回に取得する。
+# doc/usage/12_github_actions.mdの「MermaidとVega-Lite・Vegaを使う場合の注意」）。
 #
 # doc/usage/12_github_actions.mdで案内している2つの使い方（クローンして直接叩く／
 # pipインストールする、#50・#111・#112）を、それぞれ別ジョブで実際にビルドし、
