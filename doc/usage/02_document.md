@@ -24,18 +24,6 @@
 | `csv_header` | `.csv`の章の1行目を、ヘッダー行にするか。`false`なら、すべての行がデータ行（「Markdownファイルの書き方」の章の「CSVファイル」を参照）。`chapters[]`ごとに上書きできます | `true` |
 | `diagnostics.line_mapping` | Typstコンパイルエラーの行番号をMarkdownの行番号へ対応付ける精度（下記） | `"block"` |
 
-## 用途別の設定早見表
-
-`templates/template.typ`は、ほぼ万能テンプレートです（[独自テンプレートを使う](10_custom_template.md)「いつ新しいテンプレートが要るか」を参照）。文書の種類ごとに、`document:`側の設定だけで大抵まかなえます。
-
-| 用途 | 設定 |
-| --- | --- |
-| 仕様書（表紙・目次あり） | `cover: template` / `toc: true` |
-| 軽量メモ（表紙・目次なし、要点だけ） | 何も指定しない（既定のまま） |
-| テストケースの集約表 | `chapters`に`aggregate:`を指定（「chapters: 章の並び」の章を参照） |
-| 論文・査読レポート（2段組み） | `template.path: paper` / `cover: template` / `abstract`（下記「paper: 2段組みの論文形式」） |
-| マニュアル（注意書きを目立たせたい） | 本文中で`> [!NOTE]`等のalert記法を使う（「Markdownファイルの書き方」の章を参照）。`document:`側の追加設定は不要 |
-
 ## PDFのプロパティ
 
 `title`・`subtitle`・`author`・`date`は、本文（表紙・ヘッダー）だけでなく、PDFのプロパティ（PDFビューアの「文書のプロパティ」・OSのファイルの詳細に出る情報）にも入ります（`template`・`paper`・`slide`の3つのテンプレート）。
@@ -48,6 +36,18 @@
 | `date` | 作成日（`YYYY-MM-DD`の形のときだけ。`2026年8月版`のような自由な文字列は、表紙にだけ出て、作成日は、ビルドした日時のままです） |
 
 独自のテンプレート（`template.path`）は、`conf()`の中で`set document(...)`を書かないと、プロパティには入りません（「独自テンプレート」の章を参照）。
+
+## 用途別の設定早見表
+
+`templates/template.typ`は、ほぼ万能テンプレートです（[独自テンプレートを使う](10_custom_template.md)「いつ新しいテンプレートが要るか」を参照）。文書の種類ごとに、`document:`側の設定だけで大抵まかなえます。
+
+| 用途 | 設定 |
+| --- | --- |
+| 仕様書（表紙・目次あり） | `cover: template` / `toc: true` |
+| 軽量メモ（表紙・目次なし、要点だけ） | 何も指定しない（既定のまま） |
+| テストケースの集約表 | `chapters`に`aggregate:`を指定（「chapters: 章の並び」の章を参照） |
+| 論文・査読レポート（2段組み） | `template.path: paper` / `cover: template` / `abstract`（下記「paper: 2段組みの論文形式」） |
+| マニュアル（注意書きを目立たせたい） | 本文中で`> [!NOTE]`等のalert記法を使う（「Markdownファイルの書き方」の章を参照）。`document:`側の追加設定は不要 |
 
 ### 軽量メモの例
 
