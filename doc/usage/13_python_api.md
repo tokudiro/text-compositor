@@ -72,7 +72,7 @@ python -m text_compositor.worker
 ```
 
 ```json
-{"event": "ready", "protocol": 1, "version": "0.4.2"}
+{"event": "ready", "protocol": 1, "version": "0.4.3"}
 ```
 
 依頼と応答の例です。
