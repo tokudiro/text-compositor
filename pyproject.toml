@@ -36,3 +36,8 @@ packages = ["text_compositor", "text_compositor.templates"]
 
 [tool.setuptools.package-data]
 text_compositor = ["templates/*.typ"]
+
+# 引数なしのpytestが、tests/以外（git管理外のtemp/に置いた他パッケージのテストなど）を
+# 収集して失敗しないようにする（#385）。CIは`pytest tests/`と明示している。
+[tool.pytest.ini_options]
+testpaths = ["tests"]
