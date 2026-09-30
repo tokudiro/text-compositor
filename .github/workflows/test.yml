@@ -63,5 +63,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # 実ブラウザで描画するテスト（Mermaid・Vega-Lite・Vega。tests/test_vega_render.pyのTestRealBrowserなど）は、
+      # playwrightが無いと、スキップされる。ubuntu-latestに標準搭載のブラウザ（Chrome）を再利用するため、ブラウザ自体の
+      # 取得は要らない（版は、pyproject.tomlの`mermaid`エクストラと合わせる）。これで、リリースのワークフロー
+      # （release.ymlのbuild-usage-guide）と同じ、ブラウザによる描画が、通常のCIでも、確かめられる（#359）。
+      - name: Install playwright (for the real-browser tests)
+        run: pip install "playwright==$(grep -oP 'playwright==\K[0-9.]+' pyproject.toml)"
+
       - name: Run tests
         run: pytest tests/
