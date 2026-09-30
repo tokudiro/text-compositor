@@ -10,6 +10,7 @@ Viewerが、HTMLをどう表示するかを決めるための、計測用のコ�
 | `wv2/` | WebView2（.NET 10・WinForms）で表示する最小アプリ |
 | `wry/` | Tauriのホスト層（tao＋wry。Rust）で表示する最小アプリ |
 | `electron/` | Electronで表示する最小アプリ |
+| `blitz/` | JavaScriptを使わないネイティブ描画（Blitz。Rust）の試作（#382）。共通の動作（`loaded`の出力・再読み込み）は、まだ無い。詳細は`blitz/README.md` |
 | `browser/serve.py` | 「ブラウザ＋ローカルサーバ」の参考用のサーバ（採用しない方式） |
 | `measure.ps1` | 自作の候補の、起動・再読み込み・メモリ・プロセス数・待機CPUを測る |
 | `measure-visual.ps1` | 全候補（既存のツールを含む）の、画面が落ち着くまでの時間と、再読み込みのちらつきを、画面のキャプチャで測る |
