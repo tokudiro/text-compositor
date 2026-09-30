@@ -156,6 +156,10 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+  // 起動の各段階の時刻（VIEWER_TRACE=1のときだけ出す）。コールドスタートの遅さの調査用（#372）
+  win.once('show', () => trace('window-shown'));
+  win.once('ready-to-show', () => trace('window-ready-to-show'));
+  win.webContents.once('did-finish-load', () => trace('chrome-loaded'));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'chrome', 'chrome.html'));
