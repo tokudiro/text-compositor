@@ -33,10 +33,16 @@ fn mime_of(path: &Path) -> &'static str {
 // 同じ効果として、純白の色は、反転せず、この色にする
 const DARK_PAGE_BG: (f64, f64, f64) = (13.0 / 255.0, 17.0 / 255.0, 23.0 / 255.0);
 
+// ダークモードの色の変換。純白は、ページの背景色。ほかは、フィルターの計算に、明るさの下限の補正を足す
 fn dark_rgb(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
     if r > 0.999 && g > 0.999 && b > 0.999 {
         return DARK_PAGE_BG;
     }
+    dark_rgb_adjusted(r, g, b)
+}
+
+// CSSの`filter: invert(1) hue-rotate(180deg)`と同じ計算
+fn dark_rgb_filter(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
     // invert(1)
     let (r, g, b) = (1.0 - r, 1.0 - g, 1.0 - b);
     // hue-rotate(180deg)の行列（cos = -1, sin = 0）
@@ -44,6 +50,41 @@ fn dark_rgb(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
     let ng = 0.426 * r + 0.430 * g + 0.144 * b;
     let nb = 0.426 * r + 1.430 * g - 0.856 * b;
     (nr.clamp(0.0, 1.0), ng.clamp(0.0, 1.0), nb.clamp(0.0, 1.0))
+}
+
+fn rgb_to_hsl(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    let d = max - min;
+    if d < 1e-9 {
+        return (0.0, 0.0, l);
+    }
+    let s = d / (1.0 - (2.0 * l - 1.0).abs());
+    let h = if (max - r).abs() < 1e-9 {
+        60.0 * (((g - b) / d) % 6.0)
+    } else if (max - g).abs() < 1e-9 {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    (h.rem_euclid(360.0), s, l)
+}
+
+// マインドマップ・タイムライン・カンバンなどは、明るさが中間の、彩度の高い色（淡い黄・緑・紫）を、節や線に使う。
+// 反転すると、ほぼ黒になり、暗い背景と線が溶けて見えない。そこで、そうした色は、反転の結果の明るさに、下限を設ける
+const DARK_MIN_LIGHTNESS: f64 = 0.30;
+
+fn dark_rgb_adjusted(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
+    let (nr, ng, nb) = dark_rgb_filter(r, g, b);
+    let (_, s0, l0) = rgb_to_hsl(r, g, b);
+    if s0 > 0.5 && (0.5..0.9).contains(&l0) {
+        let (h, s, l) = rgb_to_hsl(nr, ng, nb);
+        if l < DARK_MIN_LIGHTNESS {
+            return hsl_to_rgb(h, s, DARK_MIN_LIGHTNESS);
+        }
+    }
+    (nr, ng, nb)
 }
 
 fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (f64, f64, f64) {
@@ -60,6 +101,34 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (f64, f64, f64) {
     };
     let m = l - c / 2.0;
     (r + m, g + m, b + m)
+}
+
+// Mermaidは、まれに不正な色（例: `hsl(240, 100%, NaN%)`。ポジションマップの点）を出力する。Chromiumは、不正な属性値を
+// 無視して、既定の黒で塗る。Blitzも黒で塗るが、ダークモードの変換（黒→白）の対象にならず、暗い背景に黒い点が残る。
+// そこで、不正な色を、明示的に黒にしておく（ライトでは、Chromiumと同じ見た目。ダークでは、変換で白になる）
+fn fix_invalid_colors(svg: &str) -> String {
+    let mut out = String::with_capacity(svg.len());
+    let mut rest = svg;
+    while let Some(i) = rest.find("hsl(") {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i..];
+        match tail.find(')') {
+            Some(end) if tail[..end].contains("NaN") => {
+                out.push_str("#000000");
+                rest = &tail[end + 1..];
+            }
+            Some(end) => {
+                out.push_str(&tail[..end + 1]);
+                rest = &tail[end + 1..];
+            }
+            None => {
+                out.push_str(tail);
+                rest = "";
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 fn hex_digit_run(s: &str) -> usize {
@@ -177,7 +246,7 @@ fn inline_images(html: &str, dir: &Path, dark: bool) -> String {
                         // 総称のsans-serifの前に、日本語のフォントを足して、見た目を固定する。
                         if mime_of(&p) == "image/svg+xml" {
                             if let Ok(s) = String::from_utf8(bytes.clone()) {
-                                let s = s.replace("sans-serif", "'Noto Sans JP',sans-serif");
+                                let s = fix_invalid_colors(&s.replace("sans-serif", "'Noto Sans JP',sans-serif"));
                                 bytes = if dark { dark_svg(&s) } else { s }.into_bytes();
                             }
                         }
