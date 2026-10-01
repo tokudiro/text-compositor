@@ -26,9 +26,105 @@ fn mime_of(path: &Path) -> &'static str {
     }
 }
 
+// 生成HTMLは、ダークモードで、画像に`filter: invert(1) hue-rotate(180deg)`と`mix-blend-mode: lighten`をかけて、
+// 明るい図を暗い背景になじませる。Blitzは、どちらも描かない。そこで、同じ計算を、SVGの色の値に、読み込み前に適用する
+// （透明な背景は、そのまま透明）。ラスター画像（PNG等）は、変換しない。
+// ダークモードのページの背景色（生成HTMLの`--bg`）。`mix-blend-mode: lighten`は、反転で黒になった背景を、ページの色に溶かす。
+// 同じ効果として、純白の色は、反転せず、この色にする
+const DARK_PAGE_BG: (f64, f64, f64) = (13.0 / 255.0, 17.0 / 255.0, 23.0 / 255.0);
+
+fn dark_rgb(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
+    if r > 0.999 && g > 0.999 && b > 0.999 {
+        return DARK_PAGE_BG;
+    }
+    // invert(1)
+    let (r, g, b) = (1.0 - r, 1.0 - g, 1.0 - b);
+    // hue-rotate(180deg)の行列（cos = -1, sin = 0）
+    let nr = -0.574 * r + 1.430 * g + 0.144 * b;
+    let ng = 0.426 * r + 0.430 * g + 0.144 * b;
+    let nb = 0.426 * r + 1.430 * g - 0.856 * b;
+    (nr.clamp(0.0, 1.0), ng.clamp(0.0, 1.0), nb.clamp(0.0, 1.0))
+}
+
+fn hex_digit_run(s: &str) -> usize {
+    s.bytes().take_while(|c| c.is_ascii_hexdigit()).count()
+}
+
+fn dark_svg(svg: &str) -> String {
+    let mut out = String::with_capacity(svg.len());
+    let mut i = 0;
+    let b = svg.as_bytes();
+    while i < b.len() {
+        let rest = &svg[i..];
+        // #rgb・#rrggbb（#rgba・#rrggbbaaは、アルファを保つ）。`#mermaid-...`のようなIDは、16進数だけでないので、除く
+        if b[i] == b'#' {
+            let n = hex_digit_run(&rest[1..]);
+            let next_is_ident = rest.as_bytes().get(1 + n).map_or(false, |c| c.is_ascii_alphanumeric() || *c == b'-' || *c == b'_');
+            if matches!(n, 3 | 4 | 6 | 8) && !next_is_ident {
+                let h = &rest[1..1 + n];
+                let comp = |k: usize| -> f64 {
+                    let v = if n <= 4 {
+                        u8::from_str_radix(&h[k..k + 1].repeat(2), 16).unwrap_or(0)
+                    } else {
+                        u8::from_str_radix(&h[2 * k..2 * k + 2], 16).unwrap_or(0)
+                    };
+                    v as f64 / 255.0
+                };
+                let (r, g, bl) = dark_rgb(comp(0), comp(1), comp(2));
+                let to8 = |v: f64| (v * 255.0).round() as u8;
+                out.push_str(&format!("#{:02x}{:02x}{:02x}", to8(r), to8(g), to8(bl)));
+                // アルファ（#rgbaは、1桁を2桁に広げる）は、そのまま保つ
+                match n {
+                    4 => out.push_str(&h[3..4].repeat(2)),
+                    8 => out.push_str(&h[6..8]),
+                    _ => {}
+                }
+                i += 1 + n;
+                continue;
+            }
+        }
+        // rgb(r, g, b)・rgba(r, g, b, a)
+        let fun = if rest.starts_with("rgba(") { Some(5) } else if rest.starts_with("rgb(") { Some(4) } else { None };
+        if let Some(skip) = fun {
+            if let Some(end) = rest.find(')') {
+                let parts: Vec<&str> = rest[skip..end].split(',').map(|p| p.trim()).collect();
+                let nums: Option<Vec<f64>> = parts.iter().take(3).map(|p| p.parse::<f64>().ok()).collect();
+                if let (Some(n3), true) = (nums, parts.len() >= 3) {
+                    let (r, g, bl) = dark_rgb(n3[0] / 255.0, n3[1] / 255.0, n3[2] / 255.0);
+                    let alpha = parts.get(3).map(|a| format!(", {a}")).unwrap_or_default();
+                    let name = if skip == 5 { "rgba" } else { "rgb" };
+                    out.push_str(&format!("{name}({}, {}, {}{alpha})", (r * 255.0).round(), (g * 255.0).round(), (bl * 255.0).round()));
+                    i += end + 1;
+                    continue;
+                }
+            }
+        }
+        // 色名（white・black）。値の位置（`:`か`="`の直後）だけ
+        let mut matched = false;
+        for (name, to) in [("white", "#0d1117"), ("black", "#ffffff")] {
+            let after = rest.starts_with(name) && !rest.as_bytes().get(name.len()).map_or(false, |c| c.is_ascii_alphanumeric() || *c == b'-');
+            let before = i > 0 && matches!(b[i - 1], b':' | b'"' | b' ') && (i < 2 || matches!(b[i - 1], b':' | b'"') || b[i - 2] == b':');
+            if after && before {
+                out.push_str(to);
+                i += name.len();
+                matched = true;
+                break;
+            }
+        }
+        if matched {
+            continue;
+        }
+        // 1文字進める（UTF-8の境界を守る）
+        let ch = rest.chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
 // Blitz 0.3.0-beta.2のfile://読み込みは、Windowsで"/C:/..."というパスをそのまま開こうとして失敗する。
 // 回避として、<img src="相対パス">を、読み込み前にデータURIへ置き換える。
-fn inline_images(html: &str, dir: &Path) -> String {
+fn inline_images(html: &str, dir: &Path, dark: bool) -> String {
     let mut out = String::with_capacity(html.len());
     let mut rest = html;
     while let Some(i) = rest.find("<img ") {
@@ -48,7 +144,8 @@ fn inline_images(html: &str, dir: &Path) -> String {
                         // 総称のsans-serifの前に、日本語のフォントを足して、見た目を固定する。
                         if mime_of(&p) == "image/svg+xml" {
                             if let Ok(s) = String::from_utf8(bytes.clone()) {
-                                bytes = s.replace("sans-serif", "'Noto Sans JP',sans-serif").into_bytes();
+                                let s = s.replace("sans-serif", "'Noto Sans JP',sans-serif");
+                                bytes = if dark { dark_svg(&s) } else { s }.into_bytes();
                             }
                         }
                         let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
@@ -131,14 +228,8 @@ fn main() {
     let abs = std::fs::canonicalize(&path).expect("no such file");
     let dir = abs.parent().unwrap().to_path_buf();
     let html = std::fs::read_to_string(&abs).expect("read failed");
-    let html = inline_images(&html, &dir);
-    // 生成HTMLは、ダークモードで画像に`filter: invert(1)`と`mix-blend-mode`を使うが、Blitzはどちらも描かない。
-    // そのままだと、図の暗い文字・矢印が、暗い背景に載って読めない。回避として、画像に白い背景を足す
-    let html = html.replacen(
-        "</head>",
-        "<style>@media (prefers-color-scheme: dark) { img { background: #fff; border-radius: 4px; } }</style></head>",
-        1,
-    );
+    let html = inline_images(&html, &dir, dark);
+
     eprintln!("[trace] html read + images inlined: {:?}", t0.elapsed());
     // 読み込めなかった相対URLが残っても異常終了しないよう、基準URLを与える
     let base = format!("file:///{}/", dir.to_string_lossy().trim_start_matches(r"\\?\").replace('\\', "/"));
