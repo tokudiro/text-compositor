@@ -9,6 +9,7 @@ import re
 from typing import List, Optional, Tuple
 
 from text_compositor.deps import _user_cache_dir, ensure_fonts
+from text_compositor.fonts import font_paths, fonts_signature
 from text_compositor.typst_runtime import typst_lib, typst_package_options
 
 # 使うdiagraphの版。`templates/_common.typ`の`@preview/diagraph:...`・`viewer/scripts/build-dist.js`と、同じ値にする
@@ -38,7 +39,7 @@ def wrapper_digest(wrapper: str) -> str:
 
 def cache_version() -> str:
     """図のSVGのキャッシュキーに入れる、描画環境の版。diagraph・Typst・上のTypstコードのどれかが変われば、別のキーになる。"""
-    return f"diagraph{DIAGRAPH_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}"
+    return f"diagraph{DIAGRAPH_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}{fonts_signature()}"
 
 
 # Compiler（フォントの読み込みを含む準備は、初回だけ約40〜60 ms。以後は、図1つ14〜59 ms）を、使い回す。
@@ -64,10 +65,11 @@ def compiler_for(wrapper: str, kind: str):
     font_dir = ensure_fonts()
     path = wrapper_path(wrapper, kind)
     options = typst_package_options()
-    key = (path, font_dir, tuple(sorted(options.items())))
+    paths = font_paths(font_dir)   # 追加のフォント（#376）も、図の文字に使う
+    key = (path, tuple(paths), tuple(sorted(options.items())))
     compiler = _compilers.get(key)
     if compiler is None:
-        compiler = typst_lib.Compiler(path, root=os.path.dirname(path), font_paths=[font_dir],
+        compiler = typst_lib.Compiler(path, root=os.path.dirname(path), font_paths=paths,
                                       ignore_system_fonts=True, **options)
         _compilers[key] = compiler
     return compiler

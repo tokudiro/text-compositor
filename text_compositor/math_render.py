@@ -6,6 +6,7 @@ LaTeXは、`sys.inputs.latex`で渡す（エスケープが要らず、原稿の
 import re
 from typing import Optional
 
+from text_compositor.fonts import fonts_signature
 from text_compositor.graphviz_render import compiler_for, wrapper_digest
 from text_compositor.typst_runtime import typst_lib
 
@@ -53,7 +54,7 @@ def cache_version(kind: str = KIND_INLINE, display_mode: Optional[bool] = None) 
     if display_mode is not None:
         kind = kind_for(display_mode)
     wrapper = _WRAPPERS[kind]
-    return f"mitex{MITEX_VERSION}+{kind}+typst{typst_lib.__version__}+w{wrapper_digest(wrapper)}"
+    return f"mitex{MITEX_VERSION}+{kind}+typst{typst_lib.__version__}+w{wrapper_digest(wrapper)}{fonts_signature()}"
 
 
 def render_svg(latex: str, kind: str = KIND_INLINE, display_mode: Optional[bool] = None) -> str:

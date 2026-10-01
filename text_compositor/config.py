@@ -16,7 +16,7 @@ except ImportError:
 # しまう（Quartoの「設定がどこに効くか分からない」失敗と同じ、#308）。ここに定義する許可キー一覧は、
 # 各モジュールが実際に`config.get(...)`で読んでいるキーと一致させること（新しいキーを追加したら、
 # ここにも追加する）。
-_ALLOWED_TOP_LEVEL_KEYS = {"document", "output", "template", "inputs", "chapters", "plugins", "variables"}
+_ALLOWED_TOP_LEVEL_KEYS = {"document", "output", "template", "inputs", "chapters", "plugins", "variables", "fonts"}
 _ALLOWED_DOCUMENT_KEYS = {
     "title", "subtitle", "author", "date", "diagnostics", "landscape", "paper_size",
     "table_header", "header", "footer", "paginate", "background", "logo", "cover",
@@ -26,6 +26,7 @@ _ALLOWED_DOCUMENT_KEYS = {
 _ALLOWED_OUTPUT_KEYS = {"filename", "dir"}
 _ALLOWED_TEMPLATE_KEYS = {"path"}
 _ALLOWED_INPUTS_KEYS = {"dir", "files"}
+_ALLOWED_FONTS_KEYS = {"dir"}   # 追加のフォントのフォルダ（#376）
 # project.py/api.py/env_check.pyが読む、plugins:配下の許可キー一覧（issue #309本題）。
 _ALLOWED_PLUGINS_KEYS = {
     "graphviz", "mermaid", "mermaid_auto_download", "plantuml", "plantuml_auto_download",
@@ -60,6 +61,10 @@ def _validate_config_keys(loaded):
     _collect_unknown_keys(loaded.get("template"), _ALLOWED_TEMPLATE_KEYS, "template", errors)
     _collect_unknown_keys(loaded.get("inputs"), _ALLOWED_INPUTS_KEYS, "inputs", errors)
     _collect_unknown_keys(loaded.get("plugins"), _ALLOWED_PLUGINS_KEYS, "plugins", errors)
+    _collect_unknown_keys(loaded.get("fonts"), _ALLOWED_FONTS_KEYS, "fonts", errors)
+    fonts_dir = (loaded.get("fonts") or {}).get("dir") if isinstance(loaded.get("fonts"), dict) else None
+    if fonts_dir is not None and not (isinstance(fonts_dir, str) or (isinstance(fonts_dir, list) and all(isinstance(d, str) for d in fonts_dir))):
+        errors.append("fonts.dir: must be a folder name, or a list of folder names.")
     if errors:
         for message in errors:
             _error(message)

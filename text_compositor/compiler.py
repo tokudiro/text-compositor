@@ -9,6 +9,7 @@ from text_compositor.document import COMMON_TEMPLATE_NAME
 from text_compositor.env_check import _check_typst_env
 from text_compositor.log import _error, _hint, _log_info, _log_success, _warn
 from text_compositor.renderer import TypstRenderer
+from text_compositor.fonts import font_paths
 from text_compositor.typst_runtime import TYPST_PACKAGES_ENV, typst_lib, typst_package_options  # noqa: F401（テスト・ベンチマークが、ここから参照する）
 
 # `typst`の遅延読み込みと、同梱パッケージの置き場所は、typst_runtime.py（HTML出力のGraphvizと共有。#264）。
@@ -90,10 +91,10 @@ def _compile_with_reused_compiler(temp_typ_path, out_pdf, typst_root, font_dir, 
     コンパイラは、(コンパイル対象, --root, フォント)ごとに作り、compiler_cacheへ残す。同じ
     temp_build.typを毎回書き換えてコンパイルしても、内容の変更は反映される（実測）。コンパイル自体は、
     毎回`typst.compile()`を呼ぶ場合の約23 msが、約7 msになる。"""
-    key = (temp_typ_path, typst_root, font_dir)
+    key = (temp_typ_path, typst_root, tuple(font_paths(font_dir)))
     compiler = compiler_cache.get(key)
     if compiler is None:
-        compiler = typst_lib.Compiler(temp_typ_path, root=typst_root, font_paths=[font_dir],
+        compiler = typst_lib.Compiler(temp_typ_path, root=typst_root, font_paths=font_paths(font_dir),
                                        ignore_system_fonts=True, **typst_package_options())
         compiler_cache[key] = compiler
     pdf_bytes, warnings = compiler.compile_with_warnings(format="pdf")
@@ -131,7 +132,7 @@ def _compile_and_cleanup(typst_code, work_dir, outputs_dir, config, typst_root, 
         # 「明示性優先」方針に合わせ、フォントを変えたい場合は独自テンプレート（template.path）で
         # 対応する）。
         if compiler_cache is None:
-            typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=[font_dir],
+            typst_lib.compile(temp_typ_path, output=out_pdf, root=typst_root, font_paths=font_paths(font_dir),
                                ignore_system_fonts=True, **typst_package_options())
         else:
             _compile_with_reused_compiler(temp_typ_path, out_pdf, typst_root, font_dir, compiler_cache, src_map)
