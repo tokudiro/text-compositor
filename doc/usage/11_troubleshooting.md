@@ -9,6 +9,7 @@
 | `'typst-exec' is allowed only under a 'reviewed/' directory` | `typst-exec`ブロックを `reviewed/` 配下以外のファイルで使った |
 | `The 'playwright' package is required for mermaid rendering` | Mermaid図があるのに`playwright`パッケージが未インストール（`pip install playwright==1.63.0`） |
 | `No system Chrome/Edge found` | Mermaid図があるのにChrome/Edgeが未インストール |
+| `N Hangul character(s) are not in any font, so the PDF shows an empty box`（ハングル・漢字・絵文字） | その文字を持つフォントが無く、PDFでは空の四角（□）になる。その文字を持つフォントを、`fonts.dir`で指定したフォルダに置く（[plugins: 図表プラグインの有効・無効](04_plugins_and_inputs.md)の「fonts」） |
 
 ## PDFが更新されない
 
