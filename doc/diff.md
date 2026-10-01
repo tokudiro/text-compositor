@@ -99,7 +99,7 @@ No tool in this table combines breadth with auto-fetch while also avoiding exter
 
 It's worth asking directly: if this workflow is genuinely useful, why hasn't some general-purpose tool already covered it? Four factors seem to explain the gap.
 
-**1. The enabler itself is new.** Before Typst, the realistic choices for programmatic PDF generation were LaTeX (a large, complex-to-distribute toolchain) or a heavy HTML→PDF pipeline riding on a bundled Chromium (the approach Marp and Vivliostyle both take, compared earlier in this document). Bundling `diagraph`/`kip`/`cetz`/`fletcher`/`timeliney` as lightweight WASM/Typst packages, with no external runtime required, was not a realistic option until Typst existed as a compile target.
+**1. The enabler itself is new.** Before Typst, the realistic choices for programmatic PDF generation were LaTeX (a large, complex-to-distribute toolchain) or a heavy HTML→PDF pipeline riding on a bundled Chromium (the approach Marp and Vivliostyle both take, compared earlier in this document). Bundling `diagraph`/`kip`/`cetz`/`fletcher`/`timeliney`/`finite` as lightweight WASM/Typst packages, with no external runtime required, was not a realistic option until Typst existed as a compile target.
 
 **2. "The tool fetches what it needs, pinned and cached, without asking the user to install anything" is itself a fairly recent UX norm.** AsciiDoc, Sphinx, and LaTeX were all designed 10-20 years ago, when "of course you install Graphviz or a JDK yourself" was the unremarkable default. The expectation that a tool resolves its own dependencies on first run is closer to the norm that spread later, once `npx`-style tools became common.
 

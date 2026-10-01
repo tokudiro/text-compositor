@@ -1,4 +1,4 @@
-"""CeTZ・Fletcher・timeliney（Typstのパッケージ。cetz_render.py・図のフェンスの変換、#236・#294）のテスト。"""
+"""CeTZ・Fletcher・timeliney・finite（Typstのパッケージ。cetz_render.py・図のフェンスの変換、#236・#294・#292）のテスト。"""
 import os
 import re
 
@@ -15,6 +15,7 @@ PLAIN = {"mermaid": False, "plantuml": False, "d2": False, "graphviz": False}
 CETZ = 'circle((0, 0), radius: 1)\nline((0, 0), (2, 1))\ncontent((1, 0.5), [日本語])'
 FLETCHER = 'node((0, 0), [開始]), edge("->"), node((1, 0), [終了])'
 TIMELINEY = 'headerline(group(([*2024*], 2)))\ntaskgroup(title: [日本語], {\n  task("A", (0, 1))\n})'
+FINITE = '(\n  q0: (q0: "0", q1: "1"),\n  q1: (q0: "1"),\n),\ninitial: "q0",\nfinal: ("q1",)'
 
 
 def _read(relative):
@@ -30,6 +31,8 @@ def test_the_versions_are_the_same_in_the_source_and_the_bundle():
     assert ("fletcher", cetz_render.FLETCHER_VERSION) in bundled
     assert ("timeliney", cetz_render.TIMELINEY_VERSION) in bundled
     assert ("cetz", cetz_render.TIMELINEY_CETZ_VERSION) in bundled
+    assert ("finite", cetz_render.FINITE_VERSION) in bundled
+    assert ("cetz", cetz_render.FINITE_CETZ_VERSION) in bundled
 
 
 class TestCheckCode:
@@ -80,6 +83,13 @@ class TestRender:
     def test_timeliney_becomes_an_svg(self):
         assert render_svg("timeliney", TIMELINEY).startswith("<svg")
 
+    def test_finite_becomes_an_svg(self):
+        assert render_svg("finite", FINITE).startswith("<svg")
+
+    def test_finite_scope_has_the_layouts(self):
+        """`layout.circular`など、finiteの配置を使える（Typstの`layout`関数は、eval内でだけ隠される）。"""
+        assert render_svg("finite", FINITE + ",\nlayout: layout.circular").startswith("<svg")
+
     def test_the_compiler_is_reused_and_a_later_figure_is_not_a_leftover(self):
         first = render_svg("cetz", "circle((0, 0))")
         assert render_svg("cetz", "circle((0, 0))\nline((0, 0), (3, 3))") != first
@@ -104,6 +114,7 @@ class TestRender:
         ("fletcher", 'node((0, 0), read("x"))'),
         ("fletcher", 'node((0, 0), std.plugin("x"))'),
         ("timeliney", 'task(str(read("x")), (0, 1))'),
+        ("finite", '(q0: (q1: str(read("x")))),\ninitial: "q0"'),
     ])
     def test_functions_that_read_files_are_denied_with_a_clear_message(self, kind, code):
         with pytest.raises(FigureRenderError) as e:
@@ -127,7 +138,7 @@ def _html(tmp_path, text, name="doc.md", plugins=PLAIN):
 
 
 class TestHtmlOutput:
-    @pytest.mark.parametrize("lang, code", [("cetz", CETZ), ("fletcher", FLETCHER), ("timeliney", TIMELINEY)])
+    @pytest.mark.parametrize("lang, code", [("cetz", CETZ), ("fletcher", FLETCHER), ("timeliney", TIMELINEY), ("finite", FINITE)])
     def test_a_fence_becomes_a_cached_svg_img(self, tmp_path, lang, code):
         result, html = _html(tmp_path, f'a\n\n```{lang} {{width=300pt}}\n{code}\n```\n')
         assert result.ok and not result.warnings
@@ -154,7 +165,7 @@ class TestHtmlOutput:
         assert not result.ok and "is not available" in result.errors[0].detail
         assert "TOP-SECRET" not in html
 
-    @pytest.mark.parametrize("lang", ["cetz", "fletcher", "timeliney"])
+    @pytest.mark.parametrize("lang", ["cetz", "fletcher", "timeliney", "finite"])
     def test_the_plugin_setting_falls_back_to_a_code_block_without_a_warning(self, tmp_path, lang):
         result, html = _html(tmp_path, f'```{lang}\nnode((0, 0), [x])\n```\n', plugins={**PLAIN, lang: False})
         assert result.ok and f'class="language-{lang}"' in html and not result.warnings
@@ -186,6 +197,17 @@ class TestPdfCode:
         assert f'import "@preview/timeliney:{cetz_render.TIMELINEY_VERSION}"' in code
         assert 'timeliney.timeline(show-grid: true, { eval(' in code
         assert 'eval("headerline(group' in code
+
+    def test_finite_wraps_the_code_in_automaton(self):
+        code = self._render(f'```finite\n{FINITE}\n```\n')
+        assert f'import "@preview/finite:{cetz_render.FINITE_VERSION}"' in code
+        assert 'eval("automaton(\\n" + ' in code
+        assert "layout: finite.layout" in code
+        assert "measure(fig)" in code   # cetz・fletcherと同じ、自動縮小の経路
+
+    def test_a_size_attribute_on_finite_scales_to_that_size(self):
+        code = self._render(f'```finite {{width=50%}}\n{FINITE}\n```\n')
+        assert "50 * 1% * size.width" in code
 
     def test_the_file_reading_functions_are_denied_in_the_generated_code(self):
         code = self._render('```cetz\ncircle((0, 0))\n```\n')
@@ -228,7 +250,7 @@ def test_a_pdf_with_both_figures_is_built(tmp_path):
     md.write_text(f'# 図\n\n```cetz\n{CETZ}\n```\n\n```fletcher\n{FLETCHER}\n```\n\n```timeliney\n{TIMELINEY}\n```\n\n'
                   '```cetz {width=5cm}\ncircle((0, 0))\n```\n\n```fletcher {width=50% height=3cm}\n'
                   'node((0, 0), [A]), edge("->"), node((1, 0), [B])\n```\n\n```timeliney {width=10cm}\n'
-                  f'{TIMELINEY}\n```\n', encoding="utf-8")
+                  f'{TIMELINEY}\n```\n\n```finite\n{FINITE}\n```\n\n```finite {{width=6cm}}\n{FINITE}\n```\n', encoding="utf-8")
     result = build_markdown(str(md), str(tmp_path / "doc.pdf"))
     assert result.ok, [(e.message, e.detail) for e in result.errors]
     assert (tmp_path / "doc.pdf").read_bytes().startswith(b"%PDF")

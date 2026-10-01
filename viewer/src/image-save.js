@@ -64,7 +64,7 @@ function isHexHash(str) {
 function isDiagramCacheBasename(basename) {
   const stem = basename.replace(/\.[^.]+$/, '');
   if (isHexHash(stem)) return true;
-  if (/^(mermaid|plantuml|d2|graphviz|pikchr|svg|cetz|fletcher|timeliney)_[0-9a-f]{8,}$/i.test(stem)) return true;
+  if (/^(mermaid|plantuml|d2|graphviz|pikchr|svg|cetz|fletcher|timeliney|finite)_[0-9a-f]{8,}$/i.test(stem)) return true;
   return false;
 }
 

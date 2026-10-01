@@ -1,4 +1,4 @@
-"""図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・Structurizr・svg）の描画と、図のSVGのキャッシュ。
+"""図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Structurizr・svg）の描画と、図のSVGのキャッシュ。
 
 `TypstRenderer`（renderer.py）に、ミックスインとして取り込まれる。状態（`self`の属性）は、`TypstRenderer`と共有する（#225）。
 """
@@ -41,7 +41,7 @@ _JAVA_UTF8_ENCODING_OPTS = [
 
 
 class DiagramMixin:
-    """図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・svg）の描画と、図のSVGのキャッシュ。"""
+    """図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・svg）の描画と、図のSVGのキャッシュ。"""
 
     def _render_graphviz(self, lang, code, width=None, height=None):
         """```dot/```graphvizフェンスの内容をTypstコードへ変換する。width/height未指定時は
@@ -59,7 +59,7 @@ class DiagramMixin:
         return f'#align(center)[#render-graph("{escaped}"{width_arg}{height_arg})]\n\n'
 
     def _render_diagram_fence(self, lang, code, width=None, height=None, trim=None):
-        """```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```svgフェンスの内容をTypstコードへ
+        """```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```svgフェンスの内容をTypstコードへ
         変換する。通常のMarkdownフロー（render_tokens）とlayout-right/layout-compareブロックの
         双方から共通で呼べるようにした処理（#77）。width/height（#82）が指定された場合、
         mermaid/plantuml/svg/d2は自動縮小（fit-image）をバイパスして直接そのサイズで埋め込み、
@@ -118,10 +118,10 @@ class DiagramMixin:
                 '}]\n\n')
 
     def _render_figure(self, kind, code, width=None, height=None):
-        """```cetz・```fletcher・```timelineyフェンスの内容を、Typstのcetz・fletcher・timelineyで描くコードへ変換する（#236・#294）。
+        """```cetz・```fletcher・```timeliney・```finiteフェンスの内容を、Typstのcetz・fletcher・timeliney・finiteで描くコードへ変換する（#236・#294・#292）。
         原稿のコードは、`eval`へ文字列として渡し、ファイルを読む関数と`import`・`include`を禁じる（cetz_render.pyの先頭を参照）。
         `import`・`include`は、生成の前に検出して、Fail-fastでエラーにする。
-        plugins.cetz・plugins.fletcher・plugins.timeliney: falseなら、素のコード表示にする。
+        plugins.cetz・plugins.fletcher・plugins.timeliney・plugins.finite: falseなら、素のコード表示にする。
         テンプレートの補助関数にしない（`_render_pikchr`と同じ理由: カスタムテンプレートを壊さないため）。"""
         if not self.figure_enabled[kind]:
             return self._render_raw_text(code, kind)
@@ -479,13 +479,13 @@ class DiagramMixin:
         return svg_path
 
     def _figure_svg_path(self, kind, code, line=None, code_line=None):
-        """CeTZ・Fletcher・timelineyの図のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージで作る（#236・#294）。PDFと同じ経路。
+        """CeTZ・Fletcher・timeliney・finiteの図のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージで作る（#236・#294・#292）。PDFと同じ経路。
         line: 失敗したときの診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。
         Typstのエラーは、`eval`の中の位置を含まないため、行は、`import`・`include`の検出（コードの中の行が分かる）を除き、フェンスの行にする。"""
         label = cetz_render.LABELS[kind]
         try:
             version = cetz_render.cache_version(kind)
-        except ImportError as e:   # typstが入っていない（HTML出力のCeTZ・Fletcher・timelineyは、Typstを通す）
+        except ImportError as e:   # typstが入っていない（HTML出力のCeTZ・Fletcher・timeliney・finiteは、Typstを通す）
             self._diagram_error(label, str(e), line)
             sys.exit(1)
         svg_path, _ = self._diagram_cache_path(kind, version, code)

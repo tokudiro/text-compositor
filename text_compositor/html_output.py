@@ -40,7 +40,7 @@ PAGE_ONLY_KEYS = ('paper_size', 'landscape', 'header', 'footer', 'paginate', 'fo
 ALERT_TITLES = {'note': 'Note', 'tip': 'Tip', 'important': 'Important', 'warning': 'Warning', 'caution': 'Caution'}
 
 # 図として表示するフェンスの言語。dot・graphvizは、Typstのdiagraphで描く（#264。PDFと同じ経路）。
-_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'structurizr', 'svg', 'dot', 'graphviz', 'pikchr', 'cetz', 'fletcher', 'timeliney', 'vega-lite', 'vega')
+_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'structurizr', 'svg', 'dot', 'graphviz', 'pikchr', 'cetz', 'fletcher', 'timeliney', 'finite', 'vega-lite', 'vega')
 _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
@@ -532,7 +532,7 @@ class HtmlRenderer(TypstRenderer):
             return self._pikchr_svg_path(code, line, code_line)
         if lang in vega_render.LANGS:
             return self._vega_svg_path(lang, code, line)
-        if lang in ('cetz', 'fletcher', 'timeliney'):
+        if lang in ('cetz', 'fletcher', 'timeliney', 'finite'):
             if not self.figure_enabled[lang]:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
             return self._figure_svg_path(lang, code, line, code_line)
@@ -791,7 +791,7 @@ class HtmlRenderer(TypstRenderer):
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
         if not match:
             self._error_here(f"'{name}' block in {self.current_file} must contain exactly one "
-                             "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```vega-lite/```vega/```svg fence or a standalone image.")
+                             "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```svg fence or a standalone image.")
             sys.exit(1)
         return match
 
@@ -814,7 +814,7 @@ class HtmlRenderer(TypstRenderer):
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
-                             f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```vega-lite/```vega/```svg fences or images (found {len(matches)}).")
+                             f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```svg fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
         prev_end = 0

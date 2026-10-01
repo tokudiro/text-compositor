@@ -1,4 +1,4 @@
-"""```cetz・```fletcher・```timelineyフェンスを、Typstのパッケージ`cetz`・`fletcher`・`timeliney`で描く（#236・#294）。
+"""```cetz・```fletcher・```timeliney・```finiteフェンスを、Typstのパッケージ`cetz`・`fletcher`・`timeliney`・`finite`で描く（#236・#294・#292）。
 
 原稿に書かれたコードは、Typstのコードである。そのまま実行すると、原稿が、任意のファイルの読み込み（`read`・`import`など）や、
 ネットワーク越しのパッケージの取得をできてしまう。AIが書いた原稿を、レビューなしで入れる事故を防ぐため、コードを、`eval`に
@@ -27,9 +27,12 @@ CETZ_VERSION = "0.5.2"
 FLETCHER_VERSION = "0.5.8"
 TIMELINEY_VERSION = "0.4.0"
 TIMELINEY_CETZ_VERSION = "0.4.1"
+# finite（有限オートマトン。#292）は、内部で、cetz 0.4.2・diagraph-layout・t4t・oxifmtに依存する（4本目のcetzの版になる）。
+FINITE_VERSION = "0.5.1"
+FINITE_CETZ_VERSION = "0.4.2"
 
-KINDS = ("cetz", "fletcher", "timeliney")
-LABELS = {"cetz": "CeTZ", "fletcher": "Fletcher", "timeliney": "timeliney"}
+KINDS = ("cetz", "fletcher", "timeliney", "finite")
+LABELS = {"cetz": "CeTZ", "fletcher": "Fletcher", "timeliney": "timeliney", "finite": "finite"}
 
 # 実行を禁じる関数。呼ぶと、原因の分かるエラー（`panic`）になる。
 _DENIED = ("read", "json", "csv", "yaml", "toml", "xml", "cbor", "eval", "plugin", "bibliography")
@@ -57,6 +60,13 @@ def figure_body(kind: str, code_expr: str) -> str:
                 'taskgroup: timeliney.taskgroup, task: timeliney.task, milestone: timeliney.milestone, '
                 'timeliney: timeliney, ..blocked)\n'
                 f'let fig = timeliney.timeline(show-grid: true, {{ eval({code_expr}, mode: "code", scope: scope) }})\n')
+    if kind == "finite":
+        # finiteは、コードを、`automaton(...)`の引数として書く（遷移表の辞書と、`initial:`・`final:`など）。
+        # fletcherと同じく、改行で挟んで、末尾の行コメントが閉じ括弧を巻き込まないようにする。
+        # `layout`は、finiteの配置（`layout.circular`など）。Typstの`layout`関数を、eval内でだけ隠す（生成コードの外側は、影響を受けない）。
+        return (f'import "@preview/finite:{FINITE_VERSION}" as finite\n{head}'
+                'let scope = (automaton: finite.automaton, layout: finite.layout, finite: finite, ..blocked)\n'
+                f'let fig = eval("automaton(\\n" + {code_expr} + "\\n)", mode: "code", scope: scope)\n')
     # fletcherは、コードを、`diagram(...)`の引数として書く（`node(...)`・`edge(...)`・`spacing: 3em`など）。
     # 末尾の行コメントが、閉じ括弧を巻き込まないように、改行で挟む。
     return (f'import "@preview/fletcher:{FLETCHER_VERSION}" as fletcher: diagram, node, edge\n{head}'
@@ -90,6 +100,8 @@ def cache_version(kind: str) -> str:
         version = CETZ_VERSION
     elif kind == "timeliney":
         version = f"{TIMELINEY_VERSION}+cetz{TIMELINEY_CETZ_VERSION}"
+    elif kind == "finite":
+        version = f"{FINITE_VERSION}+cetz{FINITE_CETZ_VERSION}"
     else:
         version = f"{FLETCHER_VERSION}+cetz{CETZ_VERSION}"
     return f"{kind}{version}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPERS[kind])}{fonts_signature()}"
@@ -169,7 +181,7 @@ def check_code(code: str) -> None:
 
     def fail(word: str, at: int) -> None:
         raise FigureCodeError(
-            f"'{word}' cannot be used in a cetz/fletcher/timeliney figure: the drawing functions are already available, "
+            f"'{word}' cannot be used in a cetz/fletcher/timeliney/finite figure: the drawing functions are already available, "
             "and files and packages cannot be loaded.", at)
 
     while i < n:

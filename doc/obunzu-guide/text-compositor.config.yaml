@@ -26,6 +26,7 @@ plugins:
   cetz: false
   fletcher: false
   timeliney: false
+  finite: false
 
 inputs:
   dir: "."

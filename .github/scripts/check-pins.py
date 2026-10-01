@@ -58,6 +58,7 @@ def read_pins():
     pins["Typstパッケージ cetz"] = find(cetz, r'CETZ_VERSION = "([\d.]+)"')
     pins["Typstパッケージ fletcher"] = find(cetz, r'FLETCHER_VERSION = "([\d.]+)"')
     pins["Typstパッケージ timeliney"] = find(cetz, r'TIMELINEY_VERSION = "([\d.]+)"')
+    pins["Typstパッケージ finite"] = find(cetz, r'FINITE_VERSION = "([\d.]+)"')   # #292。内部で使うcetz 0.4.2等は、finite自身が固定する版
     return pins
 
 
