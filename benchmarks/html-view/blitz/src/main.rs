@@ -46,6 +46,22 @@ fn dark_rgb(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
     (nr.clamp(0.0, 1.0), ng.clamp(0.0, 1.0), nb.clamp(0.0, 1.0))
 }
 
+fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (f64, f64, f64) {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let hp = (h.rem_euclid(360.0)) / 60.0;
+    let x = c * (1.0 - (hp % 2.0 - 1.0).abs());
+    let (r, g, b) = match hp as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = l - c / 2.0;
+    (r + m, g + m, b + m)
+}
+
 fn hex_digit_run(s: &str) -> usize {
     s.bytes().take_while(|c| c.is_ascii_hexdigit()).count()
 }
@@ -91,6 +107,23 @@ fn dark_svg(svg: &str) -> String {
                 let nums: Option<Vec<f64>> = parts.iter().take(3).map(|p| p.parse::<f64>().ok()).collect();
                 if let (Some(n3), true) = (nums, parts.len() >= 3) {
                     let (r, g, bl) = dark_rgb(n3[0] / 255.0, n3[1] / 255.0, n3[2] / 255.0);
+                    let alpha = parts.get(3).map(|a| format!(", {a}")).unwrap_or_default();
+                    let name = if skip == 5 { "rgba" } else { "rgb" };
+                    out.push_str(&format!("{name}({}, {}, {}{alpha})", (r * 255.0).round(), (g * 255.0).round(), (bl * 255.0).round()));
+                    i += end + 1;
+                    continue;
+                }
+            }
+        }
+        // hsl(h, s%, l%)・hsla(h, s%, l%, a)（Mermaidが、背景の色に使う）
+        let hsl = if rest.starts_with("hsla(") { Some(5) } else if rest.starts_with("hsl(") { Some(4) } else { None };
+        if let Some(skip) = hsl {
+            if let Some(end) = rest.find(')') {
+                let parts: Vec<&str> = rest[skip..end].split(',').map(|p| p.trim()).collect();
+                let num = |k: usize| parts.get(k).and_then(|p| p.trim_end_matches('%').trim_end_matches("deg").parse::<f64>().ok());
+                if let (Some(h), Some(sat), Some(lig)) = (num(0), num(1), num(2)) {
+                    let (r, g, bl) = hsl_to_rgb(h, sat / 100.0, lig / 100.0);
+                    let (r, g, bl) = dark_rgb(r, g, bl);
                     let alpha = parts.get(3).map(|a| format!(", {a}")).unwrap_or_default();
                     let name = if skip == 5 { "rgba" } else { "rgb" };
                     out.push_str(&format!("{name}({}, {}, {}{alpha})", (r * 255.0).round(), (g * 255.0).round(), (bl * 255.0).round()));

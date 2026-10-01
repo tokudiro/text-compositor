@@ -18,7 +18,7 @@ target\release\native-blitz.exe <HTMLファイル>
 - **SVGの日本語**: Mermaidの図は、`font-family`に日本語のフォントが無い。そのままだと、PCに入っている丸ゴシックなど、字形を持つ最初のフォントが選ばれる。回避として、SVGの`sans-serif`の前に`'Noto Sans JP'`を足している。
 - **キー操作のスクロール**: Blitzは、文書に対するキー操作（PageDown・矢印・Space・Home・End）を持たない（キーは、フォーカスのある入力欄にだけ届く）。`src/main.rs`が、文書を包んで、キーを先に受け取り、ビューポートをスクロールする（PageDown・PageUp・矢印・Space・Shift+Space・Home・End）。`scroll_viewport_by`のyは、正の値で上へ動く（Blitzの規約）。
 - **ダークモード**: 起動後にテーマを切り替えると、Blitzの再スタイルが一部の要素に及ばず、暗い背景に暗い文字が残る（OSのテーマを、実行中に切り替えたときも、同じ症状が出る可能性がある。未確認）。`--dark`は、ウィンドウの作成時にテーマを指定して、最初から暗いスタイルで描画する。
-- **`filter`・`mix-blend-mode`**: Blitzは、どちらも描かない。生成HTMLは、ダークモードで画像に`filter: invert(1) hue-rotate(180deg)`を使うため、そのままだと、図の暗い文字・矢印が、暗い背景に載って読めない。回避として、`--dark`のとき、`src/main.rs`が、同じ計算（反転して、色相を180度回す）を、SVGの色の値（`#rgb`・`#rrggbb`・`rgb()`・`rgba()`・`white`・`black`）に、読み込み前に適用する。`mix-blend-mode: lighten`が背景を溶かす効果は、純白の色を、ページの背景色（`#0d1117`）にして、まねている。白い背景を足す案は、見栄えが悪いため、採らなかった。ラスター画像（PNG等）は、変換しない。ダークモードかどうかは、`--dark`で決める（OSのダークモードの自動検出は、まだ無い）。
+- **`filter`・`mix-blend-mode`**: Blitzは、どちらも描かない。生成HTMLは、ダークモードで画像に`filter: invert(1) hue-rotate(180deg)`を使うため、そのままだと、図の暗い文字・矢印が、暗い背景に載って読めない。回避として、`--dark`のとき、`src/main.rs`が、同じ計算（反転して、色相を180度回す）を、SVGの色の値（`#rgb`・`#rrggbb`・`rgb()`・`rgba()`・`hsl()`・`hsla()`・`white`・`black`。`hsl()`は、MermaidのER図の表の背景が使う）に、読み込み前に適用する。`mix-blend-mode: lighten`が背景を溶かす効果は、純白の色を、ページの背景色（`#0d1117`）にして、まねている。白い背景を足す案は、見栄えが悪いため、採らなかった。ラスター画像（PNG等）は、変換しない。ダークモードかどうかは、`--dark`で決める（OSのダークモードの自動検出は、まだ無い）。
 - **ネットワーク**: `data:`のURLだけを読む（`DataUriNetProvider`）。外部のURLは、読まない（文書を開くだけで通信が起きない、という方針に合う）。
 - **図**: Mermaid等を、JavaScriptで描く方式は使えない。Python側で事前にSVGへ変換したもの（`<img src="*.svg">`）は、表示できる。
 
