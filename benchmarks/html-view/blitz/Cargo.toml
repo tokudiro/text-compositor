@@ -8,7 +8,13 @@ base64 = "0.22"
 blitz = { version = "0.3.0-beta.2", features = ["scrollbars"] }
 # blitzは、blitz-domの既定の機能を切っている。フォント・SVG・浮動要素は、ここで有効にする
 blitz-dom = { version = "=0.3.0-beta.2", default-features = false, features = ["system-fonts", "svg", "woff", "floats"] }
+blitz-shell = { version = "=0.3.0-beta.2", features = ["data-uri"] }   # DataUriNetProviderのため
 blitz-paint = { version = "=0.3.0-beta.2", features = ["svg"] }
+
+# 独自のウィンドウ（キーによるスクロール）のために、blitzが使うものと同じ版を直接使う
+anyrender_vello = "0.14"
+keyboard-types = "0.7"
+winit = "=0.31.0-beta.2"   # `--dark`で、ウィンドウの作成時にテーマを指定する
 
 [profile.release]
 opt-level = 3

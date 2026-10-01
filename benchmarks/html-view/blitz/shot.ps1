@@ -1,5 +1,5 @@
-# 試作アプリを起動して、ウィンドウのスクリーンショットを撮る。使い方: pwsh -File shot.ps1 <html> <png>
-param([string]$Html, [string]$Png, [int]$PageDowns = 0, [int]$Wheel = 0)
+# 試作アプリを起動して、ウィンドウのスクリーンショットを撮る。使い方: pwsh -File shot.ps1 <html> <png> [-PageDowns N] [-Wheel N] [-Dark]
+param([string]$Html, [string]$Png, [int]$PageDowns = 0, [int]$Wheel = 0, [switch]$Dark)
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 Add-Type @'
 using System; using System.Runtime.InteropServices;
@@ -7,7 +7,8 @@ public class W2 { [DllImport("user32.dll")] public static extern bool SetCursorP
  public struct RECT { public int L, T, R, B; } }
 '@
 $exe = Join-Path $PSScriptRoot 'target\release\native-blitz.exe'
-$p = Start-Process $exe -ArgumentList "`"$Html`"" -PassThru
+$argList = @("`"$Html`""); if ($Dark) { $argList = @("--dark") + $argList }
+$p = Start-Process $exe -ArgumentList $argList -PassThru
 for ($i = 0; $i -lt 100 -and $p.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 100; $p.Refresh() }
 Start-Sleep 5; $p.Refresh()
 [W2]::SetForegroundWindow($p.MainWindowHandle) | Out-Null; Start-Sleep 1

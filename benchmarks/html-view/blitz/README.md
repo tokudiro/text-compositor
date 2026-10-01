@@ -9,13 +9,17 @@ cargo build --release
 target\release\native-blitz.exe <HTMLファイル>
 ```
 
-入力は、`render_html`が出力したHTMLである（例: `..\fixture\index.html`）。ツールバー・検索・再読み込みは、まだ無い。
+入力は、`render_html`が出力したHTMLである（例: `..\fixture\index.html`）。ツールバー・検索・再読み込みは、まだ無い。`--dark`は、OSの設定を変えずに、ダークモードで表示する（`prefers-color-scheme: dark`の確認用）。
 
 ## 試作でわかったこと
 
 - **機能フラグ**: `blitz`は、`blitz-dom`の既定の機能を切っている。`Cargo.toml`で、`system-fonts`（無いと文字が1つも出ない）・`svg`・`woff`・`floats`を有効にしている。
 - **`file://`の画像**: Blitz 0.3.0-beta.2は、Windowsで`/C:/...`というパスをそのまま開くため、ファイル参照の画像を読めない。回避として、`src/main.rs`が、`<img src="相対パス">`をデータURIに置き換えてから渡す。
 - **SVGの日本語**: Mermaidの図は、`font-family`に日本語のフォントが無い。そのままだと、PCに入っている丸ゴシックなど、字形を持つ最初のフォントが選ばれる。回避として、SVGの`sans-serif`の前に`'Noto Sans JP'`を足している。
+- **キー操作のスクロール**: Blitzは、文書に対するキー操作（PageDown・矢印・Space・Home・End）を持たない（キーは、フォーカスのある入力欄にだけ届く）。`src/main.rs`が、文書を包んで、キーを先に受け取り、ビューポートをスクロールする（PageDown・PageUp・矢印・Space・Shift+Space・Home・End）。`scroll_viewport_by`のyは、正の値で上へ動く（Blitzの規約）。
+- **ダークモード**: 起動後にテーマを切り替えると、Blitzの再スタイルが一部の要素に及ばず、暗い背景に暗い文字が残る（OSのテーマを、実行中に切り替えたときも、同じ症状が出る可能性がある。未確認）。`--dark`は、ウィンドウの作成時にテーマを指定して、最初から暗いスタイルで描画する。
+- **`filter`・`mix-blend-mode`**: Blitzは、どちらも描かない。生成HTMLは、ダークモードで画像に`filter: invert(1) hue-rotate(180deg)`を使うため、そのままだと、図の暗い文字・矢印が、暗い背景に載って読めない。回避として、ダークモードのときだけ、画像に白い背景を足す。
+- **ネットワーク**: `data:`のURLだけを読む（`DataUriNetProvider`）。外部のURLは、読まない（文書を開くだけで通信が起きない、という方針に合う）。
 - **図**: Mermaid等を、JavaScriptで描く方式は使えない。Python側で事前にSVGへ変換したもの（`<img src="*.svg">`）は、表示できる。
 
 ## 表示の確認（2026-10-01）
@@ -29,8 +33,8 @@ target\release\native-blitz.exe <HTMLファイル>
 | `doc/usage/14_gallery_mermaid.md`（Mermaidの図が16枚） | 図は描ける。シーケンス図・クラス図・フローチャートの日本語も、読める |
 | `doc/usage/23_gallery_vega.md`（Vega-Liteの図） | 描ける（回転した軸ラベル・凡例も） |
 
-- **スクロール**: マウスホイールは動く。**PageDownキーは、動かない**（`shot.ps1 -PageDowns`では、画面が変わらなかった）。キー操作は、未対応か、ウィンドウにフォーカスが渡っていないかの、どちらか（切り分けていない）。
-- **ダークモード**: 未確認。生成HTMLは`prefers-color-scheme`で色を切り替えるが、OSの設定を変えずに確かめる方法が、まだ無い。
+- **スクロール**: マウスホイールは動く。キー操作は、上の「キー操作のスクロール」のとおり、自前で足した（`shot.ps1 -PageDowns N`で確認）。
+- **ダークモード**: `--dark`で、本文・表・コードは、期待どおりに描ける。図は、白い背景を足した上で、読める（上の「`filter`・`mix-blend-mode`」）。`shot.ps1 -Dark`で撮れる。
 - **`shot.ps1 -Wheel N`**: N目盛り、ホイールで下へスクロールしてから撮る。
 
 ## 計測
