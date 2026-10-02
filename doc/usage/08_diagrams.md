@@ -78,7 +78,7 @@ box "開始" fit; arrow; circle "終了"
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
 | `vega-lite` / `vega` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`vega.min.js`・`vega-lite.min.js`を使います。[#351](https://github.com/tokudiro/text-compositor/issues/351)） |
-| `wavedrom` | ![text-compositor](badges/text-compositor.svg) | 未対応です（[#392](https://github.com/tokudiro/text-compositor/issues/392)）。描画に失敗します |
+| `wavedrom` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`wavedrom.min.js`・スキンを使います。[#392](https://github.com/tokudiro/text-compositor/issues/392)） |
 | `timeliney` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`timeliney`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「timelineyについて」） |
 | `finite` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`finite`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「finiteについて」） |
 
@@ -319,11 +319,11 @@ final: ("q0",)
 
 - **描けるのは、`signal`（タイミング図）と`reg`（レジスタ図）です。** どちらも、WaveDrom 3.7.0に含まれます。書き方は、[WaveDromのチュートリアル](https://wavedrom.com/tutorial.html)を参照してください。
 - **仕様は、厳密なJSONだけです。** WaveDrom本家が許す`{ signal: [...] }`のような、キーに引用符のない記法や、コメントは使えません（原稿の文字列を、ブラウザの中で、コードとして実行しないためです）。JSONの誤りは、エラーの行と桁で報告します。`signal`か`reg`が無い仕様、空の配列も、エラーで止めます（WaveDromは、描けない入力でも、エラーにせず、空の図を返すためです）。
-- 描画には、Mermaid・Vegaと同じヘッドレスブラウザ（Chrome/Edge）を使います。初回だけ、`wavedrom.min.js`とスキン（合わせて約98KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。外部への通信は、この取得だけです。
+- 描画には、Mermaid・Vegaと同じヘッドレスブラウザ（Chrome/Edge）を使います（Obunzuは、自身のChromiumです）。初回だけ、`wavedrom.min.js`とスキン（合わせて約98KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。外部への通信は、この取得だけです。
 - サイズは、図の大きさで決まります。フェンスの`{width=...}`でも指定できます。
 - 図のスキンは、既定のものだけです。
 - `plugins.wavedrom: false`で、無効にできます。
-- Obunzuでは、まだ描けません（[#392](https://github.com/tokudiro/text-compositor/issues/392)）。
+- Obunzuでも描けます（ElectronのChromiumで描画します。JSは同梱するため、追加の取得はありません。[#392](https://github.com/tokudiro/text-compositor/issues/392)）。
 
 ### Vega-Lite / Vegaについて
 

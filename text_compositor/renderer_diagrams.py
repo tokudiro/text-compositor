@@ -11,7 +11,7 @@ import subprocess
 import hashlib
 import tempfile
 from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render
-from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
+from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
 from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
@@ -358,13 +358,20 @@ class DiagramMixin:
 
         # 固定済みJS（本体・スキン）のSHA256を、バージョンとして使う（どちらかが変われば、別キーになる）。
         version = f"{WAVEDROM_JS_SHA256}:{WAVEDROM_SKIN_SHA256}:v1"
-        svg_path, _ = self._diagram_cache_path('wavedrom', version, code)
+        svg_path, digest = self._diagram_cache_path('wavedrom', version, code)
 
         if not os.path.exists(svg_path):
-            _log_info(f"Rendering {label} diagram via headless browser -> {os.path.basename(svg_path)}")
+            host = host_renderers._wavedrom_host_renderer
+            _log_info(f"Rendering {label} diagram via {'the host application' if host else 'headless browser'} -> {os.path.basename(svg_path)}")
             try:
-                page = self._mermaid.ensure_wavedrom_page(self.mermaid_enabled, self.mermaid_auto_download)
-                svg = page.evaluate(wavedrom_render.RENDER_SCRIPT, [spec])
+                if host:
+                    # 描画は、呼び出し元（ViewerのElectron）が行う。JSの取得・検証と、描画スクリプトは、こちらから渡す（#392）
+                    skin_js, wavedrom_js = ensure_wavedrom_js()
+                    svg = host(f"wavedrom-{digest}", spec, wavedrom_render.RENDER_SCRIPT,
+                               {"skin": skin_js, "wavedrom": wavedrom_js})
+                else:
+                    page = self._mermaid.ensure_wavedrom_page(self.mermaid_enabled, self.mermaid_auto_download)
+                    svg = page.evaluate(wavedrom_render.RENDER_SCRIPT, [spec])
             except Exception as e:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー
                 message = "\n".join(l for l in str(e).splitlines() if not re.match(r"\s+at ", l))

@@ -21,6 +21,7 @@ const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref'
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
 const { VegaHost } = require('./vega-host');
+const { WaveDromHost } = require('./wavedrom-host');
 const { cacheRoot, cacheUsage, clearCache, workLocation } = require('./workdir');
 const { WorkerClient } = require('./worker-client');
 
@@ -94,6 +95,7 @@ const createHiddenWindow = (options = {}) => new BrowserWindow({
 });
 const mermaidHost = new MermaidHost({ createWindow: createHiddenWindow });
 const vegaHost = new VegaHost({ createWindow: createHiddenWindow });   // Vega・Vega-Lite（#351）
+const wavedromHost = new WaveDromHost({ createWindow: createHiddenWindow });   // WaveDrom（#392）
 
 // -- 起動 -----------------------------------------------------------------
 
@@ -131,6 +133,7 @@ app.on('before-quit', (event) => {
   watcher?.close();
   mermaidHost.dispose();
   vegaHost.dispose();
+  wavedromHost.dispose();
   if (quitting || !worker) return;
   event.preventDefault();
   quitting = true;
@@ -195,7 +198,7 @@ function createWindow() {
   win.on('unmaximize', scheduleWindowSave);
   win.on('close', saveWindowNow);
   // 非表示のMermaidのウィンドウが残ると、'window-all-closed'が発火せず、アプリが終了しない
-  win.on('closed', () => { mermaidHost.dispose(); vegaHost.dispose(); });
+  win.on('closed', () => { mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); });
   handleEscape(win.webContents);
   handleEscape(contents);
   handleNavigationShortcuts(win.webContents);
@@ -439,12 +442,13 @@ async function getWorker() {
   if (!worker) {
     // 見つからない場合は、キャッシュせず、次の依頼でも、探し直す（環境変数を直した後に、再試行できるように）
     const launch = resolveWorkerLaunch(appDirectory());
-    // Mermaid・Vega・Vega-Liteは、Pythonのplaywrightではなく、こちら（ElectronのChromium）で描画する（#207）
+    // Mermaid・Vega・Vega-Lite・WaveDromは、Pythonのplaywrightではなく、こちら（ElectronのChromium）で描画する（#207）
     launch.env = { ...launch.env, TEXT_COMPOSITOR_MERMAID_HOST: '1' };
     worker = new WorkerClient(launch, {
       services: {
         render_mermaid: (payload) => mermaidHost.render(payload),
         render_vega: (payload) => vegaHost.render(payload),
+        render_wavedrom: (payload) => wavedromHost.render(payload),
       },
     });
   }

@@ -26,3 +26,15 @@ def set_vega_host_renderer(renderer):
     """Vega・Vega-Liteの描画を任せる関数を設定する（`None`で解除）。"""
     global _vega_host_renderer
     _vega_host_renderer = renderer
+
+
+# WaveDromの描画を、呼び出し元に任せる口（#392）。設定されていれば、`renderer(diagram_id, spec, script, js)`が、SVGの文字列を返す
+# （失敗は、例外）。specは検査済みの仕様（dict）、scriptは、ブラウザで実行する描画スクリプト（wavedrom_render.RENDER_SCRIPT。
+# 呼び出し元と、二重に持たないため、こちらから渡す）、jsは、`{"skin": default.jsのパス, "wavedrom": wavedrom.min.jsのパス}`。
+_wavedrom_host_renderer = None
+
+
+def set_wavedrom_host_renderer(renderer):
+    """WaveDromの描画を任せる関数を設定する（`None`で解除）。"""
+    global _wavedrom_host_renderer
+    _wavedrom_host_renderer = renderer

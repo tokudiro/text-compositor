@@ -114,6 +114,14 @@ class TestRenderWithFakePage:
         error = [d for d in result.diagnostics if d.severity == "error"][0]
         assert error.detail == "WaveDrom could not draw this spec."
 
+    def test_the_bundled_js_dir_env_is_used_without_downloading(self, tmp_path, monkeypatch):
+        from text_compositor import deps
+        (tmp_path / "default.js").write_text("/* skin */", encoding="utf-8")
+        (tmp_path / "wavedrom.min.js").write_text("/* w */", encoding="utf-8")
+        monkeypatch.setenv(deps.WAVEDROM_JS_DIR_ENV, str(tmp_path))
+        monkeypatch.setattr(deps, "_download", lambda *a, **k: pytest.fail("must not download"))
+        assert deps.ensure_wavedrom_js() == (str(tmp_path / "default.js"), str(tmp_path / "wavedrom.min.js"))
+
     def test_plugins_wavedrom_is_an_allowed_config_key(self):
         from text_compositor.config import _ALLOWED_PLUGINS_KEYS
         assert "wavedrom" in _ALLOWED_PLUGINS_KEYS
