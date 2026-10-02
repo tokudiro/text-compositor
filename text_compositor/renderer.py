@@ -117,7 +117,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
                  mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
                  cetz_enabled=True, fletcher_enabled=True, timeliney_enabled=True, structurizr_enabled=False,
-                 structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True):
+                 structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True,
+                 finite_enabled=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
@@ -126,8 +127,10 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         self.graphviz_enabled = graphviz_enabled
         # plugins.pikchr（既定true。#213）。falseなら、```pikchrフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
         self.pikchr_enabled = pikchr_enabled
-        # plugins.cetz・plugins.fletcher（既定true。#236）・plugins.timeliney（既定true。#294）。falseなら、そのフェンスを、素のコード表示にする。
-        self.figure_enabled = {'cetz': cetz_enabled, 'fletcher': fletcher_enabled, 'timeliney': timeliney_enabled}
+        # plugins.cetz・plugins.fletcher（既定true。#236）・plugins.timeliney（既定true。#294）・plugins.finite（既定true。#292）。
+        # falseなら、そのフェンスを、素のコード表示にする。
+        self.figure_enabled = {'cetz': cetz_enabled, 'fletcher': fletcher_enabled, 'timeliney': timeliney_enabled,
+                               'finite': finite_enabled}
         # plugins.vega（既定true。#211）。falseなら、```vega-lite・```vegaフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
         # ブラウザは、Mermaidと共有する（plugins.mermaid_auto_downloadも、共通）。
         self.vega_enabled = vega_enabled

@@ -17,6 +17,7 @@
 | `cetz` | 幾何図形・木構造・グラフ（Typstの描画ライブラリ） | 要りません |
 | `fletcher` | ノードと矢印の図（フローチャート・状態遷移図など） | 要りません |
 | `timeliney` | ガントチャート（Typstの描画ライブラリ） | 要りません |
+| `finite` | 有限オートマトンの図（状態遷移図。受理状態は二重丸。Typstの描画ライブラリ） | 要りません |
 | `vega-lite`・`vega` | 棒・折れ線・散布図・ファセット分割などのグラフ（JSONで書く） | 要りません（`vega.min.js`・`vega-lite.min.js`を同梱） |
 | `svg` | 完成した、SVGの画像 | 要りません |
 
@@ -100,6 +101,20 @@ taskgroup(title: [開発], {
 ```
 ````
 
+finite（遷移表を、`automaton(...)`の引数として書きます。`initial:`が開始状態、`final:`が受理状態です）:
+
+````markdown
+```finite
+(
+  q0: (q0: "0", q1: "1"),
+  q1: (q2: "0", q0: "1"),
+  q2: (q1: "0", q2: "1"),
+),
+initial: "q0",
+final: ("q0",)
+```
+````
+
 ## 図の大きさ
 
 図の後ろに、`{width=...}`・`{height=...}`を書くと、大きさを指定できます。
@@ -123,11 +138,13 @@ graph LR
 
 1つのワークスペースが定義できるビューは、1フェンスにつき1つだけです。`structurizr-cli`は、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、こちらから1つだけ選ぶ方法がありません。2つ以上のビュー（`systemContext`と`container`を両方書く等）を定義すると、エラーになります。System ContextとContainerの両方を見せたい場合は、フェンスを2つに分け、共通のモデル定義はDSLの`!include`で別ファイルに切り出してください。
 
-## CeTZ・Fletcher・timelineyの注意
+## CeTZ・Fletcher・timeliney・finiteの注意
 
-`cetz`・`fletcher`・`timeliney`の中には、`import`・`include`と、ファイルを読む関数（`read`など）は、書けません。書くと、エラーになります。原稿が、意図しないファイルを、読まないようにするためです。CeTZ・Fletcher・timelineyの描画の関数は、最初から使えます。
+`cetz`・`fletcher`・`timeliney`・`finite`の中には、`import`・`include`と、ファイルを読む関数（`read`など）は、書けません。書くと、エラーになります。原稿が、意図しないファイルを、読まないようにするためです。CeTZ・Fletcher・timelineyの描画の関数は、最初から使えます。
 
 `timeliney`は、他の図と違い、既定で行の幅いっぱいに描かれます（`{width=...}`を指定しなければ、行の幅を超えたときだけ縮小する、という動作にはなりません）。
+
+`finite`は、状態や遷移が増えると、遷移のラベルが重なって、読めなくなることがあります。配置は、`layout: layout.circular`のように、引数で変えられます（図によって、向き不向きがあります）。初期状態の矢印の文字は、「Start」です。
 
 ## Graphvizの注意
 

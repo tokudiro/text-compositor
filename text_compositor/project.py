@@ -52,6 +52,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     cetz_enabled = bool(plugins_config.get("cetz", True))   # #236
     fletcher_enabled = bool(plugins_config.get("fletcher", True))
     timeliney_enabled = bool(plugins_config.get("timeliney", True))   # #294
+    finite_enabled = bool(plugins_config.get("finite", True))   # #292
     vega_enabled = bool(plugins_config.get("vega", True))   # #211
     mermaid_enabled = bool(plugins_config.get("mermaid", True))
     mermaid_auto_download = bool(plugins_config.get("mermaid_auto_download", False))
@@ -96,7 +97,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
                               d2_enabled=d2_enabled, d2_auto_download=d2_auto_download, pikchr_enabled=pikchr_enabled,
                               cetz_enabled=cetz_enabled, fletcher_enabled=fletcher_enabled,
-                              timeliney_enabled=timeliney_enabled,
+                              timeliney_enabled=timeliney_enabled, finite_enabled=finite_enabled,
                               structurizr_enabled=structurizr_enabled, structurizr_auto_download=structurizr_auto_download,
                               diagram_trim_enabled=diagram_trim_enabled, vega_enabled=vega_enabled,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,

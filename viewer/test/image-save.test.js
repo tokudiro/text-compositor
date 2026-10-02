@@ -57,6 +57,7 @@ describe('isDiagramCacheBasename', () => {
     assert.equal(isDiagramCacheBasename('plantuml_12345678.svg'), true);
     assert.equal(isDiagramCacheBasename('d2_abcdef01.svg'), true);
     assert.equal(isDiagramCacheBasename('timeliney_abcdef01.svg'), true);
+    assert.equal(isDiagramCacheBasename('finite_abcdef01.svg'), true);
   });
 
   test('does not match descriptive human filenames', () => {

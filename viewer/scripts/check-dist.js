@@ -124,6 +124,7 @@ with open(src, 'w', encoding='utf-8') as f:
             '#diagram(node((0, 0), [あ]), edge("->"), node((1, 0), [い]))\\n#cetz.canvas({ import cetz.draw: *; circle((0, 0)) })\\n'
             '#import "@preview/timeliney:0.4.0" as timeliney\\n'
             '#timeliney.timeline(show-grid: true, { timeliney.headerline(timeliney.group(([*2024*], 1))); timeliney.taskgroup(title: [あ], { timeliney.task("A", (0, 1)) }) })\\n'
+            '#import "@preview/finite:0.5.1": automaton\\n#automaton((q0: (q1: "a"), q1: none), initial: "q0", final: ("q1",))\\n'
             '#import "@preview/mitex:0.2.7": mi\\n#mi("x+y")\\n')
 fonts = ensure_fonts()
 pdf = typst_lib.compile(src, root=d, font_paths=[fonts], ignore_system_fonts=True, **typst_package_options())
@@ -142,14 +143,15 @@ function checkOfflineTypst(work) {
   const fonts = path.join(appDir, 'fonts');
   const packages = path.join(appDir, 'typst-packages');
   check('fonts/ に、Noto Sans JPのRegularとBoldがある', ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf'].every((name) => fs.existsSync(path.join(fonts, name))));
-  check('typst-packages/ に、diagraph・kip・note-me・cetz（3つの版）・fletcher・timeliney・oxifmt（2つの版）がある',
-    ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0', 'cetz/0.5.2', 'cetz/0.4.1', 'cetz/0.3.4', 'fletcher/0.5.8', 'timeliney/0.4.0', 'oxifmt/0.2.1', 'oxifmt/1.0.0']
+  check('typst-packages/ に、diagraph・kip・note-me・cetz（4つの版）・fletcher・timeliney・finite（diagraph-layout・t4tを含む）・oxifmt（2つの版）がある',
+    ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0', 'cetz/0.5.2', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4', 'fletcher/0.5.8', 'timeliney/0.4.0',
+      'finite/0.5.1', 'diagraph-layout/0.0.1', 't4t/0.4.3', 'oxifmt/0.2.1', 'oxifmt/1.0.0']
       .every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
-  check('CeTZ（LGPL）の全文が、パッケージのフォルダに、改造されずに、入っている', ['cetz/0.5.2', 'cetz/0.4.1', 'cetz/0.3.4']
+  check('CeTZ（LGPL）の全文が、パッケージのフォルダに、改造されずに、入っている', ['cetz/0.5.2', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4']
     .every((name) => /GNU LESSER GENERAL PUBLIC LICENSE/i.test(fs.readFileSync(path.join(packages, 'preview', ...name.split('/'), 'LICENSE'), 'utf8'))));
   try {
     const out = execFileSync(python, [script], { encoding: 'utf8', env: { ...baseEnv, TEXT_COMPOSITOR_FONT_DIR: fonts, TEXT_COMPOSITOR_TYPST_PACKAGES: packages } }).trim().split(/\r?\n/);
-    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・kip・cetz・fletcher・timeliney・note-me・日本語）',
+    check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる（diagraph・kip・cetz・fletcher・timeliney・finite・note-me・日本語）',
       out[0] === fonts && out[1] === 'True', out.join(' / '));
   } catch (error) {
     check('同梱のtypst・フォント・パッケージだけで、ネットワークなしで、Typstをコンパイルできる', false, String(error.stderr || error.message).split(/\r?\n/).filter(Boolean).slice(-2).join(' / '));
@@ -223,11 +225,11 @@ async function main() {
     check('Pikchrの構文エラーが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('pikchr-error.md:7'), JSON.stringify(item.head));   // フェンスは5行目。Pikchrの2行目は、7行目
     check('Pikchr自身のエラーの内容が、詳細に出る', /unrecognized token/.test(item.detail), item.detail.split('\n').slice(-1)[0]);
   }, 12000);
-  // CeTZ・Fletcher（#236）・timeliney（#294）。同梱のtypstとパッケージで描画する（ネットワークは、使わない）。
-  await runCase('CeTZ・Fletcher・timelineyの図', '# 図\n\n```cetz\ncircle((0, 0), radius: 1)\ncontent((0, 0), [日本語])\n```\n\n```fletcher\nnode((0, 0), [開始]), edge("->"), node((1, 0), [終了])\n```\n\n```timeliney\nheaderline(group(([*2024*], 1)))\ntaskgroup(title: [日本語], { task("A", (0, 1)) })\n```\n', path.join(work, 'cetz.md'), async (state, _pythons, { content }) => {
-    check('CeTZ・Fletcher・timelineyを含む文書が、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+  // CeTZ・Fletcher（#236）・timeliney（#294）・finite（#292）。同梱のtypstとパッケージで描画する（ネットワークは、使わない）。
+  await runCase('CeTZ・Fletcher・timeliney・finiteの図', '# 図\n\n```cetz\ncircle((0, 0), radius: 1)\ncontent((0, 0), [日本語])\n```\n\n```fletcher\nnode((0, 0), [開始]), edge("->"), node((1, 0), [終了])\n```\n\n```timeliney\nheaderline(group(([*2024*], 1)))\ntaskgroup(title: [日本語], { task("A", (0, 1)) })\n```\n\n```finite\n(\n  q0: (q1: "a"),\n  q1: (q0: "b"),\n),\ninitial: "q0",\nfinal: ("q1",)\n```\n', path.join(work, 'cetz.md'), async (state, _pythons, { content }) => {
+    check('CeTZ・Fletcher・timeliney・finiteを含む文書が、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
     const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
-    check('CeTZ・Fletcher・timelineyの図が、画像として読み込まれている', images.length === 3 && images.every(Boolean), JSON.stringify(images));
+    check('CeTZ・Fletcher・timeliney・finiteの図が、画像として読み込まれている', images.length === 4 && images.every(Boolean), JSON.stringify(images));
   }, 12000);
   await runCase('CeTZのimport', '# エラー\n\n本文。\n\n```cetz\ncircle((0, 0))\nimport "/secret.typ"\n```\n', path.join(work, 'cetz-error.md'), async (state, _pythons, { chrome }) => {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
