@@ -1,5 +1,5 @@
 document:
-  title: "Obunzu 使い方ガイド"
+  title: "Obunzu Markdown Viewer 使い方ガイド"
   subtitle: "Markdownと図を、すばやく表示する、閲覧専用のViewer"
   author: ""
   date: "auto"
@@ -9,7 +9,7 @@ document:
   toc: true
 
 output:
-  filename: "obunzu-usage-guide.pdf"
+  filename: "obunzu-markdown-viewer-usage-guide.pdf"
   dir: "."
 
 template:

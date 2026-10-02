@@ -26,8 +26,8 @@ if (process.platform !== 'win32') {
 
 const viewerDir = path.resolve(__dirname, '..');
 const stage = path.join(viewerDir, 'dist', 'stage');
-const appDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(stage, fs.readdirSync(stage).find((n) => n.startsWith('Obunzu-')));
-const exe = path.join(appDir, 'obunzu.exe');
+const appDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(stage, fs.readdirSync(stage).find((n) => n.startsWith('Obunzu-Markdown-Viewer-')));
+const exe = path.join(appDir, 'obunzu-markdown-viewer.exe');
 const port = 9500 + Math.floor(Math.random() * 100);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -106,7 +106,7 @@ function checkWorkerVersion() {
   check('site-packages/ に、text_compositor-<版>.dist-info/METADATA がある', infos.length === 1 && fs.existsSync(path.join(sitePackages, infos[0], 'METADATA')), infos.join(', '));
   const notices = fs.readFileSync(path.join(appDir, 'licenses', 'THIRD-PARTY-NOTICES.md'), 'utf8');
   check('THIRD-PARTY-NOTICES.md に、text-compositorの行が、1つだけある（dist-infoで二重にならない）',
-    notices.split(/\r?\n/).filter((line) => /^\| (Obunzu \/ )?text-compositor \|/i.test(line)).length === 1);
+    notices.split(/\r?\n/).filter((line) => /^\| (Obunzu Markdown Viewer \/ )?text-compositor \|/i.test(line)).length === 1);
 }
 
 // 同梱の typst・フォント・Typstのパッケージだけで、ネットワークなしで、Typstを通した処理が動くこと（#263）。
@@ -167,7 +167,7 @@ function checkOfflineTypst(work) {
 }
 
 async function main() {
-  check('展開したアプリがある（obunzu.exe と python-embed/）', fs.existsSync(exe) && fs.existsSync(path.join(appDir, 'python-embed', 'python.exe')));
+  check('展開したアプリがある（obunzu-markdown-viewer.exe と python-embed/）', fs.existsSync(exe) && fs.existsSync(path.join(appDir, 'python-embed', 'python.exe')));
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-dist-docs-'));
   const embedded = path.join(appDir, 'python-embed', 'python.exe').toLowerCase();
 

@@ -1,6 +1,6 @@
 # Obunzuとは
 
-Obunzu（お文図。「おぶんず」と読みます）は、Markdownと図を、すばやく表示する、閲覧専用のViewerです。名前は、Observe（観察する）と、文図（ぶんず。文章と図）を合わせた造語です。
+Obunzu Markdown Viewer（略称はObunzu。お文図。「おぶんず」と読みます）は、Markdownと図を、すばやく表示する、閲覧専用のViewerです。名前は、Observe（観察する）と、文図（ぶんず。文章と図）を合わせた造語です。
 
 ![Obunzuで、文書を開いたところ|width=100%](images/main-light.png)
 

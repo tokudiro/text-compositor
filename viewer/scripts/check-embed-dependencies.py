@@ -2,7 +2,7 @@
 
 使い方（pefileが要る）:
     pip install pefile
-    python scripts/check-embed-dependencies.py dist/stage/Obunzu-<バージョン>-win-x64/python-embed
+    python scripts/check-embed-dependencies.py dist/stage/Obunzu-Markdown-Viewer-<バージョン>-win-x64/python-embed
 
 フォルダの中にも、Windowsの標準にもないDLLがあれば、その名前を出して、終了コード1で終わる。
 Microsoft Visual C++の再頒布可能パッケージ（vcruntime140など）は、フォルダに同梱されているため、
