@@ -427,6 +427,26 @@ digraph { A -> B }
 - 未指定の場合は従来どおり、はみ出さないよう自動で縮小されます（拡大はされません）。
 - `layout-right`/`layout-left`/`layout-compare`内の図でも同じ記法が使えます。`layout-feature`内では、Markdown画像は写真用レイアウトの仕様上サイズ指定を無視して常に枠いっぱいに敷き詰められます。一方、Mermaid/PlantUML/Graphviz/D2/Structurizr/Pikchr/CeTZ/Fletcher/timelineyのフェンスは対象外（このレイアウトの想定用途ではない使い方）のため`{width=...}`/`{height=...}`がそのまま反映されます。
 
+## 代替テキスト（alt）
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
+図の内容を、スクリーンリーダーに伝えるために、フェンスの属性に、`alt="..."`を書けます（[#398](https://github.com/tokudiro/text-compositor/issues/398)）。
+
+````markdown
+```mermaid {alt="ログインの流れ: 画面から認証サーバへ要求し、結果が返る"}
+graph LR
+  A[画面] --> B[認証サーバ]
+```
+````
+
+- 値は、`"…"`・`'…'`・空白なしの語のどれかです。`width=`・`height=`・`trim=`と、並べて書けます（例: `{alt="流れ図" width=50%}`）。
+- `alt=""`は、飾りの図として、読み上げから外します。
+- 書かなかったときは、HTML出力は、`mermaid diagram`のように、図の種類だけです（図の内容は、推測しません）。
+- HTML出力（Obunzu）は、すべての図に効きます。PDF出力は、画像として入る図（Mermaid・PlantUML・D2・Structurizr・`svg`・Vega・WaveDrom・Bytefield）に効き、PDFの代替テキストになります。Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finiteは、Typstが直接描くため、PDFでは、まだ使えません。
+- 値に`}`は書けません。
+- Markdownの画像は、これまでどおり、`![代替テキスト](パス)`です。
+
 ## 余白のトリミング（trim）
 
 mermaid/plantuml/d2/structurizrは、それぞれのツール自身が、生成するSVGに余白（マージン）を持たせます（#315）。text-compositorは、D2の`--pad`を8pxに、mermaidのflowchart/sequenceの余白設定を8pxに、それぞれ既定より縮めていますが、それでも図によっては余白が気になる場合があります。

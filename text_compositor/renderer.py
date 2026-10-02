@@ -396,6 +396,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         """フェンスのinfo string中の属性部分（例: '{width=50% height=8cm}'）からwidth/heightを
         取り出す。未指定のキーはNoneのまま返す（#82）。"""
         width = height = None
+        attrs_str = self._without_alt(attrs_str)
         if attrs_str:
             for key, val in self.FENCE_ATTR_RE.findall(attrs_str):
                 if key == 'width':
@@ -407,6 +408,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     def _parse_trim_attr(self, attrs_str):
         """フェンスのinfo string中の属性部分から`trim=true`/`trim=false`を取り出す（#315）。
         未指定ならNone（呼び出し側は、plugins.diagram_trimの既定値を使うこと）。"""
+        attrs_str = self._without_alt(attrs_str)
         if attrs_str:
             for key, val in self.FENCE_ATTR_RE.findall(attrs_str):
                 if key == 'trim':

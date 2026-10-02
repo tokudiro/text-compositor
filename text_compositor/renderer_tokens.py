@@ -228,7 +228,8 @@ class TokenMixin:
                         attrs_str = parts[1] if len(parts) > 1 else ''
                         width, height = self._parse_size_attrs(attrs_str)
                         trim = self._parse_trim_attr(attrs_str)
-                        result.append(self._render_diagram_fence(lang, t.content, width, height, trim))
+                        result.append(self._render_diagram_fence(lang, t.content, width, height, trim,
+                                                                 self._parse_alt_attr(attrs_str)))
                     elif lang == 'math':
                         result.append(self._render_math_block_typst(t.content))
                     else:

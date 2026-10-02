@@ -58,13 +58,42 @@ class DiagramMixin:
         height_arg = f', height: {height}' if height else ''
         return f'#align(center)[#render-graph("{escaped}"{width_arg}{height_arg})]\n\n'
 
-    def _render_diagram_fence(self, lang, code, width=None, height=None, trim=None):
+    # 今のフェンスの代替テキスト（#398）。_render_diagram_fenceが、描画の間だけ、入れ、`_render_sized_image`が、使う
+    # （各`_render_*`の引数を、すべて増やさずに、画像として入る図に、alt を渡すため）。
+    _pending_alt = None
+
+    # フェンスの`alt="..."`（#398）。値は、"…"・'…'・空白なしの語のどれか。空白を含む値があるため、FENCE_ATTR_REとは別に取り出す。
+    ALT_ATTR_RE = re.compile(r"""\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s}"']+))""")
+
+    def _parse_alt_attr(self, attrs_str):
+        """フェンスのinfo string中の属性部分（例: '{alt="ログインの流れ" width=50%}'）から、図の代替テキスト`alt`を取り出す（#398）。
+        スクリーンリーダー向けの説明で、HTMLでは`<img alt>`、PDFでは、Typstの`image`の`alt`に入る。
+        未指定ならNone（呼び出し側は、既定の「<種類> diagram」を使う）。`alt=""`は、空文字（装飾の図として、読み上げから外す）。"""
+        match = self.ALT_ATTR_RE.search(attrs_str) if attrs_str else None
+        if not match:
+            return None
+        quoted_double, quoted_single, bare = match.groups()
+        return next(v for v in (quoted_double, quoted_single, bare) if v is not None)
+
+    def _without_alt(self, attrs_str):
+        """`alt="..."`を取り除いた属性部分。altの値の中に`width=`などがあっても、別の属性と取り違えないため。"""
+        return self.ALT_ATTR_RE.sub('', attrs_str) if attrs_str else attrs_str
+
+    def _render_diagram_fence(self, lang, code, width=None, height=None, trim=None, alt=None):
         """```mermaid/```plantuml/```d2/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```svgフェンスの内容をTypstコードへ
         変換する。通常のMarkdownフロー（render_tokens）とlayout-right/layout-compareブロックの
         双方から共通で呼べるようにした処理（#77）。width/height（#82）が指定された場合、
         mermaid/plantuml/svg/d2は自動縮小（fit-image）をバイパスして直接そのサイズで埋め込み、
         dot/graphvizは_render_graphvizが同様にバイパスする。trim（#315）は、mermaid/plantuml/d2/
-        structurizrにのみ効く（他は渡しても無視される）。"""
+        structurizrにのみ効く（他は渡しても無視される）。alt（#398）は、画像として入る図（mermaid/plantuml/d2/structurizr/svg/
+        vega/wavedrom/bytefield）の代替テキスト。Typstが描く図（graphviz/pikchr/cetz/fletcher/timeliney/finite）は、画像でないため、PDFでは使わない。"""
+        self._pending_alt = alt
+        try:
+            return self._render_diagram_fence_inner(lang, code, width, height, trim)
+        finally:
+            self._pending_alt = None
+
+    def _render_diagram_fence_inner(self, lang, code, width, height, trim):
         if lang == 'mermaid':
             return self._render_mermaid(code, width, height, trim)
         elif lang == 'plantuml':
@@ -94,7 +123,8 @@ class DiagramMixin:
         if m.group('lang'):
             width, height = self._parse_size_attrs(m.group('attrs'))
             trim = self._parse_trim_attr(m.group('attrs'))
-            return self._render_diagram_fence(m.group('lang'), m.group('code'), width, height, trim)
+            return self._render_diagram_fence(m.group('lang'), m.group('code'), width, height, trim,
+                                              self._parse_alt_attr(m.group('attrs')))
         return self._render_markdown_segment(m.group('image'), False).strip()
 
     def _render_pikchr(self, code, width=None, height=None):
@@ -164,8 +194,14 @@ class DiagramMixin:
         if width or height:
             width_arg = f', width: {width}' if width else ''
             height_arg = f', height: {height}' if height else ''
-            return f'#align(center)[#image("{root_rel_path}"{width_arg}{height_arg})]\n\n'
-        return f'#align(center)[#fit-image("{root_rel_path}")]\n\n'
+            image = f'image("{root_rel_path}"{width_arg}{height_arg})'
+        else:
+            image = f'fit-image("{root_rel_path}")'
+        if self._pending_alt is not None:
+            # 代替テキスト（#398）。`set image(alt: ...)`は、fit-image（layoutの中で`image`を作る）にも効く（実測）。
+            # fit-imageの引数を増やさないため、独自のテンプレートが、壊れない。
+            return f'#align(center)[#{{ set image(alt: "{escape_string_literal(self._pending_alt)}"); {image} }}]\n\n'
+        return f'#align(center)[#{image}]\n\n'
 
     def _svg_fence_path(self, code):
         """```svgフェンスの内容を、キャッシュ用の.svgファイルへ書き出し、そのパスを返す。mermaid/plantumlと

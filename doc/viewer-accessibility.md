@@ -45,8 +45,9 @@ axe-core 4.13（`viewer/scripts/check-a11y.js`）と、実際のElectronの操�
 - **配色**: 文字に使うアクセント色を、`--accent-text`に分けた（ライト`#005a9e`で5.9:1、ダーク`#7ab8f0`で5.5:1）。選択中の選択肢・トグルのボタン・行番号に使う。
 - **動き**: `prefers-reduced-motion`のとき、変換中の帯の動きを止める。
 
+- **図の代替テキスト**: フェンスの属性`{alt="..."}`で、原稿に書けるようにした（[#398](https://github.com/tokudiro/text-compositor/issues/398)。書き方は、図表の章の「代替テキスト（alt）」）。書かなかった図は、これまでどおり、`mermaid diagram`のように、種類だけ。
+
 **対応しないこと（理由つき）**
-- 図の代替テキスト（`alt`）の充実。今は、`alt="mermaid diagram"`のように、図の種類だけで、図の内容は、伝わらない。原稿の側に、代替テキストを書く記法が要り、別の設計になるため、別のissueで扱う（[#399](https://github.com/tokudiro/text-compositor/issues/398)）。
 - スクリーンリーダー（NVDAなど）での、実際の読み上げの確認。自動では確かめられないため、下の手順で、手動で確認する。
 
 ## 確認の方法
