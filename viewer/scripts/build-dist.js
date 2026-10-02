@@ -2,8 +2,8 @@
 // Windows向けの配布物（ZIP）を作る（#168）。
 //   node scripts/build-dist.js
 //
-// 作るもの: dist/Obunzu-<バージョン>-win-x64.zip（Pythonのインストールが要らない、展開して使うポータブル版）。
-// 中身: Electronのアプリ（obunzu.exe）と、その隣の python-embed/（組込版Python + 必要最小限のパッケージ +
+// 作るもの: dist/Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip（Pythonのインストールが要らない、展開して使うポータブル版）。
+// 中身: Electronのアプリ（obunzu-markdown-viewer.exe）と、その隣の python-embed/（組込版Python + 必要最小限のパッケージ +
 //       typst + text_compositor）と、fonts/（Noto Sans JP）と、typst-packages/（Typstのパッケージ。#263）と、
 //       jre/・plantuml/・d2/・structurizr-cli/・mermaid/（Mermaid・PlantUML・D2・Structurizrの図が、そのまま
 //       GUIから、追加のダウンロードなしで使えるようにする。#290・#310）と、licenses/（サードパーティのライセンス表記）。
@@ -227,7 +227,7 @@ const TROVE4J_NOTICE = [
 const dist = path.join(viewerDir, 'dist');
 const cache = path.join(dist, '.cache');
 const stage = path.join(dist, 'stage');
-const releaseName = `Obunzu-${pkg.version}-win-x64`;
+const releaseName = `Obunzu-Markdown-Viewer-${pkg.version}-win-x64`;
 
 function log(message) { console.log(`\n== ${message}`); }
 
@@ -537,13 +537,13 @@ function writeLicenses(appDir, embed, sitePackages, apacheText, extraRows = []) 
 
   rows.push(...extraRows);   // 同梱のフォント・Typstのパッケージ（ライセンス全文は、それぞれのフォルダの中）
 
-  fs.copyFileSync(path.join(repoDir, 'LICENSE'), path.join(dir, 'Obunzu-text-compositor-LICENSE.txt'));
-  rows.unshift({ name: 'Obunzu / text-compositor', version: pkg.version, license: 'MIT', url: 'https://github.com/tokudiro/text-compositor', file: 'Obunzu-text-compositor-LICENSE.txt' });
+  fs.copyFileSync(path.join(repoDir, 'LICENSE'), path.join(dir, 'Obunzu-Markdown-Viewer-LICENSE.txt'));
+  rows.unshift({ name: 'Obunzu Markdown Viewer / text-compositor', version: pkg.version, license: 'MIT', url: 'https://github.com/tokudiro/text-compositor', file: 'Obunzu-Markdown-Viewer-LICENSE.txt' });
 
   const lines = [
     '# Third-party notices',
     '',
-    `Obunzu ${pkg.version} bundles the components below. Electron and Chromium license texts are in the`,
+    `Obunzu Markdown Viewer ${pkg.version} bundles the components below. Electron and Chromium license texts are in the`,
     'application folder (`LICENSE` and `LICENSES.chromium.html`).',
     '',
     '| Component | Version | License | Source | License text (in this folder) |',
@@ -609,8 +609,8 @@ async function main() {
   const [built] = await packager({
     dir: viewerDir,
     out: stage,
-    name: 'Obunzu',
-    executableName: 'obunzu',
+    name: 'Obunzu-Markdown-Viewer',
+    executableName: 'obunzu-markdown-viewer',
     platform: 'win32',
     arch: 'x64',
     icon: path.join(viewerDir, 'assets', 'icon.ico'),
@@ -620,9 +620,9 @@ async function main() {
     quiet: true,
     win32metadata: {
       CompanyName: 'tokudiro',
-      FileDescription: 'Obunzu - Markdown viewer for Docs, Diagrams and Design as Code',
-      ProductName: 'Obunzu',
-      OriginalFilename: 'obunzu.exe',
+      FileDescription: 'Obunzu Markdown Viewer - Markdown viewer for Docs, Diagrams and Design as Code',
+      ProductName: 'Obunzu Markdown Viewer',
+      OriginalFilename: 'obunzu-markdown-viewer.exe',
     },
     // 配布物に要らないもの（テスト・スクリプト・文書・ビルドの成果物）を、アプリから外す
     ignore: [/^\/test($|\/)/, /^\/scripts($|\/)/, /^\/dist($|\/)/, /^\/dist-requirements\.txt$/, /^\/README.*\.md$/],

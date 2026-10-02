@@ -1,8 +1,8 @@
-# Obunzu（お文図）
+# Obunzu Markdown Viewer（お文図）
 
 [English](README.md) | 日本語
 
-Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・`svg`）を、画像として表示します。エディタもPDF出力もありません。
+Obunzu Markdown Viewer（略称はObunzu）は、Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・`svg`）を、画像として表示します。エディタもPDF出力もありません。
 
 このREADMEは、開発者向けです。Obunzuを使う人向けの説明書は、[Obunzu使い方ガイド](../doc/obunzu-guide/)です（Releasesに、PDFを添付しています）。
 
@@ -75,7 +75,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 ## 配布物（Windows）
 
-`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-<バージョン>-win-x64.zip`、約293 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）（ネットワークなしで動きます。#263）と、Java（`jre/`）・`plantuml.jar`・D2本体・structurizr-cli（絞り込み版）・`mermaid.min.js`（Mermaid・PlantUML・D2・Structurizrの図が、追加のダウンロードなしで使えます。#290・#310）と、サードパーティのライセンス表記（`licenses/`）です。`playwright`は、同梱しません（Mermaidの図は、Electron自身のChromiumで描画するため、`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
+`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`、約293 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）（ネットワークなしで動きます。#263）と、Java（`jre/`）・`plantuml.jar`・D2本体・structurizr-cli（絞り込み版）・`mermaid.min.js`（Mermaid・PlantUML・D2・Structurizrの図が、追加のダウンロードなしで使えます。#290・#310）と、サードパーティのライセンス表記（`licenses/`）です。`playwright`は、同梱しません（Mermaidの図は、Electron自身のChromiumで描画するため、`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
 ## 環境変数
 
 | 変数 | 意味 |
@@ -137,7 +137,7 @@ npm test
 
 `test/worker-integration.test.js`は、実際のPythonワーカーを起動して、`render_html`の往復（MarkdownとCSV、存在しないファイル、ワーカーの常駐）を確認します。`dist-requirements.txt`のパッケージが入ったPythonが要り、無いときは飛ばします。環境変数`REQUIRE_WORKER_INTEGRATION=1`を付けると、飛ばさず、失敗にします。
 
-CI（`.github/workflows/viewer.yml`）は、`viewer/`や`text_compositor/`を変えたPR・pushで、Windowsで`npm test`を実行します。Electronは、起動しません。リリースは、text-compositor本体と同時に行います。タグ`v<バージョン>`を1つpushすると、ポータブルなZIPが作られ、同じGitHub Releaseに添付されます（`.github/workflows/release.yml`と`viewer-release.yml`。Obunzuだけを出す例外は、タグ`obunzu-v<バージョン>`。[doc/viewer-distribution.md](../doc/viewer-distribution.md)）。
+CI（`.github/workflows/viewer.yml`）は、`viewer/`や`text_compositor/`を変えたPR・pushで、Windowsで`npm test`を実行します。Electronは、起動しません。リリースは、text-compositor本体と同時に行います。タグ`v<バージョン>`を1つpushすると、ポータブルなZIPが作られ、同じGitHub Releaseに添付されます（`.github/workflows/release.yml`と`viewer-release.yml`。Obunzuだけを出す例外は、タグ`obunzu-markdown-viewer-v<バージョン>`。[doc/viewer-distribution.md](../doc/viewer-distribution.md)）。
 
 ## サードパーティのコンポーネント
 

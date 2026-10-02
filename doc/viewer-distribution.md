@@ -4,13 +4,13 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 
 ## 配布の形式
 
-- **ポータブルなZIP**（`Obunzu-<バージョン>-win-x64.zip`）。展開して、`obunzu.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
+- **ポータブルなZIP**（`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`）。展開して、`obunzu-markdown-viewer.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
 - ZIPの大きさは、**約293.5 MB**。展開後は、**約687.0 MB**。Electron（Chromium）が、展開後の半分強を占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから約468 MBへ増え（ZIPで+35 MB）、PlantUML・D2・Structurizr・Mermaidの同梱（[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）で、さらに展開後+約217 MB（Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsの合計。実測は下の表）、**ZIPで+約93 MB**（約200 MBから約293 MBへ）増えた。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
-Obunzu-0.4.3-win-x64/
-  obunzu.exe                 Electronのアプリ（アイコン・バージョン情報つき）
+Obunzu-Markdown-Viewer-0.4.3-win-x64/
+  obunzu-markdown-viewer.exe                 Electronのアプリ（アイコン・バージョン情報つき）
   resources/app.asar         Viewerのコード（src/・assets/）
   python-embed/              組込版Python（python.orgのembeddable package）
     Lib/site-packages/       必要最小限のパッケージ + typst + text_compositor
@@ -106,7 +106,7 @@ Obunzu-0.4.3-win-x64/
 
 一般的なノートPCで、展開が遅いという指摘を受けて調べた。**結論は、改善を見送る。Full版・Lite版の分け方や、追加パック方式、7z形式の配布は、インストーラーを作成するときに、あわせて検討する。** 次は、そのときの材料である（v0.4.1。計測は、性能の高い開発機。ウイルス対策などの影響が大きい一般的なノートPCでは、再現できていない）。
 
-- **ファイル数は、主因ではない。** 全体で1,109ファイル: `python-embed/` 454（88 MB）、`jre/` 315（146 MB）、`typst-packages/` 207（5 MB）、`locales/` 55（49 MB）、その他78（約400 MB。`obunzu.exe` 235 MB、D2 41 MB、PlantUML 17 MBなど）。容量が支配的である。
+- **ファイル数は、主因ではない。** 全体で1,109ファイル: `python-embed/` 454（88 MB）、`jre/` 315（146 MB）、`typst-packages/` 207（5 MB）、`locales/` 55（49 MB）、その他78（約400 MB。`obunzu-markdown-viewer.exe` 235 MB、D2 41 MB、PlantUML 17 MBなど）。容量が支配的である。
 - **展開時間**（ZIP 293.5 MB → 展開後 687 MB）: `tar` 4秒、.NETの`ZipFile` 4秒、`Expand-Archive` 7秒、7-Zip 7秒、エクスプローラーと同じ処理 15秒（Mark of the Web付きのZIPで 17秒）。エクスプローラーと同じ処理は、展開後の全ファイルに、Mark of the Webを引き継ぐ（`tar`・.NETは引き継がない）。
 - **圧縮**: ZIPは、Deflateで、206ファイルは無圧縮（Store）。7z形式（LZMA2）では、206.8 MB（ZIPの約7割）で、展開は12.6秒。ただし、Windows標準のエクスプローラーは、7zを開けない。
 - **一般的なノートPCで遅い原因**（推測。未確認）: ファイルごとのウイルス対策の検査、遅い記憶装置、エクスプローラーの展開の遅さ。
@@ -136,7 +136,7 @@ npm ci
 npm run build-dist
 ```
 
-- `dist/Obunzu-<バージョン>-win-x64.zip`と、展開済みの`dist/stage/Obunzu-<バージョン>-win-x64/`ができる。ビルドの終わりに、同梱物のサイズの内訳を表示する。
+- `dist/Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`と、展開済みの`dist/stage/Obunzu-Markdown-Viewer-<バージョン>-win-x64/`ができる。ビルドの終わりに、同梱物のサイズの内訳を表示する。
 - ビルド用のPythonは、環境変数`PYTHON_FOR_BUILD`、なければ`TEXT_COMPOSITOR_PYTHON`、なければ`PATH`の`python`。
 - 取得するもの（組込版Python・Apache-2.0の全文）は、SHA256を確認し、`dist/.cache/`に置く。Electronは、`@electron/packager`が取得する（ユーザーのキャッシュに置く）。
 - バージョンは、`viewer/package.json`の`version`（text-compositorと同じ。[#194](https://github.com/tokudiro/text-compositor/issues/194)）。
@@ -175,7 +175,7 @@ node scripts/check-dist.js
 
 Obunzuは、**同じバージョンのtext_compositorを同梱**する（`build-dist.js`が、ビルドしたときのリポジトリの`text_compositor`を、ZIPに写す）。バージョンも、text-compositorと同じ値にそろえる決まりがある（`tests/test_viewer_version.py`）。そのため、**`v<バージョン>`のタグを1つだけpushして、両方を同時にリリースする**。利用者からは、「v0.3.5」が1つのReleaseにあり、使い方ガイドのPDFと、Obunzuの ZIPが、同じ版とすぐ分かる。
 
-Obunzuだけの修正を出したいときも、原則は、**両方のパッチ版を上げる**（例: 0.3.5 → 0.3.6）。text-compositorは、中身が同じでも、新しい版がPyPIに出る（害は小さく、番号が1つで済む）。どうしても、Obunzuだけを出す場合の例外の道として、`obunzu-v<バージョン>`のタグも、残してある（下）。
+Obunzuだけの修正を出したいときも、原則は、**両方のパッチ版を上げる**（例: 0.3.5 → 0.3.6）。text-compositorは、中身が同じでも、新しい版がPyPIに出る（害は小さく、番号が1つで済む）。どうしても、Obunzuだけを出す場合の例外の道として、`obunzu-markdown-viewer-v<バージョン>`のタグも、残してある（下）。
 
 ### ワークフロー
 
@@ -184,21 +184,21 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 | ファイル | 起動 | 内容 |
 |---|---|---|
 | `.github/workflows/viewer.yml` | `viewer/`・`text_compositor/`・`pyproject.toml`の変更を含むPR・`master`へのpush。ほかのワークフローからの呼び出し | Windowsで`npm test`（Node.jsのテスト）と、実際のPythonワーカーとの結合テストを実行する。権限は、読み取りだけ |
-| `.github/workflows/viewer-release.yml` | 呼び出し（`release.yml`から）、`obunzu-v*`のタグのpush、手動実行 | テスト → 配布物（ZIP）のビルド。`obunzu-v*`のときだけ、Releaseの作成と添付まで行う（例外の道） |
+| `.github/workflows/viewer-release.yml` | 呼び出し（`release.yml`から）、`obunzu-markdown-viewer-v*`のタグのpush、手動実行 | テスト → 配布物（ZIP）のビルド。`obunzu-markdown-viewer-v*`のときだけ、Releaseの作成と添付まで行う（例外の道） |
 | `.github/workflows/release.yml` | `v*`のタグのpush | 使い方ガイドのPDF（Releaseを作る）、PyPIへの公開、`build-viewer`（上の`viewer-release.yml`を呼び出す）、`attach-viewer`（ZIPを、同じReleaseに添付する） |
 
 - **順序**: Releaseは、`build-usage-guide`が作る。`build-viewer`は、これを待ち（`needs`）、`attach-viewer`が、そのあとで、ZIPを添付する。同じタグに、2つのジョブが同時にReleaseを作って、競合しないため。
 - **失敗したとき**: PDFとPyPIへの公開は、`build-viewer`を待たない。Obunzuのビルドが失敗しても、影響しない。失敗したジョブだけを、Actionsの「Re-run failed jobs」で、再実行できる。
 - **CIで確認するもの**: Node.jsのテストと、実際のPythonワーカーとの結合（`viewer/test/worker-integration.test.js`。Markdown・CSV（`csv_header`）・存在しないファイルの`render_html`の往復と、ワーカーの常駐）。ワーカーとの結合テストは、Pythonの準備がない手元では、飛ばし、CIでは（`REQUIRE_WORKER_INTEGRATION=1`）、飛ばさず、失敗にする。
 - **CIで確認しないもの**: ElectronのGUIの起動と、展開した配布物の起動（`check-dist.js`）。画面が要り、不安定になりやすいため、手元で行う。Mermaid・PlantUML・D2・Structurizrの実際の描画も、対象外（外部のツール＝Java・D2 CLIの実際の起動や、GUIでの表示確認が要るため）。
-- **バージョンの確認**: タグは、`viewer/package.json`の`version`と、そろえる（`v<バージョン>`か、`obunzu-v<バージョン>`。そろっていなければ、ビルドの前に失敗する）。
+- **バージョンの確認**: タグは、`viewer/package.json`の`version`と、そろえる（`v<バージョン>`か、`obunzu-markdown-viewer-v<バージョン>`。そろっていなければ、ビルドの前に失敗する）。
 - **PyPIとの分離**: PyPIのTrusted Publishingは、`release.yml`と`pypi`環境に紐づいている。`id-token`の権限は、`publish-pypi`だけが持つ。Viewerのビルド・添付のジョブ（`build-viewer`・`attach-viewer`）にも、`viewer-release.yml`にも、与えない。
-- **「Latest」・本文**: `v*`のReleaseの本文と「Latest」は、`build-usage-guide`が決めた結果のまま（`attach-viewer`は、ファイルを添付するだけ。**未検証**。初回のリリースで、確認する）。例外の道（`obunzu-v*`）は、`make_latest: false`で作り、text-compositor本体のReleaseの「Latest」表示を、奪わない。
+- **「Latest」・本文**: `v*`のReleaseの本文と「Latest」は、`build-usage-guide`が決めた結果のまま（`attach-viewer`は、ファイルを添付するだけ。**未検証**。初回のリリースで、確認する）。例外の道（`obunzu-markdown-viewer-v*`）は、`make_latest: false`で作り、text-compositor本体のReleaseの「Latest」表示を、奪わない。
 
 ### リリースの手順（通常）
 
 1. `pyproject.toml`と、`viewer/package.json`・`viewer/package-lock.json`の`version`を、同じ値に上げる（`tests/test_viewer_version.py`が確認する）。
-2. 事前に、Actionsの「Viewer release」を、手動で実行する。テストと、配布物のビルドが通り、成果物（`obunzu-win-x64`）として、ZIPを取得できる。Releaseは、作られない。
+2. 事前に、Actionsの「Viewer release」を、手動で実行する。テストと、配布物のビルドが通り、成果物（`obunzu-markdown-viewer-win-x64`）として、ZIPを取得できる。Releaseは、作られない。
 3. text-compositor側の事前の確認（wheelの内容など）を行う。
 4. タグ`v<バージョン>`を、`master`に打って、pushする。`release.yml`が、PDFとPyPIと、Obunzuの ZIPを、順に、同じReleaseへ集める。
 5. Releaseの本文は、自動生成されたたたき台になる。公開後に、`gh release edit`で、英語と日本語の両方に、書き直す。
@@ -206,7 +206,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 ### Obunzuだけを出す（例外）
 
 1. Obunzuだけの修正を入れ、`pyproject.toml`と、`viewer/package.json`・`viewer/package-lock.json`の`version`を、同じ値に上げる（バージョンを、そろえる決まりは、この場合も同じ）。`pyproject.toml`の版は、上がるが、PyPIには、公開されない（次の`v`のタグのときに、公開される）。
-2. タグ`obunzu-v<バージョン>`を、`master`に打って、pushする。`viewer-release.yml`が、テスト → ビルド → Releaseの作成と添付を、行う。
+2. タグ`obunzu-markdown-viewer-v<バージョン>`を、`master`に打って、pushする。`viewer-release.yml`が、テスト → ビルド → Releaseの作成と添付を、行う。
 
 ビルドで使う`tar`は、Windows標準の`System32\tar.exe`を、明示する。GitHub ActionsのWindowsのランナーは、PATHの先頭に、Gitに付属のGNU tar（zipを扱えない）があることがあるため。
 
@@ -265,3 +265,12 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 
 - [#165](https://github.com/tokudiro/text-compositor/issues/165) Viewer（親）、[#172](https://github.com/tokudiro/text-compositor/issues/172) CI（配布物のビルドと添付）、[#171](https://github.com/tokudiro/text-compositor/issues/171) 配布環境での図の描画の実機検証、[#207](https://github.com/tokudiro/text-compositor/issues/207) Mermaidの描画をElectronで行う（実装済み）
 - [gui-viewer-spike.md](gui-viewer-spike.md) 組込版Pythonの同梱方式のスパイク（#99・#102）
+
+## 名前の変更（Obunzu → Obunzu Markdown Viewer、#394）
+
+0.4.4から、名前を「Obunzu Markdown Viewer」にした（略称はObunzu）。用途が、名前から伝わるようにするためである。
+
+- **変えたもの**: 表示名（ウィンドウのタイトル・Windowsでのアプリ名）、ZIP名（`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`）、exe名（`obunzu-markdown-viewer.exe`）、`package.json`の`name`、AppUserModelId、Releaseの添付名（使い方ガイドのPDFを含む）、Viewerだけのタグ（`obunzu-markdown-viewer-v<バージョン>`）、CIの成果物名。
+- **変えなかったもの**: 内部のURLスキーム（`obunzu://`。利用者に見えない）、リポジトリの中のフォルダ名（`doc/obunzu-guide/`）、確認スクリプトの一時フォルダの接頭辞。変えても、利用者に利点がなく、履歴をたどりにくくなるだけのため。
+- **設定の引き継ぎ**: Electronのユーザーデータは、アプリ名で置き場所が決まるため、改名で、新しいフォルダになる。新しいフォルダに`settings.json`がなく、旧名（`Obunzu`）のフォルダにあるときだけ、初回起動時に、1回だけ写す（`viewer/src/legacy-settings.js`）。旧名のフォルダは、消さない。キャッシュ（`%LOCALAPPDATA%\text-compositor\Cache\viewer`）は、アプリ名に依らないため、そのまま使える。
+- **既知の影響**: AppUserModelIdが変わるため、タスクバーに固定していた場合は、固定し直しが要る。旧版のZIPは、別のフォルダに展開されたままである。

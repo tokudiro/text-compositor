@@ -1,6 +1,6 @@
 {
-  "name": "obunzu",
-  "productName": "Obunzu",
+  "name": "obunzu-markdown-viewer",
+  "productName": "Obunzu Markdown Viewer",
   "version": "0.4.3",
   "private": true,
   "description": "A fast, read-only Markdown viewer for Docs, Diagrams and Design as Code (Electron, built on text-compositor).",

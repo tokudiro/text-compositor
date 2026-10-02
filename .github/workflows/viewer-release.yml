@@ -7,11 +7,11 @@ name: Viewer release
 # release.yml（使い方ガイドのPDFと、PyPIへの公開）が動き、その中の`build-viewer`が、このワークフローを呼び出して、ZIPを作る
 # （workflow_call）。ZIPは、release.ymlの`attach-viewer`が、同じReleaseに添付する（このワークフローは、添付しない）。
 #
-# Obunzuだけの修正を出す例外の場合は、`obunzu-v<バージョン>`のタグをpushする。このワークフローが、テスト → ビルド →
+# Obunzuだけの修正を出す例外の場合は、`obunzu-markdown-viewer-v<バージョン>`のタグをpushする。このワークフローが、テスト → ビルド →
 # Releaseの作成と添付までを行う。text-compositor本体の版は、上がらない（PyPIへの公開も、動かない）。`v`で始まらない名前に
 # するのは、release.ymlが`v*`のタグで動くため（`viewer-v0.3.5`のような名前は、`v`で始まり、一致してしまう）。
 #
-# バージョン: viewer/package.jsonの`version`と、タグをそろえる（`v<バージョン>`か、`obunzu-v<バージョン>`。そろっていなければ、失敗する）。
+# バージョン: viewer/package.jsonの`version`と、タグをそろえる（`v<バージョン>`か、`obunzu-markdown-viewer-v<バージョン>`。そろっていなければ、失敗する）。
 #
 # 手動実行（workflow_dispatch）: 配布物を作って、成果物（artifact）として保存するだけ。Releaseは、作らない。
 # タグを打つ前に、配布物のビルドが通ることを、確認するために使う。
@@ -22,7 +22,7 @@ name: Viewer release
 on:
   push:
     tags:
-      - "obunzu-v*"
+      - "obunzu-markdown-viewer-v*"
   workflow_dispatch:
   workflow_call:
 
@@ -40,14 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # `v<バージョン>`（text-compositorと同時のリリース）か、`obunzu-v<バージョン>`（Obunzuだけの例外）
+      # `v<バージョン>`（text-compositorと同時のリリース）か、`obunzu-markdown-viewer-v<バージョン>`（Obunzuだけの例外）
       - name: Check that the tag matches the version in viewer/package.json
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           version=$(node -p "require('./viewer/package.json').version")
-          if [ "${GITHUB_REF_NAME}" != "v${version}" ] && [ "${GITHUB_REF_NAME}" != "obunzu-v${version}" ]; then
-            echo "::error::The tag ${GITHUB_REF_NAME} does not match viewer/package.json (version ${version}). Expected v${version} or obunzu-v${version}."
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ] && [ "${GITHUB_REF_NAME}" != "obunzu-markdown-viewer-v${version}" ]; then
+            echo "::error::The tag ${GITHUB_REF_NAME} does not match viewer/package.json (version ${version}). Expected v${version} or obunzu-markdown-viewer-v${version}."
             exit 1
           fi
 
@@ -94,27 +94,27 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: obunzu-win-x64
-          path: viewer/dist/Obunzu-*-win-x64.zip
+          name: obunzu-markdown-viewer-win-x64
+          path: viewer/dist/Obunzu-Markdown-Viewer-*-win-x64.zip
           if-no-files-found: error
 
   release:
     needs: dist
     # タグのpushのときだけ。手動実行では、Releaseを作らない
-    if: startsWith(github.ref, 'refs/tags/obunzu-v')
+    if: startsWith(github.ref, 'refs/tags/obunzu-markdown-viewer-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # Releaseの作成と、ファイルの添付
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: obunzu-win-x64
+          name: obunzu-markdown-viewer-win-x64
           path: dist
 
       - name: Attach the ZIP to the release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/Obunzu-*-win-x64.zip
+          files: dist/Obunzu-Markdown-Viewer-*-win-x64.zip
           # ViewerのReleaseが、text-compositor本体（PyPI）のReleaseの「Latest」表示を、奪わないようにする
           make_latest: false
           # 本文は、たたき台として、自動生成する。公開後に、`gh release edit`で、書き直す（英日併記）

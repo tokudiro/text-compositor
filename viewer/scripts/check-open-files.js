@@ -2,7 +2,7 @@
 // Markdown以外のファイル（.txt・.csv・.svg・図の単体ファイル・対象外の拡張子・文字コード・フォルダ・存在しない・大きなファイル）を、
 // コマンドライン引数で渡して、実際のアプリで、表示・案内が出ることを確認する（手動。#196）。
 //   TEXT_COMPOSITOR_PYTHON=<python> TEXT_COMPOSITOR_PYTHONPATH=<repo> node scripts/check-open-files.js
-// 配布物を確認するときは、引数に、展開したフォルダ（obunzu.exeがある場所）を渡す。
+// 配布物を確認するときは、引数に、展開したフォルダ（obunzu-markdown-viewer.exeがある場所）を渡す。
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -11,7 +11,7 @@ const path = require('node:path');
 
 const viewerDir = path.resolve(__dirname, '..');
 const packaged = process.argv[2] ? path.resolve(process.argv[2]) : null;
-const electron = packaged ? path.join(packaged, 'obunzu.exe') : require('electron');
+const electron = packaged ? path.join(packaged, 'obunzu-markdown-viewer.exe') : require('electron');
 const port = 9700 + Math.floor(Math.random() * 100);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

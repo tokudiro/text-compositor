@@ -20,6 +20,7 @@ const { FileWatcher } = require('./watcher');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
+const { migrateLegacySettings } = require('./legacy-settings');
 const { VegaHost } = require('./vega-host');
 const { WaveDromHost } = require('./wavedrom-host');
 const { cacheRoot, cacheUsage, clearCache, workLocation } = require('./workdir');
@@ -27,10 +28,10 @@ const { WorkerClient } = require('./worker-client');
 
 // アプリケーション名（#194）。Observe（観察する）+ 文図（文章と図）の造語。
 // AppUserModelIdは、Windowsのタスクバーの固定・通知が、このアプリとして扱われるための識別子。
-const APP_NAME = 'Obunzu';
+const APP_NAME = 'Obunzu Markdown Viewer';
 // ウィンドウのタイトルに、バージョン（package.jsonのversion）を添える。
 const APP_TITLE = `${APP_NAME} ${app.getVersion()}`;
-app.setAppUserModelId('io.github.tokudiro.obunzu');
+app.setAppUserModelId('io.github.tokudiro.obunzu-markdown-viewer');
 
 // #180で調整した起動引数。GPUを使わず、GPU処理をブラウザのプロセスに統合する（メモリが約35%減り、体感で最速だった）。
 // 環境変数 VIEWER_GPU=1 で、標準の動作に戻せる。
@@ -113,6 +114,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     trace('app-ready');
+    // 改名（#394）の前の設定を、新しい置き場所へ、1回だけ引き継ぐ
+    migrateLegacySettings({ userData: app.getPath('userData'), appData: app.getPath('appData') });
     settingsFile = path.join(app.getPath('userData'), 'settings.json');
     state.settings = loadSettings(settingsFile);
     state.autoReload = state.settings.autoReload;

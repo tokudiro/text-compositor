@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <title>Obunzu</title>
+  <title>Obunzu Markdown Viewer</title>
   <desc>A document page with a small diagram (two nodes joined by an arrow) on a sky-blue rounded square.</desc>
   <rect x="4" y="4" width="120" height="120" rx="26" fill="#3f9be0"/>
   <path d="M36 18h40l20 20v72a4 4 0 0 1-4 4H36a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z" fill="#ffffff"/>

@@ -2,19 +2,19 @@
 
 ## 入手する
 
-GitHubの[Releases](https://github.com/tokudiro/text-compositor/releases)から、最新の版の`Obunzu-<バージョン>-win-x64.zip`をダウンロードします。大きさは、約200 MBです。展開すると、約468 MBになります。
+GitHubの[Releases](https://github.com/tokudiro/text-compositor/releases)から、最新の版の`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`をダウンロードします。大きさは、約200 MBです。展開すると、約468 MBになります。
 
 ## 起動する
 
 1. ZIPを、好きな場所に展開します（例: `C:\Tools\`）。
-2. 展開したフォルダの中の、`obunzu.exe`を起動します。
+2. 展開したフォルダの中の、`obunzu-markdown-viewer.exe`を起動します。
 
 Pythonなど、ほかのソフトのインストールは、要りません。Obunzuに必要なものは、すべて、そのフォルダの中に入っています。インストーラは、ありません。レジストリにも、書き込みません。
 
 ファイルを指定して、起動することもできます。
 
 ```text
-obunzu.exe C:\docs\memo.md
+obunzu-markdown-viewer.exe C:\docs\memo.md
 ```
 
 Obunzuがすでに起動しているときに、別のファイルを開くと、既存のウィンドウで表示します。

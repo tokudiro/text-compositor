@@ -13,7 +13,7 @@ name: Release
 # リリースの度にどちらの手順も壊れていないかを継続的に検証する。
 #
 # Obunzu（Viewer）も、同じタグで、同時にリリースする（#172）。ZIPを作り、同じReleaseに添付する
-# （build-viewer・attach-viewer）。Obunzuだけの修正を出す例外は、`obunzu-v*`のタグ（viewer-release.yml）。
+# （build-viewer・attach-viewer）。Obunzuだけの修正を出す例外は、`obunzu-markdown-viewer-v*`のタグ（viewer-release.yml）。
 on:
   push:
     tags:
@@ -69,7 +69,7 @@ jobs:
         with:
           files: |
             this-repo/doc/usage/text-compositor-usage-guide.pdf
-            this-repo/doc/obunzu-guide/obunzu-usage-guide.pdf
+            this-repo/doc/obunzu-guide/obunzu-markdown-viewer-usage-guide.pdf
           # 本文を自動生成する（マージ済みPRの一覧。v0.0.13までは本文が空のまま公開されて
           # いたため追加した）。カテゴリ分けした詳細なノートにしたい場合は、公開後に
           # `gh release edit`で上書きする運用のままでよい（自動生成はたたき台として機能する）。
@@ -119,13 +119,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: obunzu-win-x64
+          name: obunzu-markdown-viewer-win-x64
           path: dist
 
       - name: Attach the Obunzu ZIP to the release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/Obunzu-*-win-x64.zip
+          files: dist/Obunzu-Markdown-Viewer-*-win-x64.zip
 
   # タグpushのたびにPyPIへ公開する（#134）。APIトークンをGitHub Secretsに保存せず、
   # PyPIのTrusted Publishing（OIDC）を使う。事前にPyPI側で「pending publisher」として
