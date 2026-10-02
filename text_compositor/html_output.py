@@ -510,15 +510,16 @@ class HtmlRenderer(TypstRenderer):
         width, height = self._parse_size_attrs(attrs)
         trim = self._parse_trim_attr(attrs)
         line = self._abs_line(t)
-        return self._fenced_html(lang, t.content, width, height, trim, line=line, code_line=line + 1 if line else None)
+        return self._fenced_html(lang, t.content, width, height, trim, line=line, code_line=line + 1 if line else None,
+                                 alt=self._parse_alt_attr(attrs))
 
-    def _fenced_html(self, lang: str, code: str, width, height, trim=None, line=None, code_line=None) -> str:
+    def _fenced_html(self, lang: str, code: str, width, height, trim=None, line=None, code_line=None, alt=None) -> str:
         """フェンス1つ分。図は`<img>`に、それ以外（未対応・無効な図を含む）は、コードブロックにする。
         code_line: コードの1行目の、原稿での行（Graphvizの警告・エラーを、原稿の行にするため。分からなければ、None）。"""
         if lang in _DIAGRAM_LANGS:
             svg_path = self._diagram_svg_path(lang, code, trim, line, code_line)
             if svg_path is not None:
-                return self._diagram_html(lang, svg_path, width, height)
+                return self._diagram_html(lang, svg_path, width, height, alt)
         elif lang == 'math':
             return self._math_block_html(code, line=line, code_line=code_line)
         elif lang in _UNSUPPORTED_FENCES:
@@ -595,9 +596,11 @@ class HtmlRenderer(TypstRenderer):
                 self._warn_line("Graphviz: the graph-level label (and labelloc) is not drawn by diagraph. "
                                 "Put the title in the Markdown text, or use a cluster label.", at)
 
-    def _diagram_html(self, lang: str, svg_path: str, width, height) -> str:
+    def _diagram_html(self, lang: str, svg_path: str, width, height, alt=None) -> str:
+        # 代替テキスト（#398）が、書かれていなければ、図の種類だけ（図の内容は、推測しない）
+        text = f'{lang} diagram' if alt is None else alt
         return (f'<div class="diagram diagram-{lang}"><img src="{escapeHtml(self._url_for(svg_path))}" '
-                f'alt="{lang} diagram"{self._size_attr(width, height)}></div>\n')
+                f'alt="{escapeHtml(text)}"{self._size_attr(width, height)}></div>\n')
 
     @staticmethod
     def _code_block(code: str, lang: str = '') -> str:
@@ -613,7 +616,8 @@ class HtmlRenderer(TypstRenderer):
         if match.group('lang'):
             width, height = self._parse_size_attrs(match.group('attrs'))
             trim = self._parse_trim_attr(match.group('attrs'))
-            return self._fenced_html(match.group('lang'), match.group('code'), width, height, trim)
+            return self._fenced_html(match.group('lang'), match.group('code'), width, height, trim,
+                                     alt=self._parse_alt_attr(match.group('attrs')))
         return self._segment_html(match.group('image')).strip() + "\n"
 
     # -- 画像・URL --------------------------------------------------------------
