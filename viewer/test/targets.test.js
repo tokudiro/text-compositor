@@ -24,6 +24,11 @@ describe('openDialogFilters', () => {
     for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'pikchr', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
   });
 
+  test('settings files and source code have their own kind (#218)', () => {
+    const source = filters.find((filter) => filter.name.startsWith('設定'));
+    for (const extension of ['yaml', 'yml', 'json', 'toml', 'py', 'js', 'ts', 'sh']) assert.ok(source.extensions.includes(extension), extension);
+  });
+
   test('文 groups Markdown and plain text', () => {
     const prose = filters.find((filter) => filter.name.startsWith('文'));
     assert.deepEqual(prose.extensions, ['md', 'markdown', 'txt']);

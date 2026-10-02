@@ -10,6 +10,7 @@
 //   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
 //   - Vega-Lite・Vegaの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。外部データの参照は、エラーで止まる（#351）。
 //   - WaveDromの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。描けない仕様は、エラーで止まる（#392）。
+//   - .yaml・.py・Markdownのコードブロックが、同梱のPygmentsで、色分けされて表示される（#218）。
 //   - Bytefieldの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。構文の誤りは、行・桁つきで止まる（#300）。
 //     EPL-2.0の全文と、ソースの入手先（THIRD-PARTY-NOTICES.md）が、同梱されている。
 //   - Graphviz（dot・graphviz）が、システムのGraphvizなしで、Typstのdiagraph（同梱）で描画され、構文エラーは、原稿の行つきで出る（#264）。
@@ -295,6 +296,18 @@ async function main() {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
     check('描けない仕様が、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('wavedrom-error.md:5'), JSON.stringify(item.head));
     check('エラーの内容が、詳細に出る', /non-empty array/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
+
+  // シンタックスハイライト（#218）。同梱のPygmentsで、設定ファイル・ソースコード・Markdownのコードブロックを、色分けする。
+  await runCase('YAMLの色分け', 'name: demo\nitems:\n  - a: 1  # コメント\n', path.join(work, 'sample.yaml'), async (state, _pythons, { content }) => {
+    check('.yamlが、表示される（エラーの帯がない）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const spans = content ? JSON.parse(await content("JSON.stringify({ code: !!document.querySelector('code.language-yaml.highlighted'), tokens: document.querySelectorAll('code.highlighted span').length })")) : {};
+    check('.yamlが、色分けされている（Pygmentsの、トークンのspanがある）', spans.code === true && spans.tokens > 5, JSON.stringify(spans));
+  }, 12000);
+  await runCase('Markdownのコードブロックの色分け', '# コード\n\n```python\ndef f(x):\n    return x + 1\n```\n', path.join(work, 'code.md'), async (state, _pythons, { content }) => {
+    check('コードブロックを含む文書が、表示される', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const spans = content ? JSON.parse(await content("JSON.stringify({ code: !!document.querySelector('code.language-python.highlighted'), tokens: document.querySelectorAll('code.highlighted span').length })")) : {};
+    check('コードブロックが、色分けされている', spans.code === true && spans.tokens > 3, JSON.stringify(spans));
   }, 12000);
 
   // Bytefield-svg（#300）。ElectronのChromiumで描画される。同梱のbytefield/を使うため、追加の取得はない。

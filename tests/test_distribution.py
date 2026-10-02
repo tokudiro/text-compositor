@@ -72,12 +72,16 @@ def test_the_distribution_requirements_follow_pyproject():
     dependencies = re.search(r"^dependencies = \[(.*?)^\]", pyproject, re.S | re.M).group(1)
     project = _pins(dependencies.splitlines())
     dist = _pins((ROOT / "viewer" / "dist-requirements.txt").read_text(encoding="utf-8").splitlines())
+    # 配布物には、必須の依存に加えて、シンタックスハイライト用のPygments（`highlight`エクストラ。#218）も入れる
+    highlight = _pins(re.search(r"^highlight = \[(.*?)\]", pyproject, re.S | re.M).group(1).split(","))
+    assert highlight == {"pygments": highlight["pygments"]}
+    expected = {**project, **highlight}
 
     assert dist, "no pinned requirements found"
     for name, version in dist.items():
-        assert project.get(name) == version, f"{name}: dist {version} != pyproject {project.get(name)}"
+        assert expected.get(name) == version, f"{name}: dist {version} != pyproject {expected.get(name)}"
     # typstは、Typstを通す処理のために、同梱する（#263。#237で決めた）。Mermaid用のplaywrightは、pyprojectの必須の依存ではなく、
     # ElectronのChromiumで描画するため、同梱しない
     assert "typst" in project and "typst" in dist
     assert "playwright" not in dist
-    assert set(project) == set(dist)
+    assert set(expected) == set(dist)

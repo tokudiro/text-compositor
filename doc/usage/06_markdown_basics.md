@@ -314,3 +314,7 @@ landscape: true
 | `title` / `subtitle` / `author` / `date` | 認識はするが反映しない（読み捨てる） | — |
 
 `title`/`subtitle`/`author`/`date`は、Marp原稿との共用時にエラーや警告が出ないよう認識だけします。ただし、実際には何も反映されません。文書全体のタイトル等は `document:` の設定（「document: 文書全体の設定」の章）で指定してください。
+
+## コードブロックの色分け（HTML出力・Obunzu）
+
+PDF出力は、Typstが、コードブロックを色分けします。HTML出力とObunzuは、Pygmentsで色分けします（`.yaml`・`.json`・`.py`などのファイルを、そのまま開いたときも、同じです）。Obunzuの配布物には、Pygmentsを同梱しています。pipで入れたときは、`pip install text-compositor[highlight]`で、Pygmentsを足します。Pygmentsが無いときは、色なしの等幅で表示します。約128 KBを超える内容は、色を付けません。

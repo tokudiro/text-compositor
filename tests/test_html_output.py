@@ -147,7 +147,7 @@ class TestMarkdown:
         assert "<strong>b</strong>" in b and "<em>i</em>" in b and "<s>s</s>" in b and "<code>c</code>" in b
         assert '<a href="https://example.com">l</a>' in b
         assert "<ul>" in b and "<ol>" in b
-        assert re.search(r'<pre data-line="\d+"><code class="language-python">print\(1\)\n</code></pre>', b)
+        assert re.search(r'<pre data-line="\d+"><code class="language-python( highlighted)?">.*print.*</code></pre>', b, re.S)
 
     def test_line_breaks_are_kept_like_the_pdf(self, tmp_path):
         _, html = convert(tmp_path, "one\ntwo\n")
@@ -392,7 +392,7 @@ class TestFences:
 
     def test_graphviz_is_disabled_by_the_plugin_setting_without_a_warning(self, tmp_path, graphviz_host):
         result, html = convert(tmp_path, "```dot\ndigraph { a -> b }\n```\n", plugins={**PLAIN, "graphviz": False})
-        assert 'class="language-dot"' in html and not result.warnings
+        assert 'class="language-dot' in html and not result.warnings
         assert graphviz_host.calls == []
 
     @pytest.mark.parametrize("lang", ["dot", "graphviz"])
@@ -552,19 +552,14 @@ class TestTextFiles:
         result, html = convert(tmp_path, "", name="empty.txt")
         assert result.ok and plain(html) == ""
 
-    @pytest.mark.parametrize("name", ["settings.yaml", "data.json", "script.py", "page.html", "README", "app.log", "image.png", "doc.pdf"])
+    @pytest.mark.parametrize("name", ["README", "app.log", "image.png", "doc.pdf", "notes.xyz"])
     def test_other_files_are_an_error_with_a_guide(self, tmp_path, name):
         error = error_of(tmp_path, name, "content")
         assert "cannot be opened" in error.message
         assert "Markdown（.md）" in error.detail and "テキスト（.txt）" in error.detail
 
-    def test_settings_files_and_source_code_point_to_the_follow_up_issue(self, tmp_path):
-        for name in ("a.yaml", "a.yml", "a.json", "a.py"):
-            assert "#218" in error_of(tmp_path, name, "x").detail, name
-
-    def test_html_is_never_opened(self, tmp_path):
-        error = error_of(tmp_path, "page.html", "<script>alert(1)</script>")
-        assert "スクリプトを実行しない" in error.detail
+    def test_the_guide_lists_settings_files_and_source_code(self, tmp_path):
+        assert "設定ファイルとソースコード（.yaml・.json・.py など）" in error_of(tmp_path, "notes.xyz", "x").detail
 
     def test_only_utf8_without_bom_is_accepted(self, tmp_path):
         bom = error_of(tmp_path, "bom.txt", b"\xef\xbb\xbfabc")
