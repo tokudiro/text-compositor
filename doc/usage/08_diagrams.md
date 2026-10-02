@@ -1,4 +1,4 @@
-# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / timeliney / finite / Vega-Lite / Vega / WaveDrom / SVG）
+# 図表（Mermaid / Graphviz / PlantUML / D2 / Structurizr / Pikchr / CeTZ / Fletcher / timeliney / finite / Vega-Lite / Vega / WaveDrom / Bytefield / SVG）
 
 通常のフェンスコードブロックとして書きます。
 
@@ -63,7 +63,7 @@ box "開始" fit; arrow; circle "終了"
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`bytefield`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -79,6 +79,7 @@ box "開始" fit; arrow; circle "終了"
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
 | `vega-lite` / `vega` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`vega.min.js`・`vega-lite.min.js`を使います。[#351](https://github.com/tokudiro/text-compositor/issues/351)） |
 | `wavedrom` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`wavedrom.min.js`・スキンを使います。[#392](https://github.com/tokudiro/text-compositor/issues/392)） |
+| `bytefield` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`lib.js`を使います。[#300](https://github.com/tokudiro/text-compositor/issues/300)） |
 | `timeliney` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`timeliney`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「timelineyについて」） |
 | `finite` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`finite`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「finiteについて」） |
 
@@ -86,67 +87,67 @@ box "開始" fit; arrow; circle "終了"
 
 原稿を書くときに「この図を描きたいが、どの記法を使えばいいか」を判断する材料です。`○`＝その記法が、その図の種類を名指しで対応している、`×`＝対応していない。代用の推測は書きません。図の種類の対応が基本ですが、判断を左右する重要な機能差（例: シーケンス図のコンビネーションフラグメント）は、注記に書きます。
 
-`○`には、その機能が入った版を、確認できたものだけ添えています（例: `○(v11.0+)`）。本ツールが同梱する版は、mermaid 11.16.1・PlantUML 1.2026.8・D2 v0.9.0・structurizr-cli v2025.11.09・Vega 6.4.0・Vega-Lite 6.4.3・WaveDrom 3.7.0です。同梱の版が、必要な版以上であることを確認済みです。
+`○`には、その機能が入った版を、確認できたものだけ添えています（例: `○(v11.0+)`）。本ツールが同梱する版は、mermaid 11.16.1・PlantUML 1.2026.8・D2 v0.9.0・structurizr-cli v2025.11.09・Vega 6.4.0・Vega-Lite 6.4.3・WaveDrom 3.7.0・Bytefield-svg 1.11.0です。同梱の版が、必要な版以上であることを確認済みです。
 
-`vega`の列は、`vega-lite`と`vega`の両方を指します。`wavedrom`の列は、`signal`（タイミング図）と`reg`（レジスタ図）を指します。この表の`○`は、対応の有無だけを示します。実際の見た目・書き方は、記法ごとのギャラリーページに、`○`の図の種類すべての実例（コード＋出力）があります（[#323](https://github.com/tokudiro/text-compositor/issues/323)）。[Mermaid](14_gallery_mermaid.md)・[PlantUML](15_gallery_plantuml.md)・[D2](16_gallery_d2.md)・[Graphviz](17_gallery_graphviz.md)・[Structurizr](18_gallery_structurizr.md)・[Pikchr](19_gallery_pikchr.md)・[CeTZ](20_gallery_cetz.md)・[Fletcher](21_gallery_fletcher.md)・[timeliney](22_gallery_timeliney.md)・[finite](24_gallery_finite.md)・[Vega-Lite・Vega](23_gallery_vega.md)・[WaveDrom](25_gallery_wavedrom.md)。
+`vega`の列は、`vega-lite`と`vega`の両方を指します。`wavedrom`の列は、`signal`（タイミング図）と`reg`（レジスタ図）を指します。この表の`○`は、対応の有無だけを示します。実際の見た目・書き方は、記法ごとのギャラリーページに、`○`の図の種類すべての実例（コード＋出力）があります（[#323](https://github.com/tokudiro/text-compositor/issues/323)）。[Mermaid](14_gallery_mermaid.md)・[PlantUML](15_gallery_plantuml.md)・[D2](16_gallery_d2.md)・[Graphviz](17_gallery_graphviz.md)・[Structurizr](18_gallery_structurizr.md)・[Pikchr](19_gallery_pikchr.md)・[CeTZ](20_gallery_cetz.md)・[Fletcher](21_gallery_fletcher.md)・[timeliney](22_gallery_timeliney.md)・[finite](24_gallery_finite.md)・[Vega-Lite・Vega](23_gallery_vega.md)・[WaveDrom](25_gallery_wavedrom.md)・[Bytefield](26_gallery_bytefield.md)。
 
 #### UML図
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| シーケンス図 | ○ | ○ | ○ | × | × | × | × | × | × | × | × | × |
-| タイミング図 | × | ○ | × | × | × | × | × | × | × | × | × | ○ |
-| クラス図 | ○ | ○ | ○ | ×※1 | × | × | × | × | × | × | × | × |
-| 状態遷移図 | ○※6 | ○ | × | × | × | × | × | × | × | ○※11 | × | × |
-| ユースケース図 | ×※3 | ○ | × | × | × | × | × | × | × | × | × | × |
-| アクティビティ図 | × | ○ | × | × | × | × | × | × | × | × | × | × |
-| コンポーネント図／配置図 | × | ○ | × | × | ○ | × | × | × | × | × | × | × |
-| オブジェクト図 | × | ○ | × | × | × | × | × | × | × | × | × | × |
-| パッケージ図 | × | ○ | × | × | × | × | × | × | × | × | × | × |
-| 複合構造図 | × | × | × | × | × | × | × | × | × | × | × | × |
-| プロファイル図 | × | × | × | × | × | × | × | × | × | × | × | × |
-| コミュニケーション図 | ×※9 | × | × | × | ○ | × | × | × | × | × | × | × |
-| 相互作用概要図 | × | × | × | × | × | × | × | × | × | × | × | × |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom | bytefield |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| シーケンス図 | ○ | ○ | ○ | × | × | × | × | × | × | × | × | × | × |
+| タイミング図 | × | ○ | × | × | × | × | × | × | × | × | × | ○ | × |
+| クラス図 | ○ | ○ | ○ | ×※1 | × | × | × | × | × | × | × | × | × |
+| 状態遷移図 | ○※6 | ○ | × | × | × | × | × | × | × | ○※11 | × | × | × |
+| ユースケース図 | ×※3 | ○ | × | × | × | × | × | × | × | × | × | × | × |
+| アクティビティ図 | × | ○ | × | × | × | × | × | × | × | × | × | × | × |
+| コンポーネント図／配置図 | × | ○ | × | × | ○ | × | × | × | × | × | × | × | × |
+| オブジェクト図 | × | ○ | × | × | × | × | × | × | × | × | × | × | × |
+| パッケージ図 | × | ○ | × | × | × | × | × | × | × | × | × | × | × |
+| 複合構造図 | × | × | × | × | × | × | × | × | × | × | × | × | × |
+| プロファイル図 | × | × | × | × | × | × | × | × | × | × | × | × | × |
+| コミュニケーション図 | ×※9 | × | × | × | ○ | × | × | × | × | × | × | × | × |
+| 相互作用概要図 | × | × | × | × | × | × | × | × | × | × | × | × | × |
 
 #### SysML図（要求図以外は、上のUML図と共通。SysML v2.0は対象外※4）
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 要求図 | ○ | × | × | × | × | × | × | × | × | × | × | × |
-| ブロック定義図（BDD） | × | × | × | × | × | × | × | × | × | × | × | × |
-| 内部ブロック図（IBD） | × | × | × | × | × | × | × | × | × | × | × | × |
-| パラメトリック図 | × | × | × | × | × | × | × | × | × | × | × | × |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom | bytefield |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 要求図 | ○ | × | × | × | × | × | × | × | × | × | × | × | × |
+| ブロック定義図（BDD） | × | × | × | × | × | × | × | × | × | × | × | × | × |
+| 内部ブロック図（IBD） | × | × | × | × | × | × | × | × | × | × | × | × | × |
+| パラメトリック図 | × | × | × | × | × | × | × | × | × | × | × | × | × |
 
 #### C4モデル図（UML・SysMLとは別の、独自のモデル。コミュニケーション図に相当するDynamic図は、上のUML図の表を参照）
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| System Context図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × |
-| コンテナ図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × |
-| コンポーネント図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × |
-| システムランドスケープ図 | × | ×※2 | × | × | ○ | × | × | × | × | × | × | × |
-| デプロイメント図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom | bytefield |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| System Context図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × | × |
+| コンテナ図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × | × |
+| コンポーネント図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × | × |
+| システムランドスケープ図 | × | ×※2 | × | × | ○ | × | × | × | × | × | × | × | × |
+| デプロイメント図 | ×※9 | ×※2 | × | × | ○ | × | × | × | × | × | × | × | × |
 
 #### その他
 
-| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| フローチャート | ○ | × | ○ | ○ | × | ○ | × | × | × | × | × | × |
-| ノードとエッジ図 | ○ | × | ○ | ○ | × | ○ | × | ○ | × | × | ○※10 | × |
-| ER図 | ○(v8.5+) | ×※7 | ○ | ×※1 | × | × | × | × | × | × | × | × |
-| ガントチャート | ○ | ○ | × | × | × | × | × | × | ○ | × | × | × |
-| データ可視化 | ○ | × | × | × | × | × | × | × | × | × | ○ | × |
-| マインドマップ | ○ | ○ | × | × | × | × | × | × | × | × | × | × |
-| Git履歴図 | ○ | × | × | × | × | × | × | × | × | × | × | × |
-| タイムライン | ○ | × | × | × | × | × | × | × | × | × | × | × |
-| カンバン | ○(v11.4+) | × | × | × | × | × | × | × | × | × | × | × |
-| アーキテクチャ図 | ○(v11.1+) | × | × | × | ×※8 | × | × | × | × | × | × | × |
-| ポジションマップ（クアドラントチャート） | ○ | × | × | × | × | × | × | × | × | × | × | × |
-| ネットワーク構成図 | × | × | ○ | × | × | × | × | × | × | × | × | × |
-| ラック構成図 | × | × | × | × | × | × | × | × | × | × | × | × |
-| パケット構造図 | ○ | × | × | × | × | × | × | × | × | × | × | ○※12 |
-| 幾何図形・自由描画 | × | × | × | × | × | ○ | ○ | × | × | × | × | × |
-| 可換図式・木構造 | × | × | × | × | × | × | ○ | ○ | × | × | × | × |
+| 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom | bytefield |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| フローチャート | ○ | × | ○ | ○ | × | ○ | × | × | × | × | × | × | × |
+| ノードとエッジ図 | ○ | × | ○ | ○ | × | ○ | × | ○ | × | × | ○※10 | × | × |
+| ER図 | ○(v8.5+) | ×※7 | ○ | ×※1 | × | × | × | × | × | × | × | × | × |
+| ガントチャート | ○ | ○ | × | × | × | × | × | × | ○ | × | × | × | × |
+| データ可視化 | ○ | × | × | × | × | × | × | × | × | × | ○ | × | × |
+| マインドマップ | ○ | ○ | × | × | × | × | × | × | × | × | × | × | × |
+| Git履歴図 | ○ | × | × | × | × | × | × | × | × | × | × | × | × |
+| タイムライン | ○ | × | × | × | × | × | × | × | × | × | × | × | × |
+| カンバン | ○(v11.4+) | × | × | × | × | × | × | × | × | × | × | × | × |
+| アーキテクチャ図 | ○(v11.1+) | × | × | × | ×※8 | × | × | × | × | × | × | × | × |
+| ポジションマップ（クアドラントチャート） | ○ | × | × | × | × | × | × | × | × | × | × | × | × |
+| ネットワーク構成図 | × | × | ○ | × | × | × | × | × | × | × | × | × | × |
+| ラック構成図 | × | × | × | × | × | × | × | × | × | × | × | × | × |
+| パケット構造図 | ○ | × | × | × | × | × | × | × | × | × | × | ○※12 | ○ |
+| 幾何図形・自由描画 | × | × | × | × | × | ○ | ○ | × | × | × | × | × | × |
+| 可換図式・木構造 | × | × | × | × | × | × | ○ | ○ | × | × | × | × | × |
 
 #### データ可視化（グラフ）の種類
 
@@ -181,6 +182,7 @@ box "開始" fit; arrow; circle "終了"
 - ※10 `vega`（Vega本体）でだけ描けます。`vega-lite`では描けません。仕様は長くなります。実例は、[Vega-Lite・Vegaのギャラリー](23_gallery_vega.md)にあります。
 - ※11 有限オートマトンの状態遷移図です。受理状態の二重丸など、オートマトン理論の記法で描きます。複合状態・並行状態など、一般のUMLの状態遷移図には向きません（それらは、mermaid・plantumlを使います）。
 - ※12 WaveDromの`reg`（レジスタ・ビットフィールド図）で描けます。ビット幅つきのフィールドを並べる図で、通信のパケットの構造も、同じ形で書けます。
+- ※13 `bytefield`は、プロトコルの仕様書にあるような、32ビット幅などの行を重ねるパケットの図（行ごとのオフセット・列の番号・可変長のギャップ・色分け）が得意です。WaveDromの`reg`は、レジスタ図向けで、パケットの図の読み方（先頭が左上）には、合わせにくい場合があります。
 
 ### Graphvizで使えない記法
 
@@ -324,6 +326,32 @@ final: ("q0",)
 - 図のスキンは、既定のものだけです。
 - `plugins.wavedrom: false`で、無効にできます。
 - Obunzuでも描けます（ElectronのChromiumで描画します。JSは同梱するため、追加の取得はありません。[#392](https://github.com/tokudiro/text-compositor/issues/392)）。
+
+### Bytefieldについて
+
+`bytefield`（[Bytefield-svg](https://github.com/Deep-Symmetry/bytefield-svg)）は、プロトコルの仕様書にあるような、ビット/バイトフィールドの図（パケットの構造など）を描く記法です（[#300](https://github.com/tokudiro/text-compositor/issues/300)）。記述は、Clojureの式です。
+
+````markdown
+```bytefield
+(def boxes-per-row 32)
+(def column-labels (mapv str (range 32)))
+(draw-column-headers)
+(draw-box "Source Port" {:span 16})
+(draw-box "Destination Port" {:span 16})
+(draw-box "Sequence Number" {:span 32})
+(draw-gap "Data")
+(draw-bottom)
+```
+````
+
+- **記述は、`(draw-box "名前" {:span 幅})`などの式です。** 書き方は、[Bytefield-svgの文書](https://bytefield-svg.deepsymmetry.org/)を参照してください。1行の幅は、既定が16ビットです。32ビットにするときは、`(def boxes-per-row 32)`と、`(def column-labels (mapv str (range 32)))`（列の番号を使うとき）を、先頭に書きます。
+- **構文の誤りは、行・桁つきで報告します**（例: `draw-box called with span larger than remaining columns in row [at line 1, column 1]`。行は、フェンスの中での位置です）。空のフェンスも、エラーで止めます（Bytefield-svgは、空の入力を、空の図にするためです）。
+- **記述は、ブラウザの機能やネットワークに触れません。** Bytefield-svgのインタプリタは、`js/`で始まる、JavaScriptの呼び出しを許しません（`Could not resolve symbol: js/fetch`になります）。
+- **WaveDromの`reg`との使い分け**: `reg`はレジスタ図向け、`bytefield`はパケットの図向けです（上の表の※13）。
+- 描画には、Mermaid・Vega・WaveDromと同じヘッドレスブラウザ（Chrome/Edge）を使います（Obunzuは、自身のChromiumです）。初回だけ、`lib.js`（約855KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。
+- **ライセンスは、EPL-2.0です。** 改変せずに、そのまま使うため、このツールのライセンス（MIT）や、書いた文書には及びません。pipの配布物には含まれず、実行時に取得します。Obunzuの配布物には、ライセンス全文とソースの入手先を添えて、同梱します。
+- サイズは、図の大きさで決まります。フェンスの`{width=...}`でも指定できます。
+- `plugins.bytefield: false`で、無効にできます。
 
 ### Vega-Lite / Vegaについて
 

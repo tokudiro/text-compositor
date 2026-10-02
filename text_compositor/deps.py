@@ -332,6 +332,26 @@ def ensure_wavedrom_js():
     return (_ensure_verified_js(WAVEDROM_SKIN_URL, WAVEDROM_SKIN_SHA256, "wavedrom", "default.js"),
             _ensure_verified_js(WAVEDROM_JS_URL, WAVEDROM_JS_SHA256, "wavedrom", "wavedrom.min.js"))
 
+# Bytefield-svg公式配布のブラウザ用JS（EPL-2.0。#300）。ClojureScriptをコンパイルした、単一のUMDバンドルで、約855KB。
+# Mermaid・Vega・WaveDromと同じヘッドレスブラウザに読み込ませ、`window.returnExports(source)`を呼ぶ。
+# EPL-2.0は、弱いコピーレフト（ファイル単位）。改変せずに、実行時に取得して使うため、このツールのライセンス（MIT）には及ばない。
+# バージョン・SHA256を固定し、決定論的にする。
+BYTEFIELD_JS_URL = "https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/lib.js"
+BYTEFIELD_JS_SHA256 = "0b4d2787103dee479c2506d46f92301fa09b216064f6c232d996b1cbd6940d30"
+
+# 呼び出し元が、同梱したlib.jsのフォルダを教える環境変数（#300）。ViewerのZIPは、これを`bytefield/`に同梱している。
+BYTEFIELD_JS_DIR_ENV = "TEXT_COMPOSITOR_BYTEFIELD_JS_DIR"
+
+def ensure_bytefield_js():
+    """lib.jsのパスを返す。無ければ、取得して、SHA256を確認する。
+    環境変数`TEXT_COMPOSITOR_BYTEFIELD_JS_DIR`のフォルダに、lib.jsがあれば、それを使う（ダウンロードしない。#300）。"""
+    bundled = os.environ.get(BYTEFIELD_JS_DIR_ENV)
+    if bundled:
+        path = os.path.join(bundled, "lib.js")
+        if os.path.isfile(path):
+            return path
+    return _ensure_verified_js(BYTEFIELD_JS_URL, BYTEFIELD_JS_SHA256, "bytefield", "lib.js")
+
 # ローカルにJava 11+が見つからない場合のみ取得するEclipse Temurin JRE（Adoptium配布、
 # GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統で安心度が高い）。CI
 # （GitHub Actions ubuntu-latest等）はJavaが標準搭載されているためこの取得は発生しない（#22）。

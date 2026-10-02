@@ -10,6 +10,7 @@ plugins:
   finite: true                  # 既定 true
   vega: true                    # 既定 true（vega-lite・vegaフェンス）
   wavedrom: true                # 既定 true（wavedromフェンス）
+  bytefield: true               # 既定 true（bytefieldフェンス）
   mermaid: true                # 既定 true
   mermaid_auto_download: false # 既定 false
   plantuml: true                # 既定 true
@@ -21,7 +22,7 @@ plugins:
   diagram_trim: false                   # 既定 false
 ```
 
-`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`mermaid`/`plantuml`/`d2`/`structurizr`を`false`にすると、該当する図表フェンス（`dot`/`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega-lite`・`vega`/`wavedrom`/`mermaid`/`plantuml`/`d2`/`structurizr`言語のコードブロック）は描画せず、素のコード表示にフォールバックします。`mermaid: true`の場合は`playwright`パッケージが、`plantuml: true`/`structurizr: true`の場合はローカルのJava（11以上）が、`d2: true`の場合はD2 CLI本体が必要です。
+`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`bytefield`/`mermaid`/`plantuml`/`d2`/`structurizr`を`false`にすると、該当する図表フェンス（`dot`/`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega-lite`・`vega`/`wavedrom`/`bytefield`/`mermaid`/`plantuml`/`d2`/`structurizr`言語のコードブロック）は描画せず、素のコード表示にフォールバックします。`mermaid: true`の場合は`playwright`パッケージが、`plantuml: true`/`structurizr: true`の場合はローカルのJava（11以上）が、`d2: true`の場合はD2 CLI本体が必要です。
 
 **`structurizr`だけ既定`false`です。** 内部で使う`structurizr-cli`一式（公式配布物）が約99MBあり、他のプラグイン（PlantUML約17.6MB・D2約13MB）と一桁違うため、使う場合は明示的に`true`にする必要があります。
 

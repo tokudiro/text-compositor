@@ -38,7 +38,8 @@ def parse_spec(code):
 
 # ブラウザで実行する描画。引数は[spec]。SVGの文字列を返す。
 # WaveDromは、描画先の要素（id=接頭辞+番号）の中へ、SVGを書き込む。図の数だけ要素を作らず、1つを使い回す。
-RENDER_SCRIPT = """([spec]) => {
+# async関数にするのは、ElectronのexecuteJavaScriptが、同期の例外のメッセージを捨てて、汎用の文言にするため（Promiseの拒否は、メッセージが残る）。
+RENDER_SCRIPT = """async ([spec]) => {
   const el = document.getElementById('WaveDrom_Display_0');
   el.innerHTML = '';
   WaveDrom.RenderWaveForm(0, spec, 'WaveDrom_Display_');

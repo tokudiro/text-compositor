@@ -97,6 +97,18 @@ const LGPL_NOTICE = [
   '',
 ];
 
+// Bytefield-svg（EPL-2.0。#300）。EPL-2.0は、再配布するとき、ソースの入手先を、利用者に伝えることを求める。
+const EPL_NOTICE = [
+  '## Bytefield-svg (EPL-2.0)',
+  '',
+  'Bytefield-svg (`bytefield/lib.js`, version 1.11.0) is licensed under the Eclipse Public License, version 2.0.',
+  'It is included unmodified, as a separate file. The license text is `Bytefield-svg-LICENSE.txt` in this folder.',
+  'The source code is available at https://github.com/Deep-Symmetry/bytefield-svg (tag v1.11.0), and in the npm package',
+  'https://www.npmjs.com/package/bytefield-svg/v/1.11.0 (the `src/` folder). Bytefield-svg is used only through a browser page;',
+  'the generated SVG/PDF/HTML files and your documents are not covered by the EPL.',
+  '',
+];
+
 // Java（Structurizr・PlantUMLが使う。#290）。ローカルにJava 11+が見つからない場合と同じ取得元（text_compositor/deps.pyの
 // TEMURIN_JRE_ASSETS、win32/x86_64の1件のみ。build-dist.js自体がWindows向けのため）。
 const JRE = {
@@ -172,6 +184,21 @@ const WAVEDROM_LICENSE = {
   url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/LICENSE',
   sha256: '68f6442e5967ddb6a75ec8a4570215cac8cc415ea293c05cf857843c73fa5a57',
 };
+
+// Bytefield-svg公式配布のブラウザ用JS（deps.pyのBYTEFIELD_JS_URL/SHA256と同じ）。#300。EPL-2.0。
+// EPL-2.0は、再配布するとき、(1)ライセンス全文を添え、(2)ソースの入手先を、利用者に伝える義務がある。lib.jsは、改変せずに、そのまま同梱する。
+// (1)は、同じ版のnpmパッケージ（jsDelivr）のLICENSEを、別途取得・固定して、licenses/に置く。(2)は、下の`notices`の本文に書く。
+const BYTEFIELD_JS = {
+  version: '1.11.0',
+  file: 'lib.js',
+  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/lib.js',
+  sha256: '0b4d2787103dee479c2506d46f92301fa09b216064f6c232d996b1cbd6940d30',
+};
+const BYTEFIELD_LICENSE = {
+  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/LICENSE',
+  sha256: '0becf16567beb77fa252b7664631dd177c8f9a1889e48995b45379c7130e5303',
+};
+const BYTEFIELD_SOURCE = 'https://github.com/Deep-Symmetry/bytefield-svg';
 
 // D2公式CLIバイナリ（deps.pyのD2_ASSETSと同じ、win32/x86_64の1件）。アーカイブ自身にLICENSE.txtが入っている。
 const D2 = {
@@ -378,7 +405,7 @@ async function bundleTypstAssets(appDir) {
 }
 
 /**
- * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.js・vega.min.js・vega-lite.min.js・wavedrom.min.jsを、取得して、同梱する（#290・#310・#351・#392）。
+ * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.js・vega.min.js・vega-lite.min.js・wavedrom.min.js・bytefield-svgのlib.jsを、取得して、同梱する（#290・#310・#351・#392・#300）。
  * 実行時は、Electronが、環境変数（TEXT_COMPOSITOR_JAVA_BIN等）で、ワーカーに教える（初回起動から、
  * 追加のダウンロードなしで、Mermaid・PlantUML・D2・Structurizrの図が使えるようにするため）。
  * @returns ライセンス表記の行
@@ -488,6 +515,15 @@ async function bundleDiagramTools(appDir) {
   rows.push({ name: `WaveDrom (${WAVEDROM_JS.version}; wavedrom/)`, version: WAVEDROM_JS.version, license: 'MIT',
     url: 'https://github.com/wavedrom/wavedrom', file: 'WaveDrom-LICENSE.txt' });
 
+  // lib.js（bytefield/。固定名にする。#300）。Bytefield-svgの図を、追加の取得なしで描くため。
+  const bytefieldDir = path.join(appDir, 'bytefield');
+  fs.mkdirSync(bytefieldDir, { recursive: true });
+  fs.copyFileSync(await fetchVerified(BYTEFIELD_JS, BYTEFIELD_JS.file), path.join(bytefieldDir, BYTEFIELD_JS.file));
+  fs.copyFileSync(await fetchVerified({ ...BYTEFIELD_LICENSE, file: 'Bytefield-svg-LICENSE.txt' }, 'Bytefield-svgのEPL-2.0ライセンス全文'),
+    path.join(appDir, 'licenses', 'Bytefield-svg-LICENSE.txt'));
+  rows.push({ name: `Bytefield-svg (${BYTEFIELD_JS.version}; bytefield/lib.js)`, version: BYTEFIELD_JS.version, license: 'EPL-2.0',
+    url: BYTEFIELD_SOURCE, file: 'Bytefield-svg-LICENSE.txt' });
+
   return rows;
 }
 
@@ -553,6 +589,7 @@ function writeLicenses(appDir, embed, sitePackages, apacheText, extraRows = []) 
     '| Chromium and its components | (bundled with Electron) | various | https://www.chromium.org/ | ../LICENSES.chromium.html |',
     '',
     ...LGPL_NOTICE,
+    ...EPL_NOTICE,
     ...TROVE4J_NOTICE,
   ];
   fs.writeFileSync(path.join(dir, 'THIRD-PARTY-NOTICES.md'), lines.join('\n'));
@@ -573,7 +610,8 @@ function report(appDir, embed, sitePackages, zip) {
   const mermaid = sizeOf(path.join(appDir, 'mermaid'));
   const vega = sizeOf(path.join(appDir, 'vega'));
   const wavedrom = sizeOf(path.join(appDir, 'wavedrom'));
-  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid - vega - wavedrom
+  const bytefield = sizeOf(path.join(appDir, 'bytefield'));
+  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid - vega - wavedrom - bytefield
     - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
   rows.push(['アプリ（resources/）', sizeOf(path.join(appDir, 'resources'))]);
   rows.push(['組込版Python本体', python - packages]);
@@ -587,6 +625,7 @@ function report(appDir, embed, sitePackages, zip) {
   rows.push(['Mermaid（mermaid/）', mermaid]);
   rows.push(['Vega・Vega-Lite（vega/）', vega]);
   rows.push(['WaveDrom（wavedrom/）', wavedrom]);
+  rows.push(['Bytefield-svg（bytefield/）', bytefield]);
   rows.push(['ライセンス表記（licenses/）', sizeOf(path.join(appDir, 'licenses'))]);
   console.log('\n同梱物のサイズ（展開後）');
   for (const [name, bytes] of rows) console.log(`  ${name.padEnd(40)} ${mb(bytes).padStart(10)}`);

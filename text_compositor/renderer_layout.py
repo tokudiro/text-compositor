@@ -44,7 +44,7 @@ class LayoutMixin:
     # svgはmermaid/plantumlと異なりレンダリング不要（コードそのものが既に完成した画像）だが、
     # 「図/画像を1つ含む」という抽出対象としては同列に扱える（#91）。
     DIAGRAM_OR_IMAGE_RE = re.compile(
-        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2|structurizr|pikchr|cetz|fletcher|timeliney|finite|vega-lite|vega|wavedrom)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
+        r'```(?P<lang>mermaid|plantuml|dot|graphviz|svg|d2|structurizr|pikchr|cetz|fletcher|timeliney|finite|vega-lite|vega|wavedrom|bytefield)(?P<attrs>[ \t]+\{[^}\r\n]*\})?[ \t]*\r?\n(?P<code>.*?)\r?\n```'
         r'|^[ \t]*(?P<image>!\[[^\]]*\]\([^)\n]+\))[ \t]*\r?$',
         re.MULTILINE | re.DOTALL)
 
@@ -76,7 +76,7 @@ class LayoutMixin:
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
             self._error_here(f"'{block_name}' block in {self.current_file} must contain exactly one "
-                  "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```svg fence or a standalone image.")
+                  "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```svg fence or a standalone image.")
             sys.exit(1)
         surrounding_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
         text_typst = self._render_markdown_segment(surrounding_md, False).strip()
@@ -101,7 +101,7 @@ class LayoutMixin:
         matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
-                  f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```svg fences or images (found {len(matches)}).")
+                  f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```svg fences or images (found {len(matches)}).")
             sys.exit(1)
         cells = []
         prev_end = 0
@@ -148,7 +148,7 @@ class LayoutMixin:
         match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
         if not match:
             self._error_here(f"'layout-feature' block in {self.current_file} must contain exactly one "
-                  "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```svg fence or a standalone image.")
+                  "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```svg fence or a standalone image.")
             sys.exit(1)
         catchcopy_md = (inner_text[:match.start()] + inner_text[match.end():]).strip()
         catchcopy_typst = self._render_markdown_segment(catchcopy_md, False).strip()

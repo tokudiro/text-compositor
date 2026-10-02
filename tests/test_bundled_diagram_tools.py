@@ -154,3 +154,6 @@ def test_build_dist_pins_the_same_java_plantuml_d2_structurizr_and_mermaid_as_th
     assert deps_mod.WAVEDROM_JS_SHA256 in script
     assert deps_mod.WAVEDROM_SKIN_URL in script
     assert deps_mod.WAVEDROM_SKIN_SHA256 in script
+    # Bytefield-svg（#300）
+    assert deps_mod.BYTEFIELD_JS_URL in script
+    assert deps_mod.BYTEFIELD_JS_SHA256 in script

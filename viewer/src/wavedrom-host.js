@@ -38,7 +38,7 @@ class WaveDromHost {
   async _render(spec, script, js) {
     await this._ensure(js);
     try {
-      // scriptは、`([spec]) => svg`という、関数の式（wavedrom_render.RENDER_SCRIPT）
+      // scriptは、`async ([spec]) => svg`という、関数の式（wavedrom_render.RENDER_SCRIPT）
       const svg = await this._window.webContents.executeJavaScript(`(${script})(${JSON.stringify([spec])})`);
       if (typeof svg !== 'string' || !svg.includes('<svg')) throw new Error('WaveDromが、SVGを返しませんでした。');
       return svg;
