@@ -24,4 +24,4 @@ Obunzu Markdown Viewer（略称はObunzu。お文図。「おぶんず」と読�
 
 この説明書は、Obunzuを使う人向けです。Obunzu自体を開発する人向けの情報（ソースからの実行・構成・テスト）は、`viewer/README-ja.md`にあります。Markdownの書き方（見出し・表・図・サイズ指定など）の詳細は、text-compositorの「使い方ガイド」にあります。
 
-説明書は、Obunzu 0.4.3を基準に書いています。
+説明書は、Obunzu 0.4.4を基準に書いています。
