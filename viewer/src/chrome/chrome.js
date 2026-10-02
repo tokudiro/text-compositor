@@ -6,6 +6,11 @@ const $ = (id) => document.getElementById(id);
 let detailsOpen = false;
 let lastState = null;
 
+/** 文字が変わったときだけ、書き換える。同じ文字で、要素の中身を置き換えると、ライブ領域（role=alert・status）が、同じ内容を、読み直すことがある（#340）。 */
+function setText(element, text) {
+  if (element.textContent !== text) element.textContent = text;
+}
+
 $('back').addEventListener('click', () => api.goBack());
 $('forward').addEventListener('click', () => api.goForward());
 $('open').addEventListener('click', () => api.openDialog());
@@ -111,11 +116,13 @@ function render(state) {
   if (!state) return;
   const previousErrors = lastState?.diagnostics.hasError;
   const searchWasOpen = lastState?.search.open;
+  const previousSettingsOpen = Boolean(lastState?.settingsOpen);
   lastState = state;
   const d = state.diagnostics;
   document.body.classList.toggle('toolbar-bottom', state.settings.toolbarPosition === 'bottom');
   renderSearch(state.search, searchWasOpen);
   $('settings').hidden = !state.settingsOpen;
+  moveFocusForSettings(state, previousSettingsOpen);
   renderFeatures(state.features ?? []);
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
   for (const [name, value] of Object.entries(state.settings)) {
@@ -140,7 +147,9 @@ function render(state) {
   lineRef.hidden = !(state.file && state.settings.showLineNumber && state.line);
   lineRef.textContent = `:${state.line}`;
   lineRef.title = `マウスを乗せたブロックの、元のMarkdownの行（内容を右クリックすると、コピーできます）`;
-  $('zoom').textContent = `${state.zoomPercent}%`;
+  setText($('zoom'), `${state.zoomPercent}%`);
+  // 文字が「100%」だけだと、ボタンの名前が、操作（実寸に戻す）だけになり、今の倍率が伝わらない（#340）
+  $('zoom').setAttribute('aria-label', `実寸に戻す（現在 ${state.zoomPercent}%）`);
   $('auto-reload').setAttribute('aria-checked', String(state.autoReload));
   $('csv-header').hidden = !state.isCsv;
   $('csv-header').setAttribute('aria-checked', String(state.settings.csvHeader));
@@ -153,12 +162,16 @@ function render(state) {
   for (const id of ['zoom-in', 'zoom-out', 'zoom', 'search-button']) $(id).disabled = !state.hasDocument;
   $('busy').hidden = !state.busy;
   $('status').textContent = state.busy ? '' : state.status;
+  // スクリプトリーダーへの通知は、1か所に集める（変換中 → 更新の完了）。画面の表示（#busy・#status）は、読ませない
+  setText($('live'), state.busy ? '変換中' : state.file ? `${state.status}` : '');
   // 案内は、何も開いていないときだけ。ファイルを開いている最中に、「開いてください」と出さない
   $('empty').hidden = state.hasDocument || state.busy || state.settingsOpen;
 
   const showBanner = d.hasError || d.warnings > 0;
   $('banner').hidden = !showBanner;
   $('banner').classList.toggle('warning', !d.hasError);
+  // エラーは、すぐ読み上げる（alert）。警告は、今の読み上げを、遮らない（status）（#340）
+  $('banner').setAttribute('role', d.hasError ? 'alert' : 'status');
   // エラーが新しく出たときは、詳細を、自動で開く
   if (d.hasError && !previousErrors) detailsOpen = true;
   if (!showBanner) detailsOpen = false;
@@ -166,14 +179,24 @@ function render(state) {
   // 帯は、要約だけ。詳細を開いているときは、一覧が同じ内容を出すため、帯は、件数の見出しにする（同じ文を2回出さない）
   const counts = `${d.hasError ? `変換エラー ${d.errors} 件` : ''}${d.hasError && d.warnings > 0 ? '・' : ''}${d.warnings > 0 ? `警告 ${d.warnings} 件` : ''}`;
   const summary = d.hasError ? `変換エラー: ${d.banner}${d.errors > 1 ? `（ほか ${d.errors - 1} 件）` : ''}` : `警告 ${d.warnings} 件: ${d.warningBanner}`;
-  $('banner-text').textContent = detailsOpen ? counts : summary;
+  setText($('banner-text'), detailsOpen ? counts : summary);
   $('banner-text').title = detailsOpen ? '' : summary;
-  $('banner-toggle').textContent = detailsOpen ? '閉じる' : '詳細';
+  setText($('banner-toggle'), detailsOpen ? '閉じる' : '詳細');
+  $('banner-toggle').setAttribute('aria-expanded', String(detailsOpen));
 
   const details = $('details');
   details.hidden = !(showBanner && detailsOpen);
   details.replaceChildren(...d.items.map(itemElement));
   requestAnimationFrame(reportHeight);
+}
+
+/**
+ * 設定画面を開いたとき、見出しへ、フォーカスを移す（スクリーンリーダーが「設定」と読み、Tabで、最初の項目へ進める）。
+ * 閉じたとき、文書が無ければ、歯車のボタンへ戻す（文書があるときは、メインプロセスが、文書へ戻す）。（#340）
+ */
+function moveFocusForSettings(state, wasOpen) {
+  if (state.settingsOpen && !wasOpen) $('settings-title').focus();
+  else if (!state.settingsOpen && wasOpen && !state.hasDocument) $('settings-button').focus();
 }
 
 /** 検索欄（#325）。入力欄の値は、状態から書き戻さない（入力中に、キー操作と競合させないため）。開いた瞬間だけ、そろえる。 */

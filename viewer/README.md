@@ -106,6 +106,7 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `scripts/check-search.js` | Starts the viewer and checks in-document search (count, move, regex, case sensitivity, `Ctrl+F`/`Esc`) (manual) |
 | `scripts/check-work-location.js` | Starts the viewer with a throwaway user folder and checks where the converted files go, the cache size and delete, and the switch to "next to the document" (manual) |
 | `scripts/check-open-files.js` | Opens .txt, .csv, .svg, diagram files, unsupported files, a folder, a missing file and a large file from the command line and checks what is shown (manual) |
+| `scripts/check-a11y.js` | Checks the screen for accessibility with axe-core (light and dark) and real key presses: landmarks, names, alerts, focus, `F6` (Windows only; see [doc/viewer-accessibility.md](../doc/viewer-accessibility.md), #340) |
 | `scripts/check-window.js` | Checks every way of closing the settings screen with real key presses (manual, Windows only) |
 | `scripts/check-window-state.js` | Checks that the window size, position and maximized state come back after a restart (manual, Windows only) |
 | `scripts/build-dist.js` | Builds the Windows portable ZIP (Electron + embeddable Python + minimal packages + notices) |

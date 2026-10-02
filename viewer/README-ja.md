@@ -106,6 +106,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | `scripts/check-search.js` | Viewerを起動して、文書内検索（件数・移動・正規表現・大文字小文字・Ctrl+F/Esc）を確認する（手動） |
 | `scripts/check-work-location.js` | 使い捨てのユーザーフォルダでViewerを起動し、変換ファイルの置き場所・キャッシュの使用量と削除・「原稿の隣」への切り替えを確認する（手動） |
 | `scripts/check-open-files.js` | .txt・.csv・.svg・図の単体ファイル・対象外のファイル・フォルダ・存在しないファイル・大きなファイルを、コマンドラインで開いて、表示と案内を確認する（手動） |
+| `scripts/check-a11y.js` | 画面のアクセシビリティを、axe-core（ライト・ダーク）と、実際のキー操作で確認する（ランドマーク・名前・通知・フォーカス・`F6`。Windowsのみ。[doc/viewer-accessibility.md](../doc/viewer-accessibility.md)。#340） |
 | `scripts/check-window.js` | 設定画面を閉じる操作を、実際のキー操作で確認する（手動。Windowsのみ） |
 | `scripts/check-window-state.js` | ウィンドウの大きさ・位置・最大化が、再起動後に戻ることを確認する（手動。Windowsのみ） |
 | `scripts/build-dist.js` | Windows向けのポータブルZIP（Electron + 組込版Python + 必要最小限のパッケージ + ライセンス表記）を作る |

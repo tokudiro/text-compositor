@@ -207,6 +207,9 @@ function createWindow() {
   win.on('closed', () => { mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
   handleEscape(win.webContents);
   handleEscape(contents);
+  // フォーカスが、どちらのビューにあるかを覚える（F6の切り替えに使う。`isFocused()`は、子のビューとの関係で、当てにならないため。#340）
+  win.webContents.on('focus', () => { focusedArea = 'toolbar'; });
+  contents.on('focus', () => { focusedArea = 'content'; });
   handleNavigationShortcuts(win.webContents);
   handleNavigationShortcuts(contents);
   win.on('app-command', (_event, cmd) => {
@@ -292,6 +295,28 @@ function setSettingsOpen(open) {
 /** 内容のビューへ送る、検索語一式。 */
 function searchPayload() {
   return { query: state.search.query, regex: state.search.regex, caseSensitive: state.search.caseSensitive };
+}
+
+/**
+ * F6で、フォーカスを、ツールバー（ウィンドウ本体のビュー）と、文書（内容のビュー）の間で、行き来させる（#340）。
+ * 2つは、別のビューで、Tabでは、行き来できない。キーボードだけで、ツールバーのボタンに届くようにするため。
+ * 設定画面・検索欄を開いているときは、ウィンドウ本体のビューの中だけで操作するため、何もしない。
+ */
+let focusedArea = 'content';
+
+function toggleFocusArea() {
+  if (!win || state.settingsOpen) return;
+  // 文書にフォーカスがあるときは、ツールバーへ。それ以外（ツールバーなど）は、文書へ
+  if (!state.hasDocument || focusedArea === 'content') {
+    focusedArea = 'toolbar';   // プログラムからのfocus()では、'focus'のイベントが来ないことがあるため、ここでも、覚える
+    win.webContents.focus();
+    // 最初の操作できるボタンへ。文書が無いときは、「開く」
+    void win.webContents.executeJavaScript(
+      "(document.querySelector('#toolbar button:not(:disabled):not([hidden])') ?? document.getElementById('empty-open'))?.focus()").catch(() => {});
+  } else {
+    focusedArea = 'content';
+    contentView.webContents.focus();
+  }
 }
 
 function setSearchOpen(open) {
@@ -862,6 +887,7 @@ function buildMenu() {
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
         { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!state.search.open) },
+        { label: 'ツールバーと文書を行き来', accelerator: 'F6', click: toggleFocusArea },
         { type: 'separator' },
         { id: 'csv-header', label: 'CSV: 1行目を見出しにする', type: 'checkbox', checked: state.settings.csvHeader, enabled: false, click: (item) => setCsvHeader(item.checked) },
         { type: 'separator' },

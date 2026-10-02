@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="ja">
 <head>
   <meta charset="utf-8">
   <title>Obunzu Markdown Viewer</title>
@@ -7,8 +7,9 @@
   <link rel="stylesheet" href="chrome.css">
 </head>
 <body>
-  <div id="top">
-    <div id="toolbar">
+  <!-- ウィンドウ本体の部品（ツールバー・検索・エラーの帯）は、ランドマーク（banner）に入れる。文書は、別のビューにある（#340） -->
+  <header id="top">
+    <div id="toolbar" role="toolbar" aria-label="操作">
       <!-- 左: ファイルに関する操作と、ファイルの場所。アイコンは、線の太さ・角の丸みを、アプリのアイコンに合わせる。 -->
       <button id="back" class="icon" title="戻る（Alt+←）" aria-label="戻る" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -32,8 +33,10 @@
       <span id="file"><span id="file-name"></span><span id="line-ref" hidden></span><span id="file-dir"></span></span>
       <span class="spacer"></span>
       <!-- 右: 状態と、拡大縮小 -->
-      <span id="busy" hidden><span class="bar"></span>変換中…</span>
-      <span id="status"></span>
+      <!-- 見た目の「変換中」「状態」は、スクリーンリーダーには読ませず、下の#liveに、1つだけ出す（二重に読まれないため。#340） -->
+      <span id="busy" hidden aria-hidden="true"><span class="bar"></span>変換中…</span>
+      <span id="status" aria-hidden="true"></span>
+      <span id="live" class="sr-only" role="status"></span>
       <button id="search-button" class="icon toggle" aria-pressed="false" title="検索（Ctrl+F）" aria-label="検索">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20"/></svg>
       </button>
@@ -51,7 +54,7 @@
       </button>
     </div>
     <!-- 文書内検索（#325）。ハイライトそのものは、内容のビュー（別プロセス）が持つため、ここは入力と結果の表示だけ -->
-    <div id="search" hidden>
+    <div id="search" role="search" aria-label="文書内検索" hidden>
       <input id="search-input" type="text" placeholder="検索" autocomplete="off" spellcheck="false" aria-label="検索する文字列">
       <button id="search-regex" class="icon toggle text" role="switch" aria-checked="false" title="正規表現" aria-label="正規表現">.*</button>
       <button id="search-case" class="icon toggle text" role="switch" aria-checked="false" title="大文字・小文字を区別する" aria-label="大文字・小文字を区別する">Aa</button>
@@ -66,16 +69,17 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
+    <!-- エラー・警告の帯。エラーは、role=alert（すぐ読み上げ）、警告は、role=status（切りの良いところで読み上げ）。chrome.jsが切り替える -->
     <div id="banner" hidden>
       <span id="banner-text"></span>
-      <span id="banner-toggle">詳細</span>
+      <button id="banner-toggle" type="button" aria-expanded="false" aria-controls="details">詳細</button>
     </div>
-    <div id="details" hidden></div>
-  </div>
+    <div id="details" hidden role="region" aria-label="変換エラー・警告の一覧"></div>
+  </header>
   <section id="settings" hidden aria-labelledby="settings-title">
     <!-- 見出しは左、閉じるボタンは右端（ダイアログと同じ配置）。項目は、「名前と説明」と「選択肢」を左右に並べた行にして、増えても縦に積める。 -->
     <header class="settings-head">
-      <h2 id="settings-title">設定</h2>
+      <h2 id="settings-title" tabindex="-1">設定</h2>
       <button id="settings-close" class="back" title="設定を閉じる（Esc）" aria-label="設定を閉じる">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>閉じる
       </button>
@@ -158,10 +162,10 @@
       </div>      <p class="hint">変更は、すぐに反映され、自動で保存されます。</p>
     </div>
   </section>
-  <div id="empty">
+  <main id="empty">
     <button id="empty-open" class="primary">ファイルを開く…</button>
     <p class="hint">ここへドラッグ＆ドロップ、または <kbd>Ctrl</kbd>+<kbd>O</kbd></p>
-  </div>
+  </main>
   <script src="chrome.js"></script>
 </body>
 </html>
