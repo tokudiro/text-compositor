@@ -28,6 +28,8 @@ const MERMAID_JS_ENV = 'TEXT_COMPOSITOR_MERMAID_JS';
 const VEGA_JS_DIR_ENV = 'TEXT_COMPOSITOR_VEGA_JS_DIR';
 // 同梱のdefault.js（スキン）・wavedrom.min.jsのフォルダ（ワーカー側の`WAVEDROM_JS_DIR_ENV`と同じ名前。#392）
 const WAVEDROM_JS_DIR_ENV = 'TEXT_COMPOSITOR_WAVEDROM_JS_DIR';
+// 同梱のBytefield-svgのlib.jsのフォルダ（ワーカー側の`BYTEFIELD_JS_DIR_ENV`と同じ名前。#300）
+const BYTEFIELD_JS_DIR_ENV = 'TEXT_COMPOSITOR_BYTEFIELD_JS_DIR';
 
 class PythonNotFoundError extends Error {
   constructor(message) {
@@ -73,6 +75,7 @@ function resolveWorkerLaunch(appDir, options = {}) {
     [MERMAID_JS_ENV, path.join('mermaid', 'mermaid.min.js')],
     [VEGA_JS_DIR_ENV, 'vega'],
     [WAVEDROM_JS_DIR_ENV, 'wavedrom'],
+    [BYTEFIELD_JS_DIR_ENV, 'bytefield'],
   ]) {
     const bundled = path.join(appDir, rel);
     if (!env[name] && exists(bundled)) launchEnv[name] = bundled;
@@ -107,5 +110,5 @@ function findPython(appDir, env, exists, platform) {
 
 module.exports = {
   resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV,
-  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV, WAVEDROM_JS_DIR_ENV,
+  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV, WAVEDROM_JS_DIR_ENV, BYTEFIELD_JS_DIR_ENV,
 };

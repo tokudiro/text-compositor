@@ -5,7 +5,7 @@ const { describe, test } = require('node:test');
 
 const {
   resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV,
-  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV, WAVEDROM_JS_DIR_ENV,
+  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV, WAVEDROM_JS_DIR_ENV, BYTEFIELD_JS_DIR_ENV,
 } = require('../src/python');
 
 const APP = path.join(path.sep, 'app');
@@ -89,6 +89,16 @@ describe('resolveWorkerLaunch', () => {
       exists: existsIn(python, wavedromDir),
     });
     assert.deepEqual(launch.env, { [WAVEDROM_JS_DIR_ENV]: wavedromDir });
+  });
+
+  test('the bundled bytefield folder is handed to the worker too (#300)', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const bytefieldDir = path.join(APP, 'bytefield');
+    const launch = resolveWorkerLaunch(APP, {
+      env: { [PYTHON_ENV]: python },
+      exists: existsIn(python, bytefieldDir),
+    });
+    assert.deepEqual(launch.env, { [BYTEFIELD_JS_DIR_ENV]: bytefieldDir });
   });
 
   test('only the folders that exist are passed, and a value set by the user wins', () => {

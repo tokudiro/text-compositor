@@ -38,3 +38,15 @@ def set_wavedrom_host_renderer(renderer):
     """WaveDromの描画を任せる関数を設定する（`None`で解除）。"""
     global _wavedrom_host_renderer
     _wavedrom_host_renderer = renderer
+
+
+# Bytefield-svgの描画を、呼び出し元に任せる口（#300）。設定されていれば、`renderer(diagram_id, source, script, js)`が、SVGの文字列を返す
+# （失敗は、例外）。sourceは検査済みの記述（文字列）、scriptは、ブラウザで実行する描画スクリプト（bytefield_render.RENDER_SCRIPT。
+# 呼び出し元と、二重に持たないため、こちらから渡す）、jsは、`{"bytefield": lib.jsのパス}`。
+_bytefield_host_renderer = None
+
+
+def set_bytefield_host_renderer(renderer):
+    """Bytefield-svgの描画を任せる関数を設定する（`None`で解除）。"""
+    global _bytefield_host_renderer
+    _bytefield_host_renderer = renderer

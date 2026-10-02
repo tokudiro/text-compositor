@@ -23,6 +23,7 @@ Obunzu-Markdown-Viewer-0.4.3-win-x64/
   mermaid/mermaid.min.js     Mermaid公式配布の単一バンドルJS（#310）
   vega/vega.min.js, vega-lite.min.js   Vega・Vega-Lite公式配布の単一バンドルJS（#351）
   wavedrom/wavedrom.min.js, default.js   WaveDrom公式配布のJSとスキン（#392）
+  bytefield/lib.js           Bytefield-svg公式配布のJS（EPL-2.0。#300）
   licenses/                  サードパーティのライセンス表記
   LICENSE, LICENSES.chromium.html   ElectronとChromiumのライセンス
 ```
@@ -47,6 +48,7 @@ Obunzu-Markdown-Viewer-0.4.3-win-x64/
 | `mermaid.min.js`（`mermaid/`） | **同梱**（[#310](https://github.com/tokudiro/text-compositor/issues/310)） | 約3.4 MB |
 | `vega.min.js`・`vega-lite.min.js`（`vega/`。BSD-3-Clause） | **同梱**（[#351](https://github.com/tokudiro/text-compositor/issues/351)）。Vega・Vega-Liteは、Mermaidと同じく、Electronで描画する | 約0.7 MB |
 | `wavedrom.min.js`・`default.js`（`wavedrom/`。MIT） | **同梱**（[#392](https://github.com/tokudiro/text-compositor/issues/392)）。WaveDromは、Vegaと同じく、Electronで描画する | 約0.1 MB |
+| `lib.js`（`bytefield/`。**EPL-2.0**） | **同梱**（[#300](https://github.com/tokudiro/text-compositor/issues/300)）。Bytefield-svgは、Vegaと同じく、Electronで描画する。EPL-2.0は、ライセンス全文（`licenses/Bytefield-svg-LICENSE.txt`）と、ソースの入手先（`THIRD-PARTY-NOTICES.md`）を添える。改変しない | 約0.9 MB |
 | ライセンス表記 | 同梱 | 0.1 MB未満 |
 | **`playwright`**（Mermaid用のブラウザ操作） | **同梱しない**。Mermaidは、Electronで描画する（下記） | 約106 MB（外した分。うち、Node.jsのドライバが約88 MB） |
 
@@ -156,6 +158,7 @@ node scripts/check-dist.js
 - Mermaidの図が、Electronで描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る。組込版Pythonが、HTTPSで、`mermaid.min.js`を取得できる。
 - Vega-Lite・Vegaの図が、同梱のjsだけで、Electronで描画され、表示される。外部データ（`url`）の参照は、原稿の行つきで、一覧に出る（[#351](https://github.com/tokudiro/text-compositor/issues/351)）。
 - WaveDromの図が、同梱のjsだけで、Electronで描画され、表示される。描けない仕様は、原稿の行つきで、一覧に出る（[#392](https://github.com/tokudiro/text-compositor/issues/392)）。
+- Bytefieldの図が、同梱のjsだけで、Electronで描画され、表示される。構文の誤りは、行・桁つきで、一覧に出る。EPL-2.0の全文と、ソースの入手先が、同梱されている（[#300](https://github.com/tokudiro/text-compositor/issues/300)）。
 - Graphviz（`dot`・`graphviz`）の図が、システムのGraphvizなしで、同梱の`typst`と`diagraph`で描画され、表示される。構文エラーは、原稿の行つきで、一覧に出る（ネットワークは、使わない）。
 
 実測（2026-09-19、開発機）: すべて成功。起動（プロセスの開始から、文書の表示まで）は、5回で、0.82〜0.90秒。開発時（`npm start`）の0.86秒と、同じ範囲である。

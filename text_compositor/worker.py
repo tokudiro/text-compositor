@@ -31,7 +31,7 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
   ローカルのファイル（画像など）の絶対パスで、変更を検知して自動で更新するために使う（成功時のみ）。他は、`build`と同じ。
   プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
 図の描画の依頼（ワーカーから、呼び出し元へ）。環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`で起動されたときだけ、
-Mermaidと、Vega・Vega-Lite・WaveDromの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207・#351・#392）に描画してもらう。
+Mermaidと、Vega・Vega-Lite・WaveDrom・Bytefieldの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207・#351・#392・#300）に描画してもらう。
 （Graphvizは、呼び出し元に任せず、ワーカーが、Typstのdiagraphで描く。#264）
 依頼（`build`・`render_html`）の処理中に、標準出力へ、1行のイベントを出し、標準入力で、応答を1行待つ。
   ワーカー → 呼び出し元: {"event": "render_mermaid", "callback": <番号>, "diagram_id": ..., "code": "...", "js": "<mermaid.min.jsのパス>"}
@@ -43,8 +43,12 @@ Mermaidと、Vega・Vega-Lite・WaveDromの図を、Playwrightとシステムの
   WaveDromの図も、同じ形で依頼する（#392）:
   ワーカー → 呼び出し元: {"event": "render_wavedrom", "callback": <番号>, "diagram_id": ..., "spec": {...},
                          "script": "<ブラウザで実行する描画スクリプト>", "js": {"skin": "<default.jsのパス>", "wavedrom": "<wavedrom.min.jsのパス>"}}
-  呼び出し元は、両方のjsを（skinが先）読み込んだページで、`script`（`([spec]) => svg`という関数の式）を、`[spec]`で呼び、SVGを返す。
+  呼び出し元は、両方のjsを（skinが先）読み込んだページで、`script`（`async ([spec]) => svg`という関数の式）を、`[spec]`で呼び、SVGを返す。
   ページには、描画先の`<div id="WaveDrom_Display_0">`が要る。応答は、`render_mermaid`と同じ。
+  Bytefieldの図も、同じ形で依頼する（#300）:
+  ワーカー → 呼び出し元: {"event": "render_bytefield", "callback": <番号>, "diagram_id": ..., "source": "...",
+                         "script": "<ブラウザで実行する描画スクリプト>", "js": {"bytefield": "<lib.jsのパス>"}}
+  呼び出し元は、lib.jsを読み込んだページで、`script`（`async ([source]) => svg`という関数の式）を、`[source]`で呼び、SVGを返す。応答は、`render_mermaid`と同じ。
   呼び出し元 → ワーカー: {"callback": <同じ番号>, "ok": true, "svg": "..."} または {"callback": <同じ番号>, "ok": false, "error": "..."}
   待っている間に届いた、番号の違う行は、読み捨てる。呼び出し元が、標準入力を閉じたときは、描画の失敗になる。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
@@ -150,6 +154,10 @@ class HostRenderer:
         """WaveDromの描画を依頼する（#392）。`script`は、ブラウザで実行する描画スクリプト（wavedrom_render.RENDER_SCRIPT）。"""
         return self._request("render_wavedrom", "WaveDrom", {"diagram_id": diagram_id, "spec": spec, "script": script, "js": js})
 
+    def render_bytefield(self, diagram_id: str, source: str, script: str, js: dict) -> str:
+        """Bytefield-svgの描画を依頼する（#300）。`script`は、ブラウザで実行する描画スクリプト（bytefield_render.RENDER_SCRIPT）。"""
+        return self._request("render_bytefield", "Bytefield", {"diagram_id": diagram_id, "source": source, "script": script, "js": js})
+
     def _request(self, event: str, label: str, fields: Dict[str, Any]) -> str:
         self._next += 1
         number = self._next
@@ -177,6 +185,7 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
         _host_renderers.set_mermaid_host_renderer(host.render_mermaid)
         _host_renderers.set_vega_host_renderer(host.render_vega)
         _host_renderers.set_wavedrom_host_renderer(host.render_wavedrom)
+        _host_renderers.set_bytefield_host_renderer(host.render_bytefield)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
         for line in stdin:
@@ -203,6 +212,7 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
             _host_renderers.set_mermaid_host_renderer(None)
             _host_renderers.set_vega_host_renderer(None)
             _host_renderers.set_wavedrom_host_renderer(None)
+            _host_renderers.set_bytefield_host_renderer(None)
         session.close()
 
 

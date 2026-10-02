@@ -10,6 +10,8 @@
 //   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
 //   - Vega-Lite・Vegaの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。外部データの参照は、エラーで止まる（#351）。
 //   - WaveDromの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。描けない仕様は、エラーで止まる（#392）。
+//   - Bytefieldの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。構文の誤りは、行・桁つきで止まる（#300）。
+//     EPL-2.0の全文と、ソースの入手先（THIRD-PARTY-NOTICES.md）が、同梱されている。
 //   - Graphviz（dot・graphviz）が、システムのGraphvizなしで、Typstのdiagraph（同梱）で描画され、構文エラーは、原稿の行つきで出る（#264）。
 //   - 同梱のワーカーが、package.jsonと同じ版を、`ready`で報告する（#235）。
 //   - 同梱しないもの（typst・playwright）が、なくても、HTML出力は成功する。
@@ -294,6 +296,25 @@ async function main() {
     check('描けない仕様が、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('wavedrom-error.md:5'), JSON.stringify(item.head));
     check('エラーの内容が、詳細に出る', /non-empty array/.test(item.detail), item.detail.split('\n')[0]);
   }, 12000);
+
+  // Bytefield-svg（#300）。ElectronのChromiumで描画される。同梱のbytefield/を使うため、追加の取得はない。
+  const bytefieldDoc = '# Bytefield\n\n```bytefield\n(def boxes-per-row 32)\n(def column-labels (mapv str (range 32)))\n(draw-column-headers)\n(draw-box "送信元" {:span 16})\n(draw-box "Destination Port" {:span 16})\n(draw-gap "Data")\n(draw-bottom)\n```\n';
+  await runCase('Bytefieldの図', bytefieldDoc, path.join(work, 'bytefield.md'), async (state, _pythons, { content }) => {
+    check('Bytefieldを含む文書が、表示される（エラーの帯がない。同梱のjsだけで、追加の取得なし）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram-bytefield img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('Bytefieldの図が、画像として読み込まれている', images.length === 1 && images.every(Boolean), JSON.stringify(images));
+  }, 12000);
+  await runCase('Bytefieldの構文エラー', '# エラー\n\n本文。\n\n```bytefield\n(draw-box "A" {:span 99})\n```\n', path.join(work, 'bytefield-error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('構文の誤りが、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('bytefield-error.md:5'), JSON.stringify(item.head));
+    check('Bytefield-svgの、行・桁つきの説明が、詳細に出る', /span larger than remaining columns.*\[at line 1, column 1\]/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
+  // EPL-2.0（#300）: ライセンス全文と、ソースの入手先が、同梱されている
+  const bytefieldLicense = path.join(appDir, 'licenses', 'Bytefield-svg-LICENSE.txt');
+  const noticesText = fs.readFileSync(path.join(appDir, 'licenses', 'THIRD-PARTY-NOTICES.md'), 'utf8');
+  check('Bytefield-svgのEPL-2.0の全文と、改変されていないlib.jsが、同梱されている',
+    fs.existsSync(path.join(appDir, 'bytefield', 'lib.js')) && /Eclipse Public License - v 2\.0/.test(fs.readFileSync(bytefieldLicense, 'utf8')));
+  check('ソースの入手先が、THIRD-PARTY-NOTICES.mdに書かれている', noticesText.includes('https://github.com/Deep-Symmetry/bytefield-svg') && noticesText.includes('EPL-2.0'));
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);
