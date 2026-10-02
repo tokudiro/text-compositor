@@ -157,7 +157,7 @@ with Session() as session:  # reuses the Mermaid browser and the Typst compiler 
     print(result.ok, result.pdf_path, [d.message for d in result.diagnostics])
 ```
 
-`session.render_html("doc.md")` (experimental, [#161](https://github.com/tokudiro/text-compositor/issues/161)) writes a self-contained HTML file instead. Diagrams (Mermaid, PlantUML, D2, Structurizr, Graphviz, Pikchr, CeTZ, Fletcher, timeliney, finite, Vega-Lite, Vega, `svg`) become images next to it. `typst-exec` and raw HTML are not supported yet and are shown as code with a warning. Graphviz, Pikchr, CeTZ, Fletcher and timeliney are drawn with the Typst packages `diagraph`, `kip`, `cetz`, `fletcher` and `timeliney`, the same as in the PDF (Graphviz's `shape=record` and a graph-level `label` cannot be drawn and produce a warning).
+`session.render_html("doc.md")` (experimental, [#161](https://github.com/tokudiro/text-compositor/issues/161)) writes a self-contained HTML file instead. Diagrams (Mermaid, PlantUML, D2, Structurizr, Graphviz, Pikchr, CeTZ, Fletcher, timeliney, finite, Vega-Lite, Vega, WaveDrom, `svg`) become images next to it. `typst-exec` and raw HTML are not supported yet and are shown as code with a warning. Graphviz, Pikchr, CeTZ, Fletcher and timeliney are drawn with the Typst packages `diagraph`, `kip`, `cetz`, `fletcher` and `timeliney`, the same as in the PDF (Graphviz's `shape=record` and a graph-level `label` cannot be drawn and produce a warning).
 
 See [sample/text-compositor.config.yaml](sample/text-compositor.config.yaml) for how to write the config file, and the [usage guide](doc/usage/) for details on `document:`/`plugins:`, front matter, Marp directives, and more. The Markdown files listed in `chapters` are concatenated in order to produce the PDF.
 

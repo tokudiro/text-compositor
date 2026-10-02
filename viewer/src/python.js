@@ -26,6 +26,8 @@ const STRUCTURIZR_CLI_LIB_ENV = 'TEXT_COMPOSITOR_STRUCTURIZR_CLI_LIB';
 const MERMAID_JS_ENV = 'TEXT_COMPOSITOR_MERMAID_JS';
 // 同梱のvega.min.js・vega-lite.min.jsのフォルダ（ワーカー側の`VEGA_JS_DIR_ENV`と同じ名前。#351）
 const VEGA_JS_DIR_ENV = 'TEXT_COMPOSITOR_VEGA_JS_DIR';
+// 同梱のdefault.js（スキン）・wavedrom.min.jsのフォルダ（ワーカー側の`WAVEDROM_JS_DIR_ENV`と同じ名前。#392）
+const WAVEDROM_JS_DIR_ENV = 'TEXT_COMPOSITOR_WAVEDROM_JS_DIR';
 
 class PythonNotFoundError extends Error {
   constructor(message) {
@@ -70,6 +72,7 @@ function resolveWorkerLaunch(appDir, options = {}) {
     [STRUCTURIZR_CLI_LIB_ENV, path.join('structurizr-cli', 'lib')],
     [MERMAID_JS_ENV, path.join('mermaid', 'mermaid.min.js')],
     [VEGA_JS_DIR_ENV, 'vega'],
+    [WAVEDROM_JS_DIR_ENV, 'wavedrom'],
   ]) {
     const bundled = path.join(appDir, rel);
     if (!env[name] && exists(bundled)) launchEnv[name] = bundled;
@@ -104,5 +107,5 @@ function findPython(appDir, env, exists, platform) {
 
 module.exports = {
   resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV,
-  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV,
+  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV, WAVEDROM_JS_DIR_ENV,
 };

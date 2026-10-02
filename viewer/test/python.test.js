@@ -5,7 +5,7 @@ const { describe, test } = require('node:test');
 
 const {
   resolveWorkerLaunch, PythonNotFoundError, PYTHON_ENV, PYTHONPATH_ENV, FONT_DIR_ENV, TYPST_PACKAGES_ENV,
-  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV,
+  JAVA_BIN_ENV, PLANTUML_JAR_ENV, D2_BIN_ENV, STRUCTURIZR_CLI_LIB_ENV, MERMAID_JS_ENV, VEGA_JS_DIR_ENV, WAVEDROM_JS_DIR_ENV,
 } = require('../src/python');
 
 const APP = path.join(path.sep, 'app');
@@ -79,6 +79,16 @@ describe('resolveWorkerLaunch', () => {
       exists: existsIn(python, vegaDir),
     });
     assert.deepEqual(launch.env, { [VEGA_JS_DIR_ENV]: vegaDir });
+  });
+
+  test('the bundled wavedrom folder is handed to the worker too (#392)', () => {
+    const python = path.join(path.sep, 'py', 'python');
+    const wavedromDir = path.join(APP, 'wavedrom');
+    const launch = resolveWorkerLaunch(APP, {
+      env: { [PYTHON_ENV]: python },
+      exists: existsIn(python, wavedromDir),
+    });
+    assert.deepEqual(launch.env, { [WAVEDROM_JS_DIR_ENV]: wavedromDir });
   });
 
   test('only the folders that exist are passed, and a value set by the user wins', () => {

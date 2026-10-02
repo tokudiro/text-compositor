@@ -154,6 +154,25 @@ const VEGA_LITE_LICENSE = {
   sha256: 'f618900fd0d64046963b29f40590cdd1e341a2f41449f99110d82fd81fea808c',
 };
 
+// WaveDrom公式配布のブラウザ用JS（deps.pyのWAVEDROM_JS_URL/SHA256・WAVEDROM_SKIN_URL/SHA256と同じ）。#392。MIT。
+// ライセンス全文は、jsの中に無く、GitHubに版のタグも無いため、同じ版のnpmパッケージ（jsDelivr）のLICENSEを、別途取得・固定する。
+const WAVEDROM_JS = {
+  version: '3.7.0',
+  file: 'wavedrom.min.js',
+  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/wavedrom.min.js',
+  sha256: '878c085ced379d3adee7a9cb7c19efcc77c96eefba596850c68f26c92fd2ea45',
+};
+const WAVEDROM_SKIN = {
+  version: '3.7.0',
+  file: 'default.js',
+  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/skins/default.js',
+  sha256: '6d42a35297a5faa2e07e565ddc47dd6e1228af045881291a64a336b3f062d152',
+};
+const WAVEDROM_LICENSE = {
+  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/LICENSE',
+  sha256: '68f6442e5967ddb6a75ec8a4570215cac8cc415ea293c05cf857843c73fa5a57',
+};
+
 // D2公式CLIバイナリ（deps.pyのD2_ASSETSと同じ、win32/x86_64の1件）。アーカイブ自身にLICENSE.txtが入っている。
 const D2 = {
   version: 'v0.9.0',
@@ -359,7 +378,7 @@ async function bundleTypstAssets(appDir) {
 }
 
 /**
- * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.js・vega.min.js・vega-lite.min.jsを、取得して、同梱する（#290・#310・#351）。
+ * Java（JRE）・plantuml.jar・D2・structurizr-cli（絞り込み版）・mermaid.min.js・vega.min.js・vega-lite.min.js・wavedrom.min.jsを、取得して、同梱する（#290・#310・#351・#392）。
  * 実行時は、Electronが、環境変数（TEXT_COMPOSITOR_JAVA_BIN等）で、ワーカーに教える（初回起動から、
  * 追加のダウンロードなしで、Mermaid・PlantUML・D2・Structurizrの図が使えるようにするため）。
  * @returns ライセンス表記の行
@@ -458,6 +477,17 @@ async function bundleDiagramTools(appDir) {
       url: `https://github.com/vega/${name.toLowerCase()}`, file: licenseFile });
   }
 
+  // wavedrom.min.js・default.js（wavedrom/。固定名にする。#392）。WaveDromの図を、追加の取得なしで描くため。
+  const wavedromDir = path.join(appDir, 'wavedrom');
+  fs.mkdirSync(wavedromDir, { recursive: true });
+  for (const js of [WAVEDROM_SKIN, WAVEDROM_JS]) {
+    fs.copyFileSync(await fetchVerified(js, js.file), path.join(wavedromDir, js.file));
+  }
+  fs.copyFileSync(await fetchVerified({ ...WAVEDROM_LICENSE, file: 'WaveDrom-LICENSE.txt' }, 'WaveDromのMITライセンス全文'),
+    path.join(appDir, 'licenses', 'WaveDrom-LICENSE.txt'));
+  rows.push({ name: `WaveDrom (${WAVEDROM_JS.version}; wavedrom/)`, version: WAVEDROM_JS.version, license: 'MIT',
+    url: 'https://github.com/wavedrom/wavedrom', file: 'WaveDrom-LICENSE.txt' });
+
   return rows;
 }
 
@@ -542,7 +572,8 @@ function report(appDir, embed, sitePackages, zip) {
   const structurizrCli = sizeOf(path.join(appDir, 'structurizr-cli'));
   const mermaid = sizeOf(path.join(appDir, 'mermaid'));
   const vega = sizeOf(path.join(appDir, 'vega'));
-  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid - vega
+  const wavedrom = sizeOf(path.join(appDir, 'wavedrom'));
+  rows.push(['Electron本体（exe・DLL・言語パックなど）', total - python - fonts - typstPackages - jre - plantuml - d2 - structurizrCli - mermaid - vega - wavedrom
     - sizeOf(path.join(appDir, 'resources')) - sizeOf(path.join(appDir, 'licenses'))]);
   rows.push(['アプリ（resources/）', sizeOf(path.join(appDir, 'resources'))]);
   rows.push(['組込版Python本体', python - packages]);
@@ -555,6 +586,7 @@ function report(appDir, embed, sitePackages, zip) {
   rows.push(['Structurizr CLI（structurizr-cli/、絞り込み版）', structurizrCli]);
   rows.push(['Mermaid（mermaid/）', mermaid]);
   rows.push(['Vega・Vega-Lite（vega/）', vega]);
+  rows.push(['WaveDrom（wavedrom/）', wavedrom]);
   rows.push(['ライセンス表記（licenses/）', sizeOf(path.join(appDir, 'licenses'))]);
   console.log('\n同梱物のサイズ（展開後）');
   for (const [name, bytes] of rows) console.log(`  ${name.padEnd(40)} ${mb(bytes).padStart(10)}`);

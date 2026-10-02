@@ -9,6 +9,7 @@
 //   - Mermaidの図が、playwrightもシステムのブラウザもなしで、ElectronのChromiumで描画され、表示される（#207）。
 //   - Mermaidの構文エラーは、原稿の行つきで、帯・一覧に出る。
 //   - Vega-Lite・Vegaの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。外部データの参照は、エラーで止まる（#351）。
+//   - WaveDromの図が、同梱のjsだけで、ElectronのChromiumで描画され、表示される。描けない仕様は、エラーで止まる（#392）。
 //   - Graphviz（dot・graphviz）が、システムのGraphvizなしで、Typstのdiagraph（同梱）で描画され、構文エラーは、原稿の行つきで出る（#264）。
 //   - 同梱のワーカーが、package.jsonと同じ版を、`ready`で報告する（#235）。
 //   - 同梱しないもの（typst・playwright）が、なくても、HTML出力は成功する。
@@ -274,10 +275,24 @@ async function main() {
     const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram-vega-lite img, .diagram-vega img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
     check('Vega-Lite・Vegaの2つの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
   }, 12000);
-  await runCase('Vega-Liteの外部データ', '# エラー\n\n本文。\n\n```vega-lite\n{"data": {"url": "x.csv"}, "mark": "bar"}\n```\n', path.join(work, 'vega-error.md'), async (state, _pythons, { chrome }) => {
+  await runCase('Vega-Liteの外部データ', '# エラー\n\n本文。\n\n```vega-lite\n{"data": {"url": "https://example.com/x.csv"}, "mark": "bar"}\n```\n', path.join(work, 'vega-error.md'), async (state, _pythons, { chrome }) => {
     const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
     check('外部データ（url）の参照が、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('vega-error.md:5'), JSON.stringify(item.head));
-    check('エラーの内容が、詳細に出る', /External resources are not supported/.test(item.detail), item.detail.split('\n')[0]);
+    check('エラーの内容が、詳細に出る', /External URLs are not supported/.test(item.detail), item.detail.split('\n')[0]);
+  }, 12000);
+
+  // WaveDrom（#392）。Vega・Mermaidと同じく、ElectronのChromiumで描画される。同梱のwavedrom/を使うため、追加の取得はない。
+  const wavedromDoc = '# WaveDrom\n\n```wavedrom\n{"signal": [{"name": "clk", "wave": "p...."}, {"name": "データ", "wave": "x.345", "data": ["a", "b", "c"]}]}\n```\n\n'
+    + '```wavedrom\n{"reg": [{"name": "opcode", "bits": 7}, {"name": "rd", "bits": 5}]}\n```\n';
+  await runCase('WaveDromの図', wavedromDoc, path.join(work, 'wavedrom.md'), async (state, _pythons, { content }) => {
+    check('WaveDromを含む文書が、表示される（エラーの帯がない。同梱のjsだけで、追加の取得なし）', /更新/.test(state.status) && state.banner === '', JSON.stringify(state));
+    const images = content ? JSON.parse(await content("JSON.stringify([...document.querySelectorAll('.diagram-wavedrom img')].map((i) => i.complete && i.naturalWidth > 0))")) : [];
+    check('WaveDromの2つの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
+  }, 12000);
+  await runCase('WaveDromの描けない仕様', '# エラー\n\n本文。\n\n```wavedrom\n{"signal": "x"}\n```\n', path.join(work, 'wavedrom-error.md'), async (state, _pythons, { chrome }) => {
+    const item = JSON.parse(await chrome("JSON.stringify({ head: document.querySelector('#details .item .head')?.textContent ?? '', detail: document.querySelector('#details .item pre')?.textContent ?? '' })"));
+    check('描けない仕様が、原稿の行つきで、一覧に出る', state.banner.includes('変換エラー') && item.head.includes('wavedrom-error.md:5'), JSON.stringify(item.head));
+    check('エラーの内容が、詳細に出る', /non-empty array/.test(item.detail), item.detail.split('\n')[0]);
   }, 12000);
 
   fs.rmSync(work, { recursive: true, force: true });

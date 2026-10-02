@@ -117,7 +117,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                  glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
                  mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
                  cetz_enabled=True, fletcher_enabled=True, timeliney_enabled=True, structurizr_enabled=False,
-                 structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True,
+                 structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True, wavedrom_enabled=True,
                  finite_enabled=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
@@ -135,6 +135,9 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         # ブラウザは、Mermaidと共有する（plugins.mermaid_auto_downloadも、共通）。
         self.vega_enabled = vega_enabled
         self._vega_disabled_warned = False
+        # plugins.wavedrom（既定true。#299）。falseなら、```wavedromフェンスを、素のコードのまま表示する。ブラウザは、Mermaid・Vegaと共有する。
+        self.wavedrom_enabled = wavedrom_enabled
+        self._wavedrom_disabled_warned = False
         # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
         # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
         self.csv_header_default = csv_header

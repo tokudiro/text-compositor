@@ -310,6 +310,28 @@ def ensure_vega_js():
     return (_ensure_verified_js(VEGA_JS_URL, VEGA_JS_SHA256, "vega", "vega.min.js"),
             _ensure_verified_js(VEGA_LITE_JS_URL, VEGA_LITE_JS_SHA256, "vega", "vega-lite.min.js"))
 
+# WaveDrom公式配布のブラウザ用JS（MIT。#299）。本体と、スキン（既定の見た目）の2ファイルで、合わせて実測約98KB。
+# Mermaid・Vegaと同じヘッドレスブラウザに読み込ませて描画する。バージョン・SHA256を固定し、決定論的にする。
+WAVEDROM_JS_URL = "https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/wavedrom.min.js"
+WAVEDROM_JS_SHA256 = "878c085ced379d3adee7a9cb7c19efcc77c96eefba596850c68f26c92fd2ea45"
+WAVEDROM_SKIN_URL = "https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/skins/default.js"
+WAVEDROM_SKIN_SHA256 = "6d42a35297a5faa2e07e565ddc47dd6e1228af045881291a64a336b3f062d152"
+
+# 呼び出し元が、同梱したdefault.js（スキン）・wavedrom.min.jsのフォルダを教える環境変数（#392）。ViewerのZIPは、これを`wavedrom/`に
+# 同梱しており、VEGA_JS_DIR_ENVと同じ仕組みで、ダウンロードせずに、これを使う。
+WAVEDROM_JS_DIR_ENV = "TEXT_COMPOSITOR_WAVEDROM_JS_DIR"
+
+def ensure_wavedrom_js():
+    """(スキンのパス, wavedrom.min.jsのパス)を返す。無ければ、取得して、SHA256を確認する。読み込む順序は、スキンが先。
+    環境変数`TEXT_COMPOSITOR_WAVEDROM_JS_DIR`のフォルダに、2つのファイルがあれば、それを使う（ダウンロードしない。#392）。"""
+    bundled = os.environ.get(WAVEDROM_JS_DIR_ENV)
+    if bundled:
+        paths = (os.path.join(bundled, "default.js"), os.path.join(bundled, "wavedrom.min.js"))
+        if all(os.path.isfile(p) for p in paths):
+            return paths
+    return (_ensure_verified_js(WAVEDROM_SKIN_URL, WAVEDROM_SKIN_SHA256, "wavedrom", "default.js"),
+            _ensure_verified_js(WAVEDROM_JS_URL, WAVEDROM_JS_SHA256, "wavedrom", "wavedrom.min.js"))
+
 # ローカルにJava 11+が見つからない場合のみ取得するEclipse Temurin JRE（Adoptium配布、
 # GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統で安心度が高い）。CI
 # （GitHub Actions ubuntu-latest等）はJavaが標準搭載されているためこの取得は発生しない（#22）。
