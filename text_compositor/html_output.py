@@ -25,6 +25,7 @@ from markdown_it.renderer import RendererHTML
 from markdown_it.utils import OptionsDict
 
 from text_compositor import diagnostics
+from text_compositor import highlight
 from text_compositor import graphviz_render
 from text_compositor import vega_render
 from text_compositor import wavedrom_render
@@ -48,8 +49,8 @@ _UNSUPPORTED_FENCES = {
 }
 
 # Markdown・図のほかに、開けるファイル（#196）: `.txt`（等幅の素のテキスト）・`.csv`（表）・`.svg`（画像）。
-# それ以外（`.yaml`・`.json`・ソースコード・拡張子なし・未知の拡張子・バイナリ）は、案内つきのエラーにする
-# （`.yaml`・`.json`・ソースコードのハイライト表示は、別のissue #218）。
+# 設定ファイル・ソースコード（highlight.SOURCE_FILE_LANGS。#218）は、シンタックスハイライトつきの等幅表示。
+# それ以外（拡張子なし・未知の拡張子・バイナリ）は、案内つきのエラーにする。
 TEXT_FILE_EXT = '.txt'
 CSV_FILE_EXT = '.csv'
 SVG_FILE_EXT = '.svg'
@@ -320,6 +321,8 @@ class HtmlRenderer(TypstRenderer):
                 body = self._diagram_source_html(self.DIAGRAM_FILE_EXTS[ext], text)
         elif ext == TEXT_FILE_EXT:
             body = self._plain_text_html(md_path)
+        elif ext in highlight.SOURCE_FILE_LANGS:
+            body = self._source_file_html(md_path, highlight.SOURCE_FILE_LANGS[ext])
         elif ext == CSV_FILE_EXT:
             body = self._csv_html(md_path)
         elif ext == SVG_FILE_EXT:
@@ -330,26 +333,24 @@ class HtmlRenderer(TypstRenderer):
             diagnostics.info(f"Ignored {self._pagebreaks} '<!-- pagebreak -->' in HTML output.", file=md_path)
 
         title = (self._title or os.path.splitext(os.path.basename(md_path))[0]).strip()
+        # ハイライトした部分があるときだけ、トークンの色のCSS（約5 KB）を足す
+        highlight_css = highlight.css() if f' {highlight.CODE_CLASS}"' in body else ''
         return (
             "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n"
             f"<meta http-equiv=\"Content-Security-Policy\" content=\"{CONTENT_SECURITY_POLICY}\">\n"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-            f"<title>{escapeHtml(title)}</title>\n<style>\n{DOCUMENT_CSS}</style>\n</head>\n"
+            f"<title>{escapeHtml(title)}</title>\n<style>\n{DOCUMENT_CSS}{highlight_css}</style>\n</head>\n"
             f"<body>\n<main>\n{body}</main>\n</body>\n</html>\n"
         )
 
     # -- Markdown・図以外のファイル（#196） -------------------------------------------
 
     SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot・.pikchr など）・"
-                             "テキスト（.txt）・CSV（.csv）・SVG（.svg）です。")
+                             "テキスト（.txt）・CSV（.csv）・SVG（.svg）・設定ファイルとソースコード（.yaml・.json・.py など）です。")
 
     def _unsupported_file(self, path: str, ext: str) -> None:
         name = os.path.basename(path)
         detail = self.SUPPORTED_FILES_GUIDE
-        if ext in ('.yaml', '.yml', '.json') or ext in ('.py', '.js', '.ts', '.toml', '.xml', '.ini', '.sh', '.css'):
-            detail += "設定ファイル・ソースコードの表示は、今後対応する予定です（#218）。"
-        elif ext in ('.html', '.htm'):
-            detail += "HTMLは、スクリプトを実行しないため、開きません。"
         diagnostics.error(f"'{name}' cannot be opened: the file type '{ext or '(no extension)'}' is not supported.",
                           file=path, detail=detail)
         sys.exit(1)
@@ -396,6 +397,27 @@ class HtmlRenderer(TypstRenderer):
         text, truncated, size = self._read_utf8(path)
         note = self._truncation_note(path, size, "文字数で約" + f"{len(text):,}" + "文字") if truncated else ""
         return f'{note}<pre class="plain-text">{escapeHtml(text)}</pre>\n'
+
+    def _source_file_html(self, path: str, lang: str) -> str:
+        """設定ファイル・ソースコードを、シンタックスハイライトつきの等幅表示にする（#218）。Markdownとしては、解釈しない。
+        Pygmentsが無いとき、または、大きさが`HIGHLIGHT_MAX_BYTES`を超えるときは、色を付けずに、`.txt`と同じ素の表示にする。
+        HTML（`.html`）は、実行せず、ソースとして表示する。"""
+        text, truncated, size = self._read_utf8(path)
+        note = self._truncation_note(path, size, "文字数で約" + f"{len(text):,}" + "文字") if truncated else ""
+        name = os.path.basename(path)
+        if len(text) > highlight.HIGHLIGHT_MAX_BYTES:
+            diagnostics.info(f"'{name}' is large; it is shown without syntax highlighting.", file=path)
+            note += (f'<p class="text-note">ファイルが大きいため、色は付けずに表示しています'
+                     f'（色を付けるのは、約{highlight.HIGHLIGHT_MAX_BYTES // 1024} KBまでです）。</p>\n')
+            return f'{note}<pre class="plain-text">{escapeHtml(text)}</pre>\n'
+        html = highlight.highlight_html(text, lang)
+        if html is None:
+            if not highlight.available():
+                diagnostics.info("Pygments is not installed, so the file is shown without syntax highlighting "
+                                 "(pip install text-compositor[highlight]).", file=path)
+            return f'{note}<pre class="plain-text">{escapeHtml(text)}</pre>\n'
+        return (f'{note}<pre class="plain-text"><code class="language-{escapeHtml(lang)} {highlight.CODE_CLASS}">'
+                f'{html}</code></pre>\n')
 
     def _csv_html(self, path: str) -> str:
         """`.csv`を、表にする。1行目は、見出し行（PDF出力と同じ）。列の数が足りない行は、空のセルで、そろえる。"""
@@ -568,6 +590,10 @@ class HtmlRenderer(TypstRenderer):
 
     @staticmethod
     def _code_block(code: str, lang: str = '') -> str:
+        # Pygmentsがあり、言語が分かり、大きすぎなければ、シンタックスハイライトをする（#218）。それ以外は、素の表示
+        html = highlight.highlight_html(code, lang.lower()) if len(code) <= highlight.HIGHLIGHT_MAX_BYTES else None
+        if html is not None:
+            return f'<pre><code class="language-{escapeHtml(lang)} {highlight.CODE_CLASS}">{html}</code></pre>\n'
         cls = f' class="language-{escapeHtml(lang)}"' if lang else ''
         return f'<pre><code{cls}>{escapeHtml(code)}</code></pre>\n'
 

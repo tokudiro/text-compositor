@@ -5,7 +5,7 @@ Pythonをインストールしていない環境でも動く、Obunzu（Viewer�
 ## 配布の形式
 
 - **ポータブルなZIP**（`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`）。展開して、`obunzu-markdown-viewer.exe`を起動する。インストーラは、作らない（インストールも、レジストリへの書き込みも、要らない。削除は、フォルダごと消すだけ）。
-- ZIPの大きさは、**約293.5 MB**。展開後は、**約687.0 MB**。Electron（Chromium）が、展開後の半分強を占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから約468 MBへ増え（ZIPで+35 MB）、PlantUML・D2・Structurizr・Mermaidの同梱（[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）で、さらに展開後+約217 MB（Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsの合計。実測は下の表）、**ZIPで+約93 MB**（約200 MBから約293 MBへ）増えた。
+- ZIPの大きさは、**約297.8 MB**。展開後は、**約698.3 MB**。Electron（Chromium）が、展開後の半分強を占める。この大きさは、許容する（[#180](https://github.com/tokudiro/text-compositor/issues/180)。削減は、行わない）。Typstを通す処理のための同梱（`typst`・フォント・パッケージ。[#263](https://github.com/tokudiro/text-compositor/issues/263)）で、約164 MBから約468 MBへ増え（ZIPで+35 MB）、PlantUML・D2・Structurizr・Mermaidの同梱（[#290](https://github.com/tokudiro/text-compositor/issues/290)・[#310](https://github.com/tokudiro/text-compositor/issues/310)）で、さらに展開後+約217 MB（Java・plantuml.jar・D2・structurizr-cli・mermaid.min.jsの合計。実測は下の表）、**ZIPで+約93 MB**（約200 MBから約293 MBへ）増えた。
 - コード署名は、していない。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す可能性がある（推測）。署名は、必要が出たときに、別に検討する。
 
 ```text
@@ -37,6 +37,7 @@ Obunzu-Markdown-Viewer-0.4.3-win-x64/
 | Electron（Chromium） | 同梱 | 約367.5 MB |
 | Viewerのコード（`resources/`） | 同梱 | 0.1 MB |
 | 組込版Python 3.14.7 | 同梱 | 約23.5 MB |
+| Pygments（`site-packages/pygments`。BSD-2-Clause） | **同梱**（[#218](https://github.com/tokudiro/text-compositor/issues/218)）。設定ファイル・ソースコード・Markdownのコードブロックの、シンタックスハイライトに使う。純粋なPython | 展開後に約8.6 MB。ZIPでは、約3.3 MBの増加（実測。294.5 MB → 297.8 MB） |
 | Pythonのパッケージ（`markdown-it-py`・`mdurl`・`mdit-py-plugins`・`PyYAML`・`platformdirs`）と、`text_compositor` | 同梱 | 約2.3 MB（`text_compositor`は0.6 MB、`markdown_it`は0.4 MB、`yaml`は0.7 MB） |
 | **`typst`**（Typstのコンパイラ。Pythonのパッケージ） | **同梱**（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[#237](https://github.com/tokudiro/text-compositor/issues/237)で決めた） | 約59.6 MB（ZIPで約27 MB） |
 | Noto Sans JP（`fonts/`。RegularとBold） | **同梱**（#263） | 8.8 MB |

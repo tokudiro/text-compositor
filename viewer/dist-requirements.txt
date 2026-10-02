@@ -9,3 +9,5 @@ mdit-py-plugins==0.6.1
 PyYAML==6.0.3
 platformdirs==4.11.14
 typst==0.15.0
+# シンタックスハイライト（#218）。pyproject.tomlの`highlight`エクストラと、そろえる。純粋なPythonで、約8.5 MB（展開後）。
+Pygments==2.21.0

@@ -50,7 +50,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 | 設定 | ツールバーの歯車のボタン、または`Ctrl+,`。「← 戻る」ボタン、`Esc`、歯車のボタンで閉じます。ファイルを開く・再読み込みでも、閉じます。 |
 | エラーの詳細の開閉 | エラー・警告の帯をクリック |
 
-開けるファイル: Markdown（`.md`・`.markdown`）、図の単体ファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.gv`・`.pikchr`は、図として表示します。Graphvizは、同梱のTypstと、そのパッケージ`diagraph`で描画します（PDFと同じ図になります）。`shape=record`・図全体の`label`は、描けないため、警告します）、Text（`.txt`。等幅の素のテキストで表示し、Markdownとしては解釈しません）、CSV（`.csv`。1行目を見出しにした表）、SVG（`.svg`。画像）。TextとCSVは、UTF-8（BOMなし）だけに対応します（Shift_JIS・UTF-16・BOMつきのUTF-8は、エラーです）。大きなファイルは、先頭の512 KBだけを表示し、案内を出します。それ以外（`.yaml`・`.json`・ソースコード・`.html`・SVG以外の画像・PDF・拡張子のないファイル・未知の拡張子・フォルダ）は、開かずに、エラーの帯で、開けるファイルを案内します。`.yaml`・`.json`・ソースコードのハイライト表示は、今後対応する予定です（#218）。コマンドラインで指定した、存在しないファイルも、案内が出ます。複数のファイルをドロップしたときは、最初の1つを開きます。文書の中の、ローカルのファイルへのリンクは、Viewerで開きます（開けないファイルなら、同じ案内が出ます）。
+開けるファイル: Markdown（`.md`・`.markdown`）、図の単体ファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.gv`・`.pikchr`は、図として表示します。Graphvizは、同梱のTypstと、そのパッケージ`diagraph`で描画します（PDFと同じ図になります）。`shape=record`・図全体の`label`は、描けないため、警告します）、Text（`.txt`。等幅の素のテキストで表示し、Markdownとしては解釈しません）、CSV（`.csv`。1行目を見出しにした表）、SVG（`.svg`。画像）、設定ファイル・ソースコード（`.yaml`・`.json`・`.py`など。シンタックスハイライトつきの等幅。約128 KBを超えると、色なし。`.html`は、実行せず、ソースとして表示します。Pygmentsを同梱しています。#218）。TextとCSVは、UTF-8（BOMなし）だけに対応します（Shift_JIS・UTF-16・BOMつきのUTF-8は、エラーです）。大きなファイルは、先頭の512 KBだけを表示し、案内を出します。それ以外（SVG以外の画像・PDF・拡張子のないファイル・未知の拡張子・フォルダ）は、開かずに、エラーの帯で、開けるファイルを案内します。コマンドラインで指定した、存在しないファイルも、案内が出ます。複数のファイルをドロップしたときは、最初の1つを開きます。文書の中の、ローカルのファイルへのリンクは、Viewerで開きます（開けないファイルなら、同じ案内が出ます）。
 
 変換中は、「変換中…」を表示します。変換に失敗したときは、直前に成功した表示を残したままにします。エラーの帯には、1行の要約を出します。新しいエラーが出ると、詳細の一覧も開き、項目ごとに、原稿の行（分かる場合）と、ツールの出力を見せます（エラーは赤、警告は黄の印と線）。帯を押すと、一覧を閉じる・開くができます。文書の中のWebのリンクは、既定のブラウザで開きます。Markdownファイルを指すリンクや、ドロップしたファイルは、Viewerで開きます。それ以外の遷移で、表示が文書から離れることはありません。
 
@@ -75,7 +75,7 @@ Pythonが見つからなくても、ウィンドウは開き、対処を案内�
 
 ## 配布物（Windows）
 
-`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`、約293 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）（ネットワークなしで動きます。#263）と、Java（`jre/`）・`plantuml.jar`・D2本体・structurizr-cli（絞り込み版）・`mermaid.min.js`（Mermaid・PlantUML・D2・Structurizrの図が、追加のダウンロードなしで使えます。#290・#310）と、サードパーティのライセンス表記（`licenses/`）です。`playwright`は、同梱しません（Mermaidの図は、Electron自身のChromiumで描画するため、`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
+`npm run build-dist`で、Pythonをインストールしなくても動く、ポータブルなZIP（`dist/Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`、約298 MB）を作ります。中身は、Electronのアプリと、その隣の組込版Python（`python-embed/`。必要なパッケージと、Typstのコンパイラ）と、フォント（`fonts/`。Noto Sans JP）と、Typstのパッケージ（`typst-packages/`）（ネットワークなしで動きます。#263）と、Java（`jre/`）・`plantuml.jar`・D2本体・structurizr-cli（絞り込み版）・`mermaid.min.js`（Mermaid・PlantUML・D2・Structurizrの図が、追加のダウンロードなしで使えます。#290・#310）と、サードパーティのライセンス表記（`licenses/`）です。`playwright`は、同梱しません（Mermaidの図は、Electron自身のChromiumで描画するため、`playwright`も、ChromeやEdgeも、要りません。#207）。`node scripts/check-dist.js`は、展開したアプリを、環境変数からPythonへの手がかりをすべて外して、起動し、確認します。同梱物・サイズ・ライセンス・更新の方法は、[doc/viewer-distribution.md](../doc/viewer-distribution.md)にあります。Obunzuは、自動更新をしません。セキュリティ修正は、新しい版として出すため、最新のZIPを使ってください。
 ## 環境変数
 
 | 変数 | 意味 |

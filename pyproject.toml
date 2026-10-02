@@ -21,6 +21,8 @@ dependencies = [
 # `pip install text-compositor[mermaid]` でまとめて導入できる。
 [project.optional-dependencies]
 mermaid = ["playwright==1.63.0"]
+# HTML出力のシンタックスハイライト（#218）に使う。無くても動く（等幅の素の表示になる）。
+highlight = ["Pygments==2.21.0"]
 
 [project.urls]
 Repository = "https://github.com/tokudiro/text-compositor"

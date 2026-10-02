@@ -6,24 +6,30 @@ const path = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 
 /**
- * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・Text（.txt）。
- * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする（.yaml・.json・ソースコードの表示は、#218）。
+ * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・Text（.txt）・設定ファイルとソースコード（#218）。
+ * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
 const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.svg'];
 const CSV_EXTENSIONS = ['.csv'];
 const TEXT_EXTENSIONS = ['.txt'];
+// 設定ファイル・ソースコード（シンタックスハイライトつきの等幅表示。#218）。ワーカー側の`highlight.SOURCE_FILE_LANGS`と、そろえる。
+const SOURCE_EXTENSIONS = [
+  '.yaml', '.yml', '.json', '.toml', '.xml', '.ini', '.html', '.htm', '.css', '.sql', '.sh', '.bash', '.ps1',
+  '.py', '.js', '.mjs', '.ts', '.jsx', '.tsx', '.java', '.c', '.h', '.cpp', '.hpp', '.go', '.rs', '.rb', '.php',
+];
 
 /**
  * ファイルを開くダイアログの、種類ごとの絞り込み。名前の「文」と「図」は、Obunzu（文図）の由来。
  * 「文」は、MarkdownとText（.txt）をまとめた種類で、Markdownだけの絞り込みも、別に持つ（種類は、重なってよい）。
- * #218で.yaml・.json・ソースコードに対応したら、ここに種類を足す。
+ * 設定ファイル・ソースコード（#218）は、「設定・ソース」の種類にする。
  */
 const OPEN_FILE_KINDS = [
   { name: '文（Markdown・Text）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
   { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
   { name: '図（Mermaid・PlantUML・D2・Graphviz・Pikchr・SVG）', extensions: DIAGRAM_EXTENSIONS },
   { name: 'CSV', extensions: CSV_EXTENSIONS },
+  { name: '設定・ソース（YAML・JSON・コード）', extensions: SOURCE_EXTENSIONS },
 ];
 
 /**
