@@ -88,10 +88,10 @@ text-compositor/                         my-project/
     * `renderer_inline.py`（`InlineMixin`）: インライン要素`render_inline`・文字のエスケープ・用語索引・文字色。
     * `renderer_tables.py`（`TableMixin`）: Markdownの表と`.csv`。
     * `renderer_layout.py`（`LayoutMixin`）: `:::`のレイアウトブロック。
-    * `renderer_diagrams.py`（`DiagramMixin`）: 図のフェンス（Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・svg）の描画と、SVGのキャッシュ（`_diagram_cache_key`）。外部ツールの取得・検出を呼ぶ名前（`ensure_mermaid_js`・`find_system_d2`・`ensure_structurizr_cli`など）は、このモジュールにある。テストで差し替える（`monkeypatch`）ときは、`text_compositor.renderer_diagrams`を対象にする。
+    * `renderer_diagrams.py`（`DiagramMixin`）: 図のフェンス（Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・WaveDrom・svg）の描画と、SVGのキャッシュ（`_diagram_cache_key`）。外部ツールの取得・検出を呼ぶ名前（`ensure_mermaid_js`・`find_system_d2`・`ensure_structurizr_cli`など）は、このモジュールにある。テストで差し替える（`monkeypatch`）ときは、`text_compositor.renderer_diagrams`を対象にする。
     * `html_output.py`の`HtmlRenderer`は、`TypstRenderer`を継承する。
     * `typst_literal.py`は、Typstの文字列リテラルの補助関数。
-  * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid・Vega用ブラウザ）、`vega_render.py`（Vega・Vega-Liteの仕様の検査と、ブラウザで実行する描画スクリプト）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
+  * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid・Vega・WaveDrom用ブラウザ）、`vega_render.py`（Vega・Vega-Liteの仕様の検査と、ブラウザで実行する描画スクリプト）、`wavedrom_render.py`（WaveDromの仕様の検査と、描画スクリプト）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
 * **Typstコンパイラの入手方法**: バイナリを同梱しない（2章）。PyPIの `typst` パッケージ（[typst-py](https://github.com/messense/typst-py/)、`requirements.txt` で版固定）がOSごとのホイールにコンパイラ本体を含むため、`pip install -r requirements.txt` だけで済む。`compiler.py` は `typst.compile(input, output=, root=)` というPython APIを直接呼び出すだけで、バイナリの配置やOS判定コードを持たない。
 
 ## 4. 使い方（CLI 仕様）
@@ -150,7 +150,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
 ## 6. 設定ファイル (Configuration as Code)
 * `config.yaml` / `config.json` のどちらでも書ける。内部では単一のスキーマ（正規化された辞書構造やPydantic等）に統合して扱い、パース処理の破綻を防ぐ。パスの基準は5章に従う。
 * ファイル順序、ページ設定、出力メタデータ、データ集約ディレクトリ（aggregate）を一元管理する。
-  * `plugins:`（Graphviz/Pikchr/CeTZ/Fletcher/timeliney/finite/Vega/PlantUML/Mermaid/D2/Structurizrの有効・無効切り替え）。`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`mermaid`/`plantuml`/`d2`はいずれも既定`true`（未指定時は常時有効）。`false`にすると該当フェンス（```` ```dot ````/```` ```graphviz ````/```` ```pikchr ````/```` ```cetz ````/```` ```fletcher ````/```` ```timeliney ````/```` ```mermaid ````/```` ```plantuml ````/```` ```d2 ````）は描画せず、未対応言語と同じ素のコード表示にフォールバックする（[#21](https://github.com/tokudiro/text-compositor/issues/21)、[#22](https://github.com/tokudiro/text-compositor/issues/22)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。`structurizr`のみ既定`false`（内部で使う`structurizr-cli`一式が約99MBあるため、明示的な有効化を要求する。[#212](https://github.com/tokudiro/text-compositor/issues/212)、11章8）。
+  * `plugins:`（Graphviz/Pikchr/CeTZ/Fletcher/timeliney/finite/Vega/WaveDrom/PlantUML/Mermaid/D2/Structurizrの有効・無効切り替え）。`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`mermaid`/`plantuml`/`d2`はいずれも既定`true`（未指定時は常時有効）。`false`にすると該当フェンス（```` ```dot ````/```` ```graphviz ````/```` ```pikchr ````/```` ```cetz ````/```` ```fletcher ````/```` ```timeliney ````/```` ```mermaid ````/```` ```plantuml ````/```` ```d2 ````）は描画せず、未対応言語と同じ素のコード表示にフォールバックする（[#21](https://github.com/tokudiro/text-compositor/issues/21)、[#22](https://github.com/tokudiro/text-compositor/issues/22)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。`structurizr`のみ既定`false`（内部で使う`structurizr-cli`一式が約99MBあるため、明示的な有効化を要求する。[#212](https://github.com/tokudiro/text-compositor/issues/212)、11章8）。
   * `plugins.mermaid_auto_download`（既定`false`）/`plugins.plantuml_auto_download`（既定`true`）: 描画に必要なツール（ブラウザ/Java）がシステムに見つからない場合の振る舞いを別軸で制御する。`true`なら自動取得、`false`ならFail-fast。既定値が非対称なのは、Playwright自身のChromium（約700MB）とEclipse Temurin JRE（約49.7MB）でダウンロード量が一桁違うため（11章、#22の設計議論）。
   * **未知のキーの検証（[#309](https://github.com/tokudiro/text-compositor/issues/309)）**: `config.yaml`のトップレベル・`document:`・`output:`・`template:`・`inputs:`・`plugins:`の各キーは、許可された名前の一覧と照合する。綴りミスや置き場所の間違い（例: `plugins:`の外に置いてしまう）があると、`deep_update()`が黙って無視して既定値のままフォールバックしてしまうため、9章のFail-fast方針に従いエラー終了する。近い既知キー名があれば、その提案もあわせて表示する（`difflib.get_close_matches()`）。1ファイル内の複数の未知キーはまとめて報告する（`variables:`の未定義キー検証と同じ考え方）。`chapters`（章ごとにfile/aggregate/sectionでスキーマが分岐する）と`variables`（既にキー自体の形を検証している）は対象外。
 * **`variables:`（テキストの置換機構、[#72](https://github.com/tokudiro/text-compositor/issues/72)）**: Markdown本文中の`{{KEY}}`をビルド時に実値へ置換する。バージョン番号やビルド番号を、前処理スクリプトなしで差し込むための機構。
@@ -371,6 +371,14 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
    * **依存する`cetz`の版が、他のkindと別**: finite 0.5.1は、内部で、`cetz` 0.4.2・`diagraph-layout` 0.0.1・`t4t` 0.4.3・`oxifmt` 1.0.0に依存する（4本目のcetzの版。ZIPへの同梱は、`doc/viewer-distribution.md`）。
    * **ライセンス**: finite・diagraph-layout・t4tは、MIT。cetz 0.4.2は、LGPL-3.0以降で、CeTZ（上）と同じ扱い。
    * **既知の制限**: 状態・遷移が増えると、遷移のラベルが、重なる場合がある（日本語の5状態の例で確認した）。配置は、`layout:`の引数で変えられるが、図によって、向き不向きがある。開始状態の矢印の文字は、英語の「Start」である。
+
+12. **WaveDrom**（JSONの仕様で描く、デジタルのタイミング図とレジスタ図、[#299](https://github.com/tokudiro/text-compositor/issues/299)）: Mermaid・PlantUML・D2のうち、PlantUMLだけがタイミング図を描ける。WaveDromは、Markdown Preview Enhancedが標準で対応している実績があり、採用した。
+   * **描画方式**: Vega（上の10）と同じ型。Mermaid・Vegaと同じヘッドレスブラウザに、別のタブとして`wavedrom.min.js`とスキン`default.js`を読み込ませ、`WaveDrom.RenderWaveForm`を呼ぶ（`mermaid.py`の`ensure_wavedrom_page`）。Node.jsは、要らない（npm版は、Node.js単体でも、ブラウザなしでSVGにできることを確認済み）。
+   * **ライセンス・サイズ**: WaveDrom本体と依存（onml・json5・tspan・logidrom・bit-field）は、すべてMIT。`wavedrom.min.js`が約55KB、スキンが約43KB。`deps.py`が、バージョン（3.7.0）とSHA256を固定して取得し、検証する（`check-pins.py`の監視対象）。
+   * **仕様は、厳密なJSONだけ**: WaveDrom本家は、入力を`eval`で読む。ここでは、Pythonで`json.loads`し、ブラウザには、値（dict）だけを渡す。原稿の文字列を、ブラウザの中で、コードとして実行しない。`signal`・`reg`のどちらも無い仕様は、描く前に止める（WaveDromは、描けない入力でも、例外にせず、空の図を返すため）。
+   * **`reg`も使える**: WaveDrom 3.xに、bit-fieldが同梱されており、`reg`でレジスタ図（ビットフィールド図）も描ける。
+   * **Obunzuは未対応**: Pythonのブラウザ経路だけで描く。[#392](https://github.com/tokudiro/text-compositor/issues/392)で、ElectronのChromiumで描く方式（Vegaの#351と同じ）を扱う。
+   * **実装**: `renderer_diagrams.py`の`_render_wavedrom`（PDF）・`_wavedrom_svg_path`（PDF・HTML共通。キャッシュキーは、本体・スキンのSHA256から作る）。レイアウトブロック（`::: layout-right`など）の中でも使える。テストは、`tests/test_wavedrom_render.py`。
 ## 12. ビルド成果物と一時ファイル
 * 中間 Typst ファイルは `project_dir` 直下の `.text-compositor/temp_build.typ` に生成する（Mermaidのキャッシュも同じ `.text-compositor/cache/` 配下）。テンプレートは同じ `.text-compositor/_template.typ` へコピーしてから参照する（5章・8章のサンドボックス要件）。共通の補助関数`templates/_common.typ`も、テンプレートの隣（`.text-compositor/_common.typ`）へコピーする（6章、[#63](https://github.com/tokudiro/text-compositor/issues/63)）。画像はコピーせず、`--root` 起点のルート絶対パス（`/...`）で参照して解決する。
 * ビルド成功後、`temp_build.typ`・`_template.typ`・`_common.typ` は使い捨ての中間ファイルとして削除する。`cache/`（Mermaid等の描画結果）は次回以降のビルドで再利用するため削除しない。ビルド失敗時はデバッグに使えるよう `temp_build.typ` 等を残したまま終了する（[#20](https://github.com/tokudiro/text-compositor/issues/20)）。`.gitignore` への追加を推奨する。
@@ -501,7 +509,7 @@ with Session() as session:                              # 繰り返すなら（M
 | 分類 | 記法 | HTMLでの扱い |
 | --- | --- | --- |
 | そのまま | CommonMark・表・取り消し線・タスクリスト（無効なチェックボックス）・リンク・コード | 標準の変換。コードの構文の色付けは、しない |
-| 図 | Mermaid・PlantUML・D2・Structurizr・Graphviz（`dot`・`graphviz`）・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・`svg`フェンス | PDFと同じ仕組みでSVGにし、`<img>`で参照する（Graphviz・Pikchr・CeTZ・Fletcher・timelineyは、Typstのパッケージ`diagraph`・`kip`・`cetz`・`fletcher`・`timeliney`で描く。Structurizrは、`structurizr-cli`でPlantUMLへ書き出し、PlantUMLと同じ経路で描く。下記）。`{width= height=}`は、`style`にする。プラグインが無効なら、コードブロックにする（警告なし） |
+| 図 | Mermaid・PlantUML・D2・Structurizr・Graphviz（`dot`・`graphviz`）・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・WaveDrom・`svg`フェンス | PDFと同じ仕組みでSVGにし、`<img>`で参照する（Graphviz・Pikchr・CeTZ・Fletcher・timelineyは、Typstのパッケージ`diagraph`・`kip`・`cetz`・`fletcher`・`timeliney`で描く。Structurizrは、`structurizr-cli`でPlantUMLへ書き出し、PlantUMLと同じ経路で描く。下記）。`{width= height=}`は、`style`にする。プラグインが無効なら、コードブロックにする（警告なし） |
 | 置き換え | `[text]{color= size=}`・`<span style="color:...">`・表のセルの`{bg= border=}`・画像の`alt\|width=\|height=\|align=`・alert（`> [!NOTE]`等） | CSSの`style`や、`<div class="alert alert-note">`にする。値は、CSSとして安全な形だけを通し、それ以外は、警告して無視する |
 | 近似 | `:::`のレイアウトブロック | CSS 2.1の表・`position`と、`column-count`で近似する。`layout-feature`は、写真の下部にキャッチコピーを重ねる。`layout-takahashi`のサイズは、そのまま`font-size`にする。PDFの見た目とは一致しない |
 | 無視（`info`） | 改ページ（`<!-- pagebreak -->`）・front-matterの`paper_size`・`landscape`・`header`・`footer`・`paginate`・`font_size` | HTMLには意味がないため無視し、`info`の診断にする（警告にしない）。Marpのディレクティブは、PDFと同じく黙って無視する。`---`は、常に`<hr>`（`marp_compat`は、config側の設定のため、範囲外） |

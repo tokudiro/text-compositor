@@ -5,7 +5,7 @@ import subprocess
 import shutil
 import time
 import tempfile
-from text_compositor.deps import ensure_mermaid_js, ensure_vega_js, find_system_browser
+from text_compositor.deps import ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, find_system_browser
 from text_compositor.env_check import _check_mermaid
 from text_compositor.log import _error, _hint, _log_info
 
@@ -20,6 +20,7 @@ class MermaidBrowser:
     def __init__(self):
         self.page = None
         self.vega_page = None   # Vega・Vega-Lite用のページ（#211）。同じブラウザに、別のタブとして開く
+        self.wavedrom_page = None   # WaveDrom用のページ（#299）。同じく、別のタブ
         self.browser = None
         self.playwright = None
         self.chrome_proc = None
@@ -85,6 +86,27 @@ class MermaidBrowser:
             with open(path, "r", encoding="utf-8") as f:
                 page.add_script_tag(content=f.read())
         self.vega_page = page
+        return page
+
+    def ensure_wavedrom_page(self, mermaid_enabled, mermaid_auto_download):
+        """WaveDrom描画用のページを遅延起動して返す（#299）。Mermaid・Vegaと同じヘッドレスブラウザに、別のタブとして開く。
+        スキンと、wavedrom.min.js（合わせて約98KB）を読み込ませ、`WaveDrom.RenderWaveForm`を直接呼ぶ（Node.jsは、要らない）。"""
+        if self.wavedrom_page is not None:
+            try:
+                if not self.wavedrom_page.is_closed() and self.browser.is_connected():
+                    return self.wavedrom_page
+            except Exception:
+                pass
+            _log_info("WaveDrom browser is no longer available; restarting it.")
+            self.close()
+
+        self._ensure_browser(mermaid_enabled, mermaid_auto_download)
+        page = self._new_page()
+        page.set_content("<div id='WaveDrom_Display_0'></div>")
+        for path in ensure_wavedrom_js():
+            with open(path, "r", encoding="utf-8") as f:
+                page.add_script_tag(content=f.read())
+        self.wavedrom_page = page
         return page
 
     def _new_page(self):
@@ -164,7 +186,7 @@ class MermaidBrowser:
                 self.chrome_proc.kill()
         if self.profile_dir and os.path.exists(self.profile_dir):
             shutil.rmtree(self.profile_dir, ignore_errors=True)
-        self.page = self.vega_page = self.browser = self.playwright = self.chrome_proc = self.profile_dir = None
+        self.page = self.vega_page = self.wavedrom_page = self.browser = self.playwright = self.chrome_proc = self.profile_dir = None
 
 def _launch_headless_chrome(browser_path, user_data_dir):
     """browser_pathをリモートデバッグ有効・ヘッドレスで起動し、(Popen, ポート番号)を返す。
