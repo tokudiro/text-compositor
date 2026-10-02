@@ -4,6 +4,8 @@
   --button: #e6e6e6; --accent: #0078d4; --accent-fg: #ffffff; --accent-soft: #dcebf8;
   --error-bg: #fde7e9; --error-fg: #a4262c; --warn-bg: #fff4ce; --warn-fg: #7a5a00;
   --busy-bg: #deecf9; --busy-fg: #005a9e;
+  /* 文字に使うアクセント色（#340）。--accentは、薄いアクセント色の背景の上で、文字のコントラスト比が、4.5:1に足りない（3.7:1）ため、文字は、こちらを使う（5.9:1） */
+  --accent-text: #005a9e;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -11,9 +13,12 @@
     --button: #262d36; --accent: #4ca0e8; --accent-fg: #0d1117; --accent-soft: #223b52;
     --error-bg: #442726; --error-fg: #f1b0b4; --warn-bg: #433519; --warn-fg: #f5d77a;
     --busy-bg: #1f3346; --busy-fg: #9cccf3;
+    --accent-text: #7ab8f0;   /* --accent-softの上で、5.5:1（--accentは、4.1:1） */
   }
 }
 * { box-sizing: border-box; }
+/* 画面には出さず、スクリーンリーダーだけに読ませる（#340） */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
   font: 13px/1.4 "Segoe UI", "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif; user-select: none; }
 #top { position: relative; z-index: 1; background: var(--bar); }
@@ -32,7 +37,7 @@ button[hidden] { display: none !important; }
 button.icon { width: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 button.icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* 自動更新は、オンのとき、アクセント色で示す */
-button.toggle[aria-checked="true"] { color: var(--accent); background: var(--accent-soft); }
+button.toggle[aria-checked="true"] { color: var(--accent-text); background: var(--accent-soft); }
 button.toggle[aria-checked="true"] svg { fill: currentColor; }
 button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-numeric: tabular-nums; }
 .sep { width: 1px; height: 16px; background: var(--line); margin: 0 6px; }
@@ -41,11 +46,12 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 /* 60%はウィンドウ幅基準（親の#fileはフォルダの場所が短いと狭くなり、幅が足りていても省略される。#276） */
 #file-name { flex: none; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 /* 行番号（#328）。ファイル名の右横に、続けて出す（check.md:14）。コピーは、内容の右クリックのメニュー（#357） */
-#line-ref { flex: none; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+#line-ref { flex: none; font-weight: 600; color: var(--accent-text); font-variant-numeric: tabular-nums; }
 #file-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); margin-left: 8px; }
 #status { color: var(--muted); font-size: 12px; white-space: nowrap; margin-right: 4px; }
 #busy { display: inline-flex; align-items: center; gap: 8px; padding: 2px 10px; border-radius: 10px; background: var(--busy-bg); color: var(--busy-fg); white-space: nowrap; }
 #busy[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .bar { animation: none; } }
 .bar { width: 56px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent 0, currentColor 50%, transparent 100%); background-size: 200% 100%; animation: slide 1s linear infinite; }
 @keyframes slide { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 /* 文書内検索（#325）。ツールバーの下に固定行として出す（設定画面と違い、内容のビューは隠さない） */
@@ -62,7 +68,10 @@ button.icon.text { font-weight: 700; font-size: 12px; }
 #banner[hidden], #details[hidden] { display: none; }
 /* 帯は、1行の要約。長いときは、省略して、全文は、ホバーと、詳細の一覧で見せる */
 #banner-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
-#banner-toggle { text-decoration: underline; white-space: nowrap; }
+/* 帯の「詳細」は、ボタン（キーボードで押せる）。見た目は、リンクのまま */
+#banner-toggle { color: inherit; background: none; height: auto; padding: 0 2px; text-decoration: underline; white-space: nowrap; }
+#banner-toggle:hover:not(:disabled) { background: none; }
+#banner-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 #details { max-height: 180px; overflow: auto; padding: 6px 12px; border-bottom: 1px solid var(--line); user-select: text; }
 /* エラーと警告は、左の線の色でも見分ける */
 .item { margin: 2px 0 6px; padding-left: 8px; border-left: 3px solid transparent; }
@@ -80,6 +89,7 @@ button.icon.text { font-weight: 700; font-size: 12px; }
 .settings-head, .settings-body { max-width: 720px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
 .settings-head { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 #settings h2 { font-size: 18px; font-weight: 600; margin: 0; }
+#settings h2:focus { outline: none; }   /* 設定を開いたとき、見出しへ、プログラムで、フォーカスを移す（#340）。枠は、出さない */
 button.back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); padding: 0 12px; }
 button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 /* 項目は、「名前と説明」（左）と「選択肢」（右）の行。項目が増えたら、行を足す */
@@ -105,7 +115,7 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 #cache-size { color: var(--muted); min-width: 4em; text-align: right; }
 .cache-control button { border: 1px solid var(--line); padding: 0 14px; }
 .row .desc code { font: 12px/1.4 "Cascadia Mono", Consolas, monospace; }
-.segmented input:checked + span { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.segmented input:checked + span { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
 #settings .hint { margin: 16px 0 0; color: var(--muted); }
 /* 案内は、ツールバー・帯・一覧を除いた、空き領域の中央に置く（一覧が長くても、重ならない） */

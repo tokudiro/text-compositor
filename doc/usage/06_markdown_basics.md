@@ -312,5 +312,6 @@ landscape: true
 | `paper_size` / `landscape` | そのファイル全体 | `chapters` の `file:` 指定 ＞ front-matter ＞ `document:` のグローバル設定 |
 | `header` / `footer` / `paginate` | そのファイル全体（他の章には持続しない） | `chapters` の `file:` 指定 ＞ front-matter ＞ `document:` のグローバル設定（[#42](https://github.com/tokudiro/text-compositor/issues/42)） |
 | `title` / `subtitle` / `author` / `date` | 認識はするが反映しない（読み捨てる） | — |
+| `lang` | ObunzuのHTML出力の、`<html lang>`（スクリーンリーダーが、読み上げの言語を決める）。例: `lang: en`。無いときは、本文に、かな・漢字があれば`ja`、なければ`en`。PDF出力は、使わない | front-matterのみ |
 
 `title`/`subtitle`/`author`/`date`は、Marp原稿との共用時にエラーや警告が出ないよう認識だけします。ただし、実際には何も反映されません。文書全体のタイトル等は `document:` の設定（「document: 文書全体の設定」の章）で指定してください。

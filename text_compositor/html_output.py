@@ -331,12 +331,23 @@ class HtmlRenderer(TypstRenderer):
 
         title = (self._title or os.path.splitext(os.path.basename(md_path))[0]).strip()
         return (
-            "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n"
+            f"<!DOCTYPE html>\n<html lang=\"{self._document_lang(body)}\">\n<head>\n<meta charset=\"utf-8\">\n"
             f"<meta http-equiv=\"Content-Security-Policy\" content=\"{CONTENT_SECURITY_POLICY}\">\n"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
             f"<title>{escapeHtml(title)}</title>\n<style>\n{DOCUMENT_CSS}</style>\n</head>\n"
             f"<body>\n<main>\n{body}</main>\n</body>\n</html>\n"
         )
+
+    _LANG_TAG_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$")
+    _JAPANESE_RE = re.compile("[぀-ヿ一-鿿]")
+
+    def _document_lang(self, body: str) -> str:
+        """`<html lang>`の値（スクリーンリーダーが、読み上げの言語を決めるのに使う。#340）。front-matterの`lang`（例: `en`・`ja`）があれば、それ。
+        無ければ、本文に、かな・漢字があるとき`ja`、なければ`en`とする。"""
+        declared = self.front_matter.get('lang') if isinstance(self.front_matter, dict) else None
+        if isinstance(declared, str) and self._LANG_TAG_RE.match(declared.strip()):
+            return declared.strip()
+        return 'ja' if self._JAPANESE_RE.search(body) else 'en'
 
     # -- Markdown・図以外のファイル（#196） -------------------------------------------
 
