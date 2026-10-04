@@ -6,7 +6,7 @@ Obunzu Markdown Viewer（略称はObunzu。お文図。「おぶんず」と読�
 
 ## できること
 
-- Markdownファイル（`.md`）を開いて、見やすく表示します。表・タスクリスト・注記（`> [!NOTE]`）・画像も表示します。
+- Markdownファイル（`.md`）を開いて、見やすく表示します。表・タスクリスト・注記（`> [!NOTE]`）・画像・数式（LaTeX記法）も表示します。コードブロックは、色分けします。
 - 文書の中に、コードとして書いた図を、絵にして表示します。Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・WaveDrom・Bytefield・SVGに対応します（「図を書く」の章）。
 - 図の単体ファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.pikchr`など）・テキスト（`.txt`）・CSV（`.csv`）・SVG（`.svg`）も開けます。
 - ファイルを保存すると、表示が自動で更新されます。お使いのエディタで書きながら、Obunzuで見た目を確かめる使い方ができます。
@@ -17,7 +17,7 @@ Obunzu Markdown Viewer（略称はObunzu。お文図。「おぶんず」と読�
 
 - 文書の編集はできません（閲覧専用です）。書くときは、お使いのエディタを使ってください。
 - PDFの出力はできません。PDFにするときは、同じ仕組みの[text-compositor](https://github.com/tokudiro/text-compositor)を使います。Obunzuの図は、text-compositorが作るPDFと、同じ描き方で描くため、同じ図になります。
-- 数式・生のHTMLには、対応していません。生のHTMLは、無視して、警告を出します。
+- 生のHTMLには、対応していません。無視して、警告を出します。
 - Windows（64ビット）向けです。Mac・Linux向けの配布物は、ありません。
 
 ## この説明書について

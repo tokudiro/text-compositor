@@ -18,7 +18,7 @@ The version shown in the window title is `version` in `package.json`. It is kept
 
 ## Run
 
-Requirements: [Node.js](https://nodejs.org/) 20 or later, and a Python that can import `text_compositor` with its dependencies.
+Requirements: [Node.js](https://nodejs.org/) 22.12 or later, and a Python that can import `text_compositor` with its dependencies.
 
 ```bash
 cd viewer
@@ -47,7 +47,7 @@ If no Python is found, the window still opens and explains what to do.
 | Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%). Clicking the percentage in the toolbar also resets it. |
 | Search (#325) | The magnifying-glass button, or `Ctrl+F`, opens a search bar under the toolbar. Matches are highlighted in yellow, the current one in orange, with a count. `Enter` / `Shift+Enter` (or the ▲▼ buttons) move to the next/previous match. The `.*` button switches to regular expressions, `Aa` toggles case sensitivity (an invalid regular expression is shown as an error in the bar and is not run). Close with `Esc` or the ✕ button. |
 | Save images (#327) | Right-click any diagram or image to save it. For SVGs, you can choose "画像（SVG）を保存…" (lossless vector) or "画像（PNG）を保存…" (high-resolution raster, 2x scale). Non-SVG images can be saved in their original format. The save dialog starts in the document's folder or the last saved image folder. |
-| Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **← 戻る** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
+| Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **閉じる** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
 | Show or hide error details | Click the error/warning bar |
 
 Openable files: Markdown (`.md`, `.markdown`), single diagram files (`.mmd`, `.puml`, `.d2`, `.dot`, `.gv` and `.pikchr` are drawn as diagrams; Graphviz is drawn with the bundled Typst and its `diagraph` package, the same as in the PDF; `shape=record` and a graph-level `label` cannot be drawn and produce a warning), plain text (`.txt`, shown as monospace text and never as Markdown), CSV (`.csv`, as a table whose first row is the header) SVG (`.svg`, as an image), and settings files and source code (`.yaml`, `.json`, `.py` and so on, as syntax-highlighted monospace text, without colors above about 128 KB; `.html` is shown as source and never run; Pygments is bundled, #218). Text and CSV must be UTF-8 without a BOM (Shift_JIS, UTF-16 and UTF-8 with a BOM are reported as errors), and only the first 512 KB is shown for a larger file, with a note. Everything else (images other than SVG, PDF, files without an extension, unknown extensions, folders) is not opened: the error bar says what can be opened. A missing file given on the command line is reported too. Dropping several files opens the first one. A link in a document to any local file opens it in the viewer (and shows the same guide if it cannot be opened).
@@ -67,7 +67,9 @@ While a conversion runs, a "変換中…" indicator is shown. If it fails, the l
 
 The settings screen (gear button) has three items: the **toolbar position** (top or bottom; the error bar follows the toolbar), the **color scheme** (follow the OS, light or dark), and **where to open files** (the folder the `Ctrl+O` dialog starts in). The last one is one of: **OSにゆだねる** (leave it to the OS; no folder is given), **前回開いたフォルダ** (the default; the folder of the file you opened last), or **特定のフォルダ** (a folder chosen with the **フォルダを選ぶ…** button). If the last opened or specific folder is not set or no longer exists, the dialog starts in the Documents folder. Changes apply at once. The automatic reload toggle is saved as well.
 
-There are two more items (#258). **変換ファイルの保存場所** (where the converted files go) is **アプリの領域** (the default: the converted HTML and the diagram cache are kept in the app's cache folder, so nothing is written to your document's folder, and a document in a read-only place can be opened) or **原稿の隣** (a `.text-compositor/` folder next to the document, as the worker does by default; a document in a place that cannot be written is opened with the app folder instead, with a warning). A third choice, **ファイルを作らない**, is shown grayed out: it is not implemented yet. **キャッシュ** shows the size of the app folder (on Windows, `%LOCALAPPDATA%\text-compositor\Cache\viewer`) and has a delete button. Deleting removes only the converted HTML and the diagram cache there, then converts the open document again; a `.text-compositor/` next to a document, and the downloaded fonts and diagram tools, are left alone.
+There are more items. First, **変換ファイルの保存場所** and **キャッシュ** (#258). **変換ファイルの保存場所** (where the converted files go) is **アプリの領域** (the default: the converted HTML and the diagram cache are kept in the app's cache folder, so nothing is written to your document's folder, and a document in a read-only place can be opened) or **原稿の隣** (a `.text-compositor/` folder next to the document, as the worker does by default; a document in a place that cannot be written is opened with the app folder instead, with a warning). A third choice, **ファイルを作らない**, is shown grayed out: it is not implemented yet. **キャッシュ** shows the size of the app folder (on Windows, `%LOCALAPPDATA%\text-compositor\Cache\viewer`) and has a delete button. Deleting removes only the converted HTML and the diagram cache there, then converts the open document again; a `.text-compositor/` next to a document, and the downloaded fonts and diagram tools, are left alone.
+
+There are also **外部の画像** (external images; default: not loaded, #238) and three features that add elements to the screen: **行番号の表示** (line number, #328/#357), **見出しのリンク** (heading link, #337) and **コードのコピーボタン** (code copy button, #336). All three default to on and can be turned off in the settings.
 
 The window size and position are remembered too (also maximized state). If the saved position no longer fits on any screen, for example after unplugging a monitor, only the size is restored.
 
@@ -142,4 +144,4 @@ CI (`.github/workflows/viewer.yml`) runs `npm test` on Windows for pull requests
 
 ## Third-party components
 
-Electron (MIT) and its bundled Chromium. The full list of notices for the distribution package is handled in #168.
+Electron (MIT) and its bundled Chromium. The distribution package (ZIP) ships a list of the bundled software and the full license texts in `licenses/` (see "ライセンス表記" in [doc/viewer-distribution.md](../doc/viewer-distribution.md)).

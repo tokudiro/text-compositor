@@ -72,7 +72,7 @@ box "開始" fit; arrow; circle "終了"
 | `mermaid` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します |
 | `plantuml` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
 | `d2` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします |
-| `structurizr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします（`structurizr-cli`でPlantUMLへ書き出してから描画）。既定は無効です（下の「Structurizr固有の注意点」） |
+| `structurizr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組みで、SVGにします（`structurizr-cli`でPlantUMLへ書き出してから描画）。PDF出力では既定で無効ですが、Obunzuは常に有効です（下の「Structurizr固有の注意点」） |
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
@@ -95,7 +95,7 @@ box "開始" fit; arrow; circle "終了"
 
 | 図の種類 | mermaid | plantuml | d2 | dot/graphviz | structurizr | pikchr | cetz | fletcher | timeliney | finite | vega | wavedrom | bytefield |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| シーケンス図 | ○ | ○ | ○ | × | × | × | × | × | × | × | × | × | × |
+| シーケンス図※5 | ○ | ○ | ○ | × | × | × | × | × | × | × | × | × | × |
 | タイミング図 | × | ○ | × | × | × | × | × | × | × | × | × | ○ | × |
 | クラス図 | ○ | ○ | ○ | ×※1 | × | × | × | × | × | × | × | × | × |
 | 状態遷移図 | ○※6 | ○ | × | × | × | × | × | × | × | ○※11 | × | × | × |
@@ -145,7 +145,7 @@ box "開始" fit; arrow; circle "終了"
 | ポジションマップ（クアドラントチャート） | ○ | × | × | × | × | × | × | × | × | × | × | × | × |
 | ネットワーク構成図 | × | × | ○ | × | × | × | × | × | × | × | × | × | × |
 | ラック構成図 | × | × | × | × | × | × | × | × | × | × | × | × | × |
-| パケット構造図 | ○ | × | × | × | × | × | × | × | × | × | × | ○※12 | ○ |
+| パケット構造図 | ○ | × | × | × | × | × | × | × | × | × | × | ○※12 | ○※13 |
 | 幾何図形・自由描画 | × | × | × | × | × | ○ | ○ | × | × | × | × | × | × |
 | 可換図式・木構造 | × | × | × | × | × | × | ○ | ○ | × | × | × | × | × |
 
@@ -173,7 +173,7 @@ box "開始" fit; arrow; circle "終了"
 - ※1 Graphvizの`shape=record`は、このツールでは使えません（[#264](https://github.com/tokudiro/text-compositor/issues/264)）。
 - ※2 PlantUMLでC4モデルを描く方法（C4-PlantUML）はありますが、外部からファイルを取得する必要があり、本ツールの方針に反するため使えません。
 - ※3 mermaidのユースケース図は、v12.0.0以降で対応予定です。本ツールが同梱する版（11.16.1）には、まだ入っていません。
-- ※4 SysML v2.0は、2025年9月に発行されたばかりの、別物の新標準（旧来のダイアグラム構成ではなく、テキスト中心の新しい言語）です。主要なMBSE専用ツール（Cameo、CATIA Magicなど）でも対応はまだ発展途上で、既存のSysML 1.xの資産が多いため、当面はv1.xとの併存が見込まれます。8記法のいずれも、SysML v2.0への対応はありません。
+- ※4 SysML v2.0は、2025年9月に発行されたばかりの、別物の新標準（旧来のダイアグラム構成ではなく、テキスト中心の新しい言語）です。主要なMBSE専用ツール（Cameo、CATIA Magicなど）でも対応はまだ発展途上で、既存のSysML 1.xの資産が多いため、当面はv1.xとの併存が見込まれます。13記法のいずれも、SysML v2.0への対応はありません。
 - ※5 分岐・繰り返し（コンビネーションフラグメント。`alt`/`opt`/`loop`等）に対応するかどうかで、実用性が大きく変わります。mermaid・PlantUML・D2は対応します。
 - ※6 mermaidは、サブマシン状態（複合状態）・並行状態（fork/join）・選択擬似状態には対応しますが、**履歴状態（history state）は非対応です。** 異なる複合状態の内部状態どうしを、直接つなぐ遷移も書けません。PlantUMLは、この2つに対応します。
 - ※7 **実機で確認済みです。** PlantUMLの「Information Engineering diagram」（`entity`キーワード、鳥の足の関係記法）を、実際にレンダリングしました。結果は、クラス図のアイコン（"C"）が"E"に変わり、関係線に鳥の足の記法が付くだけで、見た目・作りとも、ほぼクラス図そのものでした（PlantUML自身も「クラス図の拡張」と説明しています）。クラス図の行で、すでにPlantUML＝○として数えているため、二重計上を避け、この行は`×`にしています。
@@ -494,7 +494,7 @@ Mermaid・Vega-LiteはChrome/Edge、PlantUML・StructurizrはJava（11以上）�
 
 ## Structurizr固有の注意点
 
-- **既定で無効です。** 使うには`plugins: { structurizr: true }`を明示してください（内部で使う`structurizr-cli`一式が約99MBあるため）。
+- **PDF出力では、既定で無効です。** 使うには`plugins: { structurizr: true }`を明示してください（内部で使う`structurizr-cli`一式が約99MBあるため）。Obunzuは、`structurizr-cli`を同梱しているため、常に有効です。
 - 中身は、実際のStructurizr DSL構文どおりに書きます（[Structurizr DSL公式ドキュメント](https://docs.structurizr.com/dsl/language)を参照）。新しい描画コードは持たず、公式`structurizr-cli`でPlantUMLへ書き出し、PlantUMLと同じパイプラインで描画するだけです。
 - **1つのワークスペースが定義できるビューは、1フェンスにつき1つだけです。** `structurizr-cli`は、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、こちらから1つだけ選ぶ方法がありません。2つ以上のビュー（`systemContext`と`container`を両方書く等）を定義すると、エラーで終了します。System ContextとContainerの両方を見せたい場合は、フェンスを2つに分け、共通のモデル定義はDSLの`!include`で別ファイルに切り出してください。
 - `plugins.structurizr_auto_download`（既定`true`）で、Java・`structurizr-cli`一式の自動取得を制御します。`plugins.plantuml_auto_download`とは別の設定です（Structurizrを使うプロジェクトが、常にPlantUMLのフェンスも使うとは限らないため）。`plantuml.jar`自体は、`plugins.plantuml`の値に関わらず、内部実装として常に取得されます。

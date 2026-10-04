@@ -13,6 +13,7 @@
 | `.puml` / `.plantuml` / `.pu` | PlantUML図として1章分描画（`plugins.plantuml`） |
 | `.d2` | D2図として1章分描画（`plugins.d2`） |
 | `.pikchr` | Pikchr図として1章分描画（`plugins.pikchr`） |
+| `.dsl` | Structurizr図として1章分描画（`plugins.structurizr`。既定は無効） |
 | `.csv` | Typstのテーブルとして1章分描画（下記） |
 | それ以外（`.txt`、コードファイル等） | 素の等幅表示（そのまま。インデント・改行を保持） |
 
