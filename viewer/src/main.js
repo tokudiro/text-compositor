@@ -11,7 +11,7 @@ const path = require('node:path');
 const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
-const { NavigationHistory } = require('./history');
+const { DocumentTab } = require('./document-tab');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
@@ -51,40 +51,26 @@ const trace = process.env.VIEWER_TRACE
   ? (label) => process.stderr.write(`[viewer] ${label} +${Math.round(process.uptime() * 1000)}ms\n`)
   : () => {};
 
+// アプリ全体（ウィンドウ全体）の状態。文書ごとの状態（ファイル・履歴・診断・検索・内容のビューなど）は、
+// `DocumentTab`が持つ（#332）。ウィンドウ本体（chrome/）へは、この2つを合わせて、1つの`state`として送る（`push`）。
 const state = {
-  file: null,            // 開いている（または、開こうとしている）ファイル
-  line: null,            // マウスを乗せた、ブロックの、原稿での行（ツールバーに出す。#328）。乗せていない間も、最後の行を保つ。表示し直すと、消す
-  busy: false,
-  status: '',
   zoomPercent: 100,
   autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
-  hasDocument: false,    // 内容を表示しているか
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
-  isCsv: false,          // 開いているのが、.csvか（ツールバーの、見出し行の切り替えを出す。#220）
   settings: { ...DEFAULTS },
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
-  diagnostics: summarize([]),
-  canGoBack: false,      // 戻るナビゲーションができるか（#330）
-  canGoForward: false,   // 進むナビゲーションができるか（#330）
-  // 文書内検索（#325）。ハイライトそのものは、内容のビューのプリロードが持つ（DOMを持っているのは、そちら）。
-  // ここは、検索欄の入力と、その結果（件数・現在位置・正規表現エラー）だけを覚える。
-  search: { open: false, query: '', regex: false, caseSensitive: false, count: 0, current: 0, error: null },
 };
 
-const history = new NavigationHistory();
+// 今表示している文書（タブ）。段階1では、1つだけ。
+const tab = new DocumentTab();
 
 let settingsFile = null;
 
 let win = null;
-let contentView = null;
 let chromeHeight = 40;
 let zoomLevel = 0;
 let worker = null;
-let shown = null;        // 表示中の文書 {md, html}
-let inFlight = false;
-let queued = null;
-let idleWaiters = [];   // 変換が終わるのを待つ処理（キャッシュの削除）
 let watcher = null;
 const workRoot = cacheRoot();   // アプリの領域（#258）
 // Mermaidの描画（非表示のウィンドウ。最初の図で作る。#207）および画像のラスタライズ（#327）。
@@ -171,21 +157,21 @@ function createWindow() {
 
   // 内容のビュー。HTMLは、生成したもので、スクリプトを含まず、CSPでスクリプトを禁止している。
   // JavaScriptを有効にしているのは、ドロップの受け口（プリロード）を動かすため（無効だと、プリロードも動かない）。
-  contentView = new WebContentsView({
+  tab.contentView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'chrome', 'content-preload.js'),   // ドロップの受け口だけ
       sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true,
     },
   });
-  contentView.setBackgroundColor(background);
-  win.contentView.addChildView(contentView);
+  tab.contentView.setBackgroundColor(background);
+  win.contentView.addChildView(tab.contentView);
 
   // 二重の防御（方針2章・#238）: 変換側（Python、既定で外部画像をプレースホルダに置き換える）に漏れがあっても、
   // http/httpsの通信そのものを、ここで止める。allowExternalImages（設定で許可）のときだけ、通す。
-  contentView.webContents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] },
+  tab.contentView.webContents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] },
     (_details, callback) => callback({ cancel: !state.settings.allowExternalImages }));
 
-  const contents = contentView.webContents;
+  const contents = tab.contentView.webContents;
   // content-preload.jsは、ドラッグ＆ドロップだけでなく、検索（#325）も持つようになった。失敗しても画面は白いままで
   // 気づけないため、標準エラーへ出す（サンドボックス化したプリロードは、electron以外のローカルファイルを
   // requireできない、という実測を、この行で見つけた）。
@@ -223,12 +209,12 @@ function createWindow() {
 
 /** 内容のビューを、ツールバーの下に置く。文書がまだ無いときは、大きさ0にして、案内の表示を隠さない。 */
 function layout() {
-  if (!win || !contentView) return;
+  if (!win || !tab.contentView) return;
   const [width, height] = win.getContentSize();
   // ツールバーが下のときは、内容が、画面の上端から始まる（帯・一覧も、ツールバーの側に、まとまる）
   const y = state.settings.toolbarPosition === 'bottom' ? 0 : chromeHeight;
   // 設定画面を開いている間も、内容のビューを隠す（設定は、ウィンドウ本体の側に表示するため）
-  contentView.setBounds(state.hasDocument && !state.settingsOpen
+  tab.contentView.setBounds(tab.hasDocument && !state.settingsOpen
     ? { x: 0, y, width, height: Math.max(0, height - chromeHeight) }
     : { x: 0, y, width: 0, height: 0 });
 }
@@ -243,7 +229,7 @@ function handleEscape(webContents) {
     if (state.settingsOpen) {
       event.preventDefault();
       setSettingsOpen(false);
-    } else if (state.search.open) {
+    } else if (tab.search.open) {
       event.preventDefault();
       setSearchOpen(false);
     }
@@ -274,7 +260,7 @@ function applyTheme() {
 function applyBackground() {
   const background = nativeTheme.shouldUseDarkColors ? '#0d1117' : '#ffffff';
   win?.setBackgroundColor(background);
-  contentView?.setBackgroundColor(background);
+  tab.contentView?.setBackgroundColor(background);
 }
 
 function setSettingsOpen(open) {
@@ -284,7 +270,7 @@ function setSettingsOpen(open) {
   // 開いたら、フォーカスを設定画面（ウィンドウ本体）へ移す。文書に残ったままだと、隠れた文書がキーを受けて、
   // Escで閉じられない（実測）。閉じたら、文書へ戻す（スクロール・キー操作が、そのまま使える）。
   if (state.settingsOpen) { win.webContents.focus(); void refreshCacheUsage(); }
-  else if (state.hasDocument) contentView.webContents.focus();
+  else if (tab.hasDocument) tab.contentView.webContents.focus();
 }
 
 // -- 文書内検索（#325） ---------------------------------------------------------
@@ -294,7 +280,7 @@ function setSettingsOpen(open) {
 
 /** 内容のビューへ送る、検索語一式。 */
 function searchPayload() {
-  return { query: state.search.query, regex: state.search.regex, caseSensitive: state.search.caseSensitive };
+  return { query: tab.search.query, regex: tab.search.regex, caseSensitive: tab.search.caseSensitive };
 }
 
 /**
@@ -307,7 +293,7 @@ let focusedArea = 'content';
 function toggleFocusArea() {
   if (!win || state.settingsOpen) return;
   // 文書にフォーカスがあるときは、ツールバーへ。それ以外（ツールバーなど）は、文書へ
-  if (!state.hasDocument || focusedArea === 'content') {
+  if (!tab.hasDocument || focusedArea === 'content') {
     focusedArea = 'toolbar';   // プログラムからのfocus()では、'focus'のイベントが来ないことがあるため、ここでも、覚える
     win.webContents.focus();
     // 最初の操作できるボタンへ。文書が無いときは、「開く」
@@ -315,39 +301,39 @@ function toggleFocusArea() {
       "(document.querySelector('#toolbar button:not(:disabled):not([hidden])') ?? document.getElementById('empty-open'))?.focus()").catch(() => {});
   } else {
     focusedArea = 'content';
-    contentView.webContents.focus();
+    tab.contentView.webContents.focus();
   }
 }
 
 function setSearchOpen(open) {
   open = Boolean(open);
-  if (open === state.search.open) return;   // Escが、複数の経路から二重に届いても、無害にする
-  state.search = { ...state.search, open };
+  if (open === tab.search.open) return;   // Escが、複数の経路から二重に届いても、無害にする
+  tab.search = { ...tab.search, open };
   if (open) {
     // 前回の検索語を覚えていれば、開いたときに、もう一度ハイライトする（ブラウザのCtrl+Fに合わせる）
-    if (state.hasDocument && state.search.query) contentView.webContents.send('search-run', searchPayload());
+    if (tab.hasDocument && tab.search.query) tab.contentView.webContents.send('search-run', searchPayload());
   } else {
-    state.search = { ...state.search, count: 0, current: 0, error: null };
-    if (state.hasDocument) { contentView.webContents.send('search-clear'); contentView.webContents.focus(); }
+    tab.search = { ...tab.search, count: 0, current: 0, error: null };
+    if (tab.hasDocument) { tab.contentView.webContents.send('search-clear'); tab.contentView.webContents.focus(); }
   }
   push();
 }
 
 /** 検索語・正規表現/大文字小文字の切り替え。入力のたびに呼ばれる。 */
 function setSearchQuery({ query, regex, caseSensitive }) {
-  state.search = { ...state.search, query: String(query ?? ''), regex: Boolean(regex), caseSensitive: Boolean(caseSensitive) };
-  if (state.hasDocument) contentView.webContents.send('search-run', searchPayload());
-  else state.search = { ...state.search, count: 0, current: 0, error: null };
+  tab.search = { ...tab.search, query: String(query ?? ''), regex: Boolean(regex), caseSensitive: Boolean(caseSensitive) };
+  if (tab.hasDocument) tab.contentView.webContents.send('search-run', searchPayload());
+  else tab.search = { ...tab.search, count: 0, current: 0, error: null };
   push();
 }
 
 function moveSearch(delta) {
-  if (state.hasDocument && state.search.count > 0) contentView.webContents.send('search-move', delta);
+  if (tab.hasDocument && tab.search.count > 0) tab.contentView.webContents.send('search-move', delta);
 }
 
 /** 内容のビューから届いた、検索結果（件数・現在位置・正規表現エラー）。 */
 function onSearchResult({ count, current, error }) {
-  state.search = { ...state.search, count, current, error: error ?? null };
+  tab.search = { ...tab.search, count, current, error: error ?? null };
   push();
 }
 
@@ -403,21 +389,21 @@ function leaveSettings() {
 /** 行番号の表示（#328）の、オン・オフを、内容のビューへ伝える。オンのときだけ、プリロードが、乗せたブロックの行を送ってくる。 */
 /** 見出しのリンク（#337）・コードのコピーボタン（#336）の、オン・オフを、内容のビューへ伝える。表示・操作は、プリロードが行う。 */
 function sendContentFeatures() {
-  if (!contentView || contentView.webContents.isDestroyed()) return;
-  contentView.webContents.send('content-features', {
+  if (!tab.contentView || tab.contentView.webContents.isDestroyed()) return;
+  tab.contentView.webContents.send('content-features', {
     headingAnchor: state.settings.showHeadingAnchor,
     codeCopy: state.settings.showCodeCopy,
   });
 }
 
 function sendLineIndicator() {
-  if (contentView && !contentView.webContents.isDestroyed()) contentView.webContents.send('line-indicator', state.settings.showLineNumber);
+  if (tab.contentView && !tab.contentView.webContents.isDestroyed()) tab.contentView.webContents.send('line-indicator', state.settings.showLineNumber);
 }
 
 /** 行番号を消す。文書を表示し直したとき（自動更新を含む）と、表示をオフにしたとき。行が、ずれているかもしれないため。 */
 function resetLine() {
-  if (state.line === null) return;
-  state.line = null;
+  if (tab.line === null) return;
+  tab.line = null;
   push();
 }
 
@@ -437,18 +423,15 @@ function changeSetting(key, value) {
 }
 
 function push() {
-  state.isCsv = /\.csv$/i.test(state.file ?? '');
-  state.canGoBack = history.canGoBack;
-  state.canGoForward = history.canGoForward;
   const menu = Menu.getApplicationMenu();
   const backItem = menu?.getMenuItemById('go-back');
-  if (backItem) backItem.enabled = state.canGoBack;
+  if (backItem) backItem.enabled = tab.canGoBack;
   const forwardItem = menu?.getMenuItemById('go-forward');
-  if (forwardItem) forwardItem.enabled = state.canGoForward;
+  if (forwardItem) forwardItem.enabled = tab.canGoForward;
   // 「表示」メニューの、CSVの見出し行の項目は、.csvを開いているときだけ、有効にする
   const csvItem = menu?.getMenuItemById('csv-header');
-  if (csvItem) { csvItem.enabled = state.isCsv; csvItem.checked = state.settings.csvHeader; }
-  if (win && !win.isDestroyed()) win.webContents.send('state', state);
+  if (csvItem) { csvItem.enabled = tab.isCsv; csvItem.checked = state.settings.csvHeader; }
+  if (win && !win.isDestroyed()) win.webContents.send('state', { ...state, ...tab.snapshot() });
 }
 
 // -- ワーカーと変換 -------------------------------------------------------------
@@ -463,8 +446,8 @@ function startWorker() {
     .then((client) => client.warmUp())
     .then(() => trace('worker-ready'))
     .catch((error) => {
-      state.diagnostics = summarize([{ severity: 'error', message: error.message }]);
-      state.status = 'Pythonのワーカーを起動できません';
+      tab.diagnostics = summarize([{ severity: 'error', message: error.message }]);
+      tab.status = 'Pythonのワーカーを起動できません';
       push();
     });
 }
@@ -501,14 +484,14 @@ function openFile(file, { targetScrollY = null, historyNav = null, fragment = nu
   const full = path.resolve(file);
   const target = checkOpenTarget(full);
   if (!target.ok) {
-    state.diagnostics = summarize([{ severity: 'error', message: target.message }]);
+    tab.diagnostics = summarize([{ severity: 'error', message: target.message }]);
     push();
     return;
   }
   // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
   if (!historyNav) rememberDirectory(path.dirname(full));
-  queued = { file: full, targetScrollY, historyNav, fragment };
-  if (!inFlight) void drain();
+  tab.queued = { file: full, targetScrollY, historyNav, fragment };
+  if (!tab.inFlight) void drain();
 }
 
 /** 開いたファイルのフォルダを覚える（ファイルを開くダイアログの、最初の場所）。変わったときだけ保存する。 */
@@ -520,33 +503,33 @@ function rememberDirectory(directory) {
 
 function reload() {
   leaveSettings();
-  if (state.file) openFile(state.file);
+  if (tab.file) openFile(tab.file);
 }
 
 async function drain() {
-  inFlight = true;
+  tab.inFlight = true;
   try {
-    while (queued) {
-      const task = queued;
-      queued = null;
+    while (tab.queued) {
+      const task = tab.queued;
+      tab.queued = null;
       await renderOnce(task.file, task.targetScrollY, task.historyNav, task.fragment);
     }
   } finally {
-    inFlight = false;
-    for (const resolve of idleWaiters.splice(0)) resolve();
+    tab.inFlight = false;
+    tab.releaseIdleWaiters();
   }
 }
 
 /** 変換が終わるまで待つ（変換中に、変換の材料を消さないため）。 */
 function whenIdle() {
-  return inFlight ? new Promise((resolve) => idleWaiters.push(resolve)) : Promise.resolve();
+  return tab.whenIdle();
 }
 
 async function renderOnce(file, targetScrollY = null, historyNav = null, fragment = null) {
-  const sameDocument = shown?.md === file;
-  state.file = file;
-  state.busy = true;
-  state.status = '';
+  const sameDocument = tab.shown?.md === file;
+  tab.file = file;
+  tab.busy = true;
+  tab.status = '';
   push();
 
   let result;
@@ -573,29 +556,29 @@ async function renderOnce(file, targetScrollY = null, historyNav = null, fragmen
     // 設定は「原稿の隣」でも、書き込めない場所の原稿は、開けないより、開けるほうがよい。切り替えたことを知らせる
     result.diagnostics = [...(result.diagnostics ?? []), { severity: 'warning', message: '原稿のフォルダに書き込めないため、変換したファイルを、アプリの領域に保存しました（設定は「原稿の隣」）', file }];
   }
-  state.diagnostics = summarize(result.diagnostics);
+  tab.diagnostics = summarize(result.diagnostics);
   if (result.ok && result.html) {
     await showHtml(file, result.html, sameDocument, result.dependencies, targetScrollY, fragment);
     // 変換に成功して表示できた段階で、履歴の位置を更新する（#342レビュー指摘）。
     // 失敗したときはインデックスを動かさないため、ロールバックや永続的な食い違いが起きない。
     if (historyNav === 'back') {
-      history.back();
+      tab.history.back();
     } else if (historyNav === 'forward') {
-      history.forward();
+      tab.history.forward();
     } else {
-      history.push(file);
+      tab.history.push(file);
     }
     const total = result.timings_ms.total;
     // 警告の件数は、帯に出るため、状態の表示には、入れない（同じ内容を2か所に出さない）
-    state.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}`;
+    tab.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}`;
     win?.setTitle(`${path.basename(file)} - ${APP_TITLE}`);
     trace('content-shown');
   } else {
     // 失敗しても、直前に成功した表示を残す。ファイル名も、表示中の文書に戻す。
-    state.file = shown ? shown.md : file;
-    state.status = shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
+    tab.file = tab.shown ? tab.shown.md : file;
+    tab.status = tab.shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
   }
-  state.busy = false;
+  tab.busy = false;
   updateWatch();
   push();
 }
@@ -605,25 +588,25 @@ async function renderOnce(file, targetScrollY = null, historyNav = null, fragmen
  * （直して保存したときに、自動で更新できるように）。
  */
 function updateWatch() {
-  if (!watcher || !state.file) return;
-  const dependencies = shown && shown.md === state.file ? shown.deps : [];
-  watcher.setFiles([state.file, ...dependencies]);
+  if (!watcher || !tab.file) return;
+  const dependencies = tab.shown && tab.shown.md === tab.file ? tab.shown.deps : [];
+  watcher.setFiles([tab.file, ...dependencies]);
 }
 
 /** 監視しているファイルが、保存された。自動更新が有効なら、もう一度変換する。 */
 async function onFilesChanged(paths) {
   trace(`changed ${paths.length}`);
-  if (!state.autoReload || !state.file) return;
-  const target = state.file;
+  if (!state.autoReload || !tab.file) return;
+  const target = tab.file;
   // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
   for (let i = 0; i < 10 && !fs.existsSync(target); i++) await new Promise((resolve) => setTimeout(resolve, 100));
-  if (state.file === target && fs.existsSync(target)) openFile(target);
+  if (tab.file === target && fs.existsSync(target)) openFile(target);
 }
 
 /** .csvの1行目を、見出し行にするか（#220）。設定として覚え、開いているCSVを、表示し直す（スクロール位置は、保たれる）。 */
 function setCsvHeader(value) {
   changeSetting('csvHeader', Boolean(value));
-  if (state.isCsv && state.file) openFile(state.file);
+  if (tab.isCsv && tab.file) openFile(tab.file);
 }
 
 function setAutoReload(value) {
@@ -639,13 +622,13 @@ function clock() {
 
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
 async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY = null, fragment = null) {
-  const contents = contentView.webContents;
+  const contents = tab.contentView.webContents;
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
     contents.once('did-finish-load', done);
     contents.once('did-fail-load', done);
   });
-  if (sameDocument && shown?.html === html) contents.reloadIgnoringCache();
+  if (sameDocument && tab.shown?.html === html) contents.reloadIgnoringCache();
   else contents.loadFile(html).catch(() => {});
   await loaded;
   if (targetScrollY !== null && targetScrollY > 0) {
@@ -655,13 +638,13 @@ async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY
   if (fragment) {
     contents.executeJavaScript(`document.getElementById(${JSON.stringify(fragment)})?.scrollIntoView()`).catch(() => {});
   }
-  shown = { md, html, deps: dependencies };
-  if (!state.hasDocument) { state.hasDocument = true; layout(); }
+  tab.shown = { md, html, deps: dependencies };
+  if (!tab.hasDocument) { tab.hasDocument = true; layout(); }
   // 表示し直すたび（自動更新を含む）、内容のビューは、プリロードから作り直される。検索語が残っていれば、
   // 新しいDOMへ、もう一度ハイライトを掛け直す（ハイライトは、内容のビュー側の状態のため、こちらでは持ち越せない）。
-  if (state.search.open && state.search.query) contents.send('search-run', searchPayload());
+  if (tab.search.open && tab.search.query) contents.send('search-run', searchPayload());
   // 検索欄に入力中は、フォーカスを奪わない（自動更新中でも、続けて打てるように）
-  if (!state.settingsOpen && !state.search.open) contents.focus();
+  if (!state.settingsOpen && !tab.search.open) contents.focus();
 }
 
 // -- ナビゲーション・ズーム -------------------------------------------------------
@@ -672,8 +655,8 @@ async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY
  */
 function navigateHistory(direction) {
   leaveSettings();
-  if (inFlight || state.busy) return;
-  const target = direction === 'back' ? history.peekBack() : history.peekForward();
+  if (tab.inFlight || tab.busy) return;
+  const target = direction === 'back' ? tab.history.peekBack() : tab.history.peekForward();
   if (!target) return;
   openFile(target.file, { targetScrollY: target.scrollY, historyNav: direction });
 }
@@ -694,20 +677,20 @@ function handleNavigation(url) {
 
 /** 文書内の相対リンクを、原稿のフォルダを基準に開く（#361）。 */
 function handleRelativeLink(href) {
-  const target = state.file ? resolveRelativeLink(href, state.file) : null;
+  const target = tab.file ? resolveRelativeLink(href, tab.file) : null;
   if (target) openFile(target.path, { fragment: target.fragment });
 }
 
 function zoomBy(delta) {
   zoomLevel = Math.min(5, Math.max(-3, zoomLevel + delta * 0.5));
-  contentView?.webContents.setZoomLevel(zoomLevel);
+  tab.contentView?.webContents.setZoomLevel(zoomLevel);
   state.zoomPercent = Math.round(Math.pow(1.2, zoomLevel) * 100);
   push();
 }
 
 function zoomReset() {
   zoomLevel = 0;
-  contentView?.webContents.setZoomLevel(0);
+  tab.contentView?.webContents.setZoomLevel(0);
   state.zoomPercent = 100;
   push();
 }
@@ -741,8 +724,8 @@ async function chooseOpenDirectory() {
 /** 右クリックの位置の、いちばん内側のブロックの行（原稿での行）。ブロックの外・失敗は、null。 */
 async function lineAtPoint(params) {
   try {
-    const line = await contentView.webContents.executeJavaScript(
-      lineAtPointScript(params.x, params.y, contentView.webContents.getZoomFactor()));
+    const line = await tab.contentView.webContents.executeJavaScript(
+      lineAtPointScript(params.x, params.y, tab.contentView.webContents.getZoomFactor()));
     return Number.isInteger(line) ? line : null;
   } catch {
     return null;
@@ -752,8 +735,8 @@ async function lineAtPoint(params) {
 /** 右クリックした位置のリンクの、href属性の値（#362）。リンクの外では、null。 */
 async function linkAtPoint(params) {
   try {
-    const href = await contentView.webContents.executeJavaScript(
-      linkAtPointScript(params.x, params.y, contentView.webContents.getZoomFactor()));
+    const href = await tab.contentView.webContents.executeJavaScript(
+      linkAtPointScript(params.x, params.y, tab.contentView.webContents.getZoomFactor()));
     return typeof href === 'string' && href ? href : null;
   } catch {
     return null;
@@ -765,8 +748,8 @@ function openLink(href) {
   if (href.startsWith('#')) {
     let id = href.slice(1);
     try { id = decodeURIComponent(id); } catch { /* そのまま使う */ }
-    contentView.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.scrollIntoView()`).catch(() => {});
-  } else if (resolveRelativeLink(href, state.file ?? '')) {
+    tab.contentView.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.scrollIntoView()`).catch(() => {});
+  } else if (resolveRelativeLink(href, tab.file ?? '')) {
     handleRelativeLink(href);
   } else {
     handleNavigation(href);
@@ -791,14 +774,14 @@ async function handleContextMenu(params) {
   if (href !== null) {
     if (template.length) template.push({ type: 'separator' });
     template.push(...buildLinkContextMenuTemplate({
-      href, markdownFile: state.file, onCopy: (text) => clipboard.writeText(text), onOpen: openLink,
+      href, markdownFile: tab.file, onCopy: (text) => clipboard.writeText(text), onOpen: openLink,
     }));
   }
-  if (state.settings.showLineNumber && state.file) {
+  if (state.settings.showLineNumber && tab.file) {
     const line = await lineAtPoint(params);
     if (line !== null) {
       if (template.length) template.push({ type: 'separator' });
-      template.push(...buildLineContextMenuTemplate({ file: state.file, line, onCopy: (text) => clipboard.writeText(text) }));
+      template.push(...buildLineContextMenuTemplate({ file: tab.file, line, onCopy: (text) => clipboard.writeText(text) }));
     }
   }
   if (!template.length) return;
@@ -811,7 +794,7 @@ async function saveImageFromContextMenu(params, requestedFormat) {
   try {
     const result = await executeSaveImage(params, requestedFormat, {
       win,
-      documentFile: state.file,
+      documentFile: tab.file,
       lastDirectory: state.settings.lastDirectory,
       downloadsDirectory: app.getPath('downloads'),
       showSaveDialog: (w, opts) => dialog.showSaveDialog(w, opts),
@@ -822,7 +805,7 @@ async function saveImageFromContextMenu(params, requestedFormat) {
       rememberDirectory(result.directory);
     }
   } catch (error) {
-    state.diagnostics = summarize([{
+    tab.diagnostics = summarize([{
       severity: 'error',
       message: `画像の保存に失敗しました: ${error.message}`,
     }]);
@@ -851,12 +834,12 @@ async function clearWorkCache() {
     await whenIdle();   // 変換中は、変換の材料を消さない
     await clearCache(workRoot);
   } catch (error) {
-    state.diagnostics = summarize([{ severity: 'error', message: `キャッシュを削除できません: ${error.message}` }]);
+    tab.diagnostics = summarize([{ severity: 'error', message: `キャッシュを削除できません: ${error.message}` }]);
   } finally {
     state.cache = { ...state.cache, clearing: false };
   }
   await refreshCacheUsage();
-  if (state.file) openFile(state.file);   // 設定画面は、開いたままにする（reloadと違い、leaveSettingsは呼ばない）
+  if (tab.file) openFile(tab.file);   // 設定画面は、開いたままにする（reloadと違い、leaveSettingsは呼ばない）
 }
 // -- メニュー・IPC --------------------------------------------------------------
 
@@ -876,17 +859,17 @@ function buildMenu() {
     {
       label: '表示',
       submenu: [
-        { id: 'go-back', label: '戻る', accelerator: 'Alt+Left', enabled: state.canGoBack, click: goBack },
-        { label: '戻る', accelerator: 'CommandOrControl+[', enabled: state.canGoBack, click: goBack, visible: false },
-        { id: 'go-forward', label: '進む', accelerator: 'Alt+Right', enabled: state.canGoForward, click: goForward },
-        { label: '進む', accelerator: 'CommandOrControl+]', enabled: state.canGoForward, click: goForward, visible: false },
+        { id: 'go-back', label: '戻る', accelerator: 'Alt+Left', enabled: tab.canGoBack, click: goBack },
+        { label: '戻る', accelerator: 'CommandOrControl+[', enabled: tab.canGoBack, click: goBack, visible: false },
+        { id: 'go-forward', label: '進む', accelerator: 'Alt+Right', enabled: tab.canGoForward, click: goForward },
+        { label: '進む', accelerator: 'CommandOrControl+]', enabled: tab.canGoForward, click: goForward, visible: false },
         { type: 'separator' },
         { label: '拡大', accelerator: 'CommandOrControl+Plus', click: () => zoomBy(1) },
         { label: '拡大', accelerator: 'CommandOrControl+=', click: () => zoomBy(1), visible: false },
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
-        { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!state.search.open) },
+        { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!tab.search.open) },
         { label: 'ツールバーと文書を行き来', accelerator: 'F6', click: toggleFocusArea },
         { type: 'separator' },
         { id: 'csv-header', label: 'CSV: 1行目を見出しにする', type: 'checkbox', checked: state.settings.csvHeader, enabled: false, click: (item) => setCsvHeader(item.checked) },
@@ -904,22 +887,22 @@ ipcMain.on('open-dialog', () => openWithDialog());
 ipcMain.on('open-link', (_event, href) => handleRelativeLink(href));
 // 内容のビューの、見出しの「#」・コードの「コピー」（#337・#336）。クリップボードへの書き込みは、こちらで行う
 ipcMain.on('copy-heading-link', (event, id) => {
-  if (event.sender !== contentView?.webContents || !state.settings.showHeadingAnchor || !state.file) return;
-  const text = headingLinkRef(state.file, id);
+  if (event.sender !== tab.contentView?.webContents || !state.settings.showHeadingAnchor || !tab.file) return;
+  const text = headingLinkRef(tab.file, id);
   if (text) clipboard.writeText(text);
 });
 const COPY_CODE_MAX = 5 * 1024 * 1024;   // 巨大なコードでも、メモリを使い切らないための上限（超えたら、コピーしない）
 ipcMain.on('copy-code', (event, text) => {
-  if (event.sender !== contentView?.webContents || !state.settings.showCodeCopy) return;
+  if (event.sender !== tab.contentView?.webContents || !state.settings.showCodeCopy) return;
   if (typeof text === 'string' && text.length <= COPY_CODE_MAX) clipboard.writeText(text);
 });
 // ホバー中のリンクの飛び先を、内容のビューの下方に出す（#362）。表示する文字列は、こちらで作り、送り返す
 ipcMain.on('link-hover', (event, href) => {
-  event.sender.send('link-hover-text', describeLink(href, state.file));
+  event.sender.send('link-hover-text', describeLink(href, tab.file));
 });
 ipcMain.on('content-scroll', (_event, scrollY) => {
   if (typeof scrollY === 'number' && Number.isFinite(scrollY)) {
-    history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
+    tab.history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
   }
 });
 ipcMain.on('go-back', () => goBack());
@@ -935,13 +918,13 @@ ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
 // 行番号の表示（#328）。内容のビューが、マウスを乗せたブロックの行を、変わったときだけ送ってくる。値は、正の整数だけ受け付ける
 ipcMain.on('content-line', (event, line) => {
-  if (event.sender !== contentView?.webContents || !state.settings.showLineNumber) return;
-  if (!Number.isInteger(line) || line < 1 || line > 999999999 || line === state.line) return;
-  state.line = line;
+  if (event.sender !== tab.contentView?.webContents || !state.settings.showLineNumber) return;
+  if (!Number.isInteger(line) || line < 1 || line > 999999999 || line === tab.line) return;
+  tab.line = line;
   push();
 });
 ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
-ipcMain.on('search-toggle', () => setSearchOpen(!state.search.open));
+ipcMain.on('search-toggle', () => setSearchOpen(!tab.search.open));
 ipcMain.on('search-close', () => setSearchOpen(false));
 ipcMain.on('search-set', (_event, payload) => setSearchQuery(payload ?? {}));
 ipcMain.on('search-move', (_event, delta) => moveSearch(delta));
