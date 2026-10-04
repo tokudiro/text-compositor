@@ -7,7 +7,7 @@
 
 Viewの既定値はテンプレートが持つ。個々の文書で既定値と異なる見た目にしたいときだけ、`config.yaml`側で明示的に上書きする。この「テンプレートの既定値を基本とし、`config.yaml`で上書きできる」という優先順位は、`cover`/`toc`/`header`/`footer`等、`document:`配下の各設定に共通する設計方針である。設定の優先順位全体は6章を参照。
 
-入力となるテキストファイルはMarkdownに限らない。プレーンテキスト、コードコメント、YAML、JSON、CSVなど、あらゆるテキストファイルが対象になり得る。`chapters`のファイルは拡張子で扱いが分かれる： `.md`/`.markdown`はMarkdownとして変換し（7章）、`.yaml`/`.yml`/`.json`はシンタックスハイライト付きの等幅表示、`.dot`/`.gv`/`.mmd`/`.puml`/`.plantuml`/`.pu`/`.d2`/`.pikchr`は図表ソースファイルとして1章分描画し（11章、[#53](https://github.com/tokudiro/text-compositor/issues/53)）、`.csv`はTypstのテーブルとして構造化して描画し（後述、[#36](https://github.com/tokudiro/text-compositor/issues/36)）、それ以外（プレーンテキスト・コードファイル等）は素の等幅表示にする。いずれもMarkdown以外の拡張子ではmarkdown-itを一切通さないため、行頭の`#`や`-`等がMarkdown構文として誤解釈されることはない（[#15](https://github.com/tokudiro/text-compositor/issues/15)）。HTMLを入力フォーマットとして本格対応することは検討のうえ見送った（8章）。
+入力となるテキストファイルはMarkdownに限らない。プレーンテキスト、コードコメント、YAML、JSON、CSVなど、あらゆるテキストファイルが対象になり得る。`chapters`のファイルは拡張子で扱いが分かれる： `.md`/`.markdown`はMarkdownとして変換し（7章）、`.yaml`/`.yml`/`.json`はシンタックスハイライト付きの等幅表示、`.dot`/`.gv`/`.mmd`/`.puml`/`.plantuml`/`.pu`/`.d2`/`.pikchr`/`.dsl`は図表ソースファイルとして1章分描画し（11章、[#53](https://github.com/tokudiro/text-compositor/issues/53)）、`.csv`はTypstのテーブルとして構造化して描画し（後述、[#36](https://github.com/tokudiro/text-compositor/issues/36)）、それ以外（プレーンテキスト・コードファイル等）は素の等幅表示にする。いずれもMarkdown以外の拡張子ではmarkdown-itを一切通さないため、行頭の`#`や`-`等がMarkdown構文として誤解釈されることはない（[#15](https://github.com/tokudiro/text-compositor/issues/15)）。HTMLを入力フォーマットとして本格対応することは検討のうえ見送った（8章）。
 
 もう1つの要件は「書いている場所で、そのままPDFにできること」。ドキュメントの置き場所をツールの都合に合わせさせない。
 
@@ -36,7 +36,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 
 | 対象 | 現状 | 方針との差 |
 |---|---|---|
-| 日本語フォント（Noto Sans JP、約8.8 MB。PDF） | 初回のビルドで取得する（9章） | 例外（pip版は、取得してよい） |
+| 日本語フォント（Noto Sans JP、約9.2 MB。PDF） | 初回のビルドで取得する（9章） | 例外（pip版は、取得してよい） |
 | Typstのパッケージ（`@preview/...`。`diagraph`など） | 初回のコンパイルで、Typstが取得する | 例外（pip版・CI） |
 | PlantUML（JRE 約50 MB＋jar 約17.6 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行のとおり同梱済み |
 | D2（バイナリ 約13 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行のとおり同梱済み |
@@ -60,8 +60,8 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 ## 3. ツールとドキュメントの分離
 ツール本体とドキュメントは役割を分離する。原稿は通常、章ごとに分割された複数のテキストファイル（それぞれが1つの独立した断片。1章）として、ツール外の任意の場所に存在する。原稿をツール側へコピーする運用は行わない。
 
-* **ツール本体（このリポジトリ）**: 変換エンジン（`text_compositor/`）とテンプレート。書き換えずに使えるものだけを置く（フォントは同梱せず取得する方式。2章・9章）。
-* **ドキュメント（任意の場所）**: テキストファイル群（現状はMarkdownのみ。1章）、画像、設定ファイル。ツールのディレクトリ構成に従う必要はない。
+* **ツール本体（このリポジトリ）**: 変換エンジン（`text_compositor/`）とテンプレート。書き換えずに使えるものだけを置く（フォントはリポジトリ・pip版に同梱せず、初回のビルドで取得する方式。2章・9章）。
+* **ドキュメント（任意の場所）**: テキストファイル群（Markdownのほか、YAML・JSON・CSV・図表ソースなど。1章）、画像、設定ファイル。ツールのディレクトリ構成に従う必要はない。
   * 設定ファイルの推奨名は `text-compositor.config.yaml`。
   * `--config` で明示するか、省略時はカレントディレクトリ（ドキュメント側）直下のこのファイルを自動的に探す。ツール本体のディレクトリ（`tool_dir`）は探索しない。
 
@@ -128,8 +128,8 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **`--clean`の削除対象**: 出力PDF（`output.dir`/`output.filename`）と、`.text-compositor/`直下の中間ファイル（`temp_build.typ`・`_template.typ`・`_common.typ`。ビルド失敗時やデバッグ用の`--keep-temp`で残ったもの）。`.text-compositor/`が空になれば、そのディレクトリも削除する。入力ファイル・configは削除しない。
   * **`--clean-cache`**: 上記に加えて、図表SVGのキャッシュ（`.text-compositor/cache/`）も削除する。再生成コストが高い（Mermaid・PlantUML・D2の描画）ため、`--clean`とは別オプションにした。単独で指定しても`--clean`を含む。キャッシュキーの仕様変更（#26）で残った古いキーのファイルの掃除にも使える。
   * ユーザーキャッシュ（フォント・`mermaid.min.js`・PlantUML・JRE・D2。2章）は対象外。ツール全体で共有される資産で、プロジェクト単位の生成物ではないため。
-* **Python APIと常駐ワーカー**（[#167](https://github.com/tokudiro/text-compositor/issues/167)）: 単一のMarkdownを、config.yamlなしでPDFにするAPI（`text_compositor.Session`・`build_markdown`）と、標準入出力のJSON行で依頼を受ける常駐ワーカー（`python -m text_compositor.worker`）がある。GUI版Viewer（[#165](https://github.com/tokudiro/text-compositor/issues/165)）が使う。CLIには、`text-compositor file.md`の形は追加していない（#25）。詳細は14章。
-* 上記以外のオプション（出力先の上書き、テンプレート指定、用紙設定等の文書内容に関わる上書き）は存在しない。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
+* **Python APIと常駐ワーカー**（[#167](https://github.com/tokudiro/text-compositor/issues/167)）: 単一のMarkdownを、config.yamlなしでPDFにするAPI（`text_compositor.Session`・`build_markdown`）と、標準入出力のJSON行で依頼を受ける常駐ワーカー（`python -m text_compositor.worker`）がある。GUI版Viewer（[#165](https://github.com/tokudiro/text-compositor/issues/165)）が使う。CLIの`text-compositor FILE.md`（#179）は、このAPIと同じ関数を呼ぶ。詳細は14章と、下の「単一ファイルの直接指定（#179）」。
+* 上記以外のオプション（用紙設定等の、文書内容に関わる上書き）は存在しない。出力先とテンプレートの指定（`-o`・`-t`）は、`FILE.md`を指定したときだけ使える（上の`FILE.md`の項目）。`config.yaml`を使うビルドには、出力先・テンプレートの上書きオプションは無い。`config.yamlが単一の正`という方針との相性を優先し、実行時の振る舞いに関するオプションのみをCLI引数として持つ（#52での検討）。
 * **終了コード**: 成功 `0` / 失敗 `1`。入力欠損・画像欠損・コンパイルエラーは即時失敗する（Fail-fast、10章）。`--check-env`はNGが1件でもあれば`1`。引数の指定誤り（`-q`と`-v`の同時指定等）は`argparse`標準の`2`。
 
 複数ファイル/ディレクトリの直接指定、追加オプション等のさらなる拡張は構想段階であり、実装するかどうかも含めて未定（[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
@@ -145,13 +145,13 @@ python build.py --config <path/to/text-compositor.config.yaml>
 
 * **ドキュメントルート（`--root`）**: `project_dir`・実際の `inputs_dir`/`outputs_dir`・`work_dir`（`project_dir/.text-compositor`）の共通の親ディレクトリを動的に計算する。`tool_dir`（ツール本体のディレクトリ）は含めない。テンプレートは`tool_dir`配下・`project_dir`配下いずれの場合も、`build.py`がビルドのたびに`work_dir`へコピーしてからそのコピーを参照するため、`--root`を元のテンプレートの置き場所まで広げる必要がない（8章のサンドボックス要件）。この結果、Markdown内の画像等が`project_dir`の外を参照している場合はビルドエラーになる（テンプレート自体はPythonのファイルコピーで読むため、`project_dir`の外に置いても構わない）。
 * **設定ファイルの指定**: `--config` で明示するか、省略時はカレントディレクトリ直下の `text-compositor.config.yaml`/`text-compositor.config.json` を探す（`tool_dir` は探索しない）。どちらもなければエラーで終了する。
-* **出力先**: `config.yaml` の `output.dir`/`output.filename` に従い `project_dir` 基準で決まる。入力パスからの出力先自動判定やCLIオプションでの上書きは未実装で、構想段階（[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
+* **出力先**: `config.yaml` の `output.dir`/`output.filename` に従い `project_dir` 基準で決まる。`FILE.md`を直接指定したとき（#179）だけは、`-o`で出力先を決める（既定は原稿と同じフォルダ。4章）。`config.yaml`を使うビルドでの、入力パスからの出力先自動判定やCLIオプションでの上書きは未実装で、構想段階（[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
 
 ## 6. 設定ファイル (Configuration as Code)
 * `config.yaml` / `config.json` のどちらでも書ける。内部では単一のスキーマ（正規化された辞書構造やPydantic等）に統合して扱い、パース処理の破綻を防ぐ。パスの基準は5章に従う。
 * ファイル順序、ページ設定、出力メタデータ、データ集約ディレクトリ（aggregate）を一元管理する。
-  * `plugins:`（Graphviz/Pikchr/CeTZ/Fletcher/timeliney/finite/Vega/WaveDrom/Bytefield/PlantUML/Mermaid/D2/Structurizrの有効・無効切り替え）。`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`bytefield`/`mermaid`/`plantuml`/`d2`はいずれも既定`true`（未指定時は常時有効）。`false`にすると該当フェンス（```` ```dot ````/```` ```graphviz ````/```` ```pikchr ````/```` ```cetz ````/```` ```fletcher ````/```` ```timeliney ````/```` ```mermaid ````/```` ```plantuml ````/```` ```d2 ````）は描画せず、未対応言語と同じ素のコード表示にフォールバックする（[#21](https://github.com/tokudiro/text-compositor/issues/21)、[#22](https://github.com/tokudiro/text-compositor/issues/22)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。`structurizr`のみ既定`false`（内部で使う`structurizr-cli`一式が約99MBあるため、明示的な有効化を要求する。[#212](https://github.com/tokudiro/text-compositor/issues/212)、11章8）。
-  * `plugins.mermaid_auto_download`（既定`false`）/`plugins.plantuml_auto_download`（既定`true`）: 描画に必要なツール（ブラウザ/Java）がシステムに見つからない場合の振る舞いを別軸で制御する。`true`なら自動取得、`false`ならFail-fast。既定値が非対称なのは、Playwright自身のChromium（約700MB）とEclipse Temurin JRE（約49.7MB）でダウンロード量が一桁違うため（11章、#22の設計議論）。
+  * `plugins:`（Graphviz/Pikchr/CeTZ/Fletcher/timeliney/finite/Vega/WaveDrom/Bytefield/PlantUML/Mermaid/D2/Structurizrの有効・無効切り替え）。`graphviz`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`bytefield`/`mermaid`/`plantuml`/`d2`はいずれも既定`true`（未指定時は常時有効）。`false`にすると該当フェンス（```` ```dot ````/```` ```graphviz ````/```` ```pikchr ````/```` ```cetz ````/```` ```fletcher ````/```` ```timeliney ````/```` ```finite ````/```` ```vega-lite ````・```` ```vega ````/```` ```wavedrom ````/```` ```bytefield ````/```` ```mermaid ````/```` ```plantuml ````/```` ```d2 ````/```` ```structurizr ````）は描画せず、未対応言語と同じ素のコード表示にフォールバックする（[#21](https://github.com/tokudiro/text-compositor/issues/21)、[#22](https://github.com/tokudiro/text-compositor/issues/22)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。`structurizr`のみ既定`false`（内部で使う`structurizr-cli`一式が約99MBあるため、明示的な有効化を要求する。[#212](https://github.com/tokudiro/text-compositor/issues/212)、11章8）。
+  * `plugins.mermaid_auto_download`（既定`false`）/`plugins.plantuml_auto_download`（既定`true`）/`plugins.d2_auto_download`（既定`true`）/`plugins.structurizr_auto_download`（既定`true`）: 描画に必要なツール（ブラウザ/Java/D2/structurizr-cli）がシステムに見つからない場合の振る舞いを別軸で制御する。`true`なら自動取得、`false`ならFail-fast。既定値が非対称なのは、Playwright自身のChromium（約700MB）とEclipse Temurin JRE（約49.7MB）でダウンロード量が一桁違うため（11章、#22の設計議論）。
   * **未知のキーの検証（[#309](https://github.com/tokudiro/text-compositor/issues/309)）**: `config.yaml`のトップレベル・`document:`・`output:`・`template:`・`inputs:`・`plugins:`の各キーは、許可された名前の一覧と照合する。綴りミスや置き場所の間違い（例: `plugins:`の外に置いてしまう）があると、`deep_update()`が黙って無視して既定値のままフォールバックしてしまうため、9章のFail-fast方針に従いエラー終了する。近い既知キー名があれば、その提案もあわせて表示する（`difflib.get_close_matches()`）。1ファイル内の複数の未知キーはまとめて報告する（`variables:`の未定義キー検証と同じ考え方）。`chapters`（章ごとにfile/aggregate/sectionでスキーマが分岐する）と`variables`（既にキー自体の形を検証している）は対象外。
 * **`variables:`（テキストの置換機構、[#72](https://github.com/tokudiro/text-compositor/issues/72)）**: Markdown本文中の`{{KEY}}`をビルド時に実値へ置換する。バージョン番号やビルド番号を、前処理スクリプトなしで差し込むための機構。
   * **定義**: `variables:`にキーと値を書く。値はスカラー（文字列・数値・真偽値。文字列化して使う）か、`{env: 環境変数名, default: 既定値}`（ビルド時の環境変数から取得。未設定で`default`も無ければエラー）。キーは英数字とアンダースコア（先頭は数字不可）。値は1行に限る（複数行を許すと、#27の行番号による診断が元のMarkdownの行とずれるため）。YAMLでは`1.10`が数値`1.1`になるため、バージョン番号は文字列として引用符で囲む。
@@ -160,11 +160,11 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **構文**: `{{KEY}}`（KEYは上記の形）。`{{ message }}`のように空白を含む形（Vue/Jinja等の記法）は対象外で、そのまま書ける。先頭に`\`を付けた`\{{KEY}}`は、置換せず`{{KEY}}`をそのまま出力するエスケープ。置換は1回だけで、値の中の`{{...}}`は展開しない。
   * **未定義のキー**: 9章のFail-fast方針に従い、綴りミスのまま出力されないよう、ファイル名と行番号を報告して即エラー終了する。同じファイル内の未定義キーはまとめて報告する。
   * **既定**: `variables:`キー自体が無ければ機構を無効にし、`{{...}}`に一切触れない。既存のプロジェクトの出力は変わらない。
-* **`fonts.dir:`（追加のフォント、[#376](https://github.com/tokudiro/text-compositor/issues/376)）**: PDFは、同梱のNoto Sans JPと、Typst内蔵のフォントだけを使う（システムのフォントは使わない。環境で見た目を変えないため）。そのため、ハングル・絵文字・簡体字にだけある字などは、どのフォントにも無く、警告なしに空の四角で出ていた。`config.yaml`の`fonts.dir`（文字列、または、文字列のリスト。`config.yaml`の場所が基準）のフォルダの`.ttf`・`.otf`・`.ttc`・`.otc`を、Typstの`font_paths`に足す。テンプレートは変えない（Typstが、指定フォントに無い文字を、使えるフォント全体から自動で探すため）。
+* **`fonts.dir:`（追加のフォント、[#376](https://github.com/tokudiro/text-compositor/issues/376)）**: PDFは、Noto Sans JP（初回のビルドで取得。2章）と、Typst内蔵のフォントだけを使う（システムのフォントは使わない。環境で見た目を変えないため）。そのため、ハングル・絵文字・簡体字にだけある字などは、どのフォントにも無く、警告なしに空の四角で出ていた。`config.yaml`の`fonts.dir`（文字列、または、文字列のリスト。`config.yaml`の場所が基準）のフォルダの`.ttf`・`.otf`・`.ttc`・`.otc`を、Typstの`font_paths`に足す。テンプレートは変えない（Typstが、指定フォントに無い文字を、使えるフォント全体から自動で探すため）。
   * **警告**: 原稿のうち、どのフォントにも無い文字を、ハングル・CJKの漢字・絵文字に限り、種類ごとに1つの警告にする（最初の行と例つき）。Typst内蔵のフォントが持つ記号（`☐`など）は、誤警告を避けるため、対象にしない。フォントのcmapは、標準ライブラリだけで読む（`text_compositor/fonts.py`）。
   * **キャッシュ**: 図のSVGのキャッシュキーに、追加のフォントの目印を入れる（フォントを変えると、描き直す）。
   * **範囲**: PDF出力だけ。HTML出力は、ブラウザのフォントを使う。ダウンロードを伴う`fonts.packs`は、需要を見て、あとで判断する。
-* **設定の優先順位**: `config.yaml` の章別設定 ＞ グローバル設定 ＞ 内蔵デフォルト。CLIオプションによる文書内容の上書き（出力先・用紙設定等）は、4章で述べたとおり方針上見送っており存在しない（[#52](https://github.com/tokudiro/text-compositor/issues/52)）。`-q`/`-v`/`--keep-temp`等、既存のCLIオプションはいずれも実行時の振る舞いのみを制御し、この優先順位には関与しない。
+* **設定の優先順位**: `config.yaml` の章別設定 ＞ グローバル設定 ＞ 内蔵デフォルト。CLIオプションによる文書内容の上書き（用紙設定等）は、4章で述べたとおり方針上見送っており存在しない（`FILE.md`指定時の`-o`・`-t`は、configが無い場合の指定であり、この優先順位とは別）（[#52](https://github.com/tokudiro/text-compositor/issues/52)）。`-q`/`-v`/`--keep-temp`等、既存のCLIオプションはいずれも実行時の振る舞いのみを制御し、この優先順位には関与しない。
 * **設定ファイル自体は必須**: `--config`、またはカレントディレクトリからの自動検出（5章）で、いずれかの設定ファイルが必要。中身は最小限でよい。ただし、`chapters` は現状ここで指定する以外の方法がない（入力パスからの自動導出は未実装。[#25](https://github.com/tokudiro/text-compositor/issues/25)）。
 * YAML パーサ（PyYAML）が未導入のまま `config.yaml` を無視して既定値でビルドを続行してはならない。サイレントに誤った成果物が出るため即エラーとする。
 * **Typst Universeのテンプレート**（[#63](https://github.com/tokudiro/text-compositor/issues/63)）: `template.path`に、Universeのテンプレートを包む**アダプタ**（`.typ`）を指定して使う。専用のconfigキー（`template.package`等）は設けない。Universeのテンプレートは、それぞれ独自の引数を持つ（例: `ilm.with(title:, authors:, ...)`）。汎用の対応表をconfigに持たせると、テンプレートごとのアダプタより保守が重くなるためである。
@@ -267,7 +267,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
 * **リスト構造の忠実な再現**: markdown-it はタイトなリストの段落トークンに `hidden` を立てる。これを無視すると Typst 側が loose list と解釈し、箇条書きが間延びする。リストの入れ子はスタックの深さに応じたインデントで出力し、階層を保持する。
 * **決定論的出力とバージョン固定**: `requirements.txt` のパーサーライブラリに加え、Typstコンパイラ本体および利用する全プラグイン（例: `diagraph:0.3.7`）のバージョンを厳密固定する。Typstコンパイラ自体はPyPIパッケージ（3章）で版固定されているため、同梱バイナリとの食い違いは構造的に起きない。
   * **実行時のバージョン整合性チェック**（[#49](https://github.com/tokudiro/text-compositor/issues/49)）: `requirements.txt`にピン留めされたTypstのバージョンと、実際にインストールされているバージョンが一致するかを毎回のビルド時に自動確認する。不一致でも警告のみでビルドは継続する（Fail-fastにはしない）。同じチェックは`--check-env`（4章）でも実行できる。`requirements.txt`が同梱されないpipインストール環境（[#111](https://github.com/tokudiro/text-compositor/issues/111)）では、比較対象が無いため何もしない。
-* **日本語フォントの指定**: OSのデフォルトフォントに依存せず、CJK対応のオープンソースフォントを`font_paths`（Typst Python APIの`typst.compile(..., font_paths=[...])`、CLIの`--font-path`に相当）で明示的に指定する。テンプレート側で`Yu Gothic`等のOSフォントを直接指定してはならない。**（実装済み）** 採用フォントは Noto Sans JP（[SIL Open Font License](https://github.com/notofonts/noto-cjk/blob/main/Sans/OFL.txt)、再配布可）。取得方法は2章、実装は`build.py`の`ensure_fonts()`を参照。`templates/template.typ`・`templates/slide.typ`とも`set text(font: "Noto Sans JP", ...)`のみを指定し、OSフォント名は書かない。Noto Sans JPに無いグリフ（絵文字等）はTypstが自動でシステムフォントにフォールバックする。
+* **日本語フォントの指定**: OSのデフォルトフォントに依存せず、CJK対応のオープンソースフォントを`font_paths`（Typst Python APIの`typst.compile(..., font_paths=[...])`、CLIの`--font-path`に相当）で明示的に指定する。テンプレート側で`Yu Gothic`等のOSフォントを直接指定してはならない。**（実装済み）** 採用フォントは Noto Sans JP（[SIL Open Font License](https://github.com/notofonts/noto-cjk/blob/main/Sans/OFL.txt)、再配布可）。取得方法は2章、実装は`build.py`の`ensure_fonts()`を参照。`templates/template.typ`・`templates/slide.typ`とも`set text(font: "Noto Sans JP", ...)`のみを指定し、OSフォント名は書かない。Noto Sans JPに無いグリフは、Typst内蔵のフォントにあればそれで描かれる。どのフォントにも無い字（ハングル・絵文字等）は、システムのフォントへはフォールバックせず、空の四角（□）になる（環境で見た目を変えないため。6章の`fonts.dir`で足せる）。
 
 ## 10. 動的ページレイアウトとデータ駆動型アグリゲーション
 * **章ごとのページ設定 (Dynamic Layout)**: ドキュメント全体または特定の章（Markdownファイル単位）に、独立して用紙サイズ（例: A4, A3）と用紙の向き（Landscape/Portrait）を指定できる。設定は `config.yaml` のグローバル設定および章ごとのローカル設定（上書き）として定義する。
@@ -309,7 +309,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
   * サイズの値は front-matterの`font_size`（#41）と同じ`"10pt"`/`"10.5pt"`形式のみ許可する（`FONT_SIZE_RE`として正規表現を共通化）。不正な値は警告を出したうえでサイズ指定なし（`size`属性を無視）として扱い、ビルドは止めない（`color`が無効値の場合にコンパイルエラーで止まる仕様とは異なる。単位や書式の間違いは実務上ありふれており、フォントサイズ1箇所のミスでビルド全体を止めるほどではないという判断）。
 
 ## 11. プラグイン（図表描画アドイン）の設計方針
-2章の実行環境の要件は本章のプラグインにもそのまま適用される。重い依存関係を持つ図表描画ツールは、コアパイプライン（テキスト→PDF化）とは別に「オプトイン形式のプラグイン」として分離する。外部APIへの通信による図表生成を行わない（完全ローカル完結）という2章の絶対要件は、プラグインであっても緩めない。
+2章の実行環境の要件は本章のプラグインにもそのまま適用される。重い依存関係を持つ図表描画ツールは、コアパイプライン（テキスト→PDF化）とは別に「プラグイン」として分離する（有効・無効の既定は6章。重いStructurizrだけ既定オフ）。外部APIへの通信による図表生成を行わない（完全ローカル完結）という2章の絶対要件は、プラグインであっても緩めない。
 
 なぜ「自動取得・SHA256固定・キャッシュ」という設計を選んだかは、比較対象を見ると分かりやすい。Asciidoctor Diagramのような既存の広範囲対応ツールは、各バックエンドの実行環境（Graphvizバイナリ、Java+`plantuml.jar`等）を利用者が事前にインストール済みであることを前提とする、純粋なディスパッチ層である（[#308](https://github.com/tokudiro/text-compositor/issues/308)）。本章の各プラグインは、この前提を採らない。実行環境が無い場合の取得・固定・キャッシュまでを、ツール自身の責務として引き受ける。
 
@@ -319,7 +319,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
    * **実行環境の前提**: `find_system_java()`（`deps.py`）でシステムのJava（11以上。PlantUML最新版のクラスファイル要件）を検出して再利用する（2章）。GitHub-hosted runner（`ubuntu-latest`）にはJavaが標準搭載されているため、そのまま動く。見つからない場合の挙動は`plugins.plantuml_auto_download`（既定`true`）で制御する。`true`ならEclipse Temurin JRE（Adoptium配布、GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統）をバージョン・プラットフォーム別にURL・SHA256を固定して自動取得し（9章の決定論的出力）、`false`なら本章3のMermaid/Chrome（[#35](https://github.com/tokudiro/text-compositor/issues/35)）と同じFail-fastになる。既定を自動取得側にしたのは、Chromeと違いJavaは手元環境への標準搭載率が低く、「Java 11以上を入れて」という指示だけでは行き止まりになりやすい（配布元の選択肢が多く迷いやすい）ため、ローカル開発時の利便性を優先する設計判断による。ダウンロードされる実体が約49.7MB（Chromiumの約700MBの1桁下）に収まることも判断材料にした。
    * **実装**: `plantuml.jar`をコンテンツのSHA256込みでOS標準のユーザーキャッシュ領域（2章のフォントと同じ`platformdirs`経由の場所）へ取得・キャッシュし、`java -jar plantuml.jar -tsvg -pipe -Playout=smetana`へ図のソースを標準入力で渡し、標準出力のSVGをそのまま使う。常駐プロセスを持つMermaidのヘッドレスブラウザとは異なり、図ごとにsubprocessを都度起動する（描画コストがMermaidほど大きくないため）。図の種別・`plantuml.jar`のSHA256・入力テキストの複合ハッシュをキー名として`project_dir/.text-compositor/cache/`にSVG結果をキャッシュする点（#26）、描画失敗（構文エラー等、終了コード非0）でテキストへフォールバックせず即エラー終了する点はMermaidと同じ方針。`@startuml`/`@enduml`の自動補完は行わない（明示性を優先）。
    * **JVM自体の文字コード（[#306](https://github.com/tokudiro/text-compositor/issues/306)）**: `subprocess.run(..., encoding="utf-8")`はPython側がstdin/stdoutをUTF-8として扱う指定に過ぎず、JVM側がそれをどの文字コードとして解釈するかは制御しない。JEP 400（JDK18）で`file.encoding`の既定はUTF-8になったが、`stdin`/`stdout`/`stderr`の既定はプラットフォームのネイティブエンコーディングに従う場合があり、`plugins.plantuml_auto_download`を使わずシステムJava（バージョン不問でよいとする2章の方針）を再利用する環境では、日本語ラベルが文字化けし得る。`java`起動コマンドに`-Dfile.encoding=UTF-8`/`-Dstdin.encoding=UTF-8`/`-Dstdout.encoding=UTF-8`/`-Dstderr.encoding=UTF-8`を常に明示することで、JDKバージョン・プラットフォーム・ロケールに依存させない（`_JAVA_UTF8_ENCODING_OPTS`、`renderer_diagrams.py`）。後述のStructurizr（本章8）がPlantUMLへ変換する際のstructurizr-cli呼び出しにも同じオプションを付ける（DSL→PlantUML→SVGの2段階とも影響を受けるため）。
-3. **Mermaid**: ヘッドレスブラウザでの描画を要するため、別途環境構築を伴うオプトイン機能として扱う。**（実装済み）**
+3. **Mermaid**: ヘッドレスブラウザでの描画を要するため、別途環境構築（`playwright`とChrome/Edge）を伴う機能として扱う（`plugins.mermaid`の既定は`true`）。**（実装済み）**
    * **実行環境の前提**: `find_system_browser()`（`deps.py`）でシステムにインストール済みのChrome/Edgeを検出して再利用する（2章）。GitHub-hosted runner（`ubuntu-latest`）には標準搭載のChromeがあるため、そのまま動く。見つからない場合の挙動は`plugins.mermaid_auto_download`（既定`false`）で制御する。既定ではFail-fastでエラー終了する（[#35](https://github.com/tokudiro/text-compositor/issues/35)。npm/npxに依存しなくなったため、npm経由の代替ダウンロードという選択肢が無い）。`true`にした場合のみ、`playwright install chromium`相当の呼び出しでPlaywright自身のChromium（実測約700MB）を取得し、`connect_over_cdp()`ではなく`chromium.launch()`で起動する。この約700MBはまさに#34/#35で避けた規模であるため既定はfalseのままとし、PlantUML側の`plugins.plantuml_auto_download`（既定`true`、JREは約49.7MB）とは意図的に非対称にしている（#22の設計議論）。
    * **実装**: Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、UMD形式、全図種込み。実測約3.4MB）をOS標準のユーザーキャッシュ領域（2章のフォントと同じ`platformdirs`経由の場所）へバージョン・SHA256を固定してダウンロード・キャッシュし（9章）、Playwright（Python版）の`connect_over_cdp()`でシステムブラウザにCDP接続してブラウザ内で`mermaid.render()`を直接呼び出す（`mermaid-cli`丸ごとの導入は不要、Node.js自体が不要になった）。1回のビルドでヘッドレスブラウザ・ページは1つだけ起動し、複数のMermaid図で使い回す。図の種別・`mermaid.min.js`のSHA256・入力テキストの複合ハッシュをキー名として `project_dir/.text-compositor/cache/` にSVG結果をキャッシュする（[#26](https://github.com/tokudiro/text-compositor/issues/26)。レンダラが変わったときに古いSVGを使い回さないため）。mermaid既定のHTMLラベル（`<foreignObject>`）はTypstのraw SVGレンダラーが描画できないため、`flowchart.htmlLabels`とトップレベルの`htmlLabels`両方を`false`に指定し通常のSVG `<text>` 要素で出力する（トップレベルのみでは効かないことを実測で確認済み）。
    * **図とテキストのレイアウト**: `::: layout-right ... :::`（テキスト左・図右の2カラム）、`::: layout-compare ... :::`（2つの図を左右に並べる）という独自のMarkdown拡張記法を用意した。ASTの通常フローに入る前の生テキスト段階で正規表現により切り出し、個別にTypstの`grid`へ変換している。横長の図をlayout-compareで並べると縮小されすぎて読めなくなることを実測で確認済み。正方形に近い図でのみ使うこと。
@@ -397,7 +397,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
   * **実装**: `TypstRenderer.render_tokens`がトップレベルのブロック（見出し・段落・引用・リスト全体・テーブル全体・hr・fence。リストの中は対象外）を出力する直前に、`// @srcmap {mdファイル}:{md行番号}`という行コメントを生成コードへ挿し込む（`_emit_srcmap`）。front-matter除去処理が既に「行数がずれないよう空行を残す」設計（7章）になっているため、`markdown-it-py`のトークンが持つ`t.map[0]`はそのまま元ファイルの行番号として使える。
   * 全チャプター結合後、`_compile_and_cleanup`が`temp_build.typ`書き出し前にこの目印行を1回スキャンし、`[(typstコード上の行番号, mdファイル, md行番号), ...]`という対応表（`_build_srcmap`）を作る。`typst_lib.TypstError`を捕捉した際、位置情報を含む`e.diagnostic`（`codespan_reporting`が整形する`┌─ temp_build.typ:12:5`形式の文字列。`str(e)`が返す`e.message`には位置情報が無く、実機確認で判明した）から`temp_build.typ:行:列`を対応表で逆引きし、`[Hint] temp_build.typ:N corresponds to around {mdファイル}:{md行}`という行を追記する（`_annotate_typst_error`）。
   * `"off"`を指定すると目印行を挿し込まず、従来どおりTypst側の生の行番号のみになる。リスト項目・テーブル行単位まで踏み込む`"fine"`は将来課題（Typstのリスト継続判定はリスト項目の物理的な列位置で決まり行コメントはトリビアとして無視される、という設計調査は済んでいる。ただし、実機検証はまだのため）。
-  * **テスト**: `tests/test_line_mapping.py`（pytest。`pip install -r requirements-dev.txt`後に`pytest tests/`で実行）に、`_resolve_line_mapping`/`_build_srcmap`/`_resolve_srcmap`/`_annotate_typst_error`の単体テストと、`TypstRenderer.render()`が実際にマーカーを挿し込む統合テストを用意している。CIには未接続（ローカル実行のみ）。
+  * **テスト**: `tests/test_line_mapping.py`（pytest。`pip install -r requirements-dev.txt`後に`pytest tests/`で実行）に、`_resolve_line_mapping`/`_build_srcmap`/`_resolve_srcmap`/`_annotate_typst_error`の単体テストと、`TypstRenderer.render()`が実際にマーカーを挿し込む統合テストを用意している。CIでは、`.github/workflows/test.yml`が`pytest tests/`を実行する（テスト対象を変更したpush・PRのみ）。
 
 ## 13. FAQ（よくある疑問）
 

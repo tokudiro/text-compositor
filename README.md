@@ -137,7 +137,9 @@ python /path/to/text-compositor/build.py
 
 Run `text-compositor --check-env` (or `python build.py --check-env`) to check your environment (dependencies, Typst version, cached assets, Mermaid/PlantUML/D2 prerequisites) without running a build.
 
-Other flags control runtime behavior only (not document content, which stays entirely in `config.yaml`): `-q`/`--quiet` suppresses `[Info]`-level logging, `-v`/`--verbose` adds extra detail (which chapter is being processed, cache reuse), and `--keep-temp` keeps the intermediate `temp_build.typ` around after a successful build instead of deleting it (useful for debugging; it's always kept after a failed build).
+To try a single Markdown file without a `config.yaml`, pass it directly: `text-compositor note.md` writes `note.pdf` next to it. `-o OUTPUT` sets the output path and `-t TEMPLATE` picks the template (`template`, `slide`, `paper`, or a `.typ` path). Paper size and orientation are not options here; use front matter or a `config.yaml`. See the usage guide for the flags that cannot be combined with it.
+
+For config-based builds, the other flags control runtime behavior only (not document content, which stays entirely in `config.yaml`): `-q`/`--quiet` suppresses `[Info]`-level logging, `-v`/`--verbose` adds extra detail (which chapter is being processed, cache reuse), and `--keep-temp` keeps the intermediate `temp_build.typ` around after a successful build instead of deleting it (useful for debugging; it's always kept after a failed build).
 
 `--watch` keeps running after the first build and rebuilds whenever it detects a save in the config, the input files, or a custom `.typ` template. A failed build does not stop it; fix the file and save again. Press Ctrl+C to stop. Changes to files outside the project directory (e.g. images referenced via `../`) are not detected.
 
@@ -172,7 +174,7 @@ This generates `sample/SampleDocument.pdf`. Two more samples show other template
 
 ## Implementation status
 
-The core feature implemented so far is combining multiple files into a single PDF according to the config file specified via `--config` (or auto-detected). Expanding CLI options (e.g., overriding the output path) is still in the planning stage. See [GitHub Issues](https://github.com/tokudiro/text-compositor/issues) for known issues and upcoming plans.
+The core feature implemented so far is combining multiple files into a single PDF according to the config file specified via `--config` (or auto-detected). A single Markdown file can also be built without a config (`FILE.md`, `-o`, `-t`). Further CLI options (e.g., passing several files or directories directly) are still in the planning stage. See [GitHub Issues](https://github.com/tokudiro/text-compositor/issues) for known issues and upcoming plans.
 
 ## Policy for adding diagram notations
 
