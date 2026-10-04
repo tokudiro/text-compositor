@@ -54,6 +54,18 @@ button.zoom { min-width: 48px; padding: 0 4px; text-align: center; font-variant-
 @media (prefers-reduced-motion: reduce) { .bar { animation: none; } }
 .bar { width: 56px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent 0, currentColor 50%, transparent 100%); background-size: 200% 100%; animation: slide 1s linear infinite; }
 @keyframes slide { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* タブ列（#332）。ツールバーと同じ幅で、タブを横に並べる。長いタブ名は、省略する */
+#tabs-bar { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-bottom: 1px solid var(--line); }
+#tabs-bar[hidden] { display: none; }
+.toolbar-bottom #tabs-bar { border-bottom: 0; border-top: 1px solid var(--line); }
+#tabs { display: flex; gap: 2px; min-width: 0; overflow-x: auto; }
+.tab-item { display: inline-flex; align-items: center; flex: 0 1 200px; min-width: 80px; border-radius: 4px; }
+.tab-item:hover { background: var(--button); }
+.tab-item.active { background: var(--accent-soft); }
+.tab-item .tab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.tab-item.active .tab { color: var(--accent-text); font-weight: 600; }
+.tab-item .tab.error::before { content: "● "; color: var(--error-fg); }
+.tab-item .tab.busy::after { content: " …"; color: var(--muted); }
 /* 文書内検索（#325）。ツールバーの下に固定行として出す（設定画面と違い、内容のビューは隠さない） */
 #search { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
 #search[hidden] { display: none; }

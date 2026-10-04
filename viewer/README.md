@@ -47,6 +47,7 @@ If no Python is found, the window still opens and explains what to do.
 | Zoom | `Ctrl` + mouse wheel, `Ctrl` + `+` / `-`, `Ctrl+0` (100%). Clicking the percentage in the toolbar also resets it. |
 | Search (#325) | The magnifying-glass button, or `Ctrl+F`, opens a search bar under the toolbar. Matches are highlighted in yellow, the current one in orange, with a count. `Enter` / `Shift+Enter` (or the ▲▼ buttons) move to the next/previous match. The `.*` button switches to regular expressions, `Aa` toggles case sensitivity (an invalid regular expression is shown as an error in the bar and is not run). Close with `Esc` or the ✕ button. |
 | Save images (#327) | Right-click any diagram or image to save it. For SVGs, you can choose "画像（SVG）を保存…" (lossless vector) or "画像（PNG）を保存…" (high-resolution raster, 2x scale). Non-SVG images can be saved in their original format. The save dialog starts in the document's folder or the last saved image folder. |
+| Tabs (#332) | Available when the setting **複数のタブ** is on (default: off). `Ctrl+Shift+O` (or the "+" in the tab strip) opens another document in a new tab and keeps the current one. Dropping a file with `Ctrl` held also opens a new tab. `Ctrl+W`, the close button at the right end of the tab strip (for the current tab) or a middle click on a tab closes a tab; `Ctrl+Tab` / `Ctrl+Shift+Tab` switch (clicking a tab works too). The tab strip shows only while there are two or more tabs. Scroll position, search, back/forward and automatic reload are kept per tab. There is one Python worker for all tabs, so while one tab converts a heavy diagram, the other tab's conversion waits. |
 | Settings | The gear button in the toolbar, or `Ctrl+,`. Close with the **閉じる** button, `Esc` or the gear button. Opening a file or reloading closes it too. |
 | Show or hide error details | Click the error/warning bar |
 
@@ -69,7 +70,7 @@ The settings screen (gear button) has three items: the **toolbar position** (top
 
 There are more items. First, **変換ファイルの保存場所** and **キャッシュ** (#258). **変換ファイルの保存場所** (where the converted files go) is **アプリの領域** (the default: the converted HTML and the diagram cache are kept in the app's cache folder, so nothing is written to your document's folder, and a document in a read-only place can be opened) or **原稿の隣** (a `.text-compositor/` folder next to the document, as the worker does by default; a document in a place that cannot be written is opened with the app folder instead, with a warning). A third choice, **ファイルを作らない**, is shown grayed out: it is not implemented yet. **キャッシュ** shows the size of the app folder (on Windows, `%LOCALAPPDATA%\text-compositor\Cache\viewer`) and has a delete button. Deleting removes only the converted HTML and the diagram cache there, then converts the open document again; a `.text-compositor/` next to a document, and the downloaded fonts and diagram tools, are left alone.
 
-There are also **外部の画像** (external images; default: not loaded, #238) and three features that add elements to the screen: **行番号の表示** (line number, #328/#357), **見出しのリンク** (heading link, #337) and **コードのコピーボタン** (code copy button, #336). All three default to on and can be turned off in the settings.
+There are also **外部の画像** (external images; default: not loaded, #238) and three features that add elements to the screen: **行番号の表示** (line number, #328/#357), **見出しのリンク** (heading link, #337) and **コードのコピーボタン** (code copy button, #336). All three default to on and can be turned off in the settings. **複数のタブ** (tabs, #332) changes the structure of the screen, so it defaults to off (see the Tabs row above).
 
 The window size and position are remembered too (also maximized state). If the saved position no longer fits on any screen, for example after unplugging a monitor, only the size is restored.
 
@@ -99,12 +100,14 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/diagnostics.js` | Turns the worker's diagnostics into what the window shows |
 | `src/targets.js` | Which files can be opened; how links and drops are handled |
 | `src/mermaid-host.js` | Renders Mermaid diagrams in a hidden window when the worker asks (#207) |
+| `src/document-tab.js` | The state of one document (tab): file, history, diagnostics, search, content view, conversion queue (#332) |
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/workdir.js` | Where the converted HTML and the diagram cache go (app folder or next to the document), and the cache size and delete (#258) |
 | `src/watcher.js` | Watches the open file and the files it references |
 | `src/image-save.js` | Saves and rasterizes diagrams and images (SVG and PNG, #327) |
 | `src/search-match.js` | The text/regex matching behind in-document search (#325); the part with no DOM, so it is unit-tested |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |
+| `scripts/check-tabs.js` | Starts the viewer and checks the tabs: opening, switching, keeping the scroll position, closing, turning the setting off (manual; the automatic-update item needs a working file watcher) |
 | `scripts/check-search.js` | Starts the viewer and checks in-document search (count, move, regex, case sensitivity, `Ctrl+F`/`Esc`) (manual) |
 | `scripts/check-work-location.js` | Starts the viewer with a throwaway user folder and checks where the converted files go, the cache size and delete, and the switch to "next to the document" (manual) |
 | `scripts/check-open-files.js` | Opens .txt, .csv, .svg, diagram files, unsupported files, a folder, a missing file and a large file from the command line and checks what is shown (manual) |

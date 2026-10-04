@@ -9,8 +9,9 @@ const { summarize } = require('./diagnostics');
 const { NavigationHistory } = require('./history');
 
 class DocumentTab {
-  constructor() {
-    this.file = null;            // 開いている（または、開こうとしている）ファイル
+  constructor(id = 1) {
+    this.id = id;                // タブを区別する番号（ウィンドウ本体のタブ列が、操作の対象を伝えるのに使う）
+    this.file = null;           // 開いている（または、開こうとしている）ファイル
     this.line = null;            // マウスを乗せた、ブロックの、原稿での行（ツールバーに出す。#328）。乗せていない間も、最後の行を保つ。表示し直すと、消す
     this.busy = false;
     this.status = '';
@@ -25,6 +26,7 @@ class DocumentTab {
     this.inFlight = false;       // 変換中か
     this.queued = null;          // 変換中に来た、次の依頼（最後の1件だけを残す）
     this.idleWaiters = [];       // 変換が終わるのを待つ処理（キャッシュの削除）
+    this.closed = false;         // 閉じたタブか（変換の途中で閉じられたとき、結果を捨てる）
   }
 
   /** 開いているのが、.csvか（ツールバーの、見出し行の切り替えを出す。#220）。 */
@@ -50,6 +52,24 @@ class DocumentTab {
     for (const resolve of this.idleWaiters.splice(0)) resolve();
   }
 
+  /** 監視するファイル: 表示中の原稿と、その参照ファイル。変換に失敗しても、原稿は監視し続ける（直して保存したときに、自動で更新できるように）。 */
+  get watchedFiles() {
+    if (!this.file) return [];
+    return [this.file, ...(this.shown && this.shown.md === this.file ? this.shown.deps : [])];
+  }
+
+  /** タブ列に出す名前。文書があればファイル名、無ければ「新しいタブ」。 */
+  get title() {
+    if (!this.file) return '新しいタブ';
+    const name = this.file.split(/[\\/]/).pop();
+    return name || this.file;
+  }
+
+  /** タブ列へ送る、このタブの要約（`active`は、呼び出し側が付ける）。 */
+  summary() {
+    return { id: this.id, title: this.title, file: this.file, busy: this.busy, hasError: this.diagnostics.hasError };
+  }
+
   /** ウィンドウ本体（chrome/）へ送る、文書ごとの状態。アプリ全体の状態と合わせて、1つの`state`として送る。 */
   snapshot() {
     return {
@@ -67,4 +87,9 @@ class DocumentTab {
   }
 }
 
-module.exports = { DocumentTab };
+/** 保存されたファイル（`paths`）を、監視している（原稿または参照ファイルとして持っている）タブだけを、返す。 */
+function tabsAffectedBy(tabs, paths) {
+  return tabs.filter((tab) => tab.watchedFiles.some((watched) => paths.includes(watched)));
+}
+
+module.exports = { DocumentTab, tabsAffectedBy };

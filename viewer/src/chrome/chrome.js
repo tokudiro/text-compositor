@@ -59,6 +59,8 @@ $('settings').addEventListener('change', (event) => {
     api.setSetting(event.target.name, value);
   }
 });
+$('tab-new').addEventListener('click', () => api.newTab());
+$('tab-close').addEventListener('click', () => { const active = lastState?.tabs?.find((t) => t.active); if (active) api.closeTab(active.id); });
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
 
 // ドラッグ＆ドロップ。ファイルへ、ページが遷移してしまわないように、既定の動作を止める。
@@ -68,8 +70,42 @@ window.addEventListener('drop', (event) => {
   event.preventDefault();
   document.body.classList.remove('dragging');
   const file = event.dataTransfer?.files?.[0];
-  if (file) api.openPath(api.pathForFile(file));
+  if (file) api.openPath(api.pathForFile(file), event.ctrlKey);
 });
+
+/**
+ * タブ列（#332）。設定「複数のタブ」がオンで、タブが2つ以上あるときだけ出す。
+ * 名前は、textContentで入れる（ファイル名を、HTMLとして解釈しない）。タブが変わらない間は、作り直さない
+ * （作り直すと、押している最中のボタンのフォーカスが、外れる）。
+ */
+let renderedTabs = '';
+function renderTabs(state) {
+  const visible = Boolean(state.settings.enableTabs) && state.tabs.length > 1;
+  $('tabs-bar').hidden = !visible;
+  const active = state.tabs.find((t) => t.active);
+  $('tab-close').setAttribute('aria-label', active ? `「${active.title}」を閉じる` : '見ているタブを閉じる');
+  const signature = JSON.stringify(state.tabs.map((t) => [t.id, t.title, t.active, t.busy, t.hasError]));
+  if (signature === renderedTabs) return;
+  renderedTabs = signature;
+  const container = $('tabs');
+  container.textContent = '';
+  for (const t of state.tabs) {
+    const item = document.createElement('div');
+    item.className = `tab-item${t.active ? ' active' : ''}`;
+    item.setAttribute('role', 'presentation');
+    const tab = document.createElement('button');
+    tab.className = `tab${t.hasError ? ' error' : ''}${t.busy ? ' busy' : ''}`;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(t.active));
+    tab.title = t.file ?? t.title;
+    tab.textContent = t.title;
+    tab.addEventListener('click', () => api.activateTab(t.id));
+    // 中ボタン（ホイールのクリック）で、そのタブを閉じる
+    tab.addEventListener('auxclick', (event) => { if (event.button === 1) api.closeTab(t.id); });
+    item.append(tab);
+    container.append(item);
+  }
+}
 
 /** 「表示する機能」の行を、機能の一覧（state.features。settings.jsのFEATURES）から作る（#326）。一覧が変わらない間は、作り直さない。 */
 let renderedFeatures = '';
@@ -124,6 +160,7 @@ function render(state) {
   $('settings').hidden = !state.settingsOpen;
   moveFocusForSettings(state, previousSettingsOpen);
   renderFeatures(state.features ?? []);
+  renderTabs(state);
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
   for (const [name, value] of Object.entries(state.settings)) {
     for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === String(value);

@@ -40,6 +40,15 @@ const FEATURES = Object.freeze([
     on: '出す',
     off: '出さない',
   }),
+  Object.freeze({
+    key: 'enableTabs',
+    default: false,   // 画面の構造を変える（タブ列が増える）ため、既定は「使わない」（#326のD。#332）
+    label: '複数のタブ',
+    description: '複数の文書を、タブで切り替えて開きます。「新しいタブで開く」（Ctrl+Shift+O）で、いまの文書を残したまま、別の文書を開けます。'
+      + 'タブを閉じるのは、Ctrl+W、切り替えは、Ctrl+Tab・Ctrl+Shift+Tabです。「使わない」にすると、いま見ているタブだけを残して、ほかは閉じます。',
+    on: '使う',
+    off: '使わない',
+  }),
 ]);
 
 const DEFAULTS = Object.freeze({
