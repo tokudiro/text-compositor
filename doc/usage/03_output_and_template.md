@@ -45,7 +45,7 @@ text-compositor note.md -t slide             # テンプレート（template・s
 - 画像などの相対パスは、Markdownファイルの場所が基準です。`-o`・`-t`の相対パスは、カレントディレクトリが基準です。
 - 原稿の隣に、作業用の`.text-compositor/`（図表のキャッシュ・中間ファイル）を作ります。書き込めない場所の原稿は、エラーになります。
 - 出力先に同名のPDFがあれば、確認なしで上書きします。
-- 併用できるのは、`-q`・`-v`・`--keep-temp`だけです。`--config`・`--config-list`・`--watch`・`--if-changed`・`--clean`・`--check-env`とは、併用できません。用紙・向きなどの設定は、`config.yaml`か、Markdownの先頭のfront-matterで指定します。
+- 併用できるのは、`-q`・`-v`・`--keep-temp`・`-o`・`-t`だけです。`--config`・`--config-list`・`--watch`・`--if-changed`・`--clean`・`--check-env`とは、併用できません。用紙・向きなどの設定は、`config.yaml`か、Markdownの先頭のfront-matterで指定します。
 - 複数のファイルやフォルダを、まとめて指定することは、できません（章の順序を、`config.yaml`の`chapters`で決めます）。
 
 # 複数PDFをまとめて出力する

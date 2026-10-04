@@ -2,7 +2,7 @@
 
 ## 入手する
 
-GitHubの[Releases](https://github.com/tokudiro/text-compositor/releases)から、最新の版の`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`をダウンロードします。大きさは、約200 MBです。展開すると、約468 MBになります。
+GitHubの[Releases](https://github.com/tokudiro/text-compositor/releases)から、最新の版の`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`をダウンロードします。大きさは、約298 MBです。展開すると、約698 MBになります。
 
 ## 起動する
 

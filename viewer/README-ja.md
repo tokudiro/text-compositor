@@ -2,7 +2,7 @@
 
 [English](README.md) | 日本語
 
-Obunzu Markdown Viewer（略称はObunzu）は、Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・`svg`）を、画像として表示します。エディタもPDF出力もありません。
+Obunzu Markdown Viewer（略称はObunzu）は、Docs・Diagrams・Design as Codeのための、高速で閲覧専用のMarkdown Viewerです（text-compositorを土台にした、Electron製）。名前は、Observe（観察する）と文図（ぶんず、文章と図）を合わせた造語で、「おぶんず」と読みます。Markdownファイルを開くと、Pythonの常駐ワーカー（`render_html`。仕様書[doc/spec.md](../doc/spec.md)の14章）でHTMLにして、図（Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・WaveDrom・Bytefield・`svg`）を、画像として表示します。エディタもPDF出力もありません。
 
 このREADMEは、開発者向けです。Obunzuを使う人向けの説明書は、[Obunzu使い方ガイド](../doc/obunzu-guide/)です（Releasesに、PDFを添付しています）。
 
