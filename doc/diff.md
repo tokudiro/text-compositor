@@ -52,7 +52,7 @@ Figures are either the on-disk size after extraction, or the compressed file siz
 
 ## Diagram rendering support
 
-Looking at this concretely, text-compositor has little edge over Quarto for Mermaid/Graphviz. PlantUML and D2 are a different story. Since [#213](https://github.com/tokudiro/text-compositor/issues/213)/[#212](https://github.com/tokudiro/text-compositor/issues/212)/[#236](https://github.com/tokudiro/text-compositor/issues/236), the set of diagram types text-compositor supports has grown to eight: Mermaid, Graphviz (dot), PlantUML, D2, Pikchr, Structurizr, CeTZ, and Fletcher (spec.md chapter 11).
+Looking at this concretely, text-compositor has little edge over Quarto for Mermaid/Graphviz. PlantUML and D2 are a different story. Since [#213](https://github.com/tokudiro/text-compositor/issues/213)/[#212](https://github.com/tokudiro/text-compositor/issues/212)/[#236](https://github.com/tokudiro/text-compositor/issues/236), the set of diagram types text-compositor supports has grown to thirteen: Mermaid, Graphviz (dot), PlantUML, D2, Pikchr, Structurizr, CeTZ, Fletcher, timeliney, finite, Vega-Lite/Vega, WaveDrom, and Bytefield (spec.md chapter 11).
 
 | Tool | Mermaid | Graphviz (dot) | PlantUML | D2 |
 | --- | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ CeTZ and Fletcher (#236) are Typst-native drawing packages, not diagram DSLs wit
 
 It's worth asking directly whether "supports a wide range of diagram tools" is itself a differentiator. It isn't — that ground is already taken.
 
-[Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/), an AsciiDoc extension, dispatches to over 20 backends: AsciiToSVG, the BlockDiag family (BlockDiag/SeqDiag/ActDiag/NwDiag/RackDiag/PacketDiag), Bytefield-SVG, DBML, Ditaa, Dpic, Erd, Gnuplot, GoAT, Graphviz, LilyPond, Mermaid, MscGen, Nomnoml, Penrose, Pikchr, Pintora, PlantUML, Shaape, State Machine Cat, Structurizr, SvgBob, Symbolator, Syntrax/JSyntrax, UMLet, Vega/Vega-Lite, and WaveDrom. That list already covers more backends than text-compositor's own eight. So breadth of coverage, by itself, is not a valid claim for text-compositor to make — a wider precedent already exists.
+[Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/), an AsciiDoc extension, dispatches to over 20 backends: AsciiToSVG, the BlockDiag family (BlockDiag/SeqDiag/ActDiag/NwDiag/RackDiag/PacketDiag), Bytefield-SVG, DBML, Ditaa, Dpic, Erd, Gnuplot, GoAT, Graphviz, LilyPond, Mermaid, MscGen, Nomnoml, Penrose, Pikchr, Pintora, PlantUML, Shaape, State Machine Cat, Structurizr, SvgBob, Symbolator, Syntrax/JSyntrax, UMLet, Vega/Vega-Lite, and WaveDrom. That list is still longer than text-compositor's own thirteen (which already include Bytefield, Vega/Vega-Lite, and WaveDrom). So breadth of coverage, by itself, is not a valid claim for text-compositor to make — a wider precedent already exists.
 
 The decisive difference sits elsewhere. Asciidoctor Diagram assumes every backend's runtime — the Graphviz binary, a Java install plus `plantuml.jar`, Node.js for some backends, and so on — is already installed by the user. It is a pure dispatch layer: hand it code already written in one of those 20+ languages, and it calls the matching local CLI. There is no equivalent of text-compositor's auto-fetch-if-missing, SHA256-pinned, cached runtime acquisition (spec.md chapter 11).
 
@@ -89,7 +89,7 @@ Quarto, once again, sits at the opposite corner from Asciidoctor Diagram: narrow
 
 | Axis | Asciidoctor Diagram | Quarto | Kroki | text-compositor |
 | --- | --- | --- | --- | --- |
-| Breadth of backend coverage | Wide (20+) | Narrow (Mermaid/Graphviz native only) | Wide (20+) | Moderate (8, still growing) |
+| Breadth of backend coverage | Wide (20+) | Narrow (Mermaid/Graphviz native only) | Wide (20+) | Moderate (13, still growing) |
 | No manual install (auto-fetch + cache) | No — local runtimes assumed pre-installed | Partial (Mermaid/Graphviz only) | Yes, in the sense that the client needs nothing local | Yes (SHA256-pinned, spec.md ch. 9/11) |
 | Avoids external network calls and heavy extra dependencies | Yes (local CLIs assumed present) | Yes | No for the public API; a Docker dependency for the self-hosted option | Yes (spec.md ch. 2 absolute requirement) |
 

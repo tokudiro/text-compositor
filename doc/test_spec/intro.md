@@ -19,9 +19,10 @@ pytest tests/
 
 以下は実機・外部プロセスへの依存が強く、モック化のコストが見合わないため、意図的にテスト対象外としている。
 
-- Mermaid/PlantUML/Graphviz/D2の実際のレンダリング結果そのもの（ヘッドレスブラウザ・Java・`dot`コマンド・D2 CLIが必要なため）。
+- PlantUML/D2の実際のレンダリング結果そのもの（Java・D2 CLIが必要なため）。
+- 実際のブラウザで描く図（Mermaid・Vega・WaveDrom・Bytefield）のテストは、`playwright`がある環境でのみ実行し、無ければ飛ばす。CIでは、`ubuntu-latest`標準搭載のChromeを使って、毎回実行する。
 - Typstコンパイル自体を要する統合テスト（`typst`パッケージがある環境でのみ実行可能なため）。
 
-# 今後の課題
+# CIでの実行
 
-CI（GitHub Actions）への組み込みは、本書が対象とする範囲には含めない。#96で別issueとして切り出す方針にしている。
+`.github/workflows/test.yml`が、`text_compositor/`・`tests/`・依存関係を変更したpush・PRで、`pytest tests/`を実行する（#97）。`doc/`や`sample/`だけの変更では、起動しない。

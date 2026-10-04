@@ -38,16 +38,8 @@ Obunzuは、自動では更新しません。新しい版が出たときは、�
 | 場所 | 中身 |
 | --- | --- |
 | `%APPDATA%\Obunzu` | 設定（`settings.json`） |
-| `%LOCALAPPDATA%\text-compositor\Cache` | 変換したHTMLと図のキャッシュ、初回に取得したツール（下の表） |
+| `%LOCALAPPDATA%\text-compositor\Cache` | 変換したHTMLと図のキャッシュ |
 
-## 初回に取得するもの
+## 初回に、追加の取得は要りません
 
-Obunzuは、次の図を初めて描くときに、必要なものを、インターネットから取得します。取得したものは、上の`Cache`に保存し、2回目以降は、取得しません。取得には、インターネットへの接続が要ります。
-
-| 図 | 取得するもの | 大きさの目安 |
-| --- | --- | --- |
-| `mermaid` | Mermaidのスクリプト | 約3.4 MB |
-| `plantuml` | PlantUML本体。システムにJava（11以上）がなければ、Javaも | 約17 MB（Javaは、さらに約49 MB） |
-| `d2` | D2のプログラム。システムに`d2`がなければ | 約13 MB |
-
-取得には、数秒から数十秒かかります（回線によります）。取得したファイルは、正しいものかを、確かめてから使います。`dot`・`graphviz`・`pikchr`・`cetz`・`fletcher`・`timeliney`・`finite`・`svg`と、ふつうの文章は、取得なしで、すぐに使えます。
+Obunzuは、すべての図（Mermaid・PlantUML・D2・Structurizrなど）を描くために必要なもの（Java・PlantUML・D2・Mermaidのスクリプトなど）を、ZIPに同梱しています。初めて図を描くときも、インターネットからの取得は、ありません。インターネットへの接続がなくても、使えます。

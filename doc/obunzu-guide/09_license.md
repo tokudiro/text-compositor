@@ -16,10 +16,10 @@ Obunzuの配布物（ZIP）には、Electron（Chromiumを含む）・Python・T
 
 PlantUML・Structurizrの図を描くために、Java（Eclipse Temurin JRE）・`plantuml.jar`・`structurizr-cli`一式（`structurizr-cli\lib\`。使わない部分は除いた、絞り込み版）も、同梱しています。`structurizr-cli`が使う`trove4j`は、LGPL-2.1以降のライセンスです。改造せずに、別のjarファイル（`structurizr-cli\lib\trove4j-1.0.20200330.jar`）のまま入れているため、同じ名前の別の版に、差し替えられます。ソースは、[GitHub](https://github.com/JetBrains/intellij-deps-trove4j)にあります。こちらも、Obunzuで作る図や、あなたの文書には、LGPLは、及びません。
 
-初回に取得するのは、Mermaidだけです。PlantUML・D2・Structurizr・Javaは、Obunzuに、同梱しています。
+Mermaid・PlantUML・D2・Structurizr・Javaも、Obunzuに、同梱しています。初回に取得するものは、ありません。
 
 ## 関連する文書
 
 - [text-compositorの使い方ガイド](https://github.com/tokudiro/text-compositor/releases)（Releasesに、PDFがあります）: Markdownの書き方・図表・PDFの作り方。
 - [Obunzuの開発者向けの説明](https://github.com/tokudiro/text-compositor/blob/master/viewer/README-ja.md): ソースからの実行・構成・テスト・環境変数。
-- [配布物の詳細](https://github.com/tokudiro/text-compositor/blob/master/doc/viewer-distribution.md): 同梱物・大きさ・初回に取得するもの・更新の方法。
+- [配布物の詳細](https://github.com/tokudiro/text-compositor/blob/master/doc/viewer-distribution.md): 同梱物・大きさ・更新の方法。

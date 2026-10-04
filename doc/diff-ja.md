@@ -52,7 +52,7 @@ Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約25
 
 ## 図表描画の対応状況
 
-これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUML・D2は状況が異なる。[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#212](https://github.com/tokudiro/text-compositor/issues/212)・[#236](https://github.com/tokudiro/text-compositor/issues/236)を経て、text-compositorが対応する図の種類は、Mermaid・Graphviz(dot)・PlantUML・D2・Pikchr・Structurizr・CeTZ・Fletcherの8種類まで増えた（仕様書11章）。
+これも実際に調べると、Mermaid/GraphvizについてはQuartoに対する優位性は薄い。ただしPlantUML・D2は状況が異なる。[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#212](https://github.com/tokudiro/text-compositor/issues/212)・[#236](https://github.com/tokudiro/text-compositor/issues/236)を経て、text-compositorが対応する図の種類は、Mermaid・Graphviz(dot)・PlantUML・D2・Pikchr・Structurizr・CeTZ・Fletcher・timeliney・finite・Vega-Lite/Vega・WaveDrom・Bytefieldの13種類まで増えた（仕様書11章）。
 
 | ツール | Mermaid | Graphviz(dot) | PlantUML | D2 |
 | --- | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ CeTZ・Fletcher（#236）は、独立したエコシステムを持つ図表DSL�
 
 率直に確認しておきたい論点がある。「幅広い図表ツールに対応している」こと自体は、差別化根拠になるのか、という論点である。答えは否である。この立ち位置には、既に先例がある。
 
-AsciiDoc用の拡張機能[Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/)は、20種類以上のバックエンドへディスパッチする。AsciiToSVG、BlockDiag系（BlockDiag/SeqDiag/ActDiag/NwDiag/RackDiag/PacketDiag）、Bytefield-SVG、DBML、Ditaa、Dpic、Erd、Gnuplot、GoAT、Graphviz、LilyPond、Mermaid、MscGen、Nomnoml、Penrose、Pikchr、Pintora、PlantUML、Shaape、State Machine Cat、Structurizr、SvgBob、Symbolator、Syntrax/JSyntrax、UMLet、Vega/Vega-Lite、WaveDromである。このリストは、text-compositor自身の8種類より、既に広い。したがって、「対応ツールの広さ」単体は、text-compositorが主張してよい差別化根拠ではない。より広い先例が、既に存在する。
+AsciiDoc用の拡張機能[Asciidoctor Diagram](https://docs.asciidoctor.org/diagram-extension/latest/)は、20種類以上のバックエンドへディスパッチする。AsciiToSVG、BlockDiag系（BlockDiag/SeqDiag/ActDiag/NwDiag/RackDiag/PacketDiag）、Bytefield-SVG、DBML、Ditaa、Dpic、Erd、Gnuplot、GoAT、Graphviz、LilyPond、Mermaid、MscGen、Nomnoml、Penrose、Pikchr、Pintora、PlantUML、Shaape、State Machine Cat、Structurizr、SvgBob、Symbolator、Syntrax/JSyntrax、UMLet、Vega/Vega-Lite、WaveDromである。このリストは、text-compositor自身の13種類（Bytefield・Vega/Vega-Lite・WaveDromを含む）より、なお広い。したがって、「対応ツールの広さ」単体は、text-compositorが主張してよい差別化根拠ではない。より広い先例が、既に存在する。
 
 決定的な違いは、別のところにある。Asciidoctor Diagramは、各バックエンドの実行環境——Graphvizバイナリ、Java+`plantuml.jar`、一部バックエンドではNode.js等——が、利用者によって事前にインストール済みであることを前提とする。これは純粋なディスパッチ層である。20種類以上のいずれかの言語で、既に書かれたコードを渡せば、対応するローカルCLIを呼ぶだけである。text-compositorの「無ければ自動取得・SHA256固定・キャッシュ」（仕様書11章）に相当する仕組みは、無い。
 
@@ -89,7 +89,7 @@ Quartoは、ここでもAsciidoctor Diagramの対極にある。ネイティブ�
 
 | 軸 | Asciidoctor Diagram | Quarto | Kroki | text-compositor |
 | --- | --- | --- | --- | --- |
-| バックエンド対応の広さ | 広い（20種類以上） | 狭い（Mermaid/Graphvizのみネイティブ） | 広い（20種類以上） | 中程度（8種類、拡張継続中） |
+| バックエンド対応の広さ | 広い（20種類以上） | 狭い（Mermaid/Graphvizのみネイティブ） | 広い（20種類以上） | 中程度（13種類、拡張継続中） |
 | 手動インストール不要（自動取得＋キャッシュ） | 不可。ローカル実行環境が事前導入済みという前提 | 部分的（Mermaid/Graphvizのみ） | 可能。クライアント側には何もローカルに要らないという意味では | 可能（SHA256固定、仕様書9章・11章） |
 | 外部通信・重い追加依存の回避 | 可能（ローカルCLI前提） | 可能 | 公開APIでは不可能。セルフホスト版はDocker依存 | 可能（仕様書2章の絶対要件） |
 
