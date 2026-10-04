@@ -8,10 +8,10 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, session, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
-const { DocumentTab } = require('./document-tab');
+const { DocumentTab, tabsAffectedBy } = require('./document-tab');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
@@ -62,8 +62,11 @@ const state = {
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
 
-// 今表示している文書（タブ）。段階1では、1つだけ。
-const tab = new DocumentTab();
+// タブ（#332）。`tab`は、いま見ているタブ。設定「複数のタブ」がオフの間は、タブは常に1つ。
+// 変換のような、await をまたぐ処理は、途中でタブが切り替わっても、始めたタブに書き込めるよう、タブを引数で受ける。
+const tabs = [];
+let tab = null;
+let nextTabId = 1;
 
 let settingsFile = null;
 
@@ -155,33 +158,13 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'chrome', 'chrome.html'));
 
-  // 内容のビュー。HTMLは、生成したもので、スクリプトを含まず、CSPでスクリプトを禁止している。
-  // JavaScriptを有効にしているのは、ドロップの受け口（プリロード）を動かすため（無効だと、プリロードも動かない）。
-  tab.contentView = new WebContentsView({
-    webPreferences: {
-      preload: path.join(__dirname, 'chrome', 'content-preload.js'),   // ドロップの受け口だけ
-      sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true,
-    },
-  });
-  tab.contentView.setBackgroundColor(background);
-  win.contentView.addChildView(tab.contentView);
-
   // 二重の防御（方針2章・#238）: 変換側（Python、既定で外部画像をプレースホルダに置き換える）に漏れがあっても、
   // http/httpsの通信そのものを、ここで止める。allowExternalImages（設定で許可）のときだけ、通す。
-  tab.contentView.webContents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] },
+  // 内容のビューは、すべて、同じ既定のセッションを使うため、1回だけ設定する。
+  session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] },
     (_details, callback) => callback({ cancel: !state.settings.allowExternalImages }));
 
-  const contents = tab.contentView.webContents;
-  // content-preload.jsは、ドラッグ＆ドロップだけでなく、検索（#325）も持つようになった。失敗しても画面は白いままで
-  // 気づけないため、標準エラーへ出す（サンドボックス化したプリロードは、electron以外のローカルファイルを
-  // requireできない、という実測を、この行で見つけた）。
-  contents.on('preload-error', (_e, path, error) => process.stderr.write(`[preload-error] ${path}: ${error.stack || error}\n`));
-  contents.setWindowOpenHandler(({ url }) => { handleNavigation(url); return { action: 'deny' }; });
-  // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
-  contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url); });
-  contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
-  contents.on('did-finish-load', () => { contents.setZoomLevel(zoomLevel); resetLine(); sendLineIndicator(); sendContentFeatures(); });
-  contents.on('context-menu', (_event, params) => { void handleContextMenu(params); });
+  tab = createTab();
 
   if (saved.maximized) win.maximize();
   win.on('resize', () => { layout(); scheduleWindowSave(); });
@@ -192,12 +175,9 @@ function createWindow() {
   // 非表示のMermaidのウィンドウが残ると、'window-all-closed'が発火せず、アプリが終了しない
   win.on('closed', () => { mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
   handleEscape(win.webContents);
-  handleEscape(contents);
   // フォーカスが、どちらのビューにあるかを覚える（F6の切り替えに使う。`isFocused()`は、子のビューとの関係で、当てにならないため。#340）
   win.webContents.on('focus', () => { focusedArea = 'toolbar'; });
-  contents.on('focus', () => { focusedArea = 'content'; });
   handleNavigationShortcuts(win.webContents);
-  handleNavigationShortcuts(contents);
   win.on('app-command', (_event, cmd) => {
     if (cmd === 'browser-backward') goBack();
     else if (cmd === 'browser-forward') goForward();
@@ -207,16 +187,60 @@ function createWindow() {
   trace('window-created');
 }
 
-/** 内容のビューを、ツールバーの下に置く。文書がまだ無いときは、大きさ0にして、案内の表示を隠さない。 */
+/**
+ * タブを1つ作る（#332）。内容のビューは、タブごとに持つ（スクロール位置・検索のハイライトが、切り替えても保たれる）。
+ * HTMLは、生成したもので、スクリプトを含まず、CSPでスクリプトを禁止している。
+ * JavaScriptを有効にしているのは、ドロップの受け口（プリロード）を動かすため（無効だと、プリロードも動かない）。
+ */
+function createTab() {
+  const created = new DocumentTab(nextTabId++);
+  const background = nativeTheme.shouldUseDarkColors ? '#0d1117' : '#ffffff';
+  created.contentView = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, 'chrome', 'content-preload.js'),   // ドロップの受け口・検索・コピーなど
+      sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true,
+    },
+  });
+  created.contentView.setBackgroundColor(background);
+  win.contentView.addChildView(created.contentView);
+  tabs.push(created);
+
+  const contents = created.contentView.webContents;
+  // content-preload.jsは、ドラッグ＆ドロップだけでなく、検索（#325）も持つようになった。失敗しても画面は白いままで
+  // 気づけないため、標準エラーへ出す（サンドボックス化したプリロードは、electron以外のローカルファイルを
+  // requireできない、という実測を、この行で見つけた）。
+  contents.on('preload-error', (_e, path, error) => process.stderr.write(`[preload-error] ${path}: ${error.stack || error}\n`));
+  contents.setWindowOpenHandler(({ url }) => { handleNavigation(url, created); return { action: 'deny' }; });
+  // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
+  contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url, created); });
+  contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
+  contents.on('did-finish-load', () => {
+    contents.setZoomLevel(zoomLevel);
+    resetLine(created);
+    sendLineIndicator(created);
+    sendContentFeatures(created);
+  });
+  contents.on('context-menu', (_event, params) => { void handleContextMenu(created, params); });
+  handleEscape(contents);
+  contents.on('focus', () => { if (created === tab) focusedArea = 'content'; });
+  handleNavigationShortcuts(contents);
+  return created;
+}
+
+/** 内容のビューを、ツールバーの下に置く。文書がまだ無いときは、大きさ0にして、案内の表示を隠さない。見ていないタブは、隠す。 */
 function layout() {
-  if (!win || !tab.contentView) return;
+  if (!win || !tab?.contentView) return;
   const [width, height] = win.getContentSize();
   // ツールバーが下のときは、内容が、画面の上端から始まる（帯・一覧も、ツールバーの側に、まとまる）
   const y = state.settings.toolbarPosition === 'bottom' ? 0 : chromeHeight;
-  // 設定画面を開いている間も、内容のビューを隠す（設定は、ウィンドウ本体の側に表示するため）
-  tab.contentView.setBounds(tab.hasDocument && !state.settingsOpen
-    ? { x: 0, y, width, height: Math.max(0, height - chromeHeight) }
-    : { x: 0, y, width: 0, height: 0 });
+  for (const other of tabs) {
+    // 設定画面を開いている間も、内容のビューを隠す（設定は、ウィンドウ本体の側に表示するため）
+    const visible = other === tab && other.hasDocument && !state.settingsOpen;
+    other.contentView.setBounds(visible
+      ? { x: 0, y, width, height: Math.max(0, height - chromeHeight) }
+      : { x: 0, y, width: 0, height: 0 });
+    other.contentView.setVisible(visible);
+  }
 }
 
 /**
@@ -260,7 +284,7 @@ function applyTheme() {
 function applyBackground() {
   const background = nativeTheme.shouldUseDarkColors ? '#0d1117' : '#ffffff';
   win?.setBackgroundColor(background);
-  tab.contentView?.setBackgroundColor(background);
+  for (const each of tabs) each.contentView?.setBackgroundColor(background);
 }
 
 function setSettingsOpen(open) {
@@ -279,8 +303,8 @@ function setSettingsOpen(open) {
 // ここ（メインプロセス）は、両者の間を、状態として仲立ちする。
 
 /** 内容のビューへ送る、検索語一式。 */
-function searchPayload() {
-  return { query: tab.search.query, regex: tab.search.regex, caseSensitive: tab.search.caseSensitive };
+function searchPayload(target = tab) {
+  return { query: target.search.query, regex: target.search.regex, caseSensitive: target.search.caseSensitive };
 }
 
 /**
@@ -332,9 +356,10 @@ function moveSearch(delta) {
 }
 
 /** 内容のビューから届いた、検索結果（件数・現在位置・正規表現エラー）。 */
-function onSearchResult({ count, current, error }) {
-  tab.search = { ...tab.search, count, current, error: error ?? null };
-  push();
+function onSearchResult(origin, { count, current, error }) {
+  if (!origin) return;
+  origin.search = { ...origin.search, count, current, error: error ?? null };
+  if (origin === tab) push();
 }
 
 // -- ウィンドウの大きさ・位置の記憶（#192） ------------------------------------------
@@ -388,23 +413,23 @@ function leaveSettings() {
 
 /** 行番号の表示（#328）の、オン・オフを、内容のビューへ伝える。オンのときだけ、プリロードが、乗せたブロックの行を送ってくる。 */
 /** 見出しのリンク（#337）・コードのコピーボタン（#336）の、オン・オフを、内容のビューへ伝える。表示・操作は、プリロードが行う。 */
-function sendContentFeatures() {
-  if (!tab.contentView || tab.contentView.webContents.isDestroyed()) return;
-  tab.contentView.webContents.send('content-features', {
+function sendContentFeatures(target) {
+  if (!target.contentView || target.contentView.webContents.isDestroyed()) return;
+  target.contentView.webContents.send('content-features', {
     headingAnchor: state.settings.showHeadingAnchor,
     codeCopy: state.settings.showCodeCopy,
   });
 }
 
-function sendLineIndicator() {
-  if (tab.contentView && !tab.contentView.webContents.isDestroyed()) tab.contentView.webContents.send('line-indicator', state.settings.showLineNumber);
+function sendLineIndicator(target) {
+  if (target.contentView && !target.contentView.webContents.isDestroyed()) target.contentView.webContents.send('line-indicator', state.settings.showLineNumber);
 }
 
 /** 行番号を消す。文書を表示し直したとき（自動更新を含む）と、表示をオフにしたとき。行が、ずれているかもしれないため。 */
-function resetLine() {
-  if (tab.line === null) return;
-  tab.line = null;
-  push();
+function resetLine(target) {
+  if (target.line === null) return;
+  target.line = null;
+  if (target === tab) push();
 }
 
 /** 設定を1つ変えて、すぐに反映し、保存する。想定外のキー・値は、無視する。 */
@@ -415,8 +440,9 @@ function changeSetting(key, value) {
   state.settings = next;
   if (key === 'theme') applyTheme();
   if (key === 'autoReload') state.autoReload = next.autoReload;
-  if (key === 'showLineNumber') { resetLine(); sendLineIndicator(); }
-  if (key === 'showHeadingAnchor' || key === 'showCodeCopy') sendContentFeatures();
+  if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
+  if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
+  if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
   layout();
   push();
@@ -431,7 +457,15 @@ function push() {
   // 「表示」メニューの、CSVの見出し行の項目は、.csvを開いているときだけ、有効にする
   const csvItem = menu?.getMenuItemById('csv-header');
   if (csvItem) { csvItem.enabled = tab.isCsv; csvItem.checked = state.settings.csvHeader; }
-  if (win && !win.isDestroyed()) win.webContents.send('state', { ...state, ...tab.snapshot() });
+  // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332）
+  for (const [id, enabled] of [['new-tab', true], ['close-tab', tabs.length > 1], ['next-tab', tabs.length > 1], ['previous-tab', tabs.length > 1]]) {
+    const item = menu?.getMenuItemById(id);
+    if (item) item.enabled = state.settings.enableTabs && enabled;
+  }
+  if (win && !win.isDestroyed()) {
+    const tabList = tabs.map((each) => ({ ...each.summary(), active: each === tab }));
+    win.webContents.send('state', { ...state, ...tab.snapshot(), tabs: tabList });
+  }
 }
 
 // -- ワーカーと変換 -------------------------------------------------------------
@@ -479,19 +513,19 @@ function targetFromArgv(argv, cwd) {
   const args = argv.slice(1).filter((arg) => !arg || arg.startsWith('-') || path.resolve(cwd, arg) !== appPath);
   return fileFromArgv(args, { cwd });
 }
-/** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。 */
-function openFile(file, { targetScrollY = null, historyNav = null, fragment = null } = {}) {
+/** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。開く先は、指定がなければ、いま見ているタブ。 */
+function openFile(file, { targetScrollY = null, historyNav = null, fragment = null } = {}, target = tab) {
   const full = path.resolve(file);
-  const target = checkOpenTarget(full);
-  if (!target.ok) {
-    tab.diagnostics = summarize([{ severity: 'error', message: target.message }]);
+  const check = checkOpenTarget(full);
+  if (!check.ok) {
+    target.diagnostics = summarize([{ severity: 'error', message: check.message }]);
     push();
     return;
   }
   // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
   if (!historyNav) rememberDirectory(path.dirname(full));
-  tab.queued = { file: full, targetScrollY, historyNav, fragment };
-  if (!tab.inFlight) void drain();
+  target.queued = { file: full, targetScrollY, historyNav, fragment };
+  if (!target.inFlight) void drain(target);
 }
 
 /** 開いたファイルのフォルダを覚える（ファイルを開くダイアログの、最初の場所）。変わったときだけ保存する。 */
@@ -506,30 +540,30 @@ function reload() {
   if (tab.file) openFile(tab.file);
 }
 
-async function drain() {
-  tab.inFlight = true;
+async function drain(target) {
+  target.inFlight = true;
   try {
-    while (tab.queued) {
-      const task = tab.queued;
-      tab.queued = null;
-      await renderOnce(task.file, task.targetScrollY, task.historyNav, task.fragment);
+    while (target.queued) {
+      const task = target.queued;
+      target.queued = null;
+      await renderOnce(target, task.file, task.targetScrollY, task.historyNav, task.fragment);
     }
   } finally {
-    tab.inFlight = false;
-    tab.releaseIdleWaiters();
+    target.inFlight = false;
+    target.releaseIdleWaiters();
   }
 }
 
-/** 変換が終わるまで待つ（変換中に、変換の材料を消さないため）。 */
+/** どのタブも、変換が終わるまで待つ（変換中に、変換の材料を消さないため）。 */
 function whenIdle() {
-  return tab.whenIdle();
+  return Promise.all(tabs.map((each) => each.whenIdle()));
 }
 
-async function renderOnce(file, targetScrollY = null, historyNav = null, fragment = null) {
-  const sameDocument = tab.shown?.md === file;
-  tab.file = file;
-  tab.busy = true;
-  tab.status = '';
+async function renderOnce(target, file, targetScrollY = null, historyNav = null, fragment = null) {
+  const sameDocument = target.shown?.md === file;
+  target.file = file;
+  target.busy = true;
+  target.status = '';
   push();
 
   let result;
@@ -542,6 +576,7 @@ async function renderOnce(file, targetScrollY = null, historyNav = null, fragmen
     // plugins.structurizrは、text-compositor本体では既定false（内部で使うstructurizr-cliが重いため、#212）。
     // Obunzuは、Mermaid/PlantUML/D2と同じく常に有効にする（#290。同梱すれば追加取得なし、無くてもPlantUML/D2と同じ
     // ライブ取得にフォールバックするだけで、CLIのconfig.yamlのような「意図しない重い取得」への配慮は要らない）。
+    // ワーカーは、全タブで1つ。変換は、1件ずつ順に処理される（#332）。
     result = await client.renderHtml({
       path: file, csv_header: state.settings.csvHeader, allow_external_images: state.settings.allowExternalImages,
       plugins: { structurizr: true }, ...location.params,
@@ -556,57 +591,59 @@ async function renderOnce(file, targetScrollY = null, historyNav = null, fragmen
     // 設定は「原稿の隣」でも、書き込めない場所の原稿は、開けないより、開けるほうがよい。切り替えたことを知らせる
     result.diagnostics = [...(result.diagnostics ?? []), { severity: 'warning', message: '原稿のフォルダに書き込めないため、変換したファイルを、アプリの領域に保存しました（設定は「原稿の隣」）', file }];
   }
-  tab.diagnostics = summarize(result.diagnostics);
+  target.diagnostics = summarize(result.diagnostics);
+  if (target.closed) return;   // 変換の途中で、タブが閉じられた
   if (result.ok && result.html) {
-    await showHtml(file, result.html, sameDocument, result.dependencies, targetScrollY, fragment);
+    await showHtml(target, file, result.html, sameDocument, result.dependencies, targetScrollY, fragment);
     // 変換に成功して表示できた段階で、履歴の位置を更新する（#342レビュー指摘）。
     // 失敗したときはインデックスを動かさないため、ロールバックや永続的な食い違いが起きない。
     if (historyNav === 'back') {
-      tab.history.back();
+      target.history.back();
     } else if (historyNav === 'forward') {
-      tab.history.forward();
+      target.history.forward();
     } else {
-      tab.history.push(file);
+      target.history.push(file);
     }
     const total = result.timings_ms.total;
     // 警告の件数は、帯に出るため、状態の表示には、入れない（同じ内容を2か所に出さない）
-    tab.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}`;
-    win?.setTitle(`${path.basename(file)} - ${APP_TITLE}`);
+    target.status = `${clock()} ${total !== undefined ? `更新 ${Math.round(total)} ms` : '更新済み'}`;
+    if (target === tab) win?.setTitle(`${path.basename(file)} - ${APP_TITLE}`);
     trace('content-shown');
   } else {
     // 失敗しても、直前に成功した表示を残す。ファイル名も、表示中の文書に戻す。
-    tab.file = tab.shown ? tab.shown.md : file;
-    tab.status = tab.shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
+    target.file = target.shown ? target.shown.md : file;
+    target.status = target.shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
   }
-  tab.busy = false;
+  target.busy = false;
   updateWatch();
   push();
 }
 
 /**
- * 監視するファイルを、表示中の原稿と、その参照ファイルにする。変換に失敗しても、原稿は監視し続ける
+ * 監視するファイルを、全タブの原稿と、その参照ファイルにする。変換に失敗しても、原稿は監視し続ける
  * （直して保存したときに、自動で更新できるように）。
  */
 function updateWatch() {
-  if (!watcher || !tab.file) return;
-  const dependencies = tab.shown && tab.shown.md === tab.file ? tab.shown.deps : [];
-  watcher.setFiles([tab.file, ...dependencies]);
+  if (!watcher) return;
+  watcher.setFiles(tabs.flatMap((each) => each.watchedFiles));
 }
 
-/** 監視しているファイルが、保存された。自動更新が有効なら、もう一度変換する。 */
+/** 監視しているファイルが、保存された。自動更新が有効なら、そのファイルを開いているタブを、もう一度変換する。 */
 async function onFilesChanged(paths) {
   trace(`changed ${paths.length}`);
-  if (!state.autoReload || !tab.file) return;
-  const target = tab.file;
-  // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
-  for (let i = 0; i < 10 && !fs.existsSync(target); i++) await new Promise((resolve) => setTimeout(resolve, 100));
-  if (tab.file === target && fs.existsSync(target)) openFile(target);
+  if (!state.autoReload) return;
+  for (const each of tabsAffectedBy(tabs, paths)) {
+    const target = each.file;
+    // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
+    for (let i = 0; i < 10 && !fs.existsSync(target); i++) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (!each.closed && each.file === target && fs.existsSync(target)) openFile(target, {}, each);
+  }
 }
 
 /** .csvの1行目を、見出し行にするか（#220）。設定として覚え、開いているCSVを、表示し直す（スクロール位置は、保たれる）。 */
 function setCsvHeader(value) {
   changeSetting('csvHeader', Boolean(value));
-  if (tab.isCsv && tab.file) openFile(tab.file);
+  for (const each of tabs) if (each.isCsv && each.file) openFile(each.file, {}, each);
 }
 
 function setAutoReload(value) {
@@ -621,14 +658,14 @@ function clock() {
 }
 
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
-async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY = null, fragment = null) {
-  const contents = tab.contentView.webContents;
+async function showHtml(target, md, html, sameDocument, dependencies = [], targetScrollY = null, fragment = null) {
+  const contents = target.contentView.webContents;
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
     contents.once('did-finish-load', done);
     contents.once('did-fail-load', done);
   });
-  if (sameDocument && tab.shown?.html === html) contents.reloadIgnoringCache();
+  if (sameDocument && target.shown?.html === html) contents.reloadIgnoringCache();
   else contents.loadFile(html).catch(() => {});
   await loaded;
   if (targetScrollY !== null && targetScrollY > 0) {
@@ -638,13 +675,13 @@ async function showHtml(md, html, sameDocument, dependencies = [], targetScrollY
   if (fragment) {
     contents.executeJavaScript(`document.getElementById(${JSON.stringify(fragment)})?.scrollIntoView()`).catch(() => {});
   }
-  tab.shown = { md, html, deps: dependencies };
-  if (!tab.hasDocument) { tab.hasDocument = true; layout(); }
+  target.shown = { md, html, deps: dependencies };
+  if (!target.hasDocument) { target.hasDocument = true; layout(); }
   // 表示し直すたび（自動更新を含む）、内容のビューは、プリロードから作り直される。検索語が残っていれば、
   // 新しいDOMへ、もう一度ハイライトを掛け直す（ハイライトは、内容のビュー側の状態のため、こちらでは持ち越せない）。
-  if (tab.search.open && tab.search.query) contents.send('search-run', searchPayload());
-  // 検索欄に入力中は、フォーカスを奪わない（自動更新中でも、続けて打てるように）
-  if (!state.settingsOpen && !tab.search.open) contents.focus();
+  if (target.search.open && target.search.query) contents.send('search-run', searchPayload(target));
+  // 検索欄に入力中は、フォーカスを奪わない（自動更新中でも、続けて打てるように）。見ていないタブも、奪わない
+  if (target === tab && !state.settingsOpen && !target.search.open) contents.focus();
 }
 
 // -- ナビゲーション・ズーム -------------------------------------------------------
@@ -669,33 +706,35 @@ function goForward() {
   navigateHistory('forward');
 }
 
-function handleNavigation(url) {
+/** リンク・ドロップ（`origin`のタブの内容のビューから）。Markdownなどは、そのタブで開く。 */
+function handleNavigation(url, origin = tab) {
   const target = classifyNavigation(url);
   if (target.type === 'external') shell.openExternal(target.url);
-  else if (target.type === 'open') openFile(target.path);
+  else if (target.type === 'open') openFile(target.path, {}, origin);
 }
 
 /** 文書内の相対リンクを、原稿のフォルダを基準に開く（#361）。 */
-function handleRelativeLink(href) {
-  const target = tab.file ? resolveRelativeLink(href, tab.file) : null;
-  if (target) openFile(target.path, { fragment: target.fragment });
+function handleRelativeLink(href, origin = tab) {
+  const target = origin.file ? resolveRelativeLink(href, origin.file) : null;
+  if (target) openFile(target.path, { fragment: target.fragment }, origin);
 }
 
 function zoomBy(delta) {
   zoomLevel = Math.min(5, Math.max(-3, zoomLevel + delta * 0.5));
-  tab.contentView?.webContents.setZoomLevel(zoomLevel);
+  for (const each of tabs) each.contentView?.webContents.setZoomLevel(zoomLevel);
   state.zoomPercent = Math.round(Math.pow(1.2, zoomLevel) * 100);
   push();
 }
 
 function zoomReset() {
   zoomLevel = 0;
-  tab.contentView?.webContents.setZoomLevel(0);
+  for (const each of tabs) each.contentView?.webContents.setZoomLevel(0);
   state.zoomPercent = 100;
   push();
 }
 
-async function openWithDialog() {
+/** ファイルを開くダイアログ。選んだファイルを返す（キャンセルは、null）。 */
+async function chooseFileToOpen() {
   leaveSettings();
   const result = await dialog.showOpenDialog(win, {
     title: 'ファイルを開く',
@@ -703,7 +742,12 @@ async function openWithDialog() {
     properties: ['openFile'],
     filters: openDialogFilters(),
   });
-  if (!result.canceled && result.filePaths[0]) openFile(result.filePaths[0]);
+  return !result.canceled && result.filePaths[0] ? result.filePaths[0] : null;
+}
+
+async function openWithDialog() {
+  const file = await chooseFileToOpen();
+  if (file) openFile(file);
 }
 
 /** 設定画面の「フォルダを選ぶ」。選んだフォルダを、「特定のフォルダ」として保存する。キャンセルしたときは、変えない。 */
@@ -719,13 +763,72 @@ async function chooseOpenDirectory() {
   push();
 }
 
+// -- タブ（#332） -----------------------------------------------------------------
+
+/** 見ているタブを切り替える。見ていたタブの内容のビューは、隠す（スクロール位置・検索のハイライトは、そのまま残る）。 */
+function activateTab(target) {
+  if (!target || target === tab || target.closed) return;
+  tab = target;
+  focusedArea = 'content';
+  layout();
+  win?.setTitle(tab.file ? `${path.basename(tab.file)} - ${APP_TITLE}` : APP_TITLE);
+  push();
+  if (!state.settingsOpen && tab.hasDocument) tab.contentView.webContents.focus();
+}
+
+/** 「新しいタブで開く」。ファイルを選んでから、タブを作る（キャンセルしたときは、タブを増やさない）。 */
+async function openInNewTab(file = null) {
+  if (!state.settings.enableTabs) return;
+  const chosen = file ?? await chooseFileToOpen();
+  if (!chosen) return;
+  const created = createTab();
+  activateTab(created);
+  openFile(chosen, {}, created);
+}
+
+/** タブを閉じる。最後の1つは、閉じない。見ていたタブを閉じたときは、隣のタブを見る。 */
+function closeTab(target = tab) {
+  if (tabs.length <= 1 || target.closed) return;
+  const index = tabs.indexOf(target);
+  target.closed = true;
+  target.queued = null;
+  tabs.splice(index, 1);
+  win.contentView.removeChildView(target.contentView);
+  if (!target.contentView.webContents.isDestroyed()) target.contentView.webContents.close();
+  if (target === tab) {
+    tab = tabs[Math.min(index, tabs.length - 1)];
+    layout();
+    win?.setTitle(tab.file ? `${path.basename(tab.file)} - ${APP_TITLE}` : APP_TITLE);
+    if (!state.settingsOpen && tab.hasDocument) tab.contentView.webContents.focus();
+  }
+  updateWatch();
+  push();
+}
+
+/** いま見ているタブ以外を、すべて閉じる（設定「複数のタブ」を「使わない」にしたとき）。 */
+function closeOtherTabs() {
+  for (const each of [...tabs]) if (each !== tab) closeTab(each);
+}
+
+/** 次・前のタブへ（端では、反対側へ回る）。 */
+function cycleTab(delta) {
+  if (tabs.length < 2) return;
+  const index = tabs.indexOf(tab);
+  activateTab(tabs[(index + delta + tabs.length) % tabs.length]);
+}
+
+/** 内容のビューを送り元とするメッセージの、持ち主のタブ。 */
+function tabFromSender(sender) {
+  return tabs.find((each) => each.contentView?.webContents === sender) ?? null;
+}
+
 // -- 画像の保存（#327） ---------------------------------------------------------
 
 /** 右クリックの位置の、いちばん内側のブロックの行（原稿での行）。ブロックの外・失敗は、null。 */
-async function lineAtPoint(params) {
+async function lineAtPoint(origin, params) {
   try {
-    const line = await tab.contentView.webContents.executeJavaScript(
-      lineAtPointScript(params.x, params.y, tab.contentView.webContents.getZoomFactor()));
+    const line = await origin.contentView.webContents.executeJavaScript(
+      lineAtPointScript(params.x, params.y, origin.contentView.webContents.getZoomFactor()));
     return Number.isInteger(line) ? line : null;
   } catch {
     return null;
@@ -733,10 +836,10 @@ async function lineAtPoint(params) {
 }
 
 /** 右クリックした位置のリンクの、href属性の値（#362）。リンクの外では、null。 */
-async function linkAtPoint(params) {
+async function linkAtPoint(origin, params) {
   try {
-    const href = await tab.contentView.webContents.executeJavaScript(
-      linkAtPointScript(params.x, params.y, tab.contentView.webContents.getZoomFactor()));
+    const href = await origin.contentView.webContents.executeJavaScript(
+      linkAtPointScript(params.x, params.y, origin.contentView.webContents.getZoomFactor()));
     return typeof href === 'string' && href ? href : null;
   } catch {
     return null;
@@ -744,15 +847,15 @@ async function linkAtPoint(params) {
 }
 
 /** 「リンクを開く」。文書内のアンカーは、その見出しへスクロールし、相対リンク・外部リンクは、クリックと同じ扱いにする。 */
-function openLink(href) {
+function openLink(origin, href) {
   if (href.startsWith('#')) {
     let id = href.slice(1);
     try { id = decodeURIComponent(id); } catch { /* そのまま使う */ }
-    tab.contentView.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.scrollIntoView()`).catch(() => {});
-  } else if (resolveRelativeLink(href, tab.file ?? '')) {
-    handleRelativeLink(href);
+    origin.contentView.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.scrollIntoView()`).catch(() => {});
+  } else if (resolveRelativeLink(href, origin.file ?? '')) {
+    handleRelativeLink(href, origin);
   } else {
-    handleNavigation(href);
+    handleNavigation(href, origin);
   }
 }
 
@@ -763,25 +866,25 @@ function openLink(href) {
  *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
  *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
  */
-async function handleContextMenu(params) {
+async function handleContextMenu(origin, params) {
   const template = [];
   if (params.mediaType === 'image' && params.srcURL) {
     template.push(...buildImageContextMenuTemplate(params, {
-      onSave: (p, format) => void saveImageFromContextMenu(p, format),
+      onSave: (p, format) => void saveImageFromContextMenu(origin, p, format),
     }));
   }
-  const href = await linkAtPoint(params);
+  const href = await linkAtPoint(origin, params);
   if (href !== null) {
     if (template.length) template.push({ type: 'separator' });
     template.push(...buildLinkContextMenuTemplate({
-      href, markdownFile: tab.file, onCopy: (text) => clipboard.writeText(text), onOpen: openLink,
+      href, markdownFile: origin.file, onCopy: (text) => clipboard.writeText(text), onOpen: (link) => openLink(origin, link),
     }));
   }
-  if (state.settings.showLineNumber && tab.file) {
-    const line = await lineAtPoint(params);
+  if (state.settings.showLineNumber && origin.file) {
+    const line = await lineAtPoint(origin, params);
     if (line !== null) {
       if (template.length) template.push({ type: 'separator' });
-      template.push(...buildLineContextMenuTemplate({ file: tab.file, line, onCopy: (text) => clipboard.writeText(text) }));
+      template.push(...buildLineContextMenuTemplate({ file: origin.file, line, onCopy: (text) => clipboard.writeText(text) }));
     }
   }
   if (!template.length) return;
@@ -790,11 +893,11 @@ async function handleContextMenu(params) {
   menu.popup({ window: win });
 }
 
-async function saveImageFromContextMenu(params, requestedFormat) {
+async function saveImageFromContextMenu(origin, params, requestedFormat) {
   try {
     const result = await executeSaveImage(params, requestedFormat, {
       win,
-      documentFile: tab.file,
+      documentFile: origin.file,
       lastDirectory: state.settings.lastDirectory,
       downloadsDirectory: app.getPath('downloads'),
       showSaveDialog: (w, opts) => dialog.showSaveDialog(w, opts),
@@ -805,7 +908,7 @@ async function saveImageFromContextMenu(params, requestedFormat) {
       rememberDirectory(result.directory);
     }
   } catch (error) {
-    tab.diagnostics = summarize([{
+    origin.diagnostics = summarize([{
       severity: 'error',
       message: `画像の保存に失敗しました: ${error.message}`,
     }]);
@@ -839,7 +942,8 @@ async function clearWorkCache() {
     state.cache = { ...state.cache, clearing: false };
   }
   await refreshCacheUsage();
-  if (tab.file) openFile(tab.file);   // 設定画面は、開いたままにする（reloadと違い、leaveSettingsは呼ばない）
+  // 設定画面は、開いたままにする（reloadと違い、leaveSettingsは呼ばない）。どのタブの文書も、HTMLを消したため、変換し直す
+  for (const each of tabs) if (each.file) openFile(each.file, {}, each);
 }
 // -- メニュー・IPC --------------------------------------------------------------
 
@@ -849,6 +953,11 @@ function buildMenu() {
       label: 'ファイル',
       submenu: [
         { label: '開く…', accelerator: 'CommandOrControl+O', click: () => openWithDialog() },
+        // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332。pushが、有効・無効を切り替える）
+        { id: 'new-tab', label: '新しいタブで開く…', accelerator: 'CommandOrControl+Shift+O', enabled: false, click: () => void openInNewTab() },
+        { id: 'close-tab', label: 'タブを閉じる', accelerator: 'CommandOrControl+W', enabled: false, click: () => closeTab() },
+        { id: 'next-tab', label: '次のタブ', accelerator: 'Ctrl+Tab', enabled: false, click: () => cycleTab(1) },
+        { id: 'previous-tab', label: '前のタブ', accelerator: 'Ctrl+Shift+Tab', enabled: false, click: () => cycleTab(-1) },
         { label: '再読み込み', accelerator: 'F5', click: reload },
         { label: '再読み込み', accelerator: 'CommandOrControl+R', click: reload, visible: false },
         { id: 'auto-reload', label: '保存したら自動で更新', type: 'checkbox', checked: state.autoReload, click: (item) => setAutoReload(item.checked) },
@@ -884,25 +993,27 @@ function buildMenu() {
 ipcMain.on('chrome-ready', push);
 ipcMain.on('chrome-height', (_event, height) => { chromeHeight = Math.max(0, Math.round(height)); layout(); });
 ipcMain.on('open-dialog', () => openWithDialog());
-ipcMain.on('open-link', (_event, href) => handleRelativeLink(href));
+ipcMain.on('open-link', (event, href) => handleRelativeLink(href, tabFromSender(event.sender) ?? tab));
 // 内容のビューの、見出しの「#」・コードの「コピー」（#337・#336）。クリップボードへの書き込みは、こちらで行う
 ipcMain.on('copy-heading-link', (event, id) => {
-  if (event.sender !== tab.contentView?.webContents || !state.settings.showHeadingAnchor || !tab.file) return;
-  const text = headingLinkRef(tab.file, id);
+  const origin = tabFromSender(event.sender);
+  if (!origin || !state.settings.showHeadingAnchor || !origin.file) return;
+  const text = headingLinkRef(origin.file, id);
   if (text) clipboard.writeText(text);
 });
 const COPY_CODE_MAX = 5 * 1024 * 1024;   // 巨大なコードでも、メモリを使い切らないための上限（超えたら、コピーしない）
 ipcMain.on('copy-code', (event, text) => {
-  if (event.sender !== tab.contentView?.webContents || !state.settings.showCodeCopy) return;
+  if (!tabFromSender(event.sender) || !state.settings.showCodeCopy) return;
   if (typeof text === 'string' && text.length <= COPY_CODE_MAX) clipboard.writeText(text);
 });
 // ホバー中のリンクの飛び先を、内容のビューの下方に出す（#362）。表示する文字列は、こちらで作り、送り返す
 ipcMain.on('link-hover', (event, href) => {
-  event.sender.send('link-hover-text', describeLink(href, tab.file));
+  event.sender.send('link-hover-text', describeLink(href, tabFromSender(event.sender)?.file ?? null));
 });
-ipcMain.on('content-scroll', (_event, scrollY) => {
-  if (typeof scrollY === 'number' && Number.isFinite(scrollY)) {
-    tab.history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
+ipcMain.on('content-scroll', (event, scrollY) => {
+  const origin = tabFromSender(event.sender);
+  if (origin && typeof scrollY === 'number' && Number.isFinite(scrollY)) {
+    origin.history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
   }
 });
 ipcMain.on('go-back', () => goBack());
@@ -918,14 +1029,25 @@ ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
 // 行番号の表示（#328）。内容のビューが、マウスを乗せたブロックの行を、変わったときだけ送ってくる。値は、正の整数だけ受け付ける
 ipcMain.on('content-line', (event, line) => {
-  if (event.sender !== tab.contentView?.webContents || !state.settings.showLineNumber) return;
-  if (!Number.isInteger(line) || line < 1 || line > 999999999 || line === tab.line) return;
-  tab.line = line;
-  push();
+  const origin = tabFromSender(event.sender);
+  if (!origin || !state.settings.showLineNumber) return;
+  if (!Number.isInteger(line) || line < 1 || line > 999999999 || line === origin.line) return;
+  origin.line = line;
+  if (origin === tab) push();
 });
-ipcMain.on('open-path', (_event, filePath) => { if (typeof filePath === 'string') { leaveSettings(); openFile(filePath); } });
+// 画面へのドロップ。Ctrlを押しながらのドロップは、設定「複数のタブ」がオンのとき、新しいタブで開く（#332）
+ipcMain.on('open-path', (_event, filePath, inNewTab) => {
+  if (typeof filePath !== 'string') return;
+  leaveSettings();
+  if (inNewTab === true && state.settings.enableTabs) void openInNewTab(filePath);
+  else openFile(filePath);
+});
 ipcMain.on('search-toggle', () => setSearchOpen(!tab.search.open));
 ipcMain.on('search-close', () => setSearchOpen(false));
 ipcMain.on('search-set', (_event, payload) => setSearchQuery(payload ?? {}));
 ipcMain.on('search-move', (_event, delta) => moveSearch(delta));
-ipcMain.on('search-result', (_event, result) => onSearchResult(result ?? {}));
+ipcMain.on('search-result', (event, result) => onSearchResult(tabFromSender(event.sender), result ?? {}));
+// タブ列（#332）。設定がオフのときは、タブ列そのものが出ないが、念のため、ここでも、はじく
+ipcMain.on('tab-activate', (_event, id) => { if (state.settings.enableTabs) activateTab(tabs.find((each) => each.id === id)); });
+ipcMain.on('tab-close', (_event, id) => { if (state.settings.enableTabs) closeTab(tabs.find((each) => each.id === id)); });
+ipcMain.on('tab-new', () => void openInNewTab());

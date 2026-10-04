@@ -86,8 +86,9 @@ function sendKeys(keys) {
   execFileSync('powershell', ['-NoProfile', '-Command', script]);
 }
 
-async function session(file, body) {
+async function session(file, body, { settings = null } = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-a11y-'));
+  if (settings) fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
   const port = 9500 + Math.floor(Math.random() * 100);
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, file],
     { env: { ...process.env }, stdio: 'ignore' });
@@ -221,6 +222,42 @@ async function main() {
     check('「詳細」を押すと、aria-expandedが切り替わる', toggled === 'true' || toggled === 'false');
     checkAxe('エラーの一覧を閉じた状態・開いた状態（ライト）', await runAxe(chrome));
   });
+
+  // タブ列（#332）。設定「複数のタブ」をオンにして、2つのタブを開いた状態を調べる（既定のオフでは、タブ列が出ないため）
+  await session(good, async ({ chrome }) => {
+    await sleep(2500);
+    await chrome.evaluate(`window.viewer.openPath(${JSON.stringify(bad)}, true)`);
+    let visible = false;
+    for (let i = 0; i < 40 && !visible; i += 1) {
+      visible = await chrome.evaluate("!document.getElementById('tabs-bar').hidden && document.querySelectorAll('#tabs .tab').length === 2");
+      if (!visible) await sleep(500);
+    }
+    check('タブが2つになり、タブ列が出る（以降の確認の前提）', visible === true);
+    for (const scheme of ['light', 'dark']) {
+      await setScheme(chrome, scheme);
+      checkAxe(`タブ列を出した状態（${scheme === 'light' ? 'ライト' : 'ダーク'}）`, await runAxe(chrome));
+    }
+    await setScheme(chrome, 'light');
+    const tabs = JSON.parse(await chrome.evaluate(`JSON.stringify({
+      list: { role: document.getElementById('tabs').getAttribute('role'), name: document.getElementById('tabs').getAttribute('aria-label') },
+      tabs: [...document.querySelectorAll('#tabs .tab')].map((t) => ({ role: t.getAttribute('role'), selected: t.getAttribute('aria-selected'), name: t.textContent.trim() })),
+      closeName: document.getElementById('tab-close').getAttribute('aria-label') || '',
+      tablistChildren: [...document.getElementById('tabs').querySelectorAll('button')].every((b) => b.getAttribute('role') === 'tab'),
+      newName: document.getElementById('tab-new').getAttribute('aria-label'),
+    })`));
+    check('タブ列が、role=tablistで、名前がある', tabs.list.role === 'tablist' && !!tabs.list.name, JSON.stringify(tabs.list));
+    check('各タブが、role=tabで、名前を持つ', tabs.tabs.length === 2 && tabs.tabs.every((t) => t.role === 'tab' && t.name), JSON.stringify(tabs.tabs));
+    check('選ばれているタブが、ちょうど1つで、aria-selectedで伝わる', tabs.tabs.filter((t) => t.selected === 'true').length === 1 && tabs.tabs.filter((t) => t.selected === 'false').length === 1, JSON.stringify(tabs.tabs));
+    check('閉じるボタンに、どのタブかが分かる名前がある。tablistの中には、tabだけがある', /「.+」を閉じる/.test(tabs.closeName) && tabs.tablistChildren === true, JSON.stringify({ closeName: tabs.closeName, tablistChildren: tabs.tablistChildren }));
+    check('「新しいタブで開く」のボタンに、名前がある', !!tabs.newName, tabs.newName);
+    // キーボード: タブのボタンは、フォーカスでき、Enterの代わりのクリックで、切り替わる
+    await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].focus()");
+    check('タブのボタンに、フォーカスできる', (await chrome.evaluate("document.activeElement?.classList.contains('tab')")) === true);
+    await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].click()");
+    await sleep(600);
+    check('タブを押すと、選ばれるタブが切り替わる', (await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].getAttribute('aria-selected')")) === 'true');
+    checkAxe('タブを切り替えたあと（ライト）', await runAxe(chrome));
+  }, { settings: { enableTabs: true } });
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);

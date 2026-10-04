@@ -53,6 +53,17 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg>
       </button>
     </div>
+    <!-- タブ列（#332）。設定「複数のタブ」がオンで、タブが2つ以上あるときだけ出る。タブの中身は、chrome.jsが作る -->
+    <div id="tabs-bar" hidden>
+      <div id="tabs" role="tablist" aria-label="開いている文書"></div>
+      <!-- tablistの中には、tabしか置けない（aria-required-children）。閉じるボタンは、見ているタブ用の1つを、タブ列の外に置く。名前は、chrome.jsが付ける -->
+      <button id="tab-close" class="icon" title="見ているタブを閉じる（Ctrl+W）" aria-label="見ているタブを閉じる">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <button id="tab-new" class="icon" title="新しいタブで開く（Ctrl+Shift+O）" aria-label="新しいタブで開く">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>
+      </button>
+    </div>
     <!-- 文書内検索（#325）。ハイライトそのものは、内容のビュー（別プロセス）が持つため、ここは入力と結果の表示だけ -->
     <div id="search" role="search" aria-label="文書内検索" hidden>
       <input id="search-input" type="text" placeholder="検索" autocomplete="off" spellcheck="false" aria-label="検索する文字列">

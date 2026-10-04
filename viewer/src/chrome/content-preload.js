@@ -12,7 +12,7 @@ window.addEventListener('dragover', (event) => event.preventDefault(), true);
 window.addEventListener('drop', (event) => {
   event.preventDefault();
   const file = event.dataTransfer?.files?.[0];
-  if (file) ipcRenderer.send('open-path', webUtils.getPathForFile(file));
+  if (file) ipcRenderer.send('open-path', webUtils.getPathForFile(file), event.ctrlKey);
 }, true);
 
 // 相対パスのリンク（`other.md`）は、ブラウザに解決させない。表示中のHTMLは、変換結果の置き場所にあり、原稿の隣の
