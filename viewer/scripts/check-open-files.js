@@ -55,7 +55,7 @@ async function open(arg, wait = 4500, act = null) {
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "detail: document.querySelector('#details .item')?.textContent ?? '' })"));
     const content = await connect(isContent);
-    const page = content ? JSON.parse(await content("JSON.stringify({ text: document.querySelector('pre.plain-text')?.textContent ?? null, "
+    const page = content ? JSON.parse(await content("JSON.stringify({ text: (() => { const pre = document.querySelector('pre.plain-text')?.cloneNode(true); pre?.querySelectorAll('.tc-ui').forEach((e) => e.remove()); return pre?.textContent ?? null; })(), "
       + "notes: [...document.querySelectorAll('.text-note')].map((n) => n.textContent), headings: document.querySelectorAll('h1,h2,ul').length, "
       + "images: [...document.querySelectorAll('img')].map((i) => i.complete && i.naturalWidth > 0), "
       + "tableHead: [...document.querySelectorAll('table.csv th')].map((c) => c.textContent), tableRows: document.querySelectorAll('table.csv tbody tr').length, "
@@ -125,7 +125,8 @@ async function main() {
     widths.length === 3 && widths[0] < 2000 && widths[1] === 2000 && widths[2] === widths[0], JSON.stringify(widths));
   console.log(`INFO ズーム2段階の画面上の幅（収める表示 → 原寸）: ${JSON.stringify(zoomed)}`);
 
-  for (const name of ['settings.yaml', 'data.json', 'README', 'app.log', 'page.html', 'image.tiff', 'doc.pdf']) {
+  // .yaml・.json・.htmlは、設定ファイル・ソースコード（#218）として開けるため、ここには含めない
+  for (const name of ['archive.zip', 'README', 'app.log', 'sheet.xlsx', 'image.tiff', 'doc.pdf']) {
     r = await open(write(name, name.endsWith('.tiff') || name.endsWith('.pdf') ? Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]) : 'content\n'), 3500);
     check(`${name}: 対象外のファイルは、案内つきのエラーになる`, r.state.banner.includes('変換エラー') && guide(r.state), r.state.detail.slice(0, 80));
   }
