@@ -27,8 +27,10 @@ $('open-folder').addEventListener('click', () => api.openFolder());
 const fileTree = createFileTree({
   container: $('tree'),
   listDirectory: (directory) => api.listDirectory(directory),
-  openFile: (file) => api.openPath(file),
+  openFile: (file) => api.openFromSidebar(file),   // 設定ファイルでも、モードを変えず、ただのファイルとして開く（#373）
+  autoExpand: () => lastTreeKind === 'project',     // 章の一覧は、見出しを開いた状態で出す
 });
+let lastTreeKind = null;
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
 $('search-button').addEventListener('click', () => api.toggleSearch());
@@ -131,7 +133,9 @@ function renderSidebar(state) {
   root.setProperty('--sidebar-inset', open ? `${state.sidebarWidth}px` : '0px');
   // ファイルツリー。フォルダを開くまでは、案内だけ（単一のファイルを開いただけのときは、ツリーを出さない）
   const treeRoot = state.tree.root;
-  void fileTree.setRoot(treeRoot);
+  lastTreeKind = state.tree.kind;
+  $('tree').setAttribute('aria-label', state.tree.kind === 'project' ? '章の一覧' : 'ファイルツリー');
+  void fileTree.setRoot(treeRoot, state.tree.version ?? 0);
   fileTree.setCurrent(state.file);
   $('tree-hint').hidden = treeRoot !== null;
   const split = treeRoot ? Math.max(treeRoot.lastIndexOf('\\'), treeRoot.lastIndexOf('/')) : -1;

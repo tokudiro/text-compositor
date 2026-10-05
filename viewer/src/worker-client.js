@@ -82,6 +82,17 @@ class WorkerClient {
     };
   }
 
+  /**
+   * 設定ファイルの`chapters`を、ファイルの一覧にする（#373）。章のファイルの中身は読まない。
+   * 設定を読めないときは、`WorkerProtocolError`（`code`は`bad_config`。メッセージは、利用者へ見せられる）。
+   * @returns {Promise<{items: object[], warnings: string[]}>}
+   */
+  async listChapters(configPath) {
+    const response = await this._request('list_chapters', { path: configPath });
+    if (response.error) throw new WorkerProtocolError(response.error.code ?? 'error', response.error.message ?? '');
+    return { items: response.result?.items ?? [], warnings: response.result?.warnings ?? [] };
+  }
+
   /** 生存確認。 */
   async ping() {
     const response = await this._request('ping', {});
