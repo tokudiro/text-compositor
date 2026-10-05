@@ -7,7 +7,9 @@
 //   - 開くと、サイドバーが出て、内容のビューが、その幅の分だけ、右へ寄る（狭くなる）
 //   - 閉じると、元の幅に戻る
 //   - 設定画面を開いている間は、サイドバーが隠れ、閉じると戻る
-//   - 開閉は、設定として保存され、再起動しても、保たれる
+//   - 開閉は、覚えない（#373）。再起動すると、閉じている（単一ファイルモード）
+//   - モード（#373）: ルートを決めて起動すると、開く。ルートの中のファイルを開いても、モードを保つ。外のファイルを開くと、
+//     単一ファイルモードへ戻り、閉じる
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -73,8 +75,8 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
 
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
-  const start = () => {
-    const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const start = (env = {}) => {
+    const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: { ...process.env, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
     proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
     return proc;
   };
@@ -107,7 +109,8 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     await waitFor(contentWidth, (w) => w === full - 240);
     check('開くと、サイドバーが出て、ボタンが押された状態になる', (await sidebarVisible()) === true && (await pressed()) === 'true');
     check('内容のビューが、サイドバーの幅（240）だけ狭くなる', (await contentWidth()) === full - 240, `内容 ${await contentWidth()} / 全体 ${full}`);
-    check('開閉が、設定として保存される', (await waitFor(savedOpen, (v) => v === true)) === true);
+    await sleep(500);
+    check('開閉は、設定として保存されない（#373）', savedOpen() === undefined, JSON.stringify(savedOpen()));
 
     await chrome.eval('window.viewer.toggleSettings()');
     await waitFor(sidebarVisible, (v) => v === false);
@@ -117,23 +120,63 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     await waitFor(contentWidth, (w) => w === full - 240);
     check('設定画面を閉じると、サイドバーと内容の幅が、戻る', (await sidebarVisible()) === true && (await contentWidth()) === full - 240);
 
-    // -- 再起動しても、開いたまま -------------------------------------------------------
+    await chrome.eval('window.viewer.toggleSidebar()');
+    await waitFor(sidebarVisible, (v) => v === false);
+    await waitFor(contentWidth, (w) => w === full);
+    check('閉じると、元の幅に戻る', (await sidebarVisible()) === false && (await contentWidth()) === full);
+
+    // -- 開いたまま終了しても、再起動すると、閉じている（覚えない。単一ファイルモード） ----------
+    await chrome.eval('window.viewer.toggleSidebar()');
+    await waitFor(sidebarVisible, (v) => v === true);
     chrome.close();
     proc.kill();
     await sleep(800);
     proc = start();
     chrome = await connect(await findTarget(/chrome\.html/));
     await waitFor(fileName, (name) => name === 'a.md');
+    await sleep(500);
+    check('再起動すると、サイドバーは、閉じている（開閉を覚えない）', (await sidebarVisible()) === false);
+    await chrome.eval('window.viewer.toggleSidebar()');
     await waitFor(sidebarVisible, (v) => v === true);
-    await waitFor(contentWidth, (w) => typeof w === 'number' && w > 0);
-    const fullAgain = await chromeWidth();
-    check('再起動しても、サイドバーは、開いたまま', (await sidebarVisible()) === true && (await contentWidth()) === fullAgain - 240, `内容 ${await contentWidth()} / 全体 ${fullAgain}`);
+    check('単一ファイルモードでも、Ctrl+B（切り替え）で、案内つきの空のサイドバーを開ける',
+      (await sidebarVisible()) === true && (await chrome.eval("!document.getElementById('tree-hint').hidden")) === true);
+
+    // -- モード（#373）。ルートを決めて起動すると、サイドバーは、開いている ------------------------
+    chrome.close();
+    proc.kill();
+    await sleep(800);
+    const other = fs.mkdtempSync(path.join(os.tmpdir(), 'viewer-sidebar-outside-'));   // ルート（dir）の外（子フォルダではない）
+    const outside = path.join(other, 'c.md');
+    fs.writeFileSync(outside, '# 文書C\n');
+    const inside = path.join(dir, 'b.md');
+    fs.writeFileSync(inside, '# 文書B\n');
+    proc = start({ VIEWER_TREE_ROOT: dir });
+    chrome = await connect(await findTarget(/chrome\.html/));
+    await waitFor(fileName, (name) => name === 'a.md');
+    await waitFor(sidebarVisible, (v) => v === true);
+    const rootName = () => chrome.eval("document.getElementById('tree-root-name').textContent");
+    check('ルートを決めて起動すると、サイドバーが開き、フォルダ名が出る（フォルダモード）',
+      (await sidebarVisible()) === true && (await rootName()) === path.basename(dir), await rootName());
 
     await chrome.eval('window.viewer.toggleSidebar()');
     await waitFor(sidebarVisible, (v) => v === false);
-    await waitFor(contentWidth, (w) => w === fullAgain);
-    check('閉じると、元の幅に戻り、閉じたことも保存される',
-      (await sidebarVisible()) === false && (await contentWidth()) === fullAgain && (await waitFor(savedOpen, (v) => v === false)) === false);
+    await chrome.eval(`window.viewer.openPath(${JSON.stringify(inside)})`);
+    await waitFor(fileName, (name) => name === 'b.md');
+    await sleep(300);
+    check('ルートの中のファイルを開いても、モードは保たれ、手動で閉じたサイドバーは、閉じたまま',
+      (await rootName()) === path.basename(dir) && (await sidebarVisible()) === false);
+
+    await chrome.eval('window.viewer.toggleSidebar()');
+    await waitFor(sidebarVisible, (v) => v === true);
+    await chrome.eval(`window.viewer.openPath(${JSON.stringify(outside)})`);
+    await waitFor(fileName, (name) => name === 'c.md');
+    await waitFor(sidebarVisible, (v) => v === false);
+    check('ルートの外のファイルを開くと、単一ファイルモードへ戻り、サイドバーが閉じる',
+      (await sidebarVisible()) === false && (await rootName()) === '');
+    await chrome.eval('window.viewer.toggleSidebar()');
+    await waitFor(sidebarVisible, (v) => v === true);
+    check('単一ファイルモードに戻ったあとは、ルートは捨てられ、案内が出る',
+      (await chrome.eval("!document.getElementById('tree-hint').hidden")) === true && (await rootName()) === '');
   } catch (error) {
     console.log(`NG   確認を最後まで実行できた  ${error.message}`);
     results.push(false);

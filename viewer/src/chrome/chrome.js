@@ -116,13 +116,13 @@ function renderTabs(state) {
 }
 
 /**
- * サイドバー（#339）。開閉は、設定「sidebarOpen」。設定画面は全面を覆うため、開いている間は隠す（開閉の状態は、変えない）。
+ * サイドバー（#339）。開閉は、state.sidebarOpen（覚えない。#373）。設定画面は全面を覆うため、開いている間は隠す（開閉の状態は、変えない）。
  * 文書の無い案内（#empty）も、サイドバーの右に寄せる（--sidebar-inset）。
  */
 function renderSidebar(state) {
   // 設定「ファイルツリー」が「出さない」のときは、ボタンも出さず、開いていても、閉じたものとして扱う
   const enabled = Boolean(state.settings.showFileTree);
-  const open = enabled && Boolean(state.settings.sidebarOpen);
+  const open = enabled && Boolean(state.sidebarOpen);
   $('sidebar-button').hidden = !enabled;
   $('sidebar').hidden = !open || state.settingsOpen;
   $('sidebar-button').setAttribute('aria-pressed', String(open));
