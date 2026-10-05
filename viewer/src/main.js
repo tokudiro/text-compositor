@@ -18,6 +18,7 @@ const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSetti
 const { isInsideDirectory, listDirectory } = require('./directory-list');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
+const { buildSelectionContextMenuTemplate } = require('./selection-menu');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
@@ -914,22 +915,29 @@ function openLink(origin, href) {
 }
 
 /**
- * 内容のビューの右クリックのメニュー。項目は、次の3種類で、両方あれば、区切り線で分ける。
+ * 内容のビューの右クリックのメニュー。項目は、次の4種類で、あるものを、区切り線で分けて並べる。
+ *   - コピー（選択があるとき）・すべて選択（常に。#409）
  *   - 画像の保存（#327）
  *   - リンクを開く・リンクのアドレスをコピー（#362）
  *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
  *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
  */
 async function handleContextMenu(origin, params) {
-  const template = [];
+  // 先頭は、コピー（選択があるとき）・すべて選択（#409）。文書の上では、メニューが、常に出る
+  const contents = origin.contentView.webContents;
+  const template = buildSelectionContextMenuTemplate(params, {
+    onCopy: () => { contents.focus(); contents.copy(); },
+    onSelectAll: () => { contents.focus(); contents.selectAll(); },
+  });
   if (params.mediaType === 'image' && params.srcURL) {
+    template.push({ type: 'separator' });
     template.push(...buildImageContextMenuTemplate(params, {
       onSave: (p, format) => void saveImageFromContextMenu(origin, p, format),
     }));
   }
   const href = await linkAtPoint(origin, params);
   if (href !== null) {
-    if (template.length) template.push({ type: 'separator' });
+    template.push({ type: 'separator' });
     template.push(...buildLinkContextMenuTemplate({
       href, markdownFile: origin.file, onCopy: (text) => clipboard.writeText(text), onOpen: (link) => openLink(origin, link),
     }));
@@ -937,12 +945,10 @@ async function handleContextMenu(origin, params) {
   if (state.settings.showLineNumber && origin.file) {
     const line = await lineAtPoint(origin, params);
     if (line !== null) {
-      if (template.length) template.push({ type: 'separator' });
+      template.push({ type: 'separator' });
       template.push(...buildLineContextMenuTemplate({ file: origin.file, line, onCopy: (text) => clipboard.writeText(text) }));
     }
   }
-  if (!template.length) return;
-
   const menu = Menu.buildFromTemplate(template);
   menu.popup({ window: win });
 }
