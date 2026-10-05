@@ -15,6 +15,7 @@ const { DocumentTab, tabsAffectedBy } = require('./document-tab');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
+const { isInsideDirectory, listDirectory } = require('./directory-list');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
@@ -46,6 +47,12 @@ const THEME_FROM_ENV = process.env.VIEWER_THEME === 'light' || process.env.VIEWE
   ? process.env.VIEWER_THEME
   : null;
 
+// 環境変数 VIEWER_TREE_ROOT=<絶対パスのフォルダ> は、起動時に、ファイルツリー（#339）のルートを決める（確認用。
+// 「フォルダを開く」のダイアログは、自動では操作できないため）。
+const TREE_ROOT_FROM_ENV = process.env.VIEWER_TREE_ROOT && path.isAbsolute(process.env.VIEWER_TREE_ROOT)
+  ? process.env.VIEWER_TREE_ROOT
+  : null;
+
 // 環境変数 VIEWER_TRACE=1 で、起動の各段階の時刻（プロセスの開始から）を、標準エラーへ出す。
 const trace = process.env.VIEWER_TRACE
   ? (label) => process.stderr.write(`[viewer] ${label} +${Math.round(process.uptime() * 1000)}ms\n`)
@@ -61,6 +68,7 @@ const state = {
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
   settings: { ...DEFAULTS },
   sidebarWidth: SIDEBAR_WIDTH,   // 画面（chrome/）が、サイドバーの幅を、CSSに使う。開閉は、settings.sidebarOpen
+  tree: { root: TREE_ROOT_FROM_ENV },        // ファイルツリー（#339）の、ルートのフォルダ。「フォルダを開く」で決める。覚えない（起動のたびに、空から）
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
@@ -765,6 +773,24 @@ async function openWithDialog() {
   if (file) openFile(file);
 }
 
+/** 「フォルダを開く」（#339）。選んだフォルダを、サイドバーのファイルツリーのルートにして、サイドバーを開く。キャンセルしたときは、変えない。 */
+async function openFolder() {
+  leaveSettings();
+  const result = await dialog.showOpenDialog(win, {
+    title: 'フォルダを開く',
+    defaultPath: state.tree.root ?? openDialogDirectory(state.settings, app.getPath('documents')),
+    properties: ['openDirectory'],
+  });
+  if (result.canceled || !result.filePaths[0]) return;
+  state.tree = { root: result.filePaths[0] };
+  if (state.settings.sidebarOpen) push(); else setSidebarOpen(true);   // setSidebarOpenが、配置し直して、pushする
+}
+
+/** ファイルツリーが読んでよいフォルダか。ルートの中（ルート自身を含む）だけ。画面からの依頼で、無関係な場所を、一覧させない。 */
+function isInsideTreeRoot(directory) {
+  return isInsideDirectory(state.tree.root, directory);
+}
+
 /** 設定画面の「フォルダを選ぶ」。選んだフォルダを、「特定のフォルダ」として保存する。キャンセルしたときは、変えない。 */
 async function chooseOpenDirectory() {
   const result = await dialog.showOpenDialog(win, {
@@ -968,6 +994,7 @@ function buildMenu() {
       label: 'ファイル',
       submenu: [
         { label: '開く…', accelerator: 'CommandOrControl+O', click: () => openWithDialog() },
+        { label: 'フォルダを開く…', click: () => void openFolder() },
         // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332。pushが、有効・無効を切り替える）
         { id: 'new-tab', label: '新しいタブで開く…', accelerator: 'CommandOrControl+Shift+O', enabled: false, click: () => void openInNewTab() },
         { id: 'close-tab', label: 'タブを閉じる', accelerator: 'CommandOrControl+W', enabled: false, click: () => closeTab() },
@@ -1041,6 +1068,12 @@ ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('sidebar-toggle', () => setSidebarOpen(!state.settings.sidebarOpen));
+ipcMain.on('open-folder', () => void openFolder());
+// ファイルツリーの一覧。ワーカー（変換の直列キュー）を通さず、ここで直接読む（変換中でも、展開が待たされない）
+ipcMain.handle('list-directory', (event, directory) => {
+  if (event.sender !== win?.webContents || !isInsideTreeRoot(directory)) return { ok: false, message: 'このフォルダは、読めません' };
+  return listDirectory(directory);
+});
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());

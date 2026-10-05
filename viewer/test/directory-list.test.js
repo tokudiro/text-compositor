@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { after, describe, test } = require('node:test');
 
-const { listDirectory } = require('../src/directory-list');
+const { isInsideDirectory, listDirectory } = require('../src/directory-list');
 const { isOpenableFile } = require('../src/targets');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-dirlist-'));
@@ -26,6 +26,32 @@ describe('isOpenableFile', () => {
 
   test('rejects other files and names without an extension', () => {
     for (const name of ['a.png', 'b.pdf', 'c.exe', 'README', '.md-backup']) assert.equal(isOpenableFile(name), false, name);
+  });
+});
+
+describe('isInsideDirectory', () => {
+  const base = path.resolve(path.sep, 'docs', 'usage');
+
+  test('the root itself and anything below it are inside', () => {
+    assert.ok(isInsideDirectory(base, base));
+    assert.ok(isInsideDirectory(base, path.join(base, 'images')));
+    assert.ok(isInsideDirectory(base, path.join(base, 'a', 'b', 'c')));
+  });
+
+  test('siblings, parents and look-alike prefixes are outside', () => {
+    assert.equal(isInsideDirectory(base, path.resolve(base, '..')), false);
+    assert.equal(isInsideDirectory(base, path.resolve(path.sep, 'docs', 'other')), false);
+    assert.equal(isInsideDirectory(base, `${base}-backup`), false);
+  });
+
+  test('dot-dot segments are resolved before comparing', () => {
+    assert.equal(isInsideDirectory(base, path.join(base, '..', 'other')), false);
+    assert.ok(isInsideDirectory(base, path.join(base, 'a', '..', 'b')));
+  });
+
+  test('a relative, empty or non-string argument is outside', () => {
+    for (const value of ['', 'images', '..', undefined, null, 42]) assert.equal(isInsideDirectory(base, value), false, String(value));
+    for (const value of ['', 'usage', undefined, null]) assert.equal(isInsideDirectory(value, base), false, String(value));
   });
 });
 
