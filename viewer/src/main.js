@@ -51,6 +51,8 @@ const trace = process.env.VIEWER_TRACE
   ? (label) => process.stderr.write(`[viewer] ${label} +${Math.round(process.uptime() * 1000)}ms\n`)
   : () => {};
 
+const SIDEBAR_WIDTH = 240;   // サイドバー（ファイルツリー。#339）の幅。いまは固定（幅の変更は、必要になってから）
+
 // アプリ全体（ウィンドウ全体）の状態。文書ごとの状態（ファイル・履歴・診断・検索・内容のビューなど）は、
 // `DocumentTab`が持つ（#332）。ウィンドウ本体（chrome/）へは、この2つを合わせて、1つの`state`として送る（`push`）。
 const state = {
@@ -58,6 +60,7 @@ const state = {
   autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
   settings: { ...DEFAULTS },
+  sidebarWidth: SIDEBAR_WIDTH,   // 画面（chrome/）が、サイドバーの幅を、CSSに使う。開閉は、settings.sidebarOpen
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
@@ -227,17 +230,19 @@ function createTab() {
   return created;
 }
 
-/** 内容のビューを、ツールバーの下に置く。文書がまだ無いときは、大きさ0にして、案内の表示を隠さない。見ていないタブは、隠す。 */
+/** 内容のビューを、ツールバーの下（サイドバーを開いているときは、その右）に置く。文書がまだ無いときは、大きさ0にして、案内の表示を隠さない。見ていないタブは、隠す。 */
 function layout() {
   if (!win || !tab?.contentView) return;
-  const [width, height] = win.getContentSize();
+  const [windowWidth, height] = win.getContentSize();
+  const x = state.settings.sidebarOpen ? Math.min(SIDEBAR_WIDTH, windowWidth) : 0;
+  const width = windowWidth - x;
   // ツールバーが下のときは、内容が、画面の上端から始まる（帯・一覧も、ツールバーの側に、まとまる）
   const y = state.settings.toolbarPosition === 'bottom' ? 0 : chromeHeight;
   for (const other of tabs) {
     // 設定画面を開いている間も、内容のビューを隠す（設定は、ウィンドウ本体の側に表示するため）
     const visible = other === tab && other.hasDocument && !state.settingsOpen;
     other.contentView.setBounds(visible
-      ? { x: 0, y, width, height: Math.max(0, height - chromeHeight) }
+      ? { x, y, width, height: Math.max(0, height - chromeHeight) }
       : { x: 0, y, width: 0, height: 0 });
     other.contentView.setVisible(visible);
   }
@@ -285,6 +290,16 @@ function applyBackground() {
   const background = nativeTheme.shouldUseDarkColors ? '#0d1117' : '#ffffff';
   win?.setBackgroundColor(background);
   for (const each of tabs) each.contentView?.setBackgroundColor(background);
+}
+
+/** サイドバーを開閉し、開閉を覚える（#339）。設定画面を開いている間は、サイドバーも隠れるが、開閉の状態は変えない。 */
+function setSidebarOpen(open) {
+  const next = normalizeSettings({ ...state.settings, sidebarOpen: Boolean(open) });
+  if (next.sidebarOpen === state.settings.sidebarOpen) return;
+  state.settings = next;
+  saveSettings(settingsFile, state.settings);
+  layout();
+  push();
 }
 
 function setSettingsOpen(open) {
@@ -978,6 +993,7 @@ function buildMenu() {
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
+        { label: 'サイドバー', accelerator: 'CommandOrControl+B', click: () => setSidebarOpen(!state.settings.sidebarOpen) },
         { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!tab.search.open) },
         { label: 'ツールバーと文書を行き来', accelerator: 'F6', click: toggleFocusArea },
         { type: 'separator' },
@@ -1024,6 +1040,7 @@ ipcMain.on('csv-header', (_event, value) => setCsvHeader(value));
 ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
+ipcMain.on('sidebar-toggle', () => setSidebarOpen(!state.settings.sidebarOpen));
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());

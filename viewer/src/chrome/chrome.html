@@ -11,6 +11,9 @@
   <header id="top">
     <div id="toolbar" role="toolbar" aria-label="操作">
       <!-- 左: ファイルに関する操作と、ファイルの場所。アイコンは、線の太さ・角の丸みを、アプリのアイコンに合わせる。 -->
+      <button id="sidebar-button" class="icon toggle" aria-pressed="false" aria-controls="sidebar" title="サイドバー（Ctrl+B）" aria-label="サイドバー">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M9.5 5v14"/></svg>
+      </button>
       <button id="back" class="icon" title="戻る（Alt+←）" aria-label="戻る" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </button>
@@ -87,6 +90,10 @@
     </div>
     <div id="details" hidden role="region" aria-label="変換エラー・警告の一覧"></div>
   </header>
+  <!-- サイドバー（#339）。内容のビューの左に並ぶ（幅は、メインプロセスが決め、--sidebar-widthで受ける）。ファイルツリーは、ここに出す -->
+  <aside id="sidebar" aria-label="サイドバー" hidden>
+    <p class="hint">フォルダを開くと、ここにファイルの一覧が出ます。</p>
+  </aside>
   <section id="settings" hidden aria-labelledby="settings-title">
     <!-- 見出しは左、閉じるボタンは右端（ダイアログと同じ配置）。項目は、「名前と説明」と「選択肢」を左右に並べた行にして、増えても縦に積める。 -->
     <header class="settings-head">

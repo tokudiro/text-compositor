@@ -63,6 +63,7 @@ const DEFAULTS = Object.freeze({
   fixedDirectory: null,     // 'fixed'のときのフォルダ。設定画面の、フォルダを選ぶボタンで決める
   workLocation: 'app',      // 変換したHTML・図のキャッシュの置き場所（#258）。'app'（アプリの領域。原稿のフォルダには書かない） | 'beside'（原稿の隣の.text-compositor/）
   lastDirectory: null,      // 前回開いたファイルのフォルダ。アプリが自動で保存する。設定画面では変えない
+  sidebarOpen: false,       // サイドバー（ファイルツリー。#339）を開いているか。ボタン・Ctrl+Bで切り替え、開閉を覚える。設定画面では変えない
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
@@ -108,6 +109,7 @@ function normalizeSettings(value) {
   if (typeof source.autoReload === 'boolean') result.autoReload = source.autoReload;
   if (typeof source.csvHeader === 'boolean') result.csvHeader = source.csvHeader;
   if (typeof source.allowExternalImages === 'boolean') result.allowExternalImages = source.allowExternalImages;
+  if (typeof source.sidebarOpen === 'boolean') result.sidebarOpen = source.sidebarOpen;
   for (const feature of FEATURES) {
     if (typeof source[feature.key] === 'boolean') result[feature.key] = source[feature.key];
   }

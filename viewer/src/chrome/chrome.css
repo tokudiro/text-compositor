@@ -93,6 +93,12 @@ button.icon.text { font-weight: 700; font-size: 12px; }
 .item .mark.error { color: var(--error-fg); } .item .mark.warning { color: var(--warn-fg); }
 .item .loc { color: var(--muted); }
 .item pre { margin: 2px 0 0 20px; color: var(--muted); font: 12px/1.4 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; }
+/* サイドバー（#339）。ツールバー・帯を除いた領域の左端に置き、内容のビューは、その右に並ぶ。設定画面は、全面を覆うため、開いている間は隠す */
+#sidebar { position: absolute; left: 0; width: var(--sidebar-width, 240px); top: var(--chrome-height, 40px); bottom: 0; overflow: auto;
+  background: var(--bar); border-right: 1px solid var(--line); padding: 8px; }
+.toolbar-bottom #sidebar { top: 0; bottom: var(--chrome-height, 40px); }
+#sidebar[hidden] { display: none; }
+#sidebar .hint { margin: 8px 4px; color: var(--muted); }
 /* 設定画面。ウィンドウ本体の側に表示し、内容のビューは、開いている間、隠す */
 #settings { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; overflow: auto; }
 .toolbar-bottom #settings { top: 0; bottom: var(--chrome-height, 40px); }
@@ -132,7 +138,7 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 #settings .hint { margin: 16px 0 0; color: var(--muted); }
 /* 案内は、ツールバー・帯・一覧を除いた、空き領域の中央に置く（一覧が長くても、重ならない） */
 .toolbar-bottom #empty { top: 0; bottom: var(--chrome-height, 40px); }
-#empty { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#empty { position: absolute; left: var(--sidebar-inset, 0px); right: 0; top: var(--chrome-height, 40px); bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #empty .hint { margin: 16px 0 0; color: var(--muted); }
 #empty kbd { font-family: inherit; font-size: 12px; line-height: 1; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bar); }
 button.primary { background: var(--accent); color: var(--accent-fg); padding: 0 16px; height: 32px; }
