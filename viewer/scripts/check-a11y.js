@@ -86,12 +86,12 @@ function sendKeys(keys) {
   execFileSync('powershell', ['-NoProfile', '-Command', script]);
 }
 
-async function session(file, body, { settings = null } = {}) {
+async function session(file, body, { settings = null, env = {} } = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-a11y-'));
   if (settings) fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
   const port = 9500 + Math.floor(Math.random() * 100);
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, file],
-    { env: { ...process.env }, stdio: 'ignore' });
+    { env: { ...process.env, ...env }, stdio: 'ignore' });
   try {
     await sleep(7000);
     const chrome = await connectChrome(port);
@@ -259,11 +259,11 @@ async function main() {
     checkAxe('タブを切り替えたあと（ライト）', await runAxe(chrome));
   }, { settings: { enableTabs: true } });
 
-  // サイドバー（#339）。開いた状態（既定は閉じている）を調べる
+  // サイドバーとファイルツリー（#339）。開いた状態（既定は閉じている）で、ルートのフォルダ（原稿のあるフォルダ）を決めて調べる
   await session(good, async ({ chrome }) => {
     await sleep(2500);
-    const shown = await chrome.evaluate("!document.getElementById('sidebar').hidden");
-    check('サイドバーが開いた状態で起動する（以降の確認の前提）', shown === true);
+    const shown = await chrome.evaluate("!document.getElementById('sidebar').hidden && document.querySelectorAll('#tree [role=treeitem]').length > 0");
+    check('サイドバーが開き、ツリーに項目が出た状態で起動する（以降の確認の前提）', shown === true);
     for (const scheme of ['light', 'dark']) {
       await setScheme(chrome, scheme);
       checkAxe(`サイドバーを開いた状態（${scheme === 'light' ? 'ライト' : 'ダーク'}）`, await runAxe(chrome));
@@ -273,10 +273,16 @@ async function main() {
       name: document.getElementById('sidebar').getAttribute('aria-label'),
       buttonName: document.getElementById('sidebar-button').getAttribute('aria-label'),
       pressed: document.getElementById('sidebar-button').getAttribute('aria-pressed'),
+      tree: { role: document.getElementById('tree').getAttribute('role'), name: document.getElementById('tree').getAttribute('aria-label') },
+      items: [...document.querySelectorAll('#tree [role=treeitem]')].map((i) => ({ name: i.getAttribute('aria-label'), level: i.getAttribute('aria-level') })),
+      tabStops: document.querySelectorAll('#tree [role=treeitem][tabindex="0"]').length,
     })`));
     check('サイドバーに名前があり、開閉のボタンが、押された状態（aria-pressed）を伝える',
-      !!sidebar.name && !!sidebar.buttonName && sidebar.pressed === 'true', JSON.stringify(sidebar));
-  }, { settings: { sidebarOpen: true } });
+      !!sidebar.name && !!sidebar.buttonName && sidebar.pressed === 'true', JSON.stringify({ name: sidebar.name, buttonName: sidebar.buttonName, pressed: sidebar.pressed }));
+    check('ファイルツリーが、role=treeで、名前がある。各項目に、名前とレベルがある',
+      sidebar.tree.role === 'tree' && !!sidebar.tree.name && sidebar.items.every((i) => i.name && i.level), JSON.stringify(sidebar.tree));
+    check('Tabで入れる項目が、ちょうど1つ（ツリーの中は、矢印キーで動く）', sidebar.tabStops === 1, String(sidebar.tabStops));
+  }, { settings: { sidebarOpen: true }, env: { VIEWER_TREE_ROOT: path.dirname(good) } });
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);

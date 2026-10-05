@@ -22,6 +22,13 @@ $('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reloa
 $('empty-open').addEventListener('click', () => api.openDialog());
 $('csv-header').addEventListener('click', () => api.setCsvHeader($('csv-header').getAttribute('aria-checked') !== 'true'));
 $('sidebar-button').addEventListener('click', () => api.toggleSidebar());
+$('open-folder').addEventListener('click', () => api.openFolder());
+// ファイルツリー（#339）。クリックしたファイルは、いまのタブで開く（tree.jsが、読み込みと操作を持つ）
+const fileTree = createFileTree({
+  container: $('tree'),
+  listDirectory: (directory) => api.listDirectory(directory),
+  openFile: (file) => api.openPath(file),
+});
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
 $('search-button').addEventListener('click', () => api.toggleSearch());
@@ -119,6 +126,14 @@ function renderSidebar(state) {
   const root = document.documentElement.style;
   root.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
   root.setProperty('--sidebar-inset', open ? `${state.sidebarWidth}px` : '0px');
+  // ファイルツリー。フォルダを開くまでは、案内だけ（単一のファイルを開いただけのときは、ツリーを出さない）
+  const treeRoot = state.tree.root;
+  void fileTree.setRoot(treeRoot);
+  fileTree.setCurrent(state.file);
+  $('tree-hint').hidden = treeRoot !== null;
+  const split = treeRoot ? Math.max(treeRoot.lastIndexOf('\\'), treeRoot.lastIndexOf('/')) : -1;
+  setText($('tree-root-name'), treeRoot ? (treeRoot.slice(split + 1) || treeRoot) : '');
+  $('tree-root-name').title = treeRoot ?? '';
 }
 
 /** 「表示する機能」の行を、機能の一覧（state.features。settings.jsのFEATURES）から作る（#326）。一覧が変わらない間は、作り直さない。 */

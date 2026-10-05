@@ -54,4 +54,14 @@ async function listDirectory(directory, { readdir = fsPromises.readdir, stat = f
   return { ok: true, entries };
 }
 
-module.exports = { listDirectory };
+/**
+ * `candidate`が、`root`の中（`root`自身を含む）のフォルダか。字面（パスの解決）だけで判定し、ファイルシステムは見ない。
+ * 画面からの一覧の依頼を、ツリーのルートの外へ広げないための門番（`..`を含むパスも、解決してから比べる）。
+ */
+function isInsideDirectory(root, candidate) {
+  if (typeof root !== 'string' || !root || typeof candidate !== 'string' || !path.isAbsolute(root) || !path.isAbsolute(candidate)) return false;
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+module.exports = { listDirectory, isInsideDirectory };
