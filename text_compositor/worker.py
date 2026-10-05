@@ -20,6 +20,8 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
                （方針2章「ローカルに閉じる」。#238）。
                `cache_dir`は、文字列。図のSVGのキャッシュのフォルダ。`output`とともに指定すると、原稿のフォルダに、
                何も書かない。#258）。
+  - `list_chapters`: 設定ファイルの`chapters`を、ファイルの一覧にする（Viewerのサイドバー用、#373）。params: `path`
+               （必須。設定ファイル）。中身は読まない。設定の誤りでも、ワーカーは終了しない。
   - `ping`   : 生きているかの確認。
   - `shutdown`: 応答を返した後、Mermaidのブラウザ等を片付けて、終了する。
 
@@ -51,6 +53,9 @@ Mermaidと、Vega・Vega-Lite・WaveDrom・Bytefieldの図を、Playwrightとシ
   呼び出し元は、lib.jsを読み込んだページで、`script`（`async ([source]) => svg`という関数の式）を、`[source]`で呼び、SVGを返す。応答は、`render_mermaid`と同じ。
   呼び出し元 → ワーカー: {"callback": <同じ番号>, "ok": true, "svg": "..."} または {"callback": <同じ番号>, "ok": false, "error": "..."}
   待っている間に届いた、番号の違う行は、読み捨てる。呼び出し元が、標準入力を閉じたときは、描画の失敗になる。
+応答（`list_chapters`）: {"id": ..., "ok": true, "result": {"items": [...], "warnings": [...]}}。`items`は、書いた順序で、
+  `{"kind": "file", "name": ..., "path": <絶対パス。基準は`inputs.dir`>}`または`{"kind": "section", "name": ..., "children": [...]}`。
+  `aggregate`の章は、出さない。読めない設定（存在しない・構文の誤り・`chapters`が無い）は、`{"ok": false, "error": {"code": "bad_config", ...}}`。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
 プロトコルの誤り（JSONでない、未知のメソッド、引数の不足）: {"id": ..., "ok": false, "error": {"code": ..., "message": ...}}
   `error`キーがあれば、依頼が処理されていない。
@@ -69,6 +74,7 @@ from typing import Any, Dict, Optional, TextIO
 from text_compositor import __version__
 from text_compositor import host_renderers as _host_renderers
 from text_compositor.api import Session
+from text_compositor.chapter_list import ChapterListError, list_chapters
 
 PROTOCOL_VERSION = 1
 
@@ -99,6 +105,14 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
         return {"id": request_id, "ok": True, "result": {"pong": True}}
     if method == "shutdown":
         return {"id": request_id, "ok": True, "result": {}, "_shutdown": True}
+    if method == "list_chapters":
+        path = params.get("path")
+        if not isinstance(path, str) or not path:
+            return _protocol_error(request_id, "bad_request", "'params.path' (a string) is required.")
+        try:
+            return {"id": request_id, "ok": True, "result": list_chapters(path)}
+        except ChapterListError as e:
+            return _protocol_error(request_id, "bad_config", str(e))
     if method == "render_html":
         path = params.get("path")
         if not isinstance(path, str) or not path:

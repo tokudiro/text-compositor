@@ -487,6 +487,7 @@ result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
 * **依頼**: `{"id": <任意。応答に返る>, "method": <名前>, "params": {...}}`。
   * `build`: `params`は、`path`（必須）・`output`・`template`・`plugins`・`document`・`variables`・`config`・`keep_temp`（`Session.build`と同じ意味）。未知のキーは、プロトコルエラー。
   * `render_html`: MarkdownをHTMLにする（実験的、#161。前節）。`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`。
+  * `list_chapters`: 設定ファイルの`chapters`を、ファイルの一覧にする（Viewerのサイドバー用、[#373](https://github.com/tokudiro/text-compositor/issues/373)）。`params`は、`path`（必須。設定ファイル）。応答は、`{"ok": true, "result": {"items": [...], "warnings": [...]}}`。`items`は、書いた順序の、`{"kind": "file", "name", "path"}`（`path`は絶対パス。基準は`inputs.dir`。未指定なら`inputs`）と、`{"kind": "section", "name", "children"}`（2階層まで）。`aggregate`の章は出さない。誤った章は、警告にして飛ばす。読めない設定（存在しない・構文の誤り・`chapters`が無い）は、`error.code`が`bad_config`。ビルドの解析（`sys.exit(1)`で終了する）は流用せず、`text_compositor/chapter_list.py`が、別に持つ（常駐のワーカーが、終了しないため）。章のファイルの中身は読まない（実測: 500章で約10 ms）。
   * `ping`: 生存確認。`{"id": ..., "ok": true, "result": {"pong": true}}`。
   * `shutdown`: 応答の後、Mermaidのブラウザ等を片付けて、終了する（終了コード0）。標準入力が閉じられた場合も、同じく片付けて終了する。
 * **`build`の応答**: `{"id": ..., "ok": true|false, "pdf": "...", "diagnostics": [{"severity", "message", "file", "line", "detail"}, ...], "timings_ms": {...}}`。`ok`はビルドの成否で、**失敗（`ok: false`）でも、`error`キーは付かない**。
