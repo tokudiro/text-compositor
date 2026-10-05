@@ -242,7 +242,7 @@ function createTab() {
 function layout() {
   if (!win || !tab?.contentView) return;
   const [windowWidth, height] = win.getContentSize();
-  const x = state.settings.sidebarOpen ? Math.min(SIDEBAR_WIDTH, windowWidth) : 0;
+  const x = sidebarShown() ? Math.min(SIDEBAR_WIDTH, windowWidth) : 0;
   const width = windowWidth - x;
   // ツールバーが下のときは、内容が、画面の上端から始まる（帯・一覧も、ツールバーの側に、まとまる）
   const y = state.settings.toolbarPosition === 'bottom' ? 0 : chromeHeight;
@@ -300,8 +300,14 @@ function applyBackground() {
   for (const each of tabs) each.contentView?.setBackgroundColor(background);
 }
 
+/** サイドバーが、いま画面に出ているか。設定「ファイルツリー」がオンで、開いているとき。 */
+function sidebarShown() {
+  return state.settings.showFileTree && state.settings.sidebarOpen;
+}
+
 /** サイドバーを開閉し、開閉を覚える（#339）。設定画面を開いている間は、サイドバーも隠れるが、開閉の状態は変えない。 */
 function setSidebarOpen(open) {
+  if (!state.settings.showFileTree) return;   // 設定「ファイルツリー」が「出さない」のとき、サイドバーは使えない
   const next = normalizeSettings({ ...state.settings, sidebarOpen: Boolean(open) });
   if (next.sidebarOpen === state.settings.sidebarOpen) return;
   state.settings = next;
@@ -465,6 +471,7 @@ function changeSetting(key, value) {
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
   if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
+  if (key === 'showFileTree' && !next.showFileTree) state.tree = { root: null };   // 「出さない」にしたら、開いていたフォルダも、手放す
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
   layout();
@@ -480,6 +487,11 @@ function push() {
   // 「表示」メニューの、CSVの見出し行の項目は、.csvを開いているときだけ、有効にする
   const csvItem = menu?.getMenuItemById('csv-header');
   if (csvItem) { csvItem.enabled = tab.isCsv; csvItem.checked = state.settings.csvHeader; }
+  // ファイルツリーの入口は、設定「ファイルツリー」がオンのときだけ出す（#339）
+  for (const id of ['open-folder', 'toggle-sidebar']) {
+    const item = menu?.getMenuItemById(id);
+    if (item) item.visible = state.settings.showFileTree;
+  }
   // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332）
   for (const [id, enabled] of [['new-tab', true], ['close-tab', tabs.length > 1], ['next-tab', tabs.length > 1], ['previous-tab', tabs.length > 1]]) {
     const item = menu?.getMenuItemById(id);
@@ -775,6 +787,7 @@ async function openWithDialog() {
 
 /** 「フォルダを開く」（#339）。選んだフォルダを、サイドバーのファイルツリーのルートにして、サイドバーを開く。キャンセルしたときは、変えない。 */
 async function openFolder() {
+  if (!state.settings.showFileTree) return;
   leaveSettings();
   const result = await dialog.showOpenDialog(win, {
     title: 'フォルダを開く',
@@ -788,7 +801,7 @@ async function openFolder() {
 
 /** ファイルツリーが読んでよいフォルダか。ルートの中（ルート自身を含む）だけ。画面からの依頼で、無関係な場所を、一覧させない。 */
 function isInsideTreeRoot(directory) {
-  return isInsideDirectory(state.tree.root, directory);
+  return state.settings.showFileTree && isInsideDirectory(state.tree.root, directory);
 }
 
 /** 設定画面の「フォルダを選ぶ」。選んだフォルダを、「特定のフォルダ」として保存する。キャンセルしたときは、変えない。 */
@@ -994,7 +1007,7 @@ function buildMenu() {
       label: 'ファイル',
       submenu: [
         { label: '開く…', accelerator: 'CommandOrControl+O', click: () => openWithDialog() },
-        { label: 'フォルダを開く…', click: () => void openFolder() },
+        { id: 'open-folder', label: 'フォルダを開く…', click: () => void openFolder() },
         // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332。pushが、有効・無効を切り替える）
         { id: 'new-tab', label: '新しいタブで開く…', accelerator: 'CommandOrControl+Shift+O', enabled: false, click: () => void openInNewTab() },
         { id: 'close-tab', label: 'タブを閉じる', accelerator: 'CommandOrControl+W', enabled: false, click: () => closeTab() },
@@ -1020,7 +1033,7 @@ function buildMenu() {
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
-        { label: 'サイドバー', accelerator: 'CommandOrControl+B', click: () => setSidebarOpen(!state.settings.sidebarOpen) },
+        { id: 'toggle-sidebar', label: 'サイドバー', accelerator: 'CommandOrControl+B', click: () => setSidebarOpen(!state.settings.sidebarOpen) },
         { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!tab.search.open) },
         { label: 'ツールバーと文書を行き来', accelerator: 'F6', click: toggleFocusArea },
         { type: 'separator' },

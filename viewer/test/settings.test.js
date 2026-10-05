@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null, sidebarOpen: false },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null, sidebarOpen: false },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null, sidebarOpen: false },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null, sidebarOpen: false },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs'), sidebarOpen: true };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs'), sidebarOpen: true };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -164,6 +164,13 @@ test('FEATURES: the line number is on by default (a small display inside the exi
   // 見出しのリンク（#337）・コードのコピーボタン（#336）も、ホバーしたときだけ出す小さな表示のため、既定は「出す」
   assert.equal(FEATURES.find((feature) => feature.key === 'showHeadingAnchor')?.default, true);
   assert.equal(FEATURES.find((feature) => feature.key === 'showCodeCopy')?.default, true);
+});
+
+test('FEATURES: the file tree is on by default, because nothing changes until a folder is opened (#339)', () => {
+  assert.equal(FEATURES.find((feature) => feature.key === 'showFileTree')?.default, true);
+  assert.ok(EDITABLE.includes('showFileTree'));
+  assert.equal(normalizeSettings({ showFileTree: false }).showFileTree, false);
+  assert.equal(normalizeSettings({ showFileTree: 'no' }).showFileTree, true);
 });
 
 test('FEATURES: tabs are off by default (they change the structure of the screen, #326 class D, #332)', () => {
