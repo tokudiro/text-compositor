@@ -672,6 +672,10 @@ class TestImageFiles:
         # 図（.diagram）の明暗反転は、写真・スクリーンショットには、掛けない
         assert 'class="diagram' not in html
 
+    def test_the_page_has_the_styles_for_switching_between_fit_and_actual_size(self, tmp_path):
+        _, html = convert(tmp_path, self.PNG, name="shot.png")
+        assert ".image-view img.actual-size { max-width: none;" in html
+
     def test_the_image_is_a_dependency_so_that_saving_it_updates_the_view(self, tmp_path):
         result, _ = convert(tmp_path, self.PNG, name="shot.png")
         assert result.dependencies == [str(tmp_path / "shot.png")]

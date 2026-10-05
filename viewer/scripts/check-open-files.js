@@ -92,6 +92,39 @@ async function main() {
   r = await open(write('shot.png', png));
   check('.pngが、画像として表示される（本文の幅の制限を受けない）', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', JSON.stringify(r.page?.images));
 
+  // クリックで、窓の幅に収める表示と、原寸を切り替える（#413）。見た目の違いを測るため、幅2000pxのBMP（無圧縮）を作る。
+  const bmp = Buffer.alloc(54 + 2000 * 3 * 50);
+  bmp.write('BM', 0); bmp.writeUInt32LE(bmp.length, 2); bmp.writeUInt32LE(54, 10); bmp.writeUInt32LE(40, 14);
+  bmp.writeInt32LE(2000, 18); bmp.writeInt32LE(50, 22); bmp.writeUInt16LE(1, 26); bmp.writeUInt16LE(24, 28);
+  bmp.fill(0x80, 54);
+  const widths = [];
+  const zoomed = [];
+  await open(write('wide.bmp', bmp), 4500, async (chrome) => {
+    const content = await connect(isContent);
+    // ズームとの関係。画面上の幅は、描画の幅 × ページのズーム倍率（devicePixelRatio）で測る。
+    const screenWidth = async () => content("document.querySelector('.image-view img').getBoundingClientRect().width * window.devicePixelRatio");
+    await chrome("document.getElementById('zoom-in').click()"); await chrome("document.getElementById('zoom-in').click()");
+    await sleep(500);
+    zoomed.push(await screenWidth());
+    await content("document.querySelector('.image-view img').click()");
+    await sleep(300);
+    zoomed.push(await screenWidth());
+    await chrome("document.getElementById('zoom').click()");
+    await content("document.querySelector('.image-view img').click()");   // 収める表示へ戻す
+    await sleep(500);
+    const measure = async () => widths.push(await content("document.querySelector('.image-view img').getBoundingClientRect().width"));
+    await measure();
+    await content("document.querySelector('.image-view img').click()");
+    await sleep(300);
+    await measure();
+    await content("document.querySelector('.image-view img').click()");
+    await sleep(300);
+    await measure();
+  });
+  check('画像をクリックすると、窓の幅に収める表示と、原寸（2000px）が、切り替わる',
+    widths.length === 3 && widths[0] < 2000 && widths[1] === 2000 && widths[2] === widths[0], JSON.stringify(widths));
+  console.log(`INFO ズーム2段階の画面上の幅（収める表示 → 原寸）: ${JSON.stringify(zoomed)}`);
+
   for (const name of ['settings.yaml', 'data.json', 'README', 'app.log', 'page.html', 'image.tiff', 'doc.pdf']) {
     r = await open(write(name, name.endsWith('.tiff') || name.endsWith('.pdf') ? Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]) : 'content\n'), 3500);
     check(`${name}: 対象外のファイルは、案内つきのエラーになる`, r.state.banner.includes('変換エラー') && guide(r.state), r.state.detail.slice(0, 80));

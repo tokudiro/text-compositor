@@ -26,6 +26,13 @@ window.addEventListener('click', (event) => {
   ipcRenderer.send('open-link', href);
 }, true);
 
+// 画像ファイル（#413）は、クリックで、窓の幅に収める表示と、原寸を切り替える。窓より広い画像（スクリーンショットなど）は、
+// 収めると文字が読めないため。ページはscriptを持てないので、クラスの付け外しは、ここで行う（CSSは、html_output.py）。
+window.addEventListener('click', (event) => {
+  if (event.button !== 0 || !(event.target instanceof Element)) return;
+  event.target.closest('main.image-file .image-view img')?.classList.toggle('actual-size');
+}, true);
+
 // スクロール位置をメインプロセスへ伝える（#330）。
 // 画面遷移時に非同期IPCで問い合わせると、openFileのキュー順序が崩れる（#342レビュー指摘）。
 // スクロール時に最新の位置をメインプロセスへ送っておき、キュー処理は同期のまま保つ。
