@@ -94,8 +94,10 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
 img { max-width: 100%; }
 .diagram { text-align: center; margin: 1em 0; }
 main.image-file { max-width: none; }
-.image-view { text-align: center; }
-.image-view img { max-width: 100%; height: auto; }
+.image-view img { display: block; margin: 0 auto; max-width: 100%; height: auto; cursor: zoom-in; }
+/* クリックで、窓の幅に収める表示と、原寸を切り替える（#413。クラスは、content-preload.jsが付け外しする）。
+   原寸のときは、auto余白でも、窓より広い画像が左へはみ出して切れないよう、block＋margin autoにしている。 */
+.image-view img.actual-size { max-width: none; cursor: zoom-out; }
 .math-block { text-align: center; margin: 1em 0; }
 .math-inline { vertical-align: -0.2em; max-height: 2em; }
 /* 図のSVGは、ライト用の配色で描画される。ダークの背景に重ねると、線・矢印・辺のラベルが溶けて読めない（#209）ため、
