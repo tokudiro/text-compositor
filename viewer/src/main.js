@@ -347,6 +347,7 @@ function leaveRoot() {
   project = null;
   state.tree = { root: null, kind: null };
   state.sidebarOpen = false;
+  updateWatch();   // プロジェクトの設定ファイルの監視を、やめる
   layout();
   push();
 }
@@ -506,7 +507,7 @@ function changeSetting(key, value) {
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
   if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
-  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = false; }   // 「出さない」にしたら、開いていたフォルダも、手放す
+  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = false; updateWatch(); }   // 「出さない」にしたら、開いていたフォルダも、手放す
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
   layout();
@@ -699,13 +700,15 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
  */
 function updateWatch() {
   if (!watcher) return;
-  watcher.setFiles(tabs.flatMap((each) => each.watchedFiles));
+  // プロジェクトモード（#373）では、設定ファイルも監視する（章の並びの変更を、一覧へ反映するため）
+  watcher.setFiles([...tabs.flatMap((each) => each.watchedFiles), ...(state.tree.kind === 'project' ? [state.tree.root] : [])]);
 }
 
 /** 監視しているファイルが、保存された。自動更新が有効なら、そのファイルを開いているタブを、もう一度変換する。 */
 async function onFilesChanged(paths) {
   trace(`changed ${paths.length}`);
   if (!state.autoReload) return;
+  if (state.tree.kind === 'project' && paths.includes(state.tree.root)) void refreshProject();   // 監視は、解決済みの絶対パスで登録するため、そのまま比べられる
   for (const each of tabsAffectedBy(tabs, paths)) {
     const target = each.file;
     // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
@@ -857,24 +860,45 @@ function openTarget(file) {
  */
 async function openProject(configPath) {
   leaveSettings();
-  const notices = [];
-  let built = null;
-  try {
-    const client = await getWorker();
-    const { items, warnings } = await client.listChapters(configPath);
-    built = buildProject(configPath, items);
-    for (const message of warnings) notices.push({ severity: 'warning', message: `章の一覧: ${message}`, file: configPath });
-  } catch (error) {
-    const reason = error.code === 'bad_config' ? error.message.replace(/^bad_config: /, '') : error.message;
-    notices.push({ severity: 'warning', message: `章の一覧を作れません: ${reason}`, file: configPath });
-  }
+  const { built, notices } = await loadProject(configPath);
   if (built) {
     project = built;
     enterRoot(configPath, 'project');
+    updateWatch();   // 設定ファイルの変更を検知して、一覧を更新する
   } else {
     leaveRoot();
   }
   openFile(configPath, { notices });
+}
+
+/** 設定ファイルから、章の一覧を作る。作れなかったとき（設定の誤り）は、`built`が`null`で、理由が、`notices`に入る。 */
+async function loadProject(configPath) {
+  const notices = [];
+  try {
+    const client = await getWorker();
+    const { items, warnings } = await client.listChapters(configPath);
+    for (const message of warnings) notices.push({ severity: 'warning', message: `章の一覧: ${message}`, file: configPath });
+    return { built: buildProject(configPath, items), notices };
+  } catch (error) {
+    const reason = error.code === 'bad_config' ? error.message.replace(/^bad_config: /, '') : error.message;
+    notices.push({ severity: 'warning', message: `章の一覧を作れません: ${reason}`, file: configPath });
+    return { built: null, notices };
+  }
+}
+
+/**
+ * 設定ファイルが保存されたとき、章の一覧を作り直す（#373）。読めなかった（編集の途中で、構文が壊れている）ときは、
+ * 前の一覧を残す（直して保存すれば、また更新される）。待っている間に、プロジェクトを離れていたら、何もしない。
+ */
+async function refreshProject() {
+  const configPath = state.tree.kind === 'project' ? state.tree.root : null;
+  if (!configPath) return;
+  const { built } = await loadProject(configPath);
+  if (!built || state.tree.kind !== 'project' || state.tree.root !== configPath) return;
+  project = built;
+  state.tree = { ...state.tree, version: (state.tree.version ?? 0) + 1 };
+  updateWatch();
+  push();
 }
 
 /** 設定画面の「フォルダを選ぶ」。選んだフォルダを、「特定のフォルダ」として保存する。キャンセルしたときは、変えない。 */
