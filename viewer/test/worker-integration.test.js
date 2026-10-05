@@ -136,6 +136,21 @@ describe('real worker + WorkerClient (#172)', { skip: prepared.reason ? `${prepa
     assert.equal(client.startCount, 1);   // 再起動していない
   });
 
+  test('list_chapters lists the chapters in the written order, and a broken config is an error that keeps the worker alive (#373)', async () => {
+    const config = path.join(dir, 'text-compositor.config.yaml');
+    fs.writeFileSync(config, 'chapters:\n  - b.md\n  - section: 編\n    chapters:\n      - file: a.md\n  - aggregate: x\n  - 42\n', 'utf8');
+    const { items, warnings } = await client.listChapters(config);
+    assert.deepEqual(items.map((i) => i.name), ['b.md', '編']);
+    assert.deepEqual(items[1].children.map((c) => c.name), ['a.md']);
+    assert.equal(items[0].path, path.join(dir, 'inputs', 'b.md'));
+    assert.equal(warnings.length, 1);
+
+    fs.writeFileSync(config, 'chapters: [a.md\n', 'utf8');
+    await assert.rejects(client.listChapters(config), (error) => error.name === 'WorkerProtocolError' && error.code === 'bad_config');
+    const ok = await client.renderHtml({ path: path.join(dir, 'again.md'), plugins: PLAIN }).catch(() => null);
+    assert.ok(client.isRunning, `worker survived: ${JSON.stringify(ok)}`);
+  });
+
   test('the same worker keeps serving after several requests (it is resident)', async () => {
     const file = path.join(dir, 'again.md');
     fs.writeFileSync(file, '# もう一度\n', 'utf8');

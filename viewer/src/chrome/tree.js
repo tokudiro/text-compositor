@@ -6,9 +6,10 @@
 /**
  * @param {{container: HTMLElement, listDirectory: (path: string) => Promise<{ok: boolean, entries?: {name: string, path: string, type: string}[], message?: string}>, openFile: (path: string) => void}} options
  */
-function createFileTree({ container, listDirectory, openFile }) {
+function createFileTree({ container, listDirectory, openFile, autoExpand = () => false }) {
   let root = null;
-  let current = null;       // 今開いているファイル（ハイライトする）
+  let rootVersion = 0;      // 同じルートでも、版が変われば、読み直す（設定ファイルを開き直したとき。#373）
+  let current = null;      // 今開いているファイル（ハイライトする）
   let generation = 0;       // フォルダを替えたら進める。古い読み込みの結果が、新しいツリーへ入らないようにする
 
   // WindowsのパスはOSが大文字小文字を区別しないため、ドライブ文字つきのパスだけ、区別せずに比べる
@@ -87,6 +88,8 @@ function createFileTree({ container, listDirectory, openFile }) {
       : result.entries.map((entry) => entryItem(entry, level));
     group.append(...items);
     if (parent !== container) parent.append(group);
+    // 章の一覧（#373）は、見出しを、最初から開いておく（フォルダのように、1つずつ開かせない）
+    if (autoExpand()) for (const item of items) if (item.dataset?.type === 'directory') void expand(item);
     return group;
   }
 
@@ -165,9 +168,10 @@ function createFileTree({ container, listDirectory, openFile }) {
   }
 
   /** ツリーのルートのフォルダを替える。同じフォルダなら、何もしない（開いたフォルダは、展開の状態を保つ）。 */
-  async function setRoot(directory) {
-    if ((directory ?? null) === root) return;
+  async function setRoot(directory, version = 0) {
+    if ((directory ?? null) === root && version === rootVersion) return;
     root = directory ?? null;
+    rootVersion = version;
     generation += 1;
     container.textContent = '';
     container.hidden = root === null;

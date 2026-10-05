@@ -16,6 +16,7 @@ const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-sav
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { isInsideDirectory, listDirectory } = require('./directory-list');
+const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildSelectionContextMenuTemplate } = require('./selection-menu');
@@ -63,6 +64,10 @@ const SIDEBAR_WIDTH = 240;   // サイドバー（ファイルツリー。#339�
 
 // アプリ全体（ウィンドウ全体）の状態。文書ごとの状態（ファイル・履歴・診断・検索・内容のビューなど）は、
 // `DocumentTab`が持つ（#332）。ウィンドウ本体（chrome/）へは、この2つを合わせて、1つの`state`として送る（`push`）。
+// プロジェクトモード（#373）の、章の一覧（project.jsのbuildProjectの結果）。stateには入れない（章が多くても、毎回の画面への通知を重くしない。
+// 画面は、`list-directory`の依頼で、必要な見出しだけを読む）。
+let project = null;
+
 const state = {
   zoomPercent: 100,
   autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
@@ -74,6 +79,7 @@ const state = {
   sidebarOpen: TREE_ROOT_FROM_ENV !== null,
   // サイドバーのモード（#373）。root: ルートのフォルダ。kind: null（単一ファイル。ルートなし）| 'folder'（フォルダ。
   // 「フォルダを開く」）。モードは、「いま開いているファイル」ではなく、ルートの開き方で決める。覚えない（起動のたびに、単一ファイルから）。
+  // kind: 'project'（設定ファイルの章。「ファイルを開く」で設定ファイルを選ぶ。#373）のとき、root は設定ファイルのパス。
   tree: { root: TREE_ROOT_FROM_ENV, kind: TREE_ROOT_FROM_ENV ? 'folder' : null },
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
@@ -117,7 +123,7 @@ if (!app.requestSingleInstanceLock()) {
       win.focus();
     }
     const file = targetFromArgv(argv, workingDirectory);
-    if (file) openFile(file);
+    if (file) openTarget(file);
   });
 
   app.whenReady().then(() => {
@@ -133,7 +139,7 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(buildMenu());
     startWorker();
     const file = targetFromArgv(process.argv, process.cwd());
-    if (file) openFile(file);
+    if (file) openTarget(file);
   });
 }
 
@@ -322,15 +328,23 @@ function setSidebarOpen(open) {
 
 /** ルート（サイドバーのモード）を決める。決めたら、サイドバーを開く（#373）。 */
 function enterRoot(root, kind) {
-  state.tree = { root, kind };
+  // version: 同じ設定ファイルを開き直したとき、画面が、一覧を読み直すための印（章を書き換えた後でも、古い一覧が残らない）
+  state.tree = { root, kind, version: (state.tree.version ?? 0) + 1 };
   state.sidebarOpen = true;
   layout();
   push();
 }
 
+/** `file`が、いまのルートの中か。フォルダモードは、フォルダの中。プロジェクトモードは、章か設定ファイル自身。 */
+function isInsideRoot(file) {
+  if (state.tree.kind === 'project') return isInsideProject(project, file);
+  return isInsideDirectory(state.tree.root, path.dirname(file));
+}
+
 /** ルートを手放し、単一ファイルモードへ戻る。サイドバーは閉じる（`Ctrl+B`で、案内つきの空のサイドバーを開ける）。 */
 function leaveRoot() {
   if (state.tree.root === null) return;
+  project = null;
   state.tree = { root: null, kind: null };
   state.sidebarOpen = false;
   layout();
@@ -492,7 +506,7 @@ function changeSetting(key, value) {
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
   if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
-  if (key === 'showFileTree' && !next.showFileTree) { state.tree = { root: null, kind: null }; state.sidebarOpen = false; }   // 「出さない」にしたら、開いていたフォルダも、手放す
+  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = false; }   // 「出さない」にしたら、開いていたフォルダも、手放す
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
   layout();
@@ -570,7 +584,7 @@ function targetFromArgv(argv, cwd) {
   return fileFromArgv(args, { cwd });
 }
 /** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。開く先は、指定がなければ、いま見ているタブ。 */
-function openFile(file, { targetScrollY = null, historyNav = null, fragment = null } = {}, target = tab) {
+function openFile(file, { targetScrollY = null, historyNav = null, fragment = null, notices = [] } = {}, target = tab) {
   const full = path.resolve(file);
   const check = checkOpenTarget(full);
   if (!check.ok) {
@@ -580,10 +594,10 @@ function openFile(file, { targetScrollY = null, historyNav = null, fragment = nu
   }
   // ルートの外のファイルを開いたら、単一ファイルモードへ戻る（#373）。ルートの中なら、モードを保つ（サイドバーの
   // クリック・相対リンク）。開けない対象（上のcheck）では、モードを変えない。
-  if (state.tree.root !== null && !isInsideDirectory(state.tree.root, path.dirname(full))) leaveRoot();
+  if (state.tree.root !== null && !isInsideRoot(full)) leaveRoot();
   // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
   if (!historyNav) rememberDirectory(path.dirname(full));
-  target.queued = { file: full, targetScrollY, historyNav, fragment };
+  target.queued = { file: full, targetScrollY, historyNav, fragment, notices };
   if (!target.inFlight) void drain(target);
 }
 
@@ -605,7 +619,7 @@ async function drain(target) {
     while (target.queued) {
       const task = target.queued;
       target.queued = null;
-      await renderOnce(target, task.file, task.targetScrollY, task.historyNav, task.fragment);
+      await renderOnce(target, task.file, task.targetScrollY, task.historyNav, task.fragment, task.notices);
     }
   } finally {
     target.inFlight = false;
@@ -618,7 +632,7 @@ function whenIdle() {
   return Promise.all(tabs.map((each) => each.whenIdle()));
 }
 
-async function renderOnce(target, file, targetScrollY = null, historyNav = null, fragment = null) {
+async function renderOnce(target, file, targetScrollY = null, historyNav = null, fragment = null, notices = []) {
   const sameDocument = target.shown?.md === file;
   target.file = file;
   target.busy = true;
@@ -650,7 +664,8 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
     // 設定は「原稿の隣」でも、書き込めない場所の原稿は、開けないより、開けるほうがよい。切り替えたことを知らせる
     result.diagnostics = [...(result.diagnostics ?? []), { severity: 'warning', message: '原稿のフォルダに書き込めないため、変換したファイルを、アプリの領域に保存しました（設定は「原稿の隣」）', file }];
   }
-  target.diagnostics = summarize(result.diagnostics);
+  // 開く前に分かった注意（章の一覧の誤りなど。#373）は、変換の診断の前に並べる
+  target.diagnostics = summarize([...notices, ...result.diagnostics]);
   if (target.closed) return;   // 変換の途中で、タブが閉じられた
   if (result.ok && result.html) {
     await showHtml(target, file, result.html, sameDocument, result.dependencies, targetScrollY, fragment);
@@ -806,7 +821,7 @@ async function chooseFileToOpen() {
 
 async function openWithDialog() {
   const file = await chooseFileToOpen();
-  if (file) openFile(file);
+  if (file) openTarget(file);
 }
 
 /** 「フォルダを開く」（#339）。選んだフォルダを、サイドバーのファイルツリーのルートにして、サイドバーを開く。キャンセルしたときは、変えない。 */
@@ -824,7 +839,42 @@ async function openFolder() {
 
 /** ファイルツリーが読んでよいフォルダか。ルートの中（ルート自身を含む）だけ。画面からの依頼で、無関係な場所を、一覧させない。 */
 function isInsideTreeRoot(directory) {
-  return state.settings.showFileTree && isInsideDirectory(state.tree.root, directory);
+  return state.settings.showFileTree && state.tree.kind === 'folder' && isInsideDirectory(state.tree.root, directory);
+}
+
+/**
+ * ファイルを開く入口（ダイアログ・ドロップ・コマンドライン引数）。設定ファイルの名前なら、プロジェクトモードで開く（#373）。
+ * サイドバーの項目のクリック・相対リンクは、ここを通さない（クリックで、モードを変えないため）。
+ */
+function openTarget(file) {
+  if (state.settings.showFileTree && isProjectConfigFile(file)) void openProject(path.resolve(file));
+  else openFile(file);
+}
+
+/**
+ * 設定ファイルを、プロジェクトとして開く（#373）。章の一覧を、ワーカーに1回だけ問い合わせ、サイドバーに出す。
+ * 本文には、設定ファイルのソースを出す。一覧を作れなかった（設定の誤り）ときは、サイドバーは出さず、本文に、案内を添える。
+ */
+async function openProject(configPath) {
+  leaveSettings();
+  const notices = [];
+  let built = null;
+  try {
+    const client = await getWorker();
+    const { items, warnings } = await client.listChapters(configPath);
+    built = buildProject(configPath, items);
+    for (const message of warnings) notices.push({ severity: 'warning', message: `章の一覧: ${message}`, file: configPath });
+  } catch (error) {
+    const reason = error.code === 'bad_config' ? error.message.replace(/^bad_config: /, '') : error.message;
+    notices.push({ severity: 'warning', message: `章の一覧を作れません: ${reason}`, file: configPath });
+  }
+  if (built) {
+    project = built;
+    enterRoot(configPath, 'project');
+  } else {
+    leaveRoot();
+  }
+  openFile(configPath, { notices });
 }
 
 /** 設定画面の「フォルダを選ぶ」。選んだフォルダを、「特定のフォルダ」として保存する。キャンセルしたときは、変えない。 */
@@ -1112,8 +1162,15 @@ ipcMain.on('sidebar-toggle', () => setSidebarOpen(!state.sidebarOpen));
 ipcMain.on('open-folder', () => void openFolder());
 // ファイルツリーの一覧。ワーカー（変換の直列キュー）を通さず、ここで直接読む（変換中でも、展開が待たされない）
 ipcMain.handle('list-directory', (event, directory) => {
+  if (event.sender === win?.webContents && state.settings.showFileTree && state.tree.kind === 'project') return projectEntries(project, directory);   // 章の一覧（#373）
   if (event.sender !== win?.webContents || !isInsideTreeRoot(directory)) return { ok: false, message: 'このフォルダは、読めません' };
   return listDirectory(directory);
+});
+// サイドバーの項目のクリック。設定ファイルでも、モードを変えず、ただのファイルとして開く（#373）
+ipcMain.on('open-from-sidebar', (event, filePath) => {
+  if (event.sender !== win?.webContents || typeof filePath !== 'string') return;
+  leaveSettings();
+  openFile(filePath);
 });
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
@@ -1131,7 +1188,7 @@ ipcMain.on('open-path', (_event, filePath, inNewTab) => {
   if (typeof filePath !== 'string') return;
   leaveSettings();
   if (inNewTab === true && state.settings.enableTabs) void openInNewTab(filePath);
-  else openFile(filePath);
+  else openTarget(filePath);
 });
 ipcMain.on('search-toggle', () => setSearchOpen(!tab.search.open));
 ipcMain.on('search-close', () => setSearchOpen(false));
