@@ -41,6 +41,15 @@ const FEATURES = Object.freeze([
     off: '出さない',
   }),
   Object.freeze({
+    key: 'showFileTree',
+    default: true,   // フォルダを開くまで、画面は何も変わらない（サイドバーは閉じている）ため、既定は「出す」（#339。#326のDの例外）
+    label: 'ファイルツリー',
+    description: '「フォルダを開く」で選んだフォルダを、サイドバー（Ctrl+B）に、ファイルのツリーで出します。クリックで、ファイルを開けます。'
+      + '「出さない」にすると、サイドバーのボタンと、メニューの「フォルダを開く」も出ません。',
+    on: '出す',
+    off: '出さない',
+  }),
+  Object.freeze({
     key: 'enableTabs',
     default: false,   // 画面の構造を変える（タブ列が増える）ため、既定は「使わない」（#326のD。#332）
     label: '複数のタブ',

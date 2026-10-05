@@ -156,6 +156,60 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     check('ルートの外のフォルダは、一覧できない', JSON.parse(denied).ok === false, denied);
     const inside = await chrome.eval(`window.viewer.listDirectory(${JSON.stringify(path.join(root, 'sub'))}).then((r) => r.ok)`);
     check('ルートの中のフォルダは、一覧できる', inside === true);
+
+    // -- 設定「ファイルツリー」を「出さない」にする ----------------------------------------------
+    await chrome.eval("window.viewer.setSetting('showFileTree', false)");
+    await waitFor(() => chrome.eval("document.getElementById('sidebar').hidden"), (v) => v === true);
+    const offState = await chrome.eval(`JSON.stringify({
+      sidebarHidden: document.getElementById('sidebar').hidden,
+      buttonHidden: document.getElementById('sidebar-button').hidden,
+      empty: document.getElementById('tree').hidden,
+    })`);
+    check('「出さない」にすると、サイドバーもボタンも出ない', JSON.parse(offState).sidebarHidden && JSON.parse(offState).buttonHidden, offState);
+    await chrome.eval('window.viewer.toggleSidebar()');
+    await sleep(300);
+    check('「出さない」の間は、サイドバーの開閉を頼んでも、開かない', (await chrome.eval("document.getElementById('sidebar').hidden")) === true);
+    const refused = await chrome.eval(`window.viewer.listDirectory(${JSON.stringify(path.join(root, 'sub'))}).then((r) => r.ok)`);
+    check('「出さない」の間は、フォルダの一覧も、頼めない', refused === false);
+    await chrome.eval("window.viewer.setSetting('showFileTree', true)");
+    await waitFor(() => chrome.eval("document.getElementById('sidebar-button').hidden"), (v) => v === false);
+    check('「出す」に戻すと、ボタンが戻り、開いていたフォルダは、手放されている（案内だけが出る）',
+      (await chrome.eval("document.getElementById('tree').hidden")) === true && (await chrome.eval("!document.getElementById('tree-hint').hidden || document.getElementById('sidebar').hidden")) === true);
+
+    // -- 大きなフォルダ（数千ファイル）でも、遅く感じない ---------------------------------------
+    chrome.close();
+    proc.kill();
+    await sleep(800);
+    const bigRoot = path.join(dir, 'big');
+    fs.mkdirSync(path.join(bigRoot, 'many'), { recursive: true });
+    const COUNT = 5000;
+    for (let i = 0; i < COUNT; i++) {
+      fs.writeFileSync(path.join(bigRoot, 'many', `file${String(i).padStart(5, '0')}.md`), '');
+      fs.writeFileSync(path.join(bigRoot, 'many', `image${i}.png`), '');   // 開けないファイルも、同じ数だけ置く（読んで、捨てる分の費用も入れる）
+    }
+    for (let i = 0; i < COUNT; i++) fs.writeFileSync(path.join(bigRoot, `top${String(i).padStart(5, '0')}.md`), '');
+    fs.writeFileSync(path.join(bigRoot, 'start.md'), '# 開始\n\n本文です。\n');
+    proc = start(path.join(bigRoot, 'start.md'), { VIEWER_TREE_ROOT: bigRoot });
+    chrome = await connect(await findTarget(/chrome\.html/));
+    await waitFor(fileName, (name) => name === 'start.md');
+    const rendered = await waitFor(() => chrome.eval("document.querySelectorAll('#tree > li').length"), (n) => n > COUNT);
+    check(`ルートに${COUNT}ファイルあっても、ツリーが出る`, rendered === COUNT + 2, `${rendered}項目`);   // 'many' + start.md + COUNT
+    const timing = await chrome.eval(`(async () => {
+      const t0 = performance.now();
+      const result = await window.viewer.listDirectory(${JSON.stringify(path.join(bigRoot, 'many'))});
+      const listed = performance.now() - t0;
+      const folder = [...document.querySelectorAll('#tree > li')].find((i) => i.getAttribute('aria-label') === 'many');
+      const t1 = performance.now();
+      folder.querySelector('.tree-row').click();
+      while (document.querySelectorAll('#tree li li').length < ${COUNT}) await new Promise((r) => setTimeout(r, 10));
+      const expanded = performance.now() - t1;
+      return JSON.stringify({ entries: result.entries.length, listedMs: Math.round(listed), expandMs: Math.round(expanded) });
+    })()`);
+    const { entries, listedMs, expandMs } = JSON.parse(timing);
+    check(`${COUNT}ファイル（と、開けない${COUNT}ファイル）のフォルダの一覧は、開けるものだけ`, entries === COUNT, `${entries}件`);
+    console.log(`     計測: 一覧の取得 ${listedMs} ms / 展開（取得・描画を含む）${expandMs} ms`);
+    check('一覧の取得は、0.5秒以内', listedMs < 500, `${listedMs} ms`);
+    check('展開（取得・描画を含む）は、1秒以内', expandMs < 1000, `${expandMs} ms`);
   } catch (error) {
     console.log(`NG   確認を最後まで実行できた  ${error.message}`);
     results.push(false);
