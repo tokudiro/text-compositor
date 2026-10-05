@@ -24,6 +24,13 @@ describe('openDialogFilters', () => {
     for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'pikchr', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
   });
 
+  test('image files have their own kind, and the SVG stays with the diagrams (#413)', () => {
+    const images = filters.find((filter) => filter.name.startsWith('画像'));
+    assert.deepEqual(images.extensions, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp']);
+    assert.ok(!images.extensions.includes('svg'));
+    for (const extension of images.extensions) assert.ok(filters[0].extensions.includes(extension), extension);   // 「対象ファイル」にも入る
+  });
+
   test('settings files and source code have their own kind (#218)', () => {
     const source = filters.find((filter) => filter.name.startsWith('設定'));
     for (const extension of ['yaml', 'yml', 'json', 'toml', 'py', 'js', 'ts', 'sh']) assert.ok(source.extensions.includes(extension), extension);

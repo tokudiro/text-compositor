@@ -48,12 +48,14 @@ _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
 
-# Markdown・図のほかに、開けるファイル（#196）: `.txt`（等幅の素のテキスト）・`.csv`（表）・`.svg`（画像）。
-# 設定ファイル・ソースコード（highlight.SOURCE_FILE_LANGS。#218）は、シンタックスハイライトつきの等幅表示。
+# Markdown・図のほかに、開けるファイル（#196）: `.txt`（等幅の素のテキスト）・`.csv`（表）・`.svg`（画像）・
+# `.png`などの画像（IMAGE_FILE_EXTS。#413）。設定ファイル・ソースコード（highlight.SOURCE_FILE_LANGS。#218）は、シンタックスハイライトつきの等幅表示。
 # それ以外（拡張子なし・未知の拡張子・バイナリ）は、案内つきのエラーにする。
 TEXT_FILE_EXT = '.txt'
 CSV_FILE_EXT = '.csv'
 SVG_FILE_EXT = '.svg'
+# 画像ファイル（#413）。ファイルそのものを`<img>`で参照する（`.svg`と同じ仕組み）。Chromiumが読める形式だけ。
+IMAGE_FILE_EXTS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.bmp')
 # 大きなファイルは、先頭のこの大きさだけを読む（表示が、固まらないように。1 MBで約2秒、2 MBで約10秒かかった）。
 TEXT_MAX_BYTES = 512 * 1024
 # 中身がバイナリか判断する範囲。この範囲にNUL文字があれば、バイナリとする。
@@ -91,6 +93,9 @@ th { background: var(--code-bg); }
 hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
 img { max-width: 100%; }
 .diagram { text-align: center; margin: 1em 0; }
+main.image-file { max-width: none; }
+.image-view { text-align: center; }
+.image-view img { max-width: 100%; height: auto; }
 .math-block { text-align: center; margin: 1em 0; }
 .math-inline { vertical-align: -0.2em; max-height: 2em; }
 /* 図のSVGは、ライト用の配色で描画される。ダークの背景に重ねると、線・矢印・辺のラベルが溶けて読めない（#209）ため、
@@ -327,6 +332,8 @@ class HtmlRenderer(TypstRenderer):
             body = self._csv_html(md_path)
         elif ext == SVG_FILE_EXT:
             body = self._svg_file_html(md_path)
+        elif ext in IMAGE_FILE_EXTS:
+            body = self._image_file_html(md_path)
         else:
             self._unsupported_file(md_path, ext)
         if self._pagebreaks:
@@ -335,12 +342,14 @@ class HtmlRenderer(TypstRenderer):
         title = (self._title or os.path.splitext(os.path.basename(md_path))[0]).strip()
         # ハイライトした部分があるときだけ、トークンの色のCSS（約5 KB）を足す
         highlight_css = highlight.css() if f' {highlight.CODE_CLASS}"' in body else ''
+        # 画像ファイルは、本文の幅（860px）に縛られず、窓の幅いっぱいまで使う（スクリーンショットの文字を、読めるように）
+        main_class = ' class="image-file"' if ext in IMAGE_FILE_EXTS else ''
         return (
             f"<!DOCTYPE html>\n<html lang=\"{self._document_lang(body)}\">\n<head>\n<meta charset=\"utf-8\">\n"
             f"<meta http-equiv=\"Content-Security-Policy\" content=\"{CONTENT_SECURITY_POLICY}\">\n"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
             f"<title>{escapeHtml(title)}</title>\n<style>\n{DOCUMENT_CSS}{highlight_css}</style>\n</head>\n"
-            f"<body>\n<main>\n{body}</main>\n</body>\n</html>\n"
+            f"<body>\n<main{main_class}>\n{body}</main>\n</body>\n</html>\n"
         )
 
     _LANG_TAG_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$")
@@ -357,7 +366,7 @@ class HtmlRenderer(TypstRenderer):
     # -- Markdown・図以外のファイル（#196） -------------------------------------------
 
     SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot・.pikchr など）・"
-                             "テキスト（.txt）・CSV（.csv）・SVG（.svg）・設定ファイルとソースコード（.yaml・.json・.py など）です。")
+                             "テキスト（.txt）・CSV（.csv）・画像（.svg・.png・.jpg・.gif・.webp など）・設定ファイルとソースコード（.yaml・.json・.py など）です。")
 
     def _unsupported_file(self, path: str, ext: str) -> None:
         name = os.path.basename(path)
@@ -384,7 +393,7 @@ class HtmlRenderer(TypstRenderer):
             reason = "UTF-16です。"
         elif b"\x00" in data[:_SNIFF_BYTES]:
             diagnostics.error(f"'{name}' is a binary file, not text, so it cannot be shown.", file=path,
-                              detail="バイナリのファイル（画像・PDFなど）は、開けません。" + self.SUPPORTED_FILES_GUIDE)
+                              detail="バイナリのファイル（PDFなど）は、開けません。" + self.SUPPORTED_FILES_GUIDE)
             sys.exit(1)
         else:
             try:
@@ -456,6 +465,14 @@ class HtmlRenderer(TypstRenderer):
         self.dependencies.add(os.path.abspath(path))
         name = os.path.basename(path)
         return f'<div class="diagram diagram-svg"><img src="{escapeHtml(self._url_for(os.path.abspath(path)))}" alt="{escapeHtml(name)}"></div>\n'
+
+    def _image_file_html(self, path: str) -> str:
+        """画像ファイル（`.png`など。#413）を、画像1枚のページにする。ファイルそのものを`<img>`で参照し（中身は読まない。
+        巨大な画像でも、Pythonは待たない）、保存し直すと、自動で更新される（`dependencies`）。
+        図（`.diagram`）と違い、ダークでも、明暗を反転しない（写真・スクリーンショットの色が、壊れるため）。"""
+        self.dependencies.add(os.path.abspath(path))
+        name = os.path.basename(path)
+        return f'<div class="image-view"><img src="{escapeHtml(self._url_for(os.path.abspath(path)))}" alt="{escapeHtml(name)}"></div>\n'
 
     def _diagram_source_html(self, kind: str, code: str) -> str:
         """図の単体ファイル（.mmd・.puml・.d2）の中身を、図1つのページにする。"""

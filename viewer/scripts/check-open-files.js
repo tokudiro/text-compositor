@@ -87,8 +87,13 @@ async function main() {
   r = await open(write('pic.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#3f9be0"/></svg>'));
   check('.svgが、画像として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', JSON.stringify(r.page?.images));
 
-  for (const name of ['settings.yaml', 'data.json', 'README', 'app.log', 'page.html', 'image.png', 'doc.pdf']) {
-    r = await open(write(name, name.endsWith('.png') || name.endsWith('.pdf') ? Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]) : 'content\n'), 3500);
+  // 画像ファイル（#413）。1x1のPNGを、画像として表示する（Pythonは、中身を読まず、`<img>`で参照する）
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082', 'hex');
+  r = await open(write('shot.png', png));
+  check('.pngが、画像として表示される（本文の幅の制限を受けない）', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', JSON.stringify(r.page?.images));
+
+  for (const name of ['settings.yaml', 'data.json', 'README', 'app.log', 'page.html', 'image.tiff', 'doc.pdf']) {
+    r = await open(write(name, name.endsWith('.tiff') || name.endsWith('.pdf') ? Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]) : 'content\n'), 3500);
     check(`${name}: 対象外のファイルは、案内つきのエラーになる`, r.state.banner.includes('変換エラー') && guide(r.state), r.state.detail.slice(0, 80));
   }
 
