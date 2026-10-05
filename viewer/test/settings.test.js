@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null, sidebarOpen: false },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null, sidebarOpen: false },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs'), sidebarOpen: true };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -77,6 +77,12 @@ test('csvHeader is a boolean setting that defaults to true and is kept when vali
   assert.equal(normalizeSettings({}).csvHeader, true);
   assert.equal(normalizeSettings({ csvHeader: false }).csvHeader, false);
   for (const bad of ['false', 0, null, undefined, [false]]) assert.equal(normalizeSettings({ csvHeader: bad }).csvHeader, true, String(bad));
+});
+test('sidebarOpen is a boolean that defaults to false, is kept when valid, and is not editable from the settings screen (#339)', () => {
+  assert.equal(normalizeSettings({}).sidebarOpen, false);
+  assert.equal(normalizeSettings({ sidebarOpen: true }).sidebarOpen, true);
+  for (const bad of ['true', 1, null, undefined, [true]]) assert.equal(normalizeSettings({ sidebarOpen: bad }).sidebarOpen, false, String(bad));
+  assert.ok(!EDITABLE.includes('sidebarOpen'));
 });
 test('showLineNumber is a boolean setting that defaults to true, is editable, and is kept when valid (#328)', () => {
   assert.equal(normalizeSettings({}).showLineNumber, true);

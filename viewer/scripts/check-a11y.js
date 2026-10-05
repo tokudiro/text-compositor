@@ -259,6 +259,25 @@ async function main() {
     checkAxe('タブを切り替えたあと（ライト）', await runAxe(chrome));
   }, { settings: { enableTabs: true } });
 
+  // サイドバー（#339）。開いた状態（既定は閉じている）を調べる
+  await session(good, async ({ chrome }) => {
+    await sleep(2500);
+    const shown = await chrome.evaluate("!document.getElementById('sidebar').hidden");
+    check('サイドバーが開いた状態で起動する（以降の確認の前提）', shown === true);
+    for (const scheme of ['light', 'dark']) {
+      await setScheme(chrome, scheme);
+      checkAxe(`サイドバーを開いた状態（${scheme === 'light' ? 'ライト' : 'ダーク'}）`, await runAxe(chrome));
+    }
+    await setScheme(chrome, 'light');
+    const sidebar = JSON.parse(await chrome.evaluate(`JSON.stringify({
+      name: document.getElementById('sidebar').getAttribute('aria-label'),
+      buttonName: document.getElementById('sidebar-button').getAttribute('aria-label'),
+      pressed: document.getElementById('sidebar-button').getAttribute('aria-pressed'),
+    })`));
+    check('サイドバーに名前があり、開閉のボタンが、押された状態（aria-pressed）を伝える',
+      !!sidebar.name && !!sidebar.buttonName && sidebar.pressed === 'true', JSON.stringify(sidebar));
+  }, { settings: { sidebarOpen: true } });
+
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);
   process.exit(failures === 0 ? 0 : 1);

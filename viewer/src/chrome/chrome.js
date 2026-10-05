@@ -21,6 +21,7 @@ $('zoom').addEventListener('click', () => api.zoomReset());
 $('auto-reload').addEventListener('click', () => api.setAutoReload($('auto-reload').getAttribute('aria-checked') !== 'true'));
 $('empty-open').addEventListener('click', () => api.openDialog());
 $('csv-header').addEventListener('click', () => api.setCsvHeader($('csv-header').getAttribute('aria-checked') !== 'true'));
+$('sidebar-button').addEventListener('click', () => api.toggleSidebar());
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());
 $('search-button').addEventListener('click', () => api.toggleSearch());
@@ -107,6 +108,19 @@ function renderTabs(state) {
   }
 }
 
+/**
+ * サイドバー（#339）。開閉は、設定「sidebarOpen」。設定画面は全面を覆うため、開いている間は隠す（開閉の状態は、変えない）。
+ * 文書の無い案内（#empty）も、サイドバーの右に寄せる（--sidebar-inset）。
+ */
+function renderSidebar(state) {
+  const open = Boolean(state.settings.sidebarOpen);
+  $('sidebar').hidden = !open || state.settingsOpen;
+  $('sidebar-button').setAttribute('aria-pressed', String(open));
+  const root = document.documentElement.style;
+  root.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
+  root.setProperty('--sidebar-inset', open ? `${state.sidebarWidth}px` : '0px');
+}
+
 /** 「表示する機能」の行を、機能の一覧（state.features。settings.jsのFEATURES）から作る（#326）。一覧が変わらない間は、作り直さない。 */
 let renderedFeatures = '';
 function renderFeatures(features) {
@@ -158,6 +172,7 @@ function render(state) {
   document.body.classList.toggle('toolbar-bottom', state.settings.toolbarPosition === 'bottom');
   renderSearch(state.search, searchWasOpen);
   $('settings').hidden = !state.settingsOpen;
+  renderSidebar(state);
   moveFocusForSettings(state, previousSettingsOpen);
   renderFeatures(state.features ?? []);
   renderTabs(state);
