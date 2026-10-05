@@ -96,6 +96,8 @@ async function waitFor(read, predicate, timeoutMs = 10000) {
   let chrome = null;
   const userData = path.join(dir, 'user-data');
   fs.mkdirSync(userData, { recursive: true });
+  // 自動更新は、オンにしておく（旧名称の設定の引き継ぎで、実環境の設定が入ることがあるため、明示する）
+  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoReload: true }));
   const start = (file, env = {}) => {
     proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
     proc.stderr.on('data', () => {});
@@ -146,6 +148,18 @@ async function waitFor(read, predicate, timeoutMs = 10000) {
     await waitFor(sidebarVisible, (v) => v === true);
     const again = await waitFor(items, (names) => names.length >= expected.length);
     check('設定ファイルを開き直すと、プロジェクトモードに戻る', JSON.stringify(again) === JSON.stringify(expected), JSON.stringify(again));
+
+    // -- 設定ファイルを保存すると、一覧が更新される（#373） ----------------------------------------
+    write('04_new.md', '# new\n');
+    fs.writeFileSync(config, 'inputs:\n  dir: "."\nchapters:\n  - 03_z.md\n  - 04_new.md\n  - 02_b.md\n');
+    const changed = await waitFor(items, (names) => names.includes('04_new.md'));
+    check('設定ファイルを保存すると、章の一覧が、書いた順序で作り直される', JSON.stringify(changed) === JSON.stringify(['03_z.md', '04_new.md', '02_b.md']), JSON.stringify(changed));
+    fs.writeFileSync(config, 'chapters: [a.md\n');   // 編集の途中で、構文が壊れた状態
+    await sleep(1500);
+    check('読めない状態で保存しても、前の一覧が残る', JSON.stringify(await items()) === JSON.stringify(['03_z.md', '04_new.md', '02_b.md']) && (await sidebarVisible()) === true, JSON.stringify(await items()));
+    fs.writeFileSync(config, 'inputs:\n  dir: "."\nchapters:\n  - 04_new.md\n');
+    const fixed = await waitFor(items, (names) => names.length === 1);
+    check('直して保存すると、また更新される', JSON.stringify(fixed) === JSON.stringify(['04_new.md']), JSON.stringify(fixed));
     await stop();
 
     // -- 読めない設定 -------------------------------------------------------------------
