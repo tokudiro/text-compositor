@@ -32,6 +32,16 @@ const OPEN_FILE_KINDS = [
   { name: '設定・ソース（YAML・JSON・コード）', extensions: SOURCE_EXTENSIONS },
 ];
 
+const OPENABLE_EXTENSIONS = new Set(OPEN_FILE_KINDS.flatMap((kind) => kind.extensions));
+
+/**
+ * Viewerが対象とする拡張子のファイルか（ファイルツリーに出すかの判定。#339）。大文字小文字は区別しない。
+ * 「ファイルを開くダイアログ」の「対象ファイル」と同じ集合にそろえ、ツリーに出るものと、ダイアログで選べるものを食い違わせない。
+ */
+function isOpenableFile(name) {
+  return OPENABLE_EXTENSIONS.has(path.extname(name).toLowerCase());
+}
+
 /**
  * ファイルを開くダイアログの絞り込み（Electronの`filters`の形）。先頭は、対象のファイルすべて（既定）、
  * 末尾は、拡張子を問わないすべてのファイル（対象外の場合は、開くときに、ワーカーが案内する）。
@@ -136,4 +146,4 @@ function resolveRelativeLink(href, markdownFile) {
   return { path: file, fragment };
 }
 
-module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, resolveRelativeLink, openDialogFilters, openDialogDirectory };
+module.exports = { checkOpenTarget, fileFromArgv, classifyNavigation, resolveRelativeLink, openDialogFilters, openDialogDirectory, isOpenableFile };
