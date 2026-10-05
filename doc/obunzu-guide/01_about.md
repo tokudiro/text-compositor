@@ -8,7 +8,7 @@ Obunzu Markdown Viewer（略称はObunzu。お文図。「おぶんず」と読�
 
 - Markdownファイル（`.md`）を開いて、見やすく表示します。表・タスクリスト・注記（`> [!NOTE]`）・画像・数式（LaTeX記法）も表示します。コードブロックは、色分けします。
 - 文書の中に、コードとして書いた図を、絵にして表示します。Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・WaveDrom・Bytefield・SVGに対応します（「図を書く」の章）。
-- 図の単体ファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.pikchr`など）・テキスト（`.txt`）・CSV（`.csv`）・SVG（`.svg`）も開けます。
+- 図の単体ファイル（`.mmd`・`.puml`・`.d2`・`.dot`・`.pikchr`など）・テキスト（`.txt`）・CSV（`.csv`）・画像（`.svg`・`.png`・`.jpg`など）も開けます。
 - ファイルを保存すると、表示が自動で更新されます。お使いのエディタで書きながら、Obunzuで見た目を確かめる使い方ができます。
 - 変換に失敗したときは、原稿の何行目で、何が起きたかを、画面に示します。
 - ライトとダークの配色に対応します。

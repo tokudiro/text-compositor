@@ -72,7 +72,7 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
   const root = path.join(dir, 'docs');
   for (const folder of ['sub/deep', '.git', 'node_modules']) fs.mkdirSync(path.join(root, folder), { recursive: true });
   const write = (relative, text = '') => fs.writeFileSync(path.join(root, relative), text || `# ${relative}\n\n本文です。\n`);
-  for (const name of ['01_intro.md', '02_install.md', '10_last.md', 'notes.txt', 'image.png', 'sub/inner.md', 'sub/deep/deep.md', '.git/config.md', 'node_modules/x.md']) write(name);
+  for (const name of ['01_intro.md', '02_install.md', '10_last.md', 'notes.txt', 'image.tiff', 'sub/inner.md', 'sub/deep/deep.md', '.git/config.md', 'node_modules/x.md']) write(name);
   const outside = path.join(dir, 'outside.md');
   fs.writeFileSync(outside, '# 外のファイル\n\n本文です。\n');
 
@@ -110,7 +110,7 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     chrome = await connect(await findTarget(/chrome\.html/));
     await waitFor(fileName, (name) => name === '01_intro.md');
     const top = await waitFor(names, (v) => v !== '[]');
-    check('直下だけが出る（フォルダが先、名前順。png・.git・node_modulesは出ない）',
+    check('直下だけが出る（フォルダが先、名前順。tiff・.git・node_modulesは出ない）',
       top === JSON.stringify(['sub', '01_intro.md', '02_install.md', '10_last.md', 'notes.txt']), top);
     check('案内は消え、ルートのフォルダ名が出る',
       (await chrome.eval("document.getElementById('tree-hint').hidden")) === true && (await chrome.eval("document.getElementById('tree-root-name').textContent")) === 'docs');
@@ -185,7 +185,7 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     const COUNT = 5000;
     for (let i = 0; i < COUNT; i++) {
       fs.writeFileSync(path.join(bigRoot, 'many', `file${String(i).padStart(5, '0')}.md`), '');
-      fs.writeFileSync(path.join(bigRoot, 'many', `image${i}.png`), '');   // 開けないファイルも、同じ数だけ置く（読んで、捨てる分の費用も入れる）
+      fs.writeFileSync(path.join(bigRoot, 'many', `image${i}.tiff`), '');   // 開けないファイルも、同じ数だけ置く（読んで、捨てる分の費用も入れる）
     }
     for (let i = 0; i < COUNT; i++) fs.writeFileSync(path.join(bigRoot, `top${String(i).padStart(5, '0')}.md`), '');
     fs.writeFileSync(path.join(bigRoot, 'start.md'), '# 開始\n\n本文です。\n');

@@ -21,11 +21,11 @@ function makeTree(name, files, directories = []) {
 
 describe('isOpenableFile', () => {
   test('accepts the kinds the open dialog offers, ignoring case', () => {
-    for (const name of ['a.md', 'A.MD', 'b.markdown', 'c.txt', 'd.csv', 'e.mmd', 'f.svg', 'g.yaml', 'h.py']) assert.ok(isOpenableFile(name), name);
+    for (const name of ['a.md', 'A.MD', 'b.markdown', 'c.txt', 'd.csv', 'e.mmd', 'f.svg', 'g.yaml', 'h.py', 'i.png', 'J.JPG', 'k.webp']) assert.ok(isOpenableFile(name), name);
   });
 
   test('rejects other files and names without an extension', () => {
-    for (const name of ['a.png', 'b.pdf', 'c.exe', 'README', '.md-backup']) assert.equal(isOpenableFile(name), false, name);
+    for (const name of ['a.tiff', 'b.pdf', 'c.exe', 'README', '.md-backup']) assert.equal(isOpenableFile(name), false, name);
   });
 });
 
@@ -66,9 +66,9 @@ describe('listDirectory', () => {
   });
 
   test('keeps only files the Viewer can open', async () => {
-    const base = makeTree('filter', ['a.md', 'b.png', 'c.pdf', 'd.txt', 'noext']);
+    const base = makeTree('filter', ['a.md', 'b.tiff', 'c.pdf', 'd.txt', 'e.png', 'noext']);
     const result = await listDirectory(base);
-    assert.deepEqual(result.entries.map((e) => e.name), ['a.md', 'd.txt']);
+    assert.deepEqual(result.entries.map((e) => e.name), ['a.md', 'd.txt', 'e.png']);   // 画像（#413）は出る。tiff・pdfは、出ない
   });
 
   test('hides dot folders, node_modules and .text-compositor, but not ordinary folders', async () => {

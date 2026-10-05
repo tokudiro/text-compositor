@@ -20,6 +20,10 @@ PLAIN = {"mermaid": False, "plantuml": False, "d2": False}
 
 def write(path, text):
     os.makedirs(os.path.dirname(str(path)), exist_ok=True)
+    if isinstance(text, bytes):   # 画像ファイル（#413）など、バイナリ
+        with open(str(path), "wb") as f:
+            f.write(text)
+        return
     with open(str(path), "w", encoding="utf-8") as f:
         f.write(text)
 
@@ -552,7 +556,7 @@ class TestTextFiles:
         result, html = convert(tmp_path, "", name="empty.txt")
         assert result.ok and plain(html) == ""
 
-    @pytest.mark.parametrize("name", ["README", "app.log", "image.png", "doc.pdf", "notes.xyz"])
+    @pytest.mark.parametrize("name", ["README", "app.log", "image.tiff", "doc.pdf", "notes.xyz"])
     def test_other_files_are_an_error_with_a_guide(self, tmp_path, name):
         error = error_of(tmp_path, name, "content")
         assert "cannot be opened" in error.message
@@ -647,6 +651,41 @@ class TestSvgFiles:
     def test_the_svg_file_is_a_dependency_so_that_saving_it_updates_the_view(self, tmp_path):
         result, _ = convert(tmp_path, self.SVG, name="pic.svg")
         assert result.dependencies == [str(tmp_path / "pic.svg")]
+
+
+class TestImageFiles:
+    """`.png`などの画像ファイルの表示（#413）。"""
+
+    PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082")
+
+    @pytest.mark.parametrize("name", ["a.png", "a.jpg", "a.jpeg", "a.gif", "a.webp", "a.avif", "a.bmp", "A.PNG"])
+    def test_an_image_file_is_shown_as_one_image_and_never_read(self, tmp_path, name):
+        result, html = convert(tmp_path, self.PNG, name=name)
+        assert result.ok and not result.warnings
+        assert f'<div class="image-view"><img src="../{name}" alt="{name}"></div>' in html
+        assert "binary file" not in html
+
+    def test_the_page_uses_the_whole_width_and_is_not_inverted_in_the_dark_scheme(self, tmp_path):
+        _, html = convert(tmp_path, self.PNG, name="shot.png")
+        assert "<main class=\"image-file\">" in html
+        assert "main.image-file { max-width: none; }" in html
+        # 図（.diagram）の明暗反転は、写真・スクリーンショットには、掛けない
+        assert 'class="diagram' not in html
+
+    def test_the_image_is_a_dependency_so_that_saving_it_updates_the_view(self, tmp_path):
+        result, _ = convert(tmp_path, self.PNG, name="shot.png")
+        assert result.dependencies == [str(tmp_path / "shot.png")]
+
+    def test_the_title_is_the_file_name_without_the_extension(self, tmp_path):
+        _, html = convert(tmp_path, self.PNG, name="screen-1.png")
+        assert "<title>screen-1</title>" in html
+
+    def test_a_markdown_page_keeps_the_normal_width(self, tmp_path):
+        _, html = convert(tmp_path, "# t\n", name="a.md")
+        assert "<main>" in html and 'class="image-file"' not in html
+
+    def test_the_guide_for_other_files_lists_images(self, tmp_path):
+        assert "画像（.svg・.png・.jpg・.gif・.webp など）" in error_of(tmp_path, "notes.xyz", "x").detail
 
 
 class TestDarkColors:
