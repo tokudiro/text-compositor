@@ -282,7 +282,7 @@ async function main() {
     check('ファイルツリーが、role=treeで、名前がある。各項目に、名前とレベルがある',
       sidebar.tree.role === 'tree' && !!sidebar.tree.name && sidebar.items.every((i) => i.name && i.level), JSON.stringify(sidebar.tree));
     check('Tabで入れる項目が、ちょうど1つ（ツリーの中は、矢印キーで動く）', sidebar.tabStops === 1, String(sidebar.tabStops));
-  }, { settings: { sidebarOpen: true }, env: { VIEWER_TREE_ROOT: path.dirname(good) } });
+  }, { env: { VIEWER_TREE_ROOT: path.dirname(good) } });
 
   fs.rmSync(work, { recursive: true, force: true });
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);

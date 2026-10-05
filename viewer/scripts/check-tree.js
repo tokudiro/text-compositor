@@ -9,7 +9,7 @@
 //   - フォルダを開く（クリック）まで、その中は、読まない。開くと、その直下だけが出る
 //   - ファイルをクリックすると、開き、今開いているファイルが、ハイライトされる
 //   - 矢印キー・Enterで操作できる
-//   - ツリーの外のファイルを開いても、ツリーは残り、ハイライトは、どれにも付かない
+//   - ツリーの外のファイルを開くと、単一ファイルモードへ戻り、ツリーを捨てて、サイドバーが閉じる（#373）
 //   - ルートの外のフォルダは、画面から頼んでも、一覧できない
 
 const { spawn } = require('node:child_process');
@@ -78,7 +78,6 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
 
   const userData = path.join(dir, 'user-data');
   fs.mkdirSync(userData, { recursive: true });
-  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ sidebarOpen: true }));
 
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
@@ -150,12 +149,14 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     // -- ツリーの外 -------------------------------------------------------------------------
     await chrome.eval(`window.viewer.openPath(${JSON.stringify(outside)}, false)`);
     await waitFor(fileName, (name) => name === 'outside.md');
-    check('ツリーの外のファイルを開いても、ツリーは残り、ハイライトは、どれにも付かない',
-      (await names()).includes('10_last.md') && (await current()) === '[]');
+    // #373: ルートの外のファイルを開くと、単一ファイルモードへ戻る（ルートを捨て、サイドバーを閉じる）
+    await waitFor(() => chrome.eval("document.getElementById('sidebar').hidden"), (v) => v === true);
+    check('ツリーの外のファイルを開くと、単一ファイルモードへ戻り、ツリーは空になり、サイドバーが閉じる',
+      (await names()) === '[]' && (await chrome.eval("document.getElementById('sidebar').hidden")) === true);
     const denied = await chrome.eval(`window.viewer.listDirectory(${JSON.stringify(dir)}).then((r) => JSON.stringify(r))`);
     check('ルートの外のフォルダは、一覧できない', JSON.parse(denied).ok === false, denied);
     const inside = await chrome.eval(`window.viewer.listDirectory(${JSON.stringify(path.join(root, 'sub'))}).then((r) => r.ok)`);
-    check('ルートの中のフォルダは、一覧できる', inside === true);
+    check('ルートを捨てたあとは、元のルートの中のフォルダも、一覧できない', inside === false);
 
     // -- 設定「ファイルツリー」を「出さない」にする ----------------------------------------------
     await chrome.eval("window.viewer.setSetting('showFileTree', false)");

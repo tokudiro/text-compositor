@@ -68,8 +68,13 @@ const state = {
   autoReload: DEFAULTS.autoReload,   // 原稿・参照ファイルの保存を検知して、自動で更新する（#170）。設定として保存する
   settingsOpen: false,   // 設定画面を開いているとき、内容のビューを隠して、設定を表示する（#200）
   settings: { ...DEFAULTS },
-  sidebarWidth: SIDEBAR_WIDTH,   // 画面（chrome/）が、サイドバーの幅を、CSSに使う。開閉は、settings.sidebarOpen
-  tree: { root: TREE_ROOT_FROM_ENV },        // ファイルツリー（#339）の、ルートのフォルダ。「フォルダを開く」で決める。覚えない（起動のたびに、空から）
+  sidebarWidth: SIDEBAR_WIDTH,   // 画面（chrome/）が、サイドバーの幅を、CSSに使う。
+  // サイドバーを開いているか。覚えない（#373）。ルートを決めたら、開く。手動で閉じたら、そのルートの間は、閉じたまま。
+  // 起動直後は、ルートが無い（単一ファイルモード）ため、閉じている。
+  sidebarOpen: TREE_ROOT_FROM_ENV !== null,
+  // サイドバーのモード（#373）。root: ルートのフォルダ。kind: null（単一ファイル。ルートなし）| 'folder'（フォルダ。
+  // 「フォルダを開く」）。モードは、「いま開いているファイル」ではなく、ルートの開き方で決める。覚えない（起動のたびに、単一ファイルから）。
+  tree: { root: TREE_ROOT_FROM_ENV, kind: TREE_ROOT_FROM_ENV ? 'folder' : null },
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
@@ -303,16 +308,31 @@ function applyBackground() {
 
 /** サイドバーが、いま画面に出ているか。設定「ファイルツリー」がオンで、開いているとき。 */
 function sidebarShown() {
-  return state.settings.showFileTree && state.settings.sidebarOpen;
+  return state.settings.showFileTree && state.sidebarOpen;
 }
 
-/** サイドバーを開閉し、開閉を覚える（#339）。設定画面を開いている間は、サイドバーも隠れるが、開閉の状態は変えない。 */
+/** サイドバーを開閉する（#339）。開閉は、覚えない（#373）。設定画面を開いている間は、サイドバーも隠れるが、開閉の状態は変えない。 */
 function setSidebarOpen(open) {
   if (!state.settings.showFileTree) return;   // 設定「ファイルツリー」が「出さない」のとき、サイドバーは使えない
-  const next = normalizeSettings({ ...state.settings, sidebarOpen: Boolean(open) });
-  if (next.sidebarOpen === state.settings.sidebarOpen) return;
-  state.settings = next;
-  saveSettings(settingsFile, state.settings);
+  if (state.sidebarOpen === Boolean(open)) return;
+  state.sidebarOpen = Boolean(open);
+  layout();
+  push();
+}
+
+/** ルート（サイドバーのモード）を決める。決めたら、サイドバーを開く（#373）。 */
+function enterRoot(root, kind) {
+  state.tree = { root, kind };
+  state.sidebarOpen = true;
+  layout();
+  push();
+}
+
+/** ルートを手放し、単一ファイルモードへ戻る。サイドバーは閉じる（`Ctrl+B`で、案内つきの空のサイドバーを開ける）。 */
+function leaveRoot() {
+  if (state.tree.root === null) return;
+  state.tree = { root: null, kind: null };
+  state.sidebarOpen = false;
   layout();
   push();
 }
@@ -472,7 +492,7 @@ function changeSetting(key, value) {
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
   if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
-  if (key === 'showFileTree' && !next.showFileTree) state.tree = { root: null };   // 「出さない」にしたら、開いていたフォルダも、手放す
+  if (key === 'showFileTree' && !next.showFileTree) { state.tree = { root: null, kind: null }; state.sidebarOpen = false; }   // 「出さない」にしたら、開いていたフォルダも、手放す
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
   layout();
@@ -558,6 +578,9 @@ function openFile(file, { targetScrollY = null, historyNav = null, fragment = nu
     push();
     return;
   }
+  // ルートの外のファイルを開いたら、単一ファイルモードへ戻る（#373）。ルートの中なら、モードを保つ（サイドバーの
+  // クリック・相対リンク）。開けない対象（上のcheck）では、モードを変えない。
+  if (state.tree.root !== null && !isInsideDirectory(state.tree.root, path.dirname(full))) leaveRoot();
   // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
   if (!historyNav) rememberDirectory(path.dirname(full));
   target.queued = { file: full, targetScrollY, historyNav, fragment };
@@ -796,8 +819,7 @@ async function openFolder() {
     properties: ['openDirectory'],
   });
   if (result.canceled || !result.filePaths[0]) return;
-  state.tree = { root: result.filePaths[0] };
-  if (state.settings.sidebarOpen) push(); else setSidebarOpen(true);   // setSidebarOpenが、配置し直して、pushする
+  enterRoot(result.filePaths[0], 'folder');
 }
 
 /** ファイルツリーが読んでよいフォルダか。ルートの中（ルート自身を含む）だけ。画面からの依頼で、無関係な場所を、一覧させない。 */
@@ -1039,7 +1061,7 @@ function buildMenu() {
         { label: '縮小', accelerator: 'CommandOrControl+-', click: () => zoomBy(-1) },
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
-        { id: 'toggle-sidebar', label: 'サイドバー', accelerator: 'CommandOrControl+B', click: () => setSidebarOpen(!state.settings.sidebarOpen) },
+        { id: 'toggle-sidebar', label: 'サイドバー', accelerator: 'CommandOrControl+B', click: () => setSidebarOpen(!state.sidebarOpen) },
         { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!tab.search.open) },
         { label: 'ツールバーと文書を行き来', accelerator: 'F6', click: toggleFocusArea },
         { type: 'separator' },
@@ -1086,7 +1108,7 @@ ipcMain.on('csv-header', (_event, value) => setCsvHeader(value));
 ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
-ipcMain.on('sidebar-toggle', () => setSidebarOpen(!state.settings.sidebarOpen));
+ipcMain.on('sidebar-toggle', () => setSidebarOpen(!state.sidebarOpen));
 ipcMain.on('open-folder', () => void openFolder());
 // ファイルツリーの一覧。ワーカー（変換の直列キュー）を通さず、ここで直接読む（変換中でも、展開が待たされない）
 ipcMain.handle('list-directory', (event, directory) => {
