@@ -97,7 +97,8 @@ const stats = (values) => {
   try {
     const content = await connect(await findTarget(/(?<!chrome)\.html$/));
     const chrome = await connect(await findTarget(/chrome\.html/));
-    const h1 = () => content.eval("document.querySelector('h1')?.textContent ?? ''");
+    // 見出しの右に、プリロードが「#」（見出しのリンク。#337）を、あとから足す。足した部品（tc-ui）を除いた文字で比べる
+    const h1 = () => content.eval("(() => { const h = document.querySelector('h1'); if (!h) return ''; const c = h.cloneNode(true); c.querySelectorAll('.tc-ui').forEach((e) => e.remove()); return c.textContent; })()");
     const waitH1 = async (expected, timeoutMs = 20000) => {
       const start = performance.now();
       while (performance.now() - start < timeoutMs) {
