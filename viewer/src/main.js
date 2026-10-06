@@ -128,8 +128,12 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     trace('app-ready');
-    // 改名（#394）の前の設定を、新しい置き場所へ、1回だけ引き継ぐ
-    migrateLegacySettings({ userData: app.getPath('userData'), appData: app.getPath('appData') });
+    // 改名（#394）の前の設定を、新しい置き場所へ、1回だけ引き継ぐ。
+    // --user-data-dir を渡された起動は、確認スクリプト用の隔離環境とみなして引き継がない（#423）。
+    // 旧名の置き場所は実環境のappDataのため、引き継ぐと確認の結果が実行する人の設定に左右される。
+    if (!app.commandLine.hasSwitch('user-data-dir')) {
+      migrateLegacySettings({ userData: app.getPath('userData'), appData: app.getPath('appData') });
+    }
     settingsFile = path.join(app.getPath('userData'), 'settings.json');
     state.settings = loadSettings(settingsFile);
     state.autoReload = state.settings.autoReload;
