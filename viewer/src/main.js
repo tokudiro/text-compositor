@@ -642,6 +642,9 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
   target.file = file;
   target.busy = true;
   target.status = '';
+  // 変換の前から原稿を監視する。末尾でしか登録しないと、最初の変換中に保存されたとき、通知を取りこぼし、
+  // 古い表示のまま止まる（見ていないタブでは、特に起きやすい。#424）。保存を検知すると、キューで再変換される。
+  updateWatch();
   push();
 
   let result;
