@@ -46,7 +46,7 @@ Obunzu-Markdown-Viewer-0.4.4-win-x64/
 | PlantUMLの`plantuml-mit-1.2026.8.jar`（`plantuml/`） | **同梱**（#290） | 約16.9 MB |
 | D2のCLI v0.9.0（`d2/`） | **同梱**（#290） | 約40.8 MB |
 | Structurizr CLI（絞り込み版。`structurizr-cli/`） | **同梱**（#290） | 約13.5 MB |
-| `mermaid.min.js`（`mermaid/`） | **同梱**（[#310](https://github.com/tokudiro/text-compositor/issues/310)） | 約3.4 MB |
+| `mermaid.min.js`（`mermaid/`） | **同梱**（[#310](https://github.com/tokudiro/text-compositor/issues/310)） | 約5.5 MB |
 | `vega.min.js`・`vega-lite.min.js`（`vega/`。BSD-3-Clause） | **同梱**（[#351](https://github.com/tokudiro/text-compositor/issues/351)）。Vega・Vega-Liteは、Mermaidと同じく、Electronで描画する | 約0.7 MB |
 | `wavedrom.min.js`・`default.js`（`wavedrom/`。MIT） | **同梱**（[#392](https://github.com/tokudiro/text-compositor/issues/392)）。WaveDromは、Vegaと同じく、Electronで描画する | 約0.1 MB |
 | `lib.js`（`bytefield/`。**EPL-2.0**） | **同梱**（[#300](https://github.com/tokudiro/text-compositor/issues/300)）。Bytefield-svgは、Vegaと同じく、Electronで描画する。EPL-2.0は、ライセンス全文（`licenses/Bytefield-svg-LICENSE.txt`）と、ソースの入手先（`THIRD-PARTY-NOTICES.md`）を添える。改変しない | 約0.9 MB |

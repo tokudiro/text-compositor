@@ -29,7 +29,7 @@ class MermaidBrowser:
 
     def ensure_page(self, mermaid_enabled, mermaid_auto_download):
         """Mermaidレンダリング用のヘッドレスブラウザ・ページを遅延起動する（初回のみ）。
-        Node.js/npxを介さず、mermaid.min.js（実測約3.4MB）を直接ヘッドレスブラウザへ読み込ませて
+        Node.js/npxを介さず、mermaid.min.js（実測約5.5MB）を直接ヘッドレスブラウザへ読み込ませて
         mermaid.render()を呼ぶ（仕様書11章、#35。mermaid-cli丸ごとの約396MBを回避する）。
         既存のシステムChrome/Edge（#34の検出ロジック）が見つかればPlaywrightのCDP接続で繋ぐだけで、
         ブラウザの追加ダウンロードは発生しない。見つからない場合、plugins.mermaid_auto_downloadが

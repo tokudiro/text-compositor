@@ -193,7 +193,7 @@ async function main() {
     check('2つのMermaidの図が、画像として読み込まれている', images.length === 2 && images.every(Boolean), JSON.stringify(images));
     console.log(`   初回の変換（Mermaid 2図、準備を含む）: ${state.status}`);
   }, 12000);
-  // キャッシュがない環境（初めて使う人）: mermaid.min.js（約3.4 MB）を、組込版Pythonが、HTTPSで取得できること。
+  // キャッシュがない環境（初めて使う人）: mermaid.min.js（約5.5 MB）を、組込版Pythonが、HTTPSで取得できること。
   // （キャッシュの場所は、環境変数ではなく、Windowsのフォルダ設定で決まるため、取得の処理を、直接呼んで確認する）
   const fetchCheck = 'import hashlib, os, tempfile; from text_compositor import deps\n'
     + 'p = os.path.join(tempfile.mkdtemp(), "m.js"); deps._download(deps.MERMAID_JS_URL, p)\n'
