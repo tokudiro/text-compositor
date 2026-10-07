@@ -62,8 +62,8 @@ function probePowerShell(spawn = nodeSpawn) {
   });
 }
 
-// 設定の速さの名前と、System.SpeechのRate（-10〜10）の対応。
-const SPEECH_RATES = Object.freeze({ slow: -3, normal: 0, fast: 3 });
+// 設定の速さの名前（5段階）と、System.SpeechのRate（-10〜10）の対応。
+const SPEECH_RATES = Object.freeze({ slowest: -6, slow: -3, normal: 0, fast: 3, fastest: 6 });
 const rateOf = (name) => SPEECH_RATES[name] ?? 0;
 
 /** 使う声を決める。設定の声がOSにあればそれ、なければ（空・消えた声）日本語の声の先頭、声が無ければ空（OSの既定）。 */

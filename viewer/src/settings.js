@@ -72,7 +72,7 @@ const DEFAULTS = Object.freeze({
   fixedDirectory: null,     // 'fixed'のときのフォルダ。設定画面の、フォルダを選ぶボタンで決める
   workLocation: 'app',      // 変換したHTML・図のキャッシュの置き場所（#258）。'app'（アプリの領域。原稿のフォルダには書かない） | 'beside'（原稿の隣の.text-compositor/）
   speechVoice: '',          // 読み上げの声の名前（#430）。''は、自動（OSの日本語の声の先頭）。OSから消えた声は、自動と同じに扱う
-  speechRate: 'normal',     // 読み上げの速さ（#430）。'slow' | 'normal' | 'fast'
+  speechRate: 'normal',     // 読み上げの速さ（#430）。'slowest' | 'slow' | 'normal' | 'fast' | 'fastest'
   lastDirectory: null,      // 前回開いたファイルのフォルダ。アプリが自動で保存する。設定画面では変えない
 });
 
@@ -86,7 +86,7 @@ const CHOICES = Object.freeze({
   toolbarPosition: ['top', 'bottom'],
   theme: ['system', 'light', 'dark'],
   openDirectoryMode: ['os', 'last', 'fixed'],
-  speechRate: ['slow', 'normal', 'fast'],
+  speechRate: ['slowest', 'slow', 'normal', 'fast', 'fastest'],
   workLocation: ['app', 'beside'],   // 「ファイルを作らない」（カスタムプロトコル）は、実装できてから加える（#258）
 });
 

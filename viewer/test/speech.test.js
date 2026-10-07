@@ -205,7 +205,7 @@ test('chooseVoice uses the wanted voice if the OS has it, otherwise the first on
   assert.equal(chooseVoice('Microsoft Ayumi', []), '');
 });
 
-test('rateOf maps the three speeds, and anything else to normal', () => {
-  assert.deepEqual(['slow', 'normal', 'fast'].map(rateOf), [-3, 0, 3]);
+test('rateOf maps the five speeds, and anything else to normal', () => {
+  assert.deepEqual(['slowest', 'slow', 'normal', 'fast', 'fastest'].map(rateOf), [-6, -3, 0, 3, 6]);
   for (const bad of ['', 'turbo', undefined, 5]) assert.equal(rateOf(bad), 0, String(bad));
 });

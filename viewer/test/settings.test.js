@@ -176,11 +176,11 @@ test('FEATURES: tabs are off by default (they change the structure of the screen
   assert.equal(FEATURES.find((feature) => feature.key === 'enableTabs')?.default, false);
 });
 
-test('speechVoice is any short string (the OS decides which exist), speechRate is slow / normal / fast (#430)', () => {
+test('speechVoice is any short string (the OS decides which exist), speechRate is one of five speeds (#430)', () => {
   assert.deepEqual([normalizeSettings({}).speechVoice, normalizeSettings({}).speechRate], ['', 'normal']);
   assert.equal(normalizeSettings({ speechVoice: 'Microsoft Ayumi' }).speechVoice, 'Microsoft Ayumi');
   for (const bad of [1, null, {}, 'x'.repeat(201)]) assert.equal(normalizeSettings({ speechVoice: bad }).speechVoice, '', String(bad).slice(0, 10));
-  assert.equal(normalizeSettings({ speechRate: 'fast' }).speechRate, 'fast');
+  for (const ok of ['slowest', 'slow', 'normal', 'fast', 'fastest']) assert.equal(normalizeSettings({ speechRate: ok }).speechRate, ok);
   for (const bad of ['turbo', 3, null]) assert.equal(normalizeSettings({ speechRate: bad }).speechRate, 'normal', String(bad));
   assert.ok(EDITABLE.includes('speechVoice') && EDITABLE.includes('speechRate'));
 });
