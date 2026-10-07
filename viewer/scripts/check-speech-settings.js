@@ -97,6 +97,8 @@ async function run(settings, steps) {
       check('読み上げの声と速さの行が、設定画面に出る', rows[0] && rows[1], JSON.stringify(rows));
       const options = await chrome.eval("[...document.getElementById('speech-voice').options].map((o) => o.value)");
       check('声の選択肢は、「自動」と、OSの日本語の声', options[0] === '' && options.length > 1, JSON.stringify(options));
+      const testButton = await chrome.eval("document.getElementById('speech-test')?.textContent");
+      check('「試し聞き」のボタンがあり、押しても、エラーにならない', testButton === '試し聞き' && (await chrome.eval("document.getElementById('speech-test').click(), true")) === true);
       const voice = options[options.length - 1];
       await chrome.eval(`(() => { const s = document.getElementById('speech-voice'); s.value = ${JSON.stringify(voice)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
       await chrome.eval("document.querySelector('input[name=speechRate][value=fast]').click()");

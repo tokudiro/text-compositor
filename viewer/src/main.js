@@ -1240,6 +1240,11 @@ ipcMain.on('open-from-sidebar', (event, filePath) => {
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
+// 設定画面の「試し聞き」（#430）。いまの設定の声と速さで、短い文を読む。文書のタブとは無関係のため、文書の切り替えでは止めない
+ipcMain.on('speech-test', (event) => {
+  if (event.sender !== win?.webContents) return;
+  void speakSelection(null, 'これは、読み上げの試し聞きです。声と速さを、確かめてください。');
+});
 // 行番号の表示（#328）。内容のビューが、マウスを乗せたブロックの行を、変わったときだけ送ってくる。値は、正の整数だけ受け付ける
 ipcMain.on('content-line', (event, line) => {
   const origin = tabFromSender(event.sender);

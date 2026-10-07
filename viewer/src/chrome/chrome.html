@@ -159,7 +159,10 @@
           <div class="name"><label for="speech-voice">読み上げの声</label></div>
           <div class="desc">選択範囲を右クリックして読み上げるときの声です。「自動」は、OSに入っている日本語の声の先頭を使います。</div>
         </div>
-        <select id="speech-voice"></select>
+        <div class="speech-voice-control">
+          <select id="speech-voice"></select>
+          <button id="speech-test" title="いまの声と速さで、短い文を読みます">試し聞き</button>
+        </div>
       </div>
       <div class="row" id="speech-rate-row" hidden>
         <div class="text">

@@ -69,6 +69,7 @@ $('settings').addEventListener('change', (event) => {
     api.setSetting(event.target.name, value);
   }
 });
+$('speech-test').addEventListener('click', () => api.speechTest());
 $('speech-voice').addEventListener('change', (event) => api.setSetting('speechVoice', event.target.value));
 $('tab-new').addEventListener('click', () => api.newTab());
 $('tab-close').addEventListener('click', () => { const active = lastState?.tabs?.find((t) => t.active); if (active) api.closeTab(active.id); });
