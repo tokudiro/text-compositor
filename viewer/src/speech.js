@@ -30,6 +30,27 @@ const LIST_VOICES_SCRIPT = [
 const encodeCommand = (script) => Buffer.from(script, 'utf16le').toString('base64');
 const powershellArgs = (script) => ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodeCommand(script)];
 
+/**
+ * 使うPowerShellを選ぶ。PowerShell 7（pwsh.exe）が起動できれば、それを優先する。Windows PowerShell 5.1（powershell.exe）は、
+ * 標準の声（Haruka Desktopなど）しか見えないが、7は、OneCoreの声（Haruka・Ayumi・Ichiro・Sayakaなど）も見える。
+ * 7が入っていない環境では、5.1に戻す（全てのWindowsに入っている）。
+ * Microsoft Store版の7は、実行エイリアスのため、ファイルの有無では判定できない。実際に起動して確かめる。
+ * @returns {Promise<string>}
+ */
+function probePowerShell(spawn = nodeSpawn) {
+  return new Promise((resolve) => {
+    let proc;
+    try {
+      proc = spawn('pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'exit 0'], { windowsHide: true, stdio: 'ignore' });
+    } catch {
+      resolve('powershell.exe');
+      return;
+    }
+    proc.on('error', () => resolve('powershell.exe'));
+    proc.on('close', (code) => resolve(code === 0 ? 'pwsh.exe' : 'powershell.exe'));
+  });
+}
+
 /** 速度（System.SpeechのRate）を、-10〜10の整数にそろえる。想定外は0（ふつう）。 */
 function normalizeRate(rate) {
   const n = Number(rate);
@@ -44,12 +65,15 @@ function prepareSpeechText(text) {
 
 /**
  * 読み上げの管理。同時に読むのは、1つだけ（もう一度`speak`すると、前を止めてから始める）。
- * @param {{spawn?: Function, platform?: string, killTree?: (proc: object) => void}} [options] テストで差し替える
+ * @param {{spawn?: Function, platform?: string, killTree?: (proc: object) => void, probeShell?: () => Promise<string>}} [options] テストで差し替える
  */
-function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTree = defaultKillTree } = {}) {
-  let current = null;
-
+function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTree = defaultKillTree, probeShell = () => probePowerShell(spawn) } = {}) {
   const supported = () => platform === 'win32';
+  let current = null;
+  // 起動直後に、使うPowerShellを調べておく。調べ終わるまでは、5.1で動く（読み上げの開始を、待たせない）。
+  let shell = 'powershell.exe';
+  const shellReady = supported() ? Promise.resolve(probeShell()).then((file) => { shell = file; }, () => {}) : Promise.resolve();
+  const shellFile = () => shell;
 
   function stop() {
     const proc = current;
@@ -62,7 +86,7 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
     const body = prepareSpeechText(text);
     if (!supported() || body === null) return false;
     stop();
-    const proc = spawn('powershell.exe', powershellArgs(SPEAK_SCRIPT), {
+    const proc = spawn(shellFile(), powershellArgs(SPEAK_SCRIPT), {
       windowsHide: true,
       stdio: ['pipe', 'ignore', 'ignore'],
       env: { ...process.env, OBUNZU_SPEECH_VOICE: String(voice || ''), OBUNZU_SPEECH_RATE: String(normalizeRate(rate)) },
@@ -79,11 +103,11 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
   /** OSに入っている日本語の声の名前を、取得する。取得できなければ、空の配列。 */
   function listVoices() {
     if (!supported()) return Promise.resolve([]);
-    return new Promise((resolve) => {
+    return shellReady.then(() => new Promise((resolve) => {
       let out = '';
       let proc;
       try {
-        proc = spawn('powershell.exe', powershellArgs(LIST_VOICES_SCRIPT), { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+        proc = spawn(shellFile(), powershellArgs(LIST_VOICES_SCRIPT), { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
       } catch {
         resolve([]);
         return;
@@ -92,7 +116,7 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
       proc.stdout.on('data', (chunk) => { out += chunk; });
       proc.on('error', () => resolve([]));
       proc.on('close', () => resolve(out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)));
-    });
+    }));
   }
 
   return { speak, stop, listVoices, isSpeaking: () => current !== null, isSupported: supported };
@@ -107,4 +131,4 @@ function defaultKillTree(proc) {
   }
 }
 
-module.exports = { createSpeaker, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS, SPEAK_SCRIPT };
+module.exports = { createSpeaker, probePowerShell, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS, SPEAK_SCRIPT };

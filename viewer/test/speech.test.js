@@ -6,7 +6,7 @@ const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const { test } = require('node:test');
 
-const { createSpeaker, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS } = require('../src/speech');
+const { createSpeaker, probePowerShell, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS } = require('../src/speech');
 
 function fakeProcess(pid) {
   const proc = new EventEmitter();
@@ -25,6 +25,7 @@ function setup(platform = 'win32') {
     platform,
     spawn: (file, args, options) => { const proc = fakeProcess(100 + spawned.length); spawned.push({ file, args, options, proc }); return proc; },
     killTree: (proc) => killed.push(proc.pid),
+    probeShell: async () => 'powershell.exe',
   });
   return { speaker, spawned, killed };
 }
@@ -112,6 +113,7 @@ test('on other platforms, nothing is spoken and no voices are listed', async () 
 test('listVoices returns the trimmed names, one per line', async () => {
   const { speaker, spawned } = setup();
   const promise = speaker.listVoices();
+  await new Promise((r) => setImmediate(r));   // 使うPowerShellの判定が終わってから、起動される
   const { proc } = spawned[0];
   proc.stdout.write('Microsoft Haruka\r\nMicrosoft Ayumi \r\n\r\n');
   proc.emit('close', 0);
@@ -121,6 +123,35 @@ test('listVoices returns the trimmed names, one per line', async () => {
 test('listVoices returns an empty list when PowerShell cannot start', async () => {
   const { speaker, spawned } = setup();
   const promise = speaker.listVoices();
+  await new Promise((r) => setImmediate(r));
   spawned[0].proc.emit('error', new Error('ENOENT'));
   assert.deepEqual(await promise, []);
+});
+
+test('probePowerShell picks pwsh.exe when it starts, and powershell.exe when it does not', async () => {
+  const fake = (behavior) => () => {
+    const proc = new EventEmitter();
+    setImmediate(() => (behavior === 'missing' ? proc.emit('error', new Error('ENOENT')) : proc.emit('close', behavior === 'ok' ? 0 : 1)));
+    return proc;
+  };
+  assert.equal(await probePowerShell(fake('ok')), 'pwsh.exe');
+  assert.equal(await probePowerShell(fake('missing')), 'powershell.exe');
+  assert.equal(await probePowerShell(fake('fail')), 'powershell.exe');
+});
+
+test('the shell that the probe picked is the one that is started', async () => {
+  const spawned = [];
+  const speaker = createSpeaker({
+    platform: 'win32',
+    probeShell: async () => 'pwsh.exe',
+    spawn: (file) => { const proc = fakeProcess(1); spawned.push(file); return proc; },
+    killTree: () => {},
+  });
+  const promise = speaker.listVoices();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(spawned.length, 1);
+  assert.equal(spawned[0], 'pwsh.exe');
+  speaker.speak('x');
+  assert.equal(spawned[1], 'pwsh.exe');
+  void promise;
 });
