@@ -438,6 +438,17 @@ function setSearchOpen(open) {
   push();
 }
 
+/**
+ * 右クリックの「選択範囲で検索」（#429）。検索欄を開き、選んだ文字を検索語にして、検索する。
+ * 選んだ文字は、そのまま探したいため、正規表現はオフにする。`queryRevision`を進めて、すでに開いている検索欄の入力も、そろえさせる。
+ */
+function searchForSelection(origin, term) {
+  if (origin !== tab || !origin.hasDocument) return;
+  setSearchOpen(true);
+  tab.search = { ...tab.search, queryRevision: (tab.search.queryRevision ?? 0) + 1 };
+  setSearchQuery({ query: term, regex: false, caseSensitive: tab.search.caseSensitive });
+}
+
 /** 検索語・正規表現/大文字小文字の切り替え。入力のたびに呼ばれる。 */
 function setSearchQuery({ query, regex, caseSensitive }) {
   tab.search = { ...tab.search, query: String(query ?? ''), regex: Boolean(regex), caseSensitive: Boolean(caseSensitive) };
@@ -1058,6 +1069,7 @@ async function handleContextMenu(origin, params) {
   const contents = origin.contentView.webContents;
   const template = buildSelectionContextMenuTemplate(params, {
     onCopy: () => { contents.focus(); contents.copy(); },
+    onSearch: (term) => searchForSelection(origin, term),
     onSelectAll: () => { contents.focus(); contents.selectAll(); },
     onSpeak: (text) => void speakSelection(origin, text),
     onStopSpeaking: () => stopSpeech(),

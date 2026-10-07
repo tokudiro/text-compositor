@@ -299,6 +299,7 @@ function moveFocusForSettings(state, wasOpen) {
 }
 
 /** 検索欄（#325）。入力欄の値は、状態から書き戻さない（入力中に、キー操作と競合させないため）。開いた瞬間だけ、そろえる。 */
+let lastQueryRevision;
 function renderSearch(search, wasOpen) {
   const input = $('search-input');
   $('search').hidden = !search.open;
@@ -311,6 +312,10 @@ function renderSearch(search, wasOpen) {
     : '見つかりません';
   $('search-count').classList.toggle('error', Boolean(search.error));
   $('search-prev').disabled = $('search-next').disabled = !search.count;
+  // 右クリックの「選択範囲で検索」（#429）で、メイン側が検索語を入れたときは、開いたままでも、入力欄をそろえる
+  const revised = search.queryRevision !== undefined && search.queryRevision !== lastQueryRevision;
+  lastQueryRevision = search.queryRevision;
+  if (search.open && revised && wasOpen) input.value = search.query;
   if (search.open && !wasOpen) {
     input.value = search.query;
     input.focus();
