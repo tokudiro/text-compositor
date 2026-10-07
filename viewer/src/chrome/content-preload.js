@@ -355,3 +355,135 @@ ipcRenderer.on('content-features', (_event, features) => {
   contentFeatures = { headingAnchor: features?.headingAnchor === true, codeCopy: features?.codeCopy === true };
   buildUi();
 });
+
+// -- 図の拡大表示（#338） -------------------------------------------------------------------------------------------
+// 本文の図（.diagram img）をクリックすると、同じページの上に、全面のオーバーレイを重ねて、図だけを大きく見せる。
+// ホイールで拡大・縮小（カーソルの位置を中心に）、ドラッグでパン、ダブルクリックと0キーで「画面に収める」に戻す。Escか背景のクリックで閉じる。
+// ページ全体のズーム（Ctrl＋ホイール）とは別。ページはscriptを持てないため、ここ（プリロード）でDOMを足す。
+// 図は、.diagramの中の<img>のまま複製する。ダークの反転フィルター（#209。CSSは、html_output.pyの`.diagram img`）が、そのまま掛かるため。
+// 右クリックの「画像を保存」（#327）も、<img>なので、そのまま使える。倍率は、「画面に収めた大きさ」を1として、0.5〜32倍。
+const LIGHTBOX_MIN_SCALE = 0.5;
+const LIGHTBOX_MAX_SCALE = 32;
+const LIGHTBOX_FIT_RATIO = 0.92;   // 収めるときの、画面に対する大きさ（縁を少し残す）
+let lightbox = null;
+
+function ensureLightboxStyle() {
+  if (document.getElementById('tc-lightbox-style')) return;
+  const style = document.createElement('style');
+  style.id = 'tc-lightbox-style';
+  style.textContent = `
+    .diagram img { cursor: zoom-in; }
+    .tc-lightbox { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center;
+      overflow: hidden; background: Canvas; color-scheme: light dark; cursor: grab; user-select: none; touch-action: none; }
+    .tc-lightbox.dragging { cursor: grabbing; }
+    .tc-lightbox .diagram { margin: 0; flex: none; transform-origin: center center; will-change: transform; }
+    .tc-lightbox .diagram img { display: block; max-width: none; cursor: inherit; -webkit-user-drag: none; }
+  `;
+  document.head.appendChild(style);
+}
+
+function openLightbox(source) {
+  if (lightbox || !document.body) return;
+  ensureLightboxStyle();
+  const overlay = document.createElement('div');
+  overlay.className = 'tc-lightbox';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', '図の拡大表示');
+  const stage = document.createElement('div');
+  stage.className = 'diagram';
+  const image = document.createElement('img');
+  image.alt = source.alt || '';
+  stage.appendChild(image);
+  overlay.appendChild(stage);
+  document.body.appendChild(overlay);
+
+  const view = { scale: 1, x: 0, y: 0 };
+  const apply = () => { stage.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`; };
+  // 画面に収める大きさを、画像の元の大きさ（SVGは、viewBoxなどで決まる大きさ）から求める。0のときは、本文での表示の大きさを使う
+  const fit = () => {
+    const rect = source.getBoundingClientRect();
+    const naturalWidth = image.naturalWidth || rect.width || 1;
+    const naturalHeight = image.naturalHeight || rect.height || 1;
+    const ratio = Math.min(window.innerWidth * LIGHTBOX_FIT_RATIO / naturalWidth, window.innerHeight * LIGHTBOX_FIT_RATIO / naturalHeight);
+    image.style.width = `${naturalWidth * ratio}px`;
+    view.scale = 1; view.x = 0; view.y = 0;
+    apply();
+  };
+  // 画面の中心を原点にして、(px, py)の下にある図の点が、動かないように、拡大・縮小する
+  const zoomAt = (factor, px = window.innerWidth / 2, py = window.innerHeight / 2) => {
+    const next = Math.min(LIGHTBOX_MAX_SCALE, Math.max(LIGHTBOX_MIN_SCALE, view.scale * factor));
+    const ratio = next / view.scale;
+    const cx = px - window.innerWidth / 2;
+    const cy = py - window.innerHeight / 2;
+    view.x = cx - (cx - view.x) * ratio;
+    view.y = cy - (cy - view.y) * ratio;
+    view.scale = next;
+    apply();
+  };
+
+  let drag = null;
+  const onWheel = (event) => {
+    event.preventDefault();   // ページのスクロール・Ctrl＋ホイールのページズームは、図の拡大に使う
+    const unit = event.deltaMode === 1 ? 16 : 1;
+    zoomAt(Math.exp(-event.deltaY * unit * 0.0015), event.clientX, event.clientY);
+  };
+  const onPointerDown = (event) => {
+    if (event.button !== 0) return;
+    // ポインターキャプチャを使うと、clickの対象が、常にオーバーレイになる。背景か図かは、押した時点の対象で決める
+    drag = { x: event.clientX, y: event.clientY, startX: view.x, startY: view.y, moved: false, onBackground: event.target === overlay };
+    overlay.setPointerCapture(event.pointerId);
+    overlay.classList.add('dragging');
+  };
+  const onPointerMove = (event) => {
+    if (!drag) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    view.x = drag.startX + dx;
+    view.y = drag.startY + dy;
+    apply();
+  };
+  const onPointerUp = () => { overlay.classList.remove('dragging'); };
+  // ドラッグの後のクリックでは、閉じない。背景（図の外）のクリックだけ、閉じる
+  const onClick = () => {
+    const closing = drag !== null && !drag.moved && drag.onBackground;
+    drag = null;
+    if (closing) close();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+    else if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomAt(1.25); }
+    else if (event.key === '-') { event.preventDefault(); zoomAt(0.8); }
+    else if (event.key === '0') { event.preventDefault(); fit(); }
+  };
+  function close() {
+    overlay.removeEventListener('wheel', onWheel);
+    window.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('resize', fit);
+    overlay.remove();
+    lightbox = null;
+  }
+
+  overlay.addEventListener('wheel', onWheel, { passive: false });
+  overlay.addEventListener('pointerdown', onPointerDown);
+  overlay.addEventListener('pointermove', onPointerMove);
+  overlay.addEventListener('pointerup', onPointerUp);
+  overlay.addEventListener('pointercancel', onPointerUp);
+  overlay.addEventListener('click', onClick);
+  overlay.addEventListener('dblclick', fit);
+  window.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('resize', fit);
+  image.addEventListener('load', fit);
+  image.src = source.currentSrc || source.src;
+  fit();
+  lightbox = { close, overlay, view };
+}
+
+window.addEventListener('click', (event) => {
+  if (event.button !== 0 || event.ctrlKey || event.shiftKey || event.altKey || event.metaKey || !(event.target instanceof Element)) return;
+  if (event.target.closest('.tc-lightbox') || event.target.closest('a[href]')) return;
+  const image = event.target.closest('.diagram img');
+  if (image) openLightbox(image);
+}, true);
+window.addEventListener('DOMContentLoaded', ensureLightboxStyle);
