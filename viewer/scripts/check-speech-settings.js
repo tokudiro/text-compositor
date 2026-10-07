@@ -20,7 +20,7 @@ if (process.platform !== 'win32') {
 
 const electron = require('electron');
 const viewerDir = path.resolve(__dirname, '..');
-const port = 9900 + Math.floor(Math.random() * 90);
+let port = 9900;   // 起動ごとに、別のポートを使う（前の起動の終了が、間に合わないことがあるため）
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function targets() {
@@ -73,6 +73,7 @@ async function run(settings, steps) {
   const userData = path.join(dir, 'user-data');
   fs.mkdirSync(userData, { recursive: true });
   if (settings) fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
+  port = 9900 + Math.floor(Math.random() * 900);
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
   try {
     const chrome = await connect(await findTarget(/chrome\.html/));
