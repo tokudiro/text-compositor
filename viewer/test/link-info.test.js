@@ -29,19 +29,46 @@ describe('describeLink', () => {
 });
 
 describe('buildLinkContextMenuTemplate', () => {
-  test('offers open and copy; copy puts the shown address on the clipboard', () => {
+  test('offers open and copy, then Reveal for a relative file; copy puts the shown address on the clipboard', () => {
     const copied = [];
     const opened = [];
     const [open, copy, ...rest] = buildLinkContextMenuTemplate({
       href: 'other.md#x', markdownFile: md, onCopy: (t) => copied.push(t), onOpen: (h) => opened.push(h),
     });
-    assert.equal(rest.length, 0);
+    assert.deepEqual(rest.map((item) => item.label), ['エクスプローラーで表示']);
     assert.equal(open.label, 'リンクを開く');
     assert.equal(copy.label, 'リンクのアドレスをコピー');
     open.click();
     copy.click();
     assert.deepEqual(opened, ['other.md#x']);
     assert.deepEqual(copied, [`${path.resolve('docs', 'other.md')}#x`]);
+  });
+
+  test('Open in new tab appears only with tabs on and an openable document; Reveal goes with a relative file (#428)', () => {
+    const labels = (options) => buildLinkContextMenuTemplate({ markdownFile: md, ...options }).map((item) => item.label);
+    assert.deepEqual(labels({ href: 'other.md' }), ['リンクを開く', 'リンクのアドレスをコピー', 'エクスプローラーで表示']);
+    assert.deepEqual(labels({ href: 'other.md', canOpenInNewTab: true }),
+      ['リンクを開く', 'リンクのアドレスをコピー', '新しいタブで開く', 'エクスプローラーで表示']);
+    // 開けない種類（画像・zipなど）には、「新しいタブで開く」を出さない。場所の表示は、出す
+    assert.deepEqual(labels({ href: 'a.zip', canOpenInNewTab: true }), ['リンクを開く', 'リンクのアドレスをコピー', 'エクスプローラーで表示']);
+  });
+
+  test('external links and in-page anchors get neither Open in new tab nor Reveal (#428)', () => {
+    for (const href of ['https://example.com/', 'mailto:a@example.com', '#section']) {
+      const labels = buildLinkContextMenuTemplate({ href, markdownFile: md, canOpenInNewTab: true }).map((item) => item.label);
+      assert.deepEqual(labels, ['リンクを開く', 'リンクのアドレスをコピー'], href);
+    }
+  });
+
+  test('the new items pass the resolved file path to the handlers', () => {
+    const calls = [];
+    const items = buildLinkContextMenuTemplate({
+      href: 'other.md#x', markdownFile: md, canOpenInNewTab: true,
+      onOpenInNewTab: (file) => calls.push(['tab', file]), onReveal: (file, isDirectory) => calls.push(['reveal', file, isDirectory]),
+    });
+    for (const item of items.slice(2)) item.click();
+    const file = path.resolve('docs', 'other.md');
+    assert.deepEqual(calls, [['tab', file], ['reveal', file, false]]);
   });
 
   test('has no items when there is nothing to show', () => {

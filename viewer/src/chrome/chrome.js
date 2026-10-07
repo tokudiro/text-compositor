@@ -71,6 +71,11 @@ $('settings').addEventListener('change', (event) => {
 });
 $('speech-test').addEventListener('click', () => api.speechTest());
 $('speech-voice').addEventListener('change', (event) => api.setSetting('speechVoice', event.target.value));
+// 右クリックのメニュー（#428）。ここでは、押された項目だけをメインへ送り、メニューは、メインが出す
+$('tree').addEventListener('contextmenu', (event) => {
+  const item = event.target.closest?.('[role="treeitem"][data-path]');
+  if (item) api.sidebarContextMenu(item.dataset.path, item.dataset.type);
+});
 $('tab-new').addEventListener('click', () => api.newTab());
 $('tab-close').addEventListener('click', () => { const active = lastState?.tabs?.find((t) => t.active); if (active) api.closeTab(active.id); });
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
@@ -112,6 +117,7 @@ function renderTabs(state) {
     tab.title = t.file ?? t.title;
     tab.textContent = t.title;
     tab.addEventListener('click', () => api.activateTab(t.id));
+    tab.addEventListener('contextmenu', () => api.tabContextMenu(t.id));
     // 中ボタン（ホイールのクリック）で、そのタブを閉じる
     tab.addEventListener('auxclick', (event) => { if (event.button === 1) api.closeTab(t.id); });
     item.append(tab);

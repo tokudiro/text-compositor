@@ -20,6 +20,7 @@ const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = r
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildSelectionContextMenuTemplate } = require('./selection-menu');
+const { buildPathContextMenuTemplate, buildTabContextMenuTemplate, isSidebarPath: checkSidebarPath } = require('./path-menu');
 const { chooseVoice, createSpeaker, rateOf } = require('./speech');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
@@ -1044,6 +1045,19 @@ async function linkAtPoint(origin, params) {
 }
 
 /** 「リンクを開く」。文書内のアンカーは、その見出しへスクロールし、相対リンク・外部リンクは、クリックと同じ扱いにする。 */
+/** ファイルの場所を、OSのファイルマネージャーで示す（ファイルは選択した状態、フォルダはそのフォルダを開く）。無いパスは、何もしない。 */
+function revealInFileManager(target, isDirectory) {
+  if (typeof target !== 'string' || !fs.existsSync(target)) return;
+  if (isDirectory) void shell.openPath(target);
+  else shell.showItemInFolder(target);
+}
+
+/** サイドバーの右クリックを受け付けるパスか（判定は、path-menu.js）。 */
+const isSidebarPath = (filePath, type) => checkSidebarPath({
+  filePath, type, showFileTree: state.settings.showFileTree, tree: state.tree, projectFiles: project?.files,
+  isAbsolute: path.isAbsolute, isInside: isInsideDirectory,
+});
+
 function openLink(origin, href) {
   if (href.startsWith('#')) {
     let id = href.slice(1);
@@ -1088,7 +1102,9 @@ async function handleContextMenu(origin, params) {
   if (href !== null) {
     template.push({ type: 'separator' });
     template.push(...buildLinkContextMenuTemplate({
-      href, markdownFile: origin.file, onCopy: (text) => clipboard.writeText(text), onOpen: (link) => openLink(origin, link),
+      href, markdownFile: origin.file, canOpenInNewTab: state.settings.enableTabs,
+      onCopy: (text) => clipboard.writeText(text), onOpen: (link) => openLink(origin, link),
+      onOpenInNewTab: (file) => void openInNewTab(file), onReveal: revealInFileManager,
     }));
   }
   if (state.settings.showLineNumber && origin.file) {
@@ -1278,6 +1294,26 @@ ipcMain.on('search-set', (_event, payload) => setSearchQuery(payload ?? {}));
 ipcMain.on('search-move', (_event, delta) => moveSearch(delta));
 ipcMain.on('search-result', (event, result) => onSearchResult(tabFromSender(event.sender), result ?? {}));
 // タブ列（#332）。設定がオフのときは、タブ列そのものが出ないが、念のため、ここでも、はじく
+// サイドバー・タブ列の右クリック（#428）。画面側は、右クリックされた項目だけを送り、メニューは、ここで出す
+ipcMain.on('sidebar-context-menu', (event, filePath, type) => {
+  if (event.sender !== win?.webContents || !isSidebarPath(filePath, type)) return;
+  const template = buildPathContextMenuTemplate({
+    filePath, isDirectory: type === 'directory', canOpenInNewTab: state.settings.enableTabs,
+    onCopy: (text) => clipboard.writeText(text), onReveal: revealInFileManager, onOpenInNewTab: (file) => void openInNewTab(file),
+  });
+  if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: win });
+});
+ipcMain.on('tab-context-menu', (event, id) => {
+  const target = tabs.find((each) => each.id === id);
+  if (event.sender !== win?.webContents || !state.settings.enableTabs || !target) return;
+  const template = buildTabContextMenuTemplate({
+    file: target.file, tabCount: tabs.length,
+    onClose: () => closeTab(target),
+    onCloseOthers: () => { activateTab(target); closeOtherTabs(); },
+    onCopy: (text) => clipboard.writeText(text), onReveal: revealInFileManager,
+  });
+  Menu.buildFromTemplate(template).popup({ window: win });
+});
 ipcMain.on('tab-activate', (_event, id) => { if (state.settings.enableTabs) activateTab(tabs.find((each) => each.id === id)); });
 ipcMain.on('tab-close', (_event, id) => { if (state.settings.enableTabs) closeTab(tabs.find((each) => each.id === id)); });
 ipcMain.on('tab-new', () => void openInNewTab());
