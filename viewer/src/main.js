@@ -20,6 +20,7 @@ const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = r
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildSelectionContextMenuTemplate } = require('./selection-menu');
+const { createSpeaker } = require('./speech');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
@@ -149,8 +150,25 @@ if (!app.requestSingleInstanceLock()) {
 
 app.on('window-all-closed', () => app.quit());
 
+// 選択範囲の読み上げ（#430）。読み上げているのは、同時に1つだけ。始めたタブを覚え、そのタブの文書が替わる・タブを閉じる・終了するときに止める。
+const speaker = createSpeaker();
+let speechTab = null;
+let speechVoice = null;
+
+function stopSpeech() {
+  speaker.stop();
+  speechTab = null;
+}
+
+async function speakSelection(origin, text) {
+  // 声は、OSの日本語の声の先頭を使う（設定で選べるようにするのは、次の段階）。取得は、初回だけ。
+  speechVoice ??= (await speaker.listVoices())[0] ?? '';
+  if (speaker.speak(text, { voice: speechVoice })) speechTab = origin;
+}
+
 let quitting = false;
 app.on('before-quit', (event) => {
+  stopSpeech();
   watcher?.close();
   mermaidHost.dispose();
   vegaHost.dispose();
@@ -200,7 +218,7 @@ function createWindow() {
   win.on('unmaximize', scheduleWindowSave);
   win.on('close', saveWindowNow);
   // 非表示のMermaidのウィンドウが残ると、'window-all-closed'が発火せず、アプリが終了しない
-  win.on('closed', () => { mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
+  win.on('closed', () => { stopSpeech(); mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
   handleEscape(win.webContents);
   // フォーカスが、どちらのビューにあるかを覚える（F6の切り替えに使う。`isFocused()`は、子のビューとの関係で、当てにならないため。#340）
   win.webContents.on('focus', () => { focusedArea = 'toolbar'; });
@@ -744,6 +762,7 @@ function clock() {
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
 async function showHtml(target, md, html, sameDocument, dependencies = [], targetScrollY = null, fragment = null) {
   const contents = target.contentView.webContents;
+  if (!sameDocument && speechTab === target) stopSpeech();
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
     contents.once('did-finish-load', done);
@@ -948,6 +967,7 @@ async function openInNewTab(file = null) {
 function closeTab(target = tab) {
   if (tabs.length <= 1 || target.closed) return;
   const index = tabs.indexOf(target);
+  if (speechTab === target) stopSpeech();
   target.closed = true;
   target.queued = null;
   tabs.splice(index, 1);
@@ -1031,6 +1051,9 @@ async function handleContextMenu(origin, params) {
   const template = buildSelectionContextMenuTemplate(params, {
     onCopy: () => { contents.focus(); contents.copy(); },
     onSelectAll: () => { contents.focus(); contents.selectAll(); },
+    onSpeak: (text) => void speakSelection(origin, text),
+    onStopSpeaking: stopSpeech,
+    speaking: speaker.isSpeaking(),
   });
   if (params.mediaType === 'image' && params.srcURL) {
     template.push({ type: 'separator' });
