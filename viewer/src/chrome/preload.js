@@ -33,4 +33,6 @@ contextBridge.exposeInMainWorld('viewer', {
   activateTab: (id) => ipcRenderer.send('tab-activate', id),
   closeTab: (id) => ipcRenderer.send('tab-close', id),
   newTab: () => ipcRenderer.send('tab-new'),
+  sidebarContextMenu: (filePath, type) => ipcRenderer.send('sidebar-context-menu', filePath, type),
+  tabContextMenu: (id) => ipcRenderer.send('tab-context-menu', id),
 });

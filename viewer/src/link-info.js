@@ -4,7 +4,8 @@
 
 const path = require('node:path');
 
-const { resolveRelativeLink } = require('./targets');
+const { isOpenableFile, resolveRelativeLink } = require('./targets');
+const { REVEAL_LABEL } = require('./path-menu');
 
 /**
  * リンクの飛び先を、利用者に見せる文字列にする。
@@ -34,14 +35,24 @@ function linkAtPointScript(x, y, zoomFactor = 1) {
     + `return a ? a.getAttribute('href') : null; })()`;
 }
 
-/** 右クリックのメニューの、リンクの項目（アドレスのコピー・リンクを開く）。 */
-function buildLinkContextMenuTemplate({ href, markdownFile, onCopy, onOpen }) {
+/**
+ * 右クリックのメニューの、リンクの項目（アドレスのコピー・リンクを開く）。
+ * 相対リンクのファイルには、続けて、「新しいタブで開く」（設定「複数のタブ」がオンで、開ける文書のときだけ）と、
+ * 「エクスプローラーで表示」を出す（#428）。外部リンク・文書内のアンカー（#…）には、出さない。
+ */
+function buildLinkContextMenuTemplate({ href, markdownFile, canOpenInNewTab = false, onCopy, onOpen, onOpenInNewTab, onReveal }) {
   const address = describeLink(href, markdownFile);
   if (!address) return [];
-  return [
+  const items = [
     { label: 'リンクを開く', click: () => onOpen?.(href) },
     { label: 'リンクのアドレスをコピー', click: () => onCopy?.(address) },
   ];
+  const target = markdownFile ? resolveRelativeLink(href, markdownFile) : null;
+  if (target) {
+    if (canOpenInNewTab && isOpenableFile(target.path)) items.push({ label: '新しいタブで開く', click: () => onOpenInNewTab?.(target.path) });
+    items.push({ label: REVEAL_LABEL, click: () => onReveal?.(target.path, false) });
+  }
+  return items;
 }
 
 /**
