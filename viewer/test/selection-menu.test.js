@@ -4,7 +4,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const { buildSelectionContextMenuTemplate } = require('../src/selection-menu');
+const { buildSelectionContextMenuTemplate, searchLabel, searchTermFromSelection, SEARCH_SELECTION_MAX } = require('../src/selection-menu');
 
 const labels = (template) => template.map((item) => item.label);
 
@@ -69,4 +69,38 @@ test('while paused, Resume replaces Pause; the handlers are called', () => {
   const running = buildSelectionContextMenuTemplate({ selectionText: '' }, { onSpeak: () => {}, onPause: () => calls.push('pause'), speaking: true });
   running[2].click();
   assert.deepEqual(calls, ['resume', 'pause']);
+});
+
+// -- 選択範囲で検索（#429） ---------------------------------------------------------------------
+
+test('Search for the selection appears after Copy only when onSearch is given and there is a selection', () => {
+  assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: '検索語' })), ['コピー', 'すべて選択']);
+  assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: '検索語' }, { onSearch: () => {} })), ['コピー', '「検索語」を検索', 'すべて選択']);
+  assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: '  ' }, { onSearch: () => {} })), ['すべて選択']);
+});
+
+test('clicking Search passes the search term (not the label) to onSearch', () => {
+  const calls = [];
+  const template = buildSelectionContextMenuTemplate({ selectionText: '  a   b  ' }, { onSearch: (term) => calls.push(term) });
+  template[1].click();
+  assert.deepEqual(calls, ['a b']);
+});
+
+test('a long selection is not offered, the limit is inclusive', () => {
+  assert.equal(searchTermFromSelection('x'.repeat(SEARCH_SELECTION_MAX)), 'x'.repeat(SEARCH_SELECTION_MAX));
+  assert.equal(searchTermFromSelection('x'.repeat(SEARCH_SELECTION_MAX + 1)), null);
+  assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: 'x'.repeat(SEARCH_SELECTION_MAX + 1) }, { onSearch: () => {} })), ['コピー', 'すべて選択']);
+});
+
+test('a multi-line selection searches its first non-empty line, with whitespace collapsed', () => {
+  assert.equal(searchTermFromSelection('\n\n  最初の  行 \r\n次の行'), '最初の 行');
+  assert.equal(searchTermFromSelection(' \n\t'), null);
+  assert.equal(searchTermFromSelection(undefined), null);
+});
+
+test('the label is shortened for display only, by characters, not by UTF-16 units', () => {
+  assert.equal(searchLabel('短い'), '「短い」を検索');
+  const long = '𠮷'.repeat(31);
+  assert.equal(searchLabel(long), `「${'𠮷'.repeat(30)}…」を検索`);
+  assert.equal(searchLabel('あ'.repeat(30)), `「${'あ'.repeat(30)}」を検索`);
 });
