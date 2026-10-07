@@ -31,13 +31,14 @@ function setup(platform = 'win32') {
   return { speaker, spawned, killed };
 }
 
-test('the text goes through stdin as UTF-8, not on the command line', () => {
+test('the text goes through stdin as one Base64 line, not on the command line', () => {
   const { speaker, spawned } = setup();
   const text = 'こんにちは "引用符" `記号` $x\n改行';
   assert.equal(speaker.speak(text), true);
   const [{ file, args, options, proc }] = spawned;
   assert.equal(file, 'powershell.exe');
-  assert.equal(Buffer.concat(proc.stdinChunks).toString('utf8'), text);
+  const [firstLine] = Buffer.concat(proc.stdinChunks).toString('utf8').split('\n');
+  assert.equal(Buffer.from(firstLine, 'base64').toString('utf8'), text);   // 1行目は、本文のBase64
   assert.equal(args.join(' ').includes('こんにちは'), false);
   assert.equal(options.windowsHide, true);
 });
@@ -163,4 +164,34 @@ test('stop with wait kills synchronously (used when the app quits)', () => {
   speaker.stop({ wait: true });
   assert.deepEqual(killed, [`sync:${spawned[0].proc.pid}`]);
   assert.equal(speaker.isSpeaking(), false);
+});
+
+const stdinText = (proc) => Buffer.concat(proc.stdinChunks).toString('utf8');
+
+test('pause and resume send lines to the running process and track the state', () => {
+  const { speaker, spawned } = setup();
+  assert.equal(speaker.pause(), false);   // 読み上げていないときは、何もしない
+  speaker.speak('x');
+  assert.equal(speaker.pause(), true);
+  assert.equal(speaker.isPaused(), true);
+  assert.equal(speaker.pause(), false);   // 二重の一時停止は、送らない
+  assert.equal(speaker.resume(), true);
+  assert.equal(speaker.isPaused(), false);
+  assert.equal(speaker.resume(), false);
+  assert.deepEqual(stdinText(spawned[0].proc).split('\n').slice(1), ['pause', 'resume', '']);
+});
+
+test('stop, a new speech, and the end of the process clear the paused state', () => {
+  const { speaker, spawned } = setup();
+  speaker.speak('1');
+  speaker.pause();
+  speaker.stop();
+  assert.equal(speaker.isPaused(), false);
+  speaker.speak('2');
+  speaker.pause();
+  speaker.speak('3');
+  assert.equal(speaker.isPaused(), false);
+  speaker.pause();
+  spawned[2].proc.emit('exit', 0);
+  assert.equal(speaker.isPaused(), false);
 });

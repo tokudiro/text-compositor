@@ -7,16 +7,27 @@ const { spawn: nodeSpawn, spawnSync } = require('node:child_process');
 // 読み上げる文字の上限。数万文字の選択で、長時間止められない読み上げになるのを防ぐ（値は、実測してから見直す）。
 const MAX_SPEECH_CHARS = 20000;
 
-// 本文は標準入力（UTF-8）、声と速度は環境変数で渡す。スクリプトに埋め込むと、記号・引用符・改行で壊れるため。
+// 本文は標準入力の1行目（UTF-8のBase64。改行を含むため）、声と速度は環境変数で渡す。スクリプトに埋め込むと、記号・引用符・改行で
+// 壊れるため。2行目以降は、操作（pause・resume）を受ける。標準入力が閉じられる（親が消える）か、stopが来たら、読み上げをやめて終わる。
 // スクリプト自体は、-EncodedCommand（UTF-16LEのBase64）で渡し、コマンドラインの引用符の問題を避ける。
 const SPEAK_SCRIPT = [
   '[Console]::InputEncoding = [System.Text.Encoding]::UTF8',
-  '$text = [Console]::In.ReadToEnd()',
+  '$text = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadLine()))',
   'Add-Type -AssemblyName System.Speech',
   '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
   'if ($env:OBUNZU_SPEECH_VOICE) { try { $s.SelectVoice($env:OBUNZU_SPEECH_VOICE) } catch {} }',
   '$s.Rate = [int]$env:OBUNZU_SPEECH_RATE',
-  '$s.Speak($text)',
+  '$null = $s.SpeakAsync($text)',
+  '$line = [Console]::In.ReadLineAsync()',
+  'while ($s.State -ne [System.Speech.Synthesis.SynthesizerState]::Ready) {',
+  '  if ($line.IsCompleted) {',
+  '    $cmd = $line.Result',
+  '    if ($null -eq $cmd -or $cmd -eq "stop") { break }',
+  '    if ($cmd -eq "pause") { $s.Pause() } elseif ($cmd -eq "resume") { $s.Resume() }',
+  '    $line = [Console]::In.ReadLineAsync()',
+  '  }',
+  '  Start-Sleep -Milliseconds 40',
+  '}',
 ].join('\n');
 
 // 日本語の声だけを、名前の一覧で出す。声の名前は、環境によって違うため、実行時に取得する。
@@ -70,6 +81,7 @@ function prepareSpeechText(text) {
 function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTree = defaultKillTree, killTreeSync = defaultKillTreeSync, probeShell = () => probePowerShell(spawn) } = {}) {
   const supported = () => platform === 'win32';
   let current = null;
+  let paused = false;
   // 起動直後に、使うPowerShellを調べておく。調べ終わるまでは、5.1で動く（読み上げの開始を、待たせない）。
   let shell = 'powershell.exe';
   const shellReady = supported() ? Promise.resolve(probeShell()).then((file) => { shell = file; }, () => {}) : Promise.resolve();
@@ -79,6 +91,7 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
   function stop({ wait = false } = {}) {
     const proc = current;
     current = null;
+    paused = false;
     if (proc) (wait ? killTreeSync : killTree)(proc);
   }
 
@@ -93,11 +106,28 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
       env: { ...process.env, OBUNZU_SPEECH_VOICE: String(voice || ''), OBUNZU_SPEECH_RATE: String(normalizeRate(rate)) },
     });
     current = proc;
-    const finished = () => { if (current === proc) current = null; };
+    const finished = () => { if (current === proc) { current = null; paused = false; } };
     proc.on('exit', finished);
     proc.on('error', finished);   // powershell.exeが見つからない等。読み上げないだけで、アプリは止めない
     proc.stdin.on('error', () => {});   // 書き込み前に、停止で子プロセスが消えても、例外にしない
-    proc.stdin.end(body, 'utf8');
+    // 標準入力は、閉じない。続けて、pause・resumeの行を送るため（閉じるのは、プロセスが終わるとき）。
+    proc.stdin.write(`${Buffer.from(body, 'utf8').toString('base64')}\n`);
+    return true;
+  }
+
+  /** 一時停止する（読み上げ中だけ）。声の途中で止まる。 */
+  function pause() {
+    if (!current || paused) return false;
+    paused = true;
+    current.stdin.write('pause\n');
+    return true;
+  }
+
+  /** 一時停止した所から、続ける。 */
+  function resume() {
+    if (!current || !paused) return false;
+    paused = false;
+    current.stdin.write('resume\n');
     return true;
   }
 
@@ -120,7 +150,7 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
     }));
   }
 
-  return { speak, stop, listVoices, isSpeaking: () => current !== null, isSupported: supported };
+  return { speak, stop, pause, resume, listVoices, isSpeaking: () => current !== null, isPaused: () => paused, isSupported: supported };
 }
 
 // PowerShellの子プロセスごと止める。Windowsでは、単純なkillでは孫プロセスが残ることがあるため、taskkillを使う（worker-client.jsと同じ）。

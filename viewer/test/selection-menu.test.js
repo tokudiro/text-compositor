@@ -46,12 +46,12 @@ test('with a selection, Read aloud follows a separator; Stop is shown only while
   assert.deepEqual(labels(idle), ['コピー', 'すべて選択', undefined, '選択範囲を読み上げる']);
   assert.equal(idle[2].type, 'separator');
   const speaking = buildSelectionContextMenuTemplate({ selectionText: 'x' }, { onSpeak: () => {}, speaking: true });
-  assert.deepEqual(labels(speaking).slice(3), ['選択範囲を読み上げる', '読み上げを止める']);
+  assert.deepEqual(labels(speaking).slice(3), ['選択範囲を読み上げる', '読み上げを一時停止', '読み上げを止める']);
 });
 
 test('without a selection, Read aloud is hidden, but Stop stays while speaking', () => {
   assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: '' }, { onSpeak: () => {} })), ['すべて選択']);
-  assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: '' }, { onSpeak: () => {}, speaking: true })), ['すべて選択', undefined, '読み上げを止める']);
+  assert.deepEqual(labels(buildSelectionContextMenuTemplate({ selectionText: '' }, { onSpeak: () => {}, speaking: true })), ['すべて選択', undefined, '読み上げを一時停止', '読み上げを止める']);
 });
 
 test('the speech items call the handlers with the selected text', () => {
@@ -59,4 +59,14 @@ test('the speech items call the handlers with the selected text', () => {
   const template = buildSelectionContextMenuTemplate({ selectionText: '選んだ文字' }, { onSpeak: (t) => calls.push(['speak', t]), onStopSpeaking: () => calls.push(['stop']), speaking: true });
   for (const item of template.filter((i) => i.click)) item.click();
   assert.deepEqual(calls.filter(([k]) => k !== undefined), [['speak', '選んだ文字'], ['stop']]);
+});
+
+test('while paused, Resume replaces Pause; the handlers are called', () => {
+  const calls = [];
+  const template = buildSelectionContextMenuTemplate({ selectionText: '' }, { onSpeak: () => {}, onPause: () => calls.push('pause'), onResume: () => calls.push('resume'), speaking: true, paused: true });
+  assert.deepEqual(labels(template), ['すべて選択', undefined, '読み上げを再開', '読み上げを止める']);
+  template[2].click();
+  const running = buildSelectionContextMenuTemplate({ selectionText: '' }, { onSpeak: () => {}, onPause: () => calls.push('pause'), speaking: true });
+  running[2].click();
+  assert.deepEqual(calls, ['resume', 'pause']);
 });

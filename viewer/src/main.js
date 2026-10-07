@@ -1053,7 +1053,10 @@ async function handleContextMenu(origin, params) {
     onSelectAll: () => { contents.focus(); contents.selectAll(); },
     onSpeak: (text) => void speakSelection(origin, text),
     onStopSpeaking: () => stopSpeech(),
+    onPause: () => speaker.pause(),
+    onResume: () => speaker.resume(),
     speaking: speaker.isSpeaking(),
+    paused: speaker.isPaused(),
   });
   if (params.mediaType === 'image' && params.srcURL) {
     template.push({ type: 'separator' });
