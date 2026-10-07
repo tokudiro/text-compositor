@@ -232,7 +232,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 | PyPIのパッケージ（`pyproject.toml`・`requirements*.txt`・`viewer/dist-requirements.txt`） | Dependabot（1つのPRにまとめる） | PR |
 | GitHub Actions | Dependabot | PR |
 | 既知の脆弱性 | Dependabotのアラート・セキュリティ更新（リポジトリの設定で有効） | アラート・PR |
-| コードに直接書いた版（Mermaid・PlantUML・D2・Structurizr CLI・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「同梱した部品の更新確認（自動）」（差があるときだけ。すべて最新になると、自動で閉じる） |
+| コードに直接書いた版（Mermaid・PlantUML・D2・Structurizr CLI・Temurin JRE・Noto Sans JP・組込版Python・Typstのパッケージ） | `.github/workflows/check-pins.yml`（週次・火曜）が、`.github/scripts/check-pins.py`で、上流の最新版と比べる | issue「[週次チェック] 同梱した部品の更新確認」（差があるときだけ。すべて最新になると、自動で閉じる） |
 
 - `check-pins.py`は、固定した版を、`text_compositor/deps.py`・`viewer/scripts/build-dist.js`・`text_compositor/templates/_common.typ`から、読み取る。読み取れなかったときは、ワークフローが失敗する（ソースの書き方を変えて、確認が空振りになるのを防ぐ。`tests/test_check_pins.py`が、読み取りを確かめる）。
 - 上流の最新版を取得できなかった部品は、報告に「確認できず」と書き、差には数えない。
