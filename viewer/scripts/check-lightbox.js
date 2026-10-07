@@ -139,6 +139,12 @@ async function waitFor(read, predicate, timeoutMs = 20000) {
 
     await click(cx, cy);
     await waitFor(isOpen, (open) => open === true);
+    const closeRect = await content.eval("(() => { const r = document.querySelector('.tc-lightbox-close')?.getBoundingClientRect(); return r ? [r.x + r.width / 2, r.y + r.height / 2] : null; })()");
+    check('閉じるボタンと、操作のヒントが、見える', closeRect !== null && (await content.eval("document.querySelector('.tc-lightbox-hint')?.textContent.includes('Esc')")) === true);
+    await click(closeRect[0], closeRect[1]);
+    check('閉じるボタンで、閉じる', await waitFor(isOpen, (open) => open === false) === false);
+    await click(cx, cy);
+    await waitFor(isOpen, (open) => open === true);
     await click(5, 5);
     check('背景のクリックで、閉じる', await waitFor(isOpen, (open) => open === false) === false);
   } catch (error) {

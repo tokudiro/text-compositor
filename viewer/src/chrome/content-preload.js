@@ -378,6 +378,13 @@ function ensureLightboxStyle() {
     .tc-lightbox.dragging { cursor: grabbing; }
     .tc-lightbox .diagram { margin: 0; flex: none; transform-origin: center center; will-change: transform; }
     .tc-lightbox .diagram img { display: block; max-width: none; cursor: inherit; -webkit-user-drag: none; }
+    .tc-lightbox-close { position: absolute; top: 12px; right: 12px; padding: 4px 12px; font: 13px/1.5 system-ui, sans-serif; cursor: pointer;
+      color: ButtonText; background: ButtonFace; border: 1px solid GrayText; border-radius: 6px; }
+    .tc-lightbox-close:hover { filter: brightness(0.92); }
+    .tc-lightbox-hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 90%; padding: 4px 12px;
+      font: 12px/1.5 system-ui, sans-serif; color: CanvasText; background: Canvas; border: 1px solid GrayText; border-radius: 6px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; animation: tc-lightbox-hint-fade 0.5s 6s forwards; }
+    @keyframes tc-lightbox-hint-fade { to { opacity: 0; } }
   `;
   document.head.appendChild(style);
 }
@@ -396,6 +403,16 @@ function openLightbox(source) {
   image.alt = source.alt || '';
   stage.appendChild(image);
   overlay.appendChild(stage);
+  // 閉じ方が、見て分かるように、閉じるボタンと、操作のヒント（数秒で、薄れて消える）を出す
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'tc-lightbox-close';
+  closeButton.textContent = '✕ 閉じる（Esc）';
+  closeButton.setAttribute('aria-label', '拡大表示を閉じる');
+  const hint = document.createElement('div');
+  hint.className = 'tc-lightbox-hint';
+  hint.textContent = 'ホイール: 拡大・縮小　ドラッグ: 移動　ダブルクリック: 収める大きさに戻す　Esc: 閉じる';
+  overlay.append(closeButton, hint);
   document.body.appendChild(overlay);
 
   const view = { scale: 1, x: 0, y: 0 };
@@ -429,7 +446,7 @@ function openLightbox(source) {
     zoomAt(Math.exp(-event.deltaY * unit * 0.0015), event.clientX, event.clientY);
   };
   const onPointerDown = (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || event.target === closeButton) return;   // ボタンの押下は、ドラッグの開始にしない
     // ポインターキャプチャを使うと、clickの対象が、常にオーバーレイになる。背景か図かは、押した時点の対象で決める
     drag = { x: event.clientX, y: event.clientY, startX: view.x, startY: view.y, moved: false, onBackground: event.target === overlay };
     overlay.setPointerCapture(event.pointerId);
@@ -471,7 +488,8 @@ function openLightbox(source) {
   overlay.addEventListener('pointerup', onPointerUp);
   overlay.addEventListener('pointercancel', onPointerUp);
   overlay.addEventListener('click', onClick);
-  overlay.addEventListener('dblclick', fit);
+  overlay.addEventListener('dblclick', (event) => { if (event.target !== closeButton) fit(); });
+  closeButton.addEventListener('click', (event) => { event.stopPropagation(); close(); });
   window.addEventListener('keydown', onKeyDown, true);
   window.addEventListener('resize', fit);
   image.addEventListener('load', fit);
