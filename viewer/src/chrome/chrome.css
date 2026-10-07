@@ -146,6 +146,9 @@ button.back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; s
 .segmented label.unavailable { cursor: not-allowed; }
 .segmented label.unavailable span { color: var(--muted); opacity: 0.6; }
 .segmented label.unavailable:hover span { background: none; }
+/* 読み上げの声の選択（#430）。ラジオの並び（.segmented）と、同じ高さ・枠にそろえる */
+.speech-voice-control { display: inline-flex; flex: none; align-items: center; gap: 8px; }
+#speech-voice { flex: none; max-width: 22em; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
 .cache-control { display: inline-flex; flex: none; align-items: center; gap: 12px; }
 #cache-size { color: var(--muted); min-width: 4em; text-align: right; }
 .cache-control button { border: 1px solid var(--line); padding: 0 14px; }

@@ -71,11 +71,13 @@ const DEFAULTS = Object.freeze({
   openDirectoryMode: 'last', // ファイルを開くダイアログの、最初の場所（#226）。'os'（OSにゆだねる） | 'last'（前回開いたフォルダ） | 'fixed'（特定のフォルダ）
   fixedDirectory: null,     // 'fixed'のときのフォルダ。設定画面の、フォルダを選ぶボタンで決める
   workLocation: 'app',      // 変換したHTML・図のキャッシュの置き場所（#258）。'app'（アプリの領域。原稿のフォルダには書かない） | 'beside'（原稿の隣の.text-compositor/）
+  speechVoice: '',          // 読み上げの声の名前（#430）。''は、自動（OSの日本語の声の先頭）。OSから消えた声は、自動と同じに扱う
+  speechRate: 'normal',     // 読み上げの速さ（#430）。'slowest' | 'slow' | 'normal' | 'fast' | 'fastest'
   lastDirectory: null,      // 前回開いたファイルのフォルダ。アプリが自動で保存する。設定画面では変えない
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'openDirectoryMode', 'workLocation']);
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'openDirectoryMode', 'workLocation', 'speechVoice', 'speechRate']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -84,6 +86,7 @@ const CHOICES = Object.freeze({
   toolbarPosition: ['top', 'bottom'],
   theme: ['system', 'light', 'dark'],
   openDirectoryMode: ['os', 'last', 'fixed'],
+  speechRate: ['slowest', 'slow', 'normal', 'fast', 'fastest'],
   workLocation: ['app', 'beside'],   // 「ファイルを作らない」（カスタムプロトコル）は、実装できてから加える（#258）
 });
 
@@ -120,6 +123,8 @@ function normalizeSettings(value) {
   for (const feature of FEATURES) {
     if (typeof source[feature.key] === 'boolean') result[feature.key] = source[feature.key];
   }
+  // 声の名前は、環境で違うため、候補を固定しない。長すぎる・文字でない値だけ、自動に戻す
+  if (typeof source.speechVoice === 'string' && source.speechVoice.length <= 200) result.speechVoice = source.speechVoice;
   result.window = normalizeWindow(source.window);
   for (const key of ['lastDirectory', 'fixedDirectory']) {
     if (typeof source[key] === 'string' && path.isAbsolute(source[key])) result[key] = source[key];

@@ -153,6 +153,30 @@
           <label><input type="radio" name="allowExternalImages" value="true"><span>読み込む</span></label>
         </div>
       </div>
+      <!-- 読み上げ（#430）。Windowsのときだけ出す。声の選択肢は、OSの日本語の声を、chrome.jsが入れる -->
+      <div class="row" id="speech-voice-row" hidden>
+        <div class="text">
+          <div class="name"><label for="speech-voice">読み上げの声</label></div>
+          <div class="desc">選択範囲を右クリックして読み上げるときの声です。「自動」は、OSに入っている日本語の声の先頭を使います。</div>
+        </div>
+        <div class="speech-voice-control">
+          <select id="speech-voice"></select>
+          <button id="speech-test" title="いまの声と速さで、短い文を読みます">試し聞き</button>
+        </div>
+      </div>
+      <div class="row" id="speech-rate-row" hidden>
+        <div class="text">
+          <div class="name" id="speech-rate-name">読み上げの速さ</div>
+          <div class="desc">推敲のときは速く、聞き込むときは遅く、といった使い分けができます。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="speech-rate-name">
+          <label><input type="radio" name="speechRate" value="slowest"><span>とても遅い</span></label>
+          <label><input type="radio" name="speechRate" value="slow"><span>遅い</span></label>
+          <label><input type="radio" name="speechRate" value="normal"><span>ふつう</span></label>
+          <label><input type="radio" name="speechRate" value="fast"><span>速い</span></label>
+          <label><input type="radio" name="speechRate" value="fastest"><span>とても速い</span></label>
+        </div>
+      </div>
       <!-- 「表示する機能」の行（#326）。settings.jsのFEATURESから、chrome.jsが作る（機能を足すときは、FEATURESに1行足す） -->
       <div id="feature-rows"></div>
       <!-- 「特定のフォルダ」を選んだときだけ出る。フォルダが未設定・消えているときは、ドキュメントのフォルダから始まる。 -->

@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('viewer', {
   setSetting: (key, value) => ipcRenderer.send('settings-set', key, value),
   chooseOpenDirectory: () => ipcRenderer.send('choose-open-directory'),
   clearCache: () => ipcRenderer.send('clear-cache'),
+  speechTest: () => ipcRenderer.send('speech-test'),
   openFromSidebar: (filePath) => ipcRenderer.send('open-from-sidebar', filePath),
   openPath: (filePath, inNewTab = false) => ipcRenderer.send('open-path', filePath, inNewTab),
   pathForFile: (file) => webUtils.getPathForFile(file),

@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', speechVoice: 'Microsoft Ayumi', speechRate: 'fast', lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -174,4 +174,13 @@ test('FEATURES: the file tree is on by default, because nothing changes until a 
 
 test('FEATURES: tabs are off by default (they change the structure of the screen, #326 class D, #332)', () => {
   assert.equal(FEATURES.find((feature) => feature.key === 'enableTabs')?.default, false);
+});
+
+test('speechVoice is any short string (the OS decides which exist), speechRate is one of five speeds (#430)', () => {
+  assert.deepEqual([normalizeSettings({}).speechVoice, normalizeSettings({}).speechRate], ['', 'normal']);
+  assert.equal(normalizeSettings({ speechVoice: 'Microsoft Ayumi' }).speechVoice, 'Microsoft Ayumi');
+  for (const bad of [1, null, {}, 'x'.repeat(201)]) assert.equal(normalizeSettings({ speechVoice: bad }).speechVoice, '', String(bad).slice(0, 10));
+  for (const ok of ['slowest', 'slow', 'normal', 'fast', 'fastest']) assert.equal(normalizeSettings({ speechRate: ok }).speechRate, ok);
+  for (const bad of ['turbo', 3, null]) assert.equal(normalizeSettings({ speechRate: bad }).speechRate, 'normal', String(bad));
+  assert.ok(EDITABLE.includes('speechVoice') && EDITABLE.includes('speechRate'));
 });

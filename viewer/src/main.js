@@ -20,6 +20,7 @@ const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = r
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildSelectionContextMenuTemplate } = require('./selection-menu');
+const { chooseVoice, createSpeaker, rateOf } = require('./speech');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
@@ -82,6 +83,7 @@ const state = {
   // kind: 'project'（設定ファイルの章。「ファイルを開く」で設定ファイルを選ぶ。#373）のとき、root は設定ファイルのパス。
   tree: { root: TREE_ROOT_FROM_ENV, kind: TREE_ROOT_FROM_ENV ? 'folder' : null },
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
+  speech: { supported: process.platform === 'win32', voices: [] },   // 読み上げ（#430）。設定画面の、声の選択肢の材料
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
 
@@ -149,8 +151,32 @@ if (!app.requestSingleInstanceLock()) {
 
 app.on('window-all-closed', () => app.quit());
 
+// 選択範囲の読み上げ（#430）。読み上げているのは、同時に1つだけ。始めたタブを覚え、そのタブの文書が替わる・タブを閉じる・終了するときに止める。
+const speaker = createSpeaker();
+let speechTab = null;
+
+// 設定画面に出す、OSの日本語の声の一覧。起動時に1回、裏で取得する（PowerShellの起動に、少し時間がかかるため）。
+// 声の名前は、環境で違うため、コードに固定しない。
+speaker.listVoices().then((voices) => {
+  state.speech.voices = voices;
+  if (win && tab) push();
+});
+
+function stopSpeech({ wait = false } = {}) {
+  speaker.stop({ wait });
+  speechTab = null;
+}
+
+async function speakSelection(origin, text) {
+  // 声は、設定の声（OSに無ければ、日本語の声の先頭）。速さは、設定の3段階。一覧は、起動時に取得済み。
+  const voices = state.speech.voices.length > 0 ? state.speech.voices : await speaker.listVoices();
+  const voice = chooseVoice(state.settings.speechVoice, voices);
+  if (speaker.speak(text, { voice, rate: rateOf(state.settings.speechRate) })) speechTab = origin;
+}
+
 let quitting = false;
 app.on('before-quit', (event) => {
+  stopSpeech({ wait: true });
   watcher?.close();
   mermaidHost.dispose();
   vegaHost.dispose();
@@ -200,7 +226,7 @@ function createWindow() {
   win.on('unmaximize', scheduleWindowSave);
   win.on('close', saveWindowNow);
   // 非表示のMermaidのウィンドウが残ると、'window-all-closed'が発火せず、アプリが終了しない
-  win.on('closed', () => { mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
+  win.on('closed', () => { stopSpeech({ wait: true }); mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
   handleEscape(win.webContents);
   // フォーカスが、どちらのビューにあるかを覚える（F6の切り替えに使う。`isFocused()`は、子のビューとの関係で、当てにならないため。#340）
   win.webContents.on('focus', () => { focusedArea = 'toolbar'; });
@@ -744,6 +770,7 @@ function clock() {
 /** HTMLを表示する。同じ文書の再読み込みは、`reload`で、スクロール位置を保つ。別の文書は、先頭から表示する。 */
 async function showHtml(target, md, html, sameDocument, dependencies = [], targetScrollY = null, fragment = null) {
   const contents = target.contentView.webContents;
+  if (!sameDocument && speechTab === target) stopSpeech();
   const loaded = new Promise((resolve) => {
     const done = () => { contents.removeListener('did-finish-load', done); contents.removeListener('did-fail-load', done); resolve(); };
     contents.once('did-finish-load', done);
@@ -948,6 +975,7 @@ async function openInNewTab(file = null) {
 function closeTab(target = tab) {
   if (tabs.length <= 1 || target.closed) return;
   const index = tabs.indexOf(target);
+  if (speechTab === target) stopSpeech();
   target.closed = true;
   target.queued = null;
   tabs.splice(index, 1);
@@ -1031,6 +1059,12 @@ async function handleContextMenu(origin, params) {
   const template = buildSelectionContextMenuTemplate(params, {
     onCopy: () => { contents.focus(); contents.copy(); },
     onSelectAll: () => { contents.focus(); contents.selectAll(); },
+    onSpeak: (text) => void speakSelection(origin, text),
+    onStopSpeaking: () => stopSpeech(),
+    onPause: () => speaker.pause(),
+    onResume: () => speaker.resume(),
+    speaking: speaker.isSpeaking(),
+    paused: speaker.isPaused(),
   });
   if (params.mediaType === 'image' && params.srcURL) {
     template.push({ type: 'separator' });
@@ -1206,6 +1240,11 @@ ipcMain.on('open-from-sidebar', (event, filePath) => {
 ipcMain.on('settings-set', (_event, key, value) => changeSetting(key, value));
 ipcMain.on('choose-open-directory', () => chooseOpenDirectory());
 ipcMain.on('clear-cache', () => clearWorkCache());
+// 設定画面の「試し聞き」（#430）。いまの設定の声と速さで、短い文を読む。文書のタブとは無関係のため、文書の切り替えでは止めない
+ipcMain.on('speech-test', (event) => {
+  if (event.sender !== win?.webContents) return;
+  void speakSelection(null, 'これは、読み上げの試し聞きです。声と速さを、確かめてください。');
+});
 // 行番号の表示（#328）。内容のビューが、マウスを乗せたブロックの行を、変わったときだけ送ってくる。値は、正の整数だけ受け付ける
 ipcMain.on('content-line', (event, line) => {
   const origin = tabFromSender(event.sender);
