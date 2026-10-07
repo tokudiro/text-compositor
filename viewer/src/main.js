@@ -155,8 +155,8 @@ const speaker = createSpeaker();
 let speechTab = null;
 let speechVoice = null;
 
-function stopSpeech() {
-  speaker.stop();
+function stopSpeech({ wait = false } = {}) {
+  speaker.stop({ wait });
   speechTab = null;
 }
 
@@ -168,7 +168,7 @@ async function speakSelection(origin, text) {
 
 let quitting = false;
 app.on('before-quit', (event) => {
-  stopSpeech();
+  stopSpeech({ wait: true });
   watcher?.close();
   mermaidHost.dispose();
   vegaHost.dispose();
@@ -218,7 +218,7 @@ function createWindow() {
   win.on('unmaximize', scheduleWindowSave);
   win.on('close', saveWindowNow);
   // 非表示のMermaidのウィンドウが残ると、'window-all-closed'が発火せず、アプリが終了しない
-  win.on('closed', () => { stopSpeech(); mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
+  win.on('closed', () => { stopSpeech({ wait: true }); mermaidHost.dispose(); vegaHost.dispose(); wavedromHost.dispose(); bytefieldHost.dispose(); });
   handleEscape(win.webContents);
   // フォーカスが、どちらのビューにあるかを覚える（F6の切り替えに使う。`isFocused()`は、子のビューとの関係で、当てにならないため。#340）
   win.webContents.on('focus', () => { focusedArea = 'toolbar'; });
@@ -1052,7 +1052,7 @@ async function handleContextMenu(origin, params) {
     onCopy: () => { contents.focus(); contents.copy(); },
     onSelectAll: () => { contents.focus(); contents.selectAll(); },
     onSpeak: (text) => void speakSelection(origin, text),
-    onStopSpeaking: stopSpeech,
+    onStopSpeaking: () => stopSpeech(),
     speaking: speaker.isSpeaking(),
   });
   if (params.mediaType === 'image' && params.srcURL) {

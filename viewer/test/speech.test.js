@@ -25,6 +25,7 @@ function setup(platform = 'win32') {
     platform,
     spawn: (file, args, options) => { const proc = fakeProcess(100 + spawned.length); spawned.push({ file, args, options, proc }); return proc; },
     killTree: (proc) => killed.push(proc.pid),
+    killTreeSync: (proc) => killed.push(`sync:${proc.pid}`),
     probeShell: async () => 'powershell.exe',
   });
   return { speaker, spawned, killed };
@@ -154,4 +155,12 @@ test('the shell that the probe picked is the one that is started', async () => {
   speaker.speak('x');
   assert.equal(spawned[1], 'pwsh.exe');
   void promise;
+});
+
+test('stop with wait kills synchronously (used when the app quits)', () => {
+  const { speaker, spawned, killed } = setup();
+  speaker.speak('x');
+  speaker.stop({ wait: true });
+  assert.deepEqual(killed, [`sync:${spawned[0].proc.pid}`]);
+  assert.equal(speaker.isSpeaking(), false);
 });

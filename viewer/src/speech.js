@@ -2,7 +2,7 @@
 // 選択範囲の読み上げ（#430）。Windows標準の音声合成（System.Speech）を、PowerShellの子プロセスで動かす。
 // 追加の同梱物が要らず、ライセンスと費用の方針に合う。画面側のspeechSynthesisは、Electronで声の一覧が空だったため使わない。
 
-const { spawn: nodeSpawn } = require('node:child_process');
+const { spawn: nodeSpawn, spawnSync } = require('node:child_process');
 
 // 読み上げる文字の上限。数万文字の選択で、長時間止められない読み上げになるのを防ぐ（値は、実測してから見直す）。
 const MAX_SPEECH_CHARS = 20000;
@@ -65,9 +65,9 @@ function prepareSpeechText(text) {
 
 /**
  * 読み上げの管理。同時に読むのは、1つだけ（もう一度`speak`すると、前を止めてから始める）。
- * @param {{spawn?: Function, platform?: string, killTree?: (proc: object) => void, probeShell?: () => Promise<string>}} [options] テストで差し替える
+ * @param {{spawn?: Function, platform?: string, killTree?: (proc: object) => void, killTreeSync?: (proc: object) => void, probeShell?: () => Promise<string>}} [options] テストで差し替える
  */
-function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTree = defaultKillTree, probeShell = () => probePowerShell(spawn) } = {}) {
+function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTree = defaultKillTree, killTreeSync = defaultKillTreeSync, probeShell = () => probePowerShell(spawn) } = {}) {
   const supported = () => platform === 'win32';
   let current = null;
   // 起動直後に、使うPowerShellを調べておく。調べ終わるまでは、5.1で動く（読み上げの開始を、待たせない）。
@@ -75,10 +75,11 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
   const shellReady = supported() ? Promise.resolve(probeShell()).then((file) => { shell = file; }, () => {}) : Promise.resolve();
   const shellFile = () => shell;
 
-  function stop() {
+  /** @param {{wait?: boolean}} [options] `wait`: 止まるまで待つ。アプリの終了時に使う（待たないと、終了が先に進み、読み上げが残る）。 */
+  function stop({ wait = false } = {}) {
     const proc = current;
     current = null;
-    if (proc) killTree(proc);
+    if (proc) (wait ? killTreeSync : killTree)(proc);
   }
 
   /** @returns {boolean} 読み上げを始めたか（非対応の環境・空の文字では、false） */
@@ -126,6 +127,15 @@ function createSpeaker({ spawn = nodeSpawn, platform = process.platform, killTre
 function defaultKillTree(proc) {
   try {
     nodeSpawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+  } catch {
+    try { proc.kill(); } catch { /* すでに終了している */ }
+  }
+}
+
+// 終了時の停止。taskkillが終わるまで待つ。非同期だと、アプリの終了が先に進み、読み上げが残ることがある。
+function defaultKillTreeSync(proc) {
+  try {
+    spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 3000 });
   } catch {
     try { proc.kill(); } catch { /* すでに終了している */ }
   }
