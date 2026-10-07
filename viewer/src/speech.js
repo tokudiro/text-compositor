@@ -62,6 +62,16 @@ function probePowerShell(spawn = nodeSpawn) {
   });
 }
 
+// 設定の速さの名前と、System.SpeechのRate（-10〜10）の対応。
+const SPEECH_RATES = Object.freeze({ slow: -3, normal: 0, fast: 3 });
+const rateOf = (name) => SPEECH_RATES[name] ?? 0;
+
+/** 使う声を決める。設定の声がOSにあればそれ、なければ（空・消えた声）日本語の声の先頭、声が無ければ空（OSの既定）。 */
+function chooseVoice(wanted, voices) {
+  if (typeof wanted === 'string' && wanted !== '' && voices.includes(wanted)) return wanted;
+  return voices[0] ?? '';
+}
+
 /** 速度（System.SpeechのRate）を、-10〜10の整数にそろえる。想定外は0（ふつう）。 */
 function normalizeRate(rate) {
   const n = Number(rate);
@@ -171,4 +181,4 @@ function defaultKillTreeSync(proc) {
   }
 }
 
-module.exports = { createSpeaker, probePowerShell, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS, SPEAK_SCRIPT };
+module.exports = { createSpeaker, probePowerShell, SPEECH_RATES, rateOf, chooseVoice, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS, SPEAK_SCRIPT };

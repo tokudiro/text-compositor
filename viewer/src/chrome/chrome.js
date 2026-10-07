@@ -69,6 +69,7 @@ $('settings').addEventListener('change', (event) => {
     api.setSetting(event.target.name, value);
   }
 });
+$('speech-voice').addEventListener('change', (event) => api.setSetting('speechVoice', event.target.value));
 $('tab-new').addEventListener('click', () => api.newTab());
 $('tab-close').addEventListener('click', () => { const active = lastState?.tabs?.find((t) => t.active); if (active) api.closeTab(active.id); });
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
@@ -145,6 +146,28 @@ function renderSidebar(state) {
 
 /** 「表示する機能」の行を、機能の一覧（state.features。settings.jsのFEATURES）から作る（#326）。一覧が変わらない間は、作り直さない。 */
 let renderedFeatures = '';
+/** 読み上げの設定（#430）。声の一覧が変わったときだけ、選択肢を作り直す（選んでいる最中の操作を、壊さないため）。 */
+function renderSpeech(state) {
+  const supported = state.speech?.supported === true;
+  $('speech-voice-row').hidden = !supported;
+  $('speech-rate-row').hidden = !supported;
+  if (!supported) return;
+  const voices = state.speech.voices;
+  const select = $('speech-voice');
+  const key = JSON.stringify(voices);
+  if (select.dataset.voices !== key) {
+    select.dataset.voices = key;
+    select.replaceChildren(...[['', '自動（日本語の声の先頭）'], ...voices.map((name) => [name, name])].map(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      return option;
+    }));
+  }
+  // OSから消えた声は、自動と同じに扱う（設定の値は、そのまま残す）
+  select.value = voices.includes(state.settings.speechVoice) ? state.settings.speechVoice : '';
+}
+
 function renderFeatures(features) {
   const signature = JSON.stringify(features);
   if (signature === renderedFeatures) return;
@@ -202,6 +225,7 @@ function render(state) {
   for (const [name, value] of Object.entries(state.settings)) {
     for (const radio of document.querySelectorAll(`#settings input[name="${name}"]`)) radio.checked = radio.value === String(value);
   }
+  renderSpeech(state);
   const fixed = state.settings.openDirectoryMode === 'fixed';
   $('fixed-directory-row').hidden = !fixed;
   $('fixed-directory').textContent = state.settings.fixedDirectory ?? '未指定（ドキュメントのフォルダから始まります）';

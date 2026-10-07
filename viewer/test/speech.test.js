@@ -6,7 +6,7 @@ const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const { test } = require('node:test');
 
-const { createSpeaker, probePowerShell, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS } = require('../src/speech');
+const { createSpeaker, probePowerShell, chooseVoice, rateOf, normalizeRate, prepareSpeechText, MAX_SPEECH_CHARS } = require('../src/speech');
 
 function fakeProcess(pid) {
   const proc = new EventEmitter();
@@ -194,4 +194,18 @@ test('stop, a new speech, and the end of the process clear the paused state', ()
   speaker.pause();
   spawned[2].proc.emit('exit', 0);
   assert.equal(speaker.isPaused(), false);
+});
+
+test('chooseVoice uses the wanted voice if the OS has it, otherwise the first one, otherwise empty', () => {
+  const voices = ['Microsoft Haruka Desktop', 'Microsoft Ayumi'];
+  assert.equal(chooseVoice('Microsoft Ayumi', voices), 'Microsoft Ayumi');
+  assert.equal(chooseVoice('', voices), 'Microsoft Haruka Desktop');
+  assert.equal(chooseVoice('Microsoft Gone', voices), 'Microsoft Haruka Desktop');   // OSから消えた声は、エラーにしない
+  assert.equal(chooseVoice(undefined, voices), 'Microsoft Haruka Desktop');
+  assert.equal(chooseVoice('Microsoft Ayumi', []), '');
+});
+
+test('rateOf maps the three speeds, and anything else to normal', () => {
+  assert.deepEqual(['slow', 'normal', 'fast'].map(rateOf), [-3, 0, 3]);
+  for (const bad of ['', 'turbo', undefined, 5]) assert.equal(rateOf(bad), 0, String(bad));
 });

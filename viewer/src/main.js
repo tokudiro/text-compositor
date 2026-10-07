@@ -20,7 +20,7 @@ const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = r
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
 const { buildSelectionContextMenuTemplate } = require('./selection-menu');
-const { createSpeaker } = require('./speech');
+const { chooseVoice, createSpeaker, rateOf } = require('./speech');
 const { buildLineContextMenuTemplate, lineAtPointScript } = require('./line-ref');
 const { buildLinkContextMenuTemplate, describeLink, headingLinkRef, linkAtPointScript } = require('./link-info');
 const { MermaidHost } = require('./mermaid-host');
@@ -83,6 +83,7 @@ const state = {
   // kind: 'project'（設定ファイルの章。「ファイルを開く」で設定ファイルを選ぶ。#373）のとき、root は設定ファイルのパス。
   tree: { root: TREE_ROOT_FROM_ENV, kind: TREE_ROOT_FROM_ENV ? 'folder' : null },
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
+  speech: { supported: process.platform === 'win32', voices: [] },   // 読み上げ（#430）。設定画面の、声の選択肢の材料
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
 
@@ -153,7 +154,13 @@ app.on('window-all-closed', () => app.quit());
 // 選択範囲の読み上げ（#430）。読み上げているのは、同時に1つだけ。始めたタブを覚え、そのタブの文書が替わる・タブを閉じる・終了するときに止める。
 const speaker = createSpeaker();
 let speechTab = null;
-let speechVoice = null;
+
+// 設定画面に出す、OSの日本語の声の一覧。起動時に1回、裏で取得する（PowerShellの起動に、少し時間がかかるため）。
+// 声の名前は、環境で違うため、コードに固定しない。
+speaker.listVoices().then((voices) => {
+  state.speech.voices = voices;
+  if (win && tab) push();
+});
 
 function stopSpeech({ wait = false } = {}) {
   speaker.stop({ wait });
@@ -161,9 +168,10 @@ function stopSpeech({ wait = false } = {}) {
 }
 
 async function speakSelection(origin, text) {
-  // 声は、OSの日本語の声の先頭を使う（設定で選べるようにするのは、次の段階）。取得は、初回だけ。
-  speechVoice ??= (await speaker.listVoices())[0] ?? '';
-  if (speaker.speak(text, { voice: speechVoice })) speechTab = origin;
+  // 声は、設定の声（OSに無ければ、日本語の声の先頭）。速さは、設定の3段階。一覧は、起動時に取得済み。
+  const voices = state.speech.voices.length > 0 ? state.speech.voices : await speaker.listVoices();
+  const voice = chooseVoice(state.settings.speechVoice, voices);
+  if (speaker.speak(text, { voice, rate: rateOf(state.settings.speechRate) })) speechTab = origin;
 }
 
 let quitting = false;
