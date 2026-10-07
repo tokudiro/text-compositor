@@ -84,7 +84,7 @@ jobs:
           pip install playwright==1.63.0
 ```
 
-Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約3.4MB）は初回ビルド時にOS標準のユーザーキャッシュディレクトリ（Linuxランナーでは`~/.cache/text-compositor/`）へダウンロードされる。`actions/checkout`は毎回新規チェックアウトのため、このキャッシュは引き継がれない。ただし、サイズが小さいため実用上は都度取得でも問題にならない。
+Mermaid公式配布の単一バンドルJS（`mermaid.min.js`、約5.5MB）は初回ビルド時にOS標準のユーザーキャッシュディレクトリ（Linuxランナーでは`~/.cache/text-compositor/`）へダウンロードされる。`actions/checkout`は毎回新規チェックアウトのため、このキャッシュは引き継がれない。ただし、サイズが小さいため実用上は都度取得でも問題にならない。
 
 Vega・Vega-Liteの単一バンドルJS（`vega.min.js`・`vega-lite.min.js`、合わせて約772KB）も、`vega-lite`・`vega`のフェンスを初めて描くときに、同じユーザーキャッシュのフォルダへダウンロードされる（版とSHA256を固定して検証する）。キャッシュが引き継がれない点と、サイズが小さく、都度取得でも問題にならない点は、`mermaid.min.js`と同じ。`data.url`で読むデータファイルは、リポジトリの中のファイルを読むだけで、ネットワークには出ない。WaveDromのJS（`wavedrom.min.js`・スキン、合わせて約98KB）と、Bytefield-svgのJS（`lib.js`、約855KB。EPL-2.0）も、それぞれのフェンスを初めて描くときに、同じ仕組みで取得する。このツールのCI（`test.yml`）は、Bytefield・WaveDrom・Vega・Mermaidを実際のブラウザで描くテストを、`ubuntu-latest`で毎回動かしている。
 

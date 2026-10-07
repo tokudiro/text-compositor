@@ -81,7 +81,7 @@ pip install playwright==1.63.0
 - **A Google Chrome or Microsoft Edge installation already present on your system** (no new download by default; it's auto-detected and reused at build time)
 - The `playwright` package above (used only to connect to the existing browser via CDP; Playwright's own browser-download feature is not used by default)
 
-Node.js/npm is not required. At build time, the official single-file Mermaid bundle (`mermaid.min.js`, ~3.4MB) is fetched and loaded into a headless browser to convert diagrams to SVG (the bundle JS itself is cached under an OS-standard user cache directory — e.g. `%LOCALAPPDATA%\text-compositor\Cache` on Windows, `~/.cache/text-compositor` on Linux — and conversion results are cached under `.text-compositor/cache/`; neither is re-fetched afterward). None of this is needed for documents that don't use Mermaid.
+Node.js/npm is not required. At build time, the official single-file Mermaid bundle (`mermaid.min.js`, ~5.5MB) is fetched and loaded into a headless browser to convert diagrams to SVG (the bundle JS itself is cached under an OS-standard user cache directory — e.g. `%LOCALAPPDATA%\text-compositor\Cache` on Windows, `~/.cache/text-compositor` on Linux — and conversion results are cached under `.text-compositor/cache/`; neither is re-fetched afterward). None of this is needed for documents that don't use Mermaid.
 
 If no Chrome/Edge is found on the system, the build fails by default. Setting `plugins: { mermaid_auto_download: true }` instead auto-fetches Playwright's own Chromium, but **this download is about 700MB** (this setting exists as a last resort for when no pre-installed browser is available; downloading that much by default is intentionally avoided).
 

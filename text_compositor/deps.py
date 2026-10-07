@@ -223,11 +223,11 @@ def ensure_fonts():
     return font_dir
 
 # Mermaid公式配布の単一バンドルJS（UMD形式、全図種込み）。mermaid-cli丸ごと（npm依存ツリー約396MB）
-# ではなくこのファイル単体（実測約3.4MB）だけを取得し、Playwright経由でヘッドレスブラウザに
+# ではなくこのファイル単体（実測約5.5MB）だけを取得し、Playwright経由でヘッドレスブラウザに
 # 読み込ませてmermaid.render()を直接呼び出す（仕様書11章、#35）。バージョン・SHA256を固定し、
 # Noto Sans JPと同様に決定論的な取得結果にする（9章）。
-MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist/mermaid.min.js"
-MERMAID_JS_SHA256 = "18327bef70d96fb505fe7287d9f6a7362ebf07ff6576ddfaffb1a06f3e1a2954"
+MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@12.1.0/dist/mermaid.min.js"
+MERMAID_JS_SHA256 = "6484afc32872a3aa16cac9a76ba1816a1ed4cc870a6593cc2e17757750f518b2"
 
 # 呼び出し元が、同梱したmermaid.min.jsのファイルを教える環境変数（#310）。ViewerのZIPは、これを`mermaid/`に
 # 同梱しており、FONT_DIR_ENVと同じ仕組みで、ダウンロードせずに、これを使う。

@@ -41,12 +41,12 @@ Quartoとの比較の前に、より根本的な疑問に答えておく。「Ty
 | Quarto（Mermaidなし、Typstバックエンドでbook合成） | 約140MB | [Quarto CLI tarball](https://github.com/quarto-dev/quarto-cli/releases/) 1本。Pandoc・Deno・[Typstまで同梱済み](https://quarto.org/docs/output-formats/typst.html)で追加ダウンロード不要 |
 | Quarto（Mermaidあり） | **約254MB** | 上記140MB + Mermaid図をPDF化するために必要な[Chrome Headless Shell](https://quarto.org/docs/blog/posts/2026-04-14-chrome-headless-shell.html) linux64版。[Google公式配布元](https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.42/linux64/chrome-headless-shell-linux64.zip)で実測 **119,483,791バイト（約114MB、圧縮zip）** |
 | text-compositor（Mermaidなし） | 約60.5MB | pip: `typst`(32.6MB) + `markdown-it-py`(0.08MB) + `mdit-py-plugins`(0.05MB) + `PyYAML`(0.73MB) ≈ 33.5MB／Noto Sans JP: ZIP全体27MBをダウンロードし2ファイルだけ使用 |
-| text-compositor（Mermaidあり） | **約109MB** | 上記60.5MB + `playwright`パッケージ（PyPI、manylinux1_x86_64ホイール実測**約45.5MB**） + `mermaid.min.js`（実測3.4MB）。ブラウザは`ubuntu-latest`に標準搭載のChromeを`find_system_browser()`（#34）で検出・再利用するため追加ダウンロードなし（11章、#35で実装済み） |
+| text-compositor（Mermaidあり） | **約111MB** | 上記60.5MB + `playwright`パッケージ（PyPI、manylinux1_x86_64ホイール実測**約45.5MB**） + `mermaid.min.js`（実測5.5MB）。ブラウザは`ubuntu-latest`に標準搭載のChromeを`find_system_browser()`（#34）で検出・再利用するため追加ダウンロードなし（11章、#35で実装済み） |
 | text-compositor（PlantUMLあり） | 約78MB | 上記60.5MB + `plantuml-mit-*.jar`（実測約17.6MB）。Javaは`ubuntu-latest`に標準搭載のものを`find_system_java()`で検出・再利用するため、CI上ではEclipse Temurin JREの追加ダウンロードは発生しない（11章、#22で実装済み）。Quartoは標準非対応のため比較対象なし |
 | Marp CLI（`npx @marp-team/marp-cli`） | 約123MB＋ブラウザ | HTML/CSSをヘッドレスブラウザ（Puppeteer-core）で描画してPDF化する方式。パッケージ自体は約123MB。別途Chromiumが必要 |
 | Vivliostyle CLI（`npx @vivliostyle/cli`） | 約242MB＋ブラウザ | Marpと同じくPuppeteer-core方式。CSS組版のフル機能を持つ分、依存ツリーがさらに大きい |
 
-Mermaid込みで比較すると、text-compositor（約109MB）はQuarto（約254MB）の半分以下に収まる。Mermaidを使わない用途ではさらに差が開く（60.5MB対140MB）。この差はNoto SansフォントZIPの無駄（27MBダウンロードして9.2MBしか使わない）を解消すればさらに縮められる（今後の課題）。
+Mermaid込みで比較すると、text-compositor（約111MB）はQuarto（約254MB）の半分以下に収まる。Mermaidを使わない用途ではさらに差が開く（60.5MB対140MB）。この差はNoto SansフォントZIPの無駄（27MBダウンロードして9.2MBしか使わない）を解消すればさらに縮められる（今後の課題）。
 
 実測値は展開後のディスク使用量、またはHTTPヘッダーから直接取得した圧縮ファイルサイズのいずれか（各行に記載の取得方法を参照）。両ツールとも、GitHub Actionsのキャッシュ機構（`actions/cache`等）を使えば2回目以降の実行コストは大きく下げられる。
 

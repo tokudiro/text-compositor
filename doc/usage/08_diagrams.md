@@ -87,7 +87,7 @@ box "開始" fit; arrow; circle "終了"
 
 原稿を書くときに「この図を描きたいが、どの記法を使えばいいか」を判断する材料です。`○`＝その記法が、その図の種類を名指しで対応している、`×`＝対応していない。代用の推測は書きません。図の種類の対応が基本ですが、判断を左右する重要な機能差（例: シーケンス図のコンビネーションフラグメント）は、注記に書きます。
 
-`○`には、その機能が入った版を、確認できたものだけ添えています（例: `○(v11.0+)`）。本ツールが同梱する版は、mermaid 11.16.1・PlantUML 1.2026.8・D2 v0.9.0・structurizr-cli v2025.11.09・Vega 6.4.0・Vega-Lite 6.4.3・WaveDrom 3.7.0・Bytefield-svg 1.11.0です。同梱の版が、必要な版以上であることを確認済みです。
+`○`には、その機能が入った版を、確認できたものだけ添えています（例: `○(v11.0+)`）。本ツールが同梱する版は、mermaid 12.1.0・PlantUML 1.2026.8・D2 v0.9.0・structurizr-cli v2025.11.09・Vega 6.4.0・Vega-Lite 6.4.3・WaveDrom 3.7.0・Bytefield-svg 1.11.0です。同梱の版が、必要な版以上であることを確認済みです。
 
 `vega`の列は、`vega-lite`と`vega`の両方を指します。`wavedrom`の列は、`signal`（タイミング図）と`reg`（レジスタ図）を指します。この表の`○`は、対応の有無だけを示します。実際の見た目・書き方は、記法ごとのギャラリーページに、`○`の図の種類すべての実例（コード＋出力）があります（[#323](https://github.com/tokudiro/text-compositor/issues/323)）。[Mermaid](14_gallery_mermaid.md)・[PlantUML](15_gallery_plantuml.md)・[D2](16_gallery_d2.md)・[Graphviz](17_gallery_graphviz.md)・[Structurizr](18_gallery_structurizr.md)・[Pikchr](19_gallery_pikchr.md)・[CeTZ](20_gallery_cetz.md)・[Fletcher](21_gallery_fletcher.md)・[timeliney](22_gallery_timeliney.md)・[finite](24_gallery_finite.md)・[Vega-Lite・Vega](23_gallery_vega.md)・[WaveDrom](25_gallery_wavedrom.md)・[Bytefield](26_gallery_bytefield.md)。
 
@@ -172,7 +172,7 @@ box "開始" fit; arrow; circle "終了"
 
 - ※1 Graphvizの`shape=record`は、このツールでは使えません（[#264](https://github.com/tokudiro/text-compositor/issues/264)）。
 - ※2 PlantUMLでC4モデルを描く方法（C4-PlantUML）はありますが、外部からファイルを取得する必要があり、本ツールの方針に反するため使えません。
-- ※3 mermaidのユースケース図は、v12.0.0以降で対応予定です。本ツールが同梱する版（11.16.1）には、まだ入っていません。
+- ※3 mermaidのユースケース図は、本ツールが同梱する版（12.1.0）でも、まだ使えません（`usecase`・`usecaseDiagram`は、図の種類として検出されません）。
 - ※4 SysML v2.0は、2025年9月に発行されたばかりの、別物の新標準（旧来のダイアグラム構成ではなく、テキスト中心の新しい言語）です。主要なMBSE専用ツール（Cameo、CATIA Magicなど）でも対応はまだ発展途上で、既存のSysML 1.xの資産が多いため、当面はv1.xとの併存が見込まれます。13記法のいずれも、SysML v2.0への対応はありません。
 - ※5 分岐・繰り返し（コンビネーションフラグメント。`alt`/`opt`/`loop`等）に対応するかどうかで、実用性が大きく変わります。mermaid・PlantUML・D2は対応します。
 - ※6 mermaidは、サブマシン状態（複合状態）・並行状態（fork/join）・選択擬似状態には対応しますが、**履歴状態（history state）は非対応です。** 異なる複合状態の内部状態どうしを、直接つなぐ遷移も書けません。PlantUMLは、この2つに対応します。
