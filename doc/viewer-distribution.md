@@ -36,7 +36,7 @@ Obunzu-Markdown-Viewer-0.4.4-win-x64/
 |------|------|------------------|
 | Electron（Chromium） | 同梱 | 約367.5 MB |
 | Viewerのコード（`resources/`） | 同梱 | 0.1 MB |
-| 組込版Python 3.14.7 | 同梱 | 約23.5 MB |
+| 組込版Python 3.14.8 | 同梱 | 約23.5 MB |
 | Pygments（`site-packages/pygments`。BSD-2-Clause） | **同梱**（[#218](https://github.com/tokudiro/text-compositor/issues/218)）。設定ファイル・ソースコード・Markdownのコードブロックの、シンタックスハイライトに使う。純粋なPython | 展開後に約8.6 MB。ZIPでは、約3.3 MBの増加（実測。294.5 MB → 297.8 MB） |
 | Pythonのパッケージ（`markdown-it-py`・`mdurl`・`mdit-py-plugins`・`PyYAML`・`platformdirs`）と、`text_compositor` | 同梱 | 約2.3 MB（`text_compositor`は0.6 MB、`markdown_it`は0.4 MB、`yaml`は0.7 MB） |
 | **`typst`**（Typstのコンパイラ。Pythonのパッケージ） | **同梱**（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[#237](https://github.com/tokudiro/text-compositor/issues/237)で決めた） | 約59.6 MB（ZIPで約27 MB） |
@@ -259,7 +259,7 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 
 ### 組込版Python
 
-- **現在の版**: 3.14.7（[#239](https://github.com/tokudiro/text-compositor/issues/239)で、3.12.10から移した）。
+- **現在の版**: 3.14.8（[#239](https://github.com/tokudiro/text-compositor/issues/239)で、3.12.10から移した）。
 - **移した理由**: 3.12.10は、3.12系の最後のバイナリ配布で、以降の3.12.xは、ソースだけの配布になった。Windows用の組込版に、公式のセキュリティ更新が出ない。
 - **3.14を選んだ理由**: バイナリの配布が続いている版（3.13・3.14）のうち、サポートの終わり（EOL）が、より遠い。依存パッケージ（`PyYAML`のC拡張を含む）は、3.12・3.13・3.14のすべてで、wheelが取得できた（2026-09-20に確認）。
 - **サポートの終わり**: EOLは、2030-10（Python Developer's Guideによる）。ただし、**バイナリの配布は、通常のバグ修正の期間だけ**である。3.12の実績（2023-10に公開、2025-04に最後のバイナリ）から、3.14のバイナリの配布は、**2027年の後半に終わる**と見込む（推測）。

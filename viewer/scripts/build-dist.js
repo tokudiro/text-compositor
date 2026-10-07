@@ -35,9 +35,9 @@ const pkg = require(path.join(viewerDir, 'package.json'));
 
 // 組込版Python。版は固定し、SHA256を確認する（python.orgのftpには、SHA256の一覧がないため、初回に取得して、記録した値）。
 const PYTHON = {
-  version: '3.14.7',
-  url: 'https://www.python.org/ftp/python/3.14.7/python-3.14.7-embed-amd64.zip',
-  sha256: 'd297e5ff019966817ad8502465176139f2d3d840fa4ed84b13bed399a6ab1f15',
+  version: '3.14.8',
+  url: 'https://www.python.org/ftp/python/3.14.8/python-3.14.8-embed-amd64.zip',
+  sha256: 'a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310',
   tag: '314',
 };
 
