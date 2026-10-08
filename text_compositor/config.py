@@ -31,7 +31,7 @@ _ALLOWED_FONTS_KEYS = {"dir"}   # 追加のフォントのフォルダ（#376）
 _ALLOWED_PLUGINS_KEYS = {
     "graphviz", "mermaid", "mermaid_auto_download", "plantuml", "plantuml_auto_download",
     "d2", "d2_auto_download", "structurizr", "structurizr_auto_download",
-    "pikchr", "cetz", "fletcher", "timeliney", "finite", "vega", "wavedrom", "bytefield", "diagram_trim",
+    "pikchr", "cetz", "fletcher", "timeliney", "finite", "vega", "wavedrom", "bytefield", "chordpro", "diagram_trim",
 }
 
 def _collect_unknown_keys(mapping, allowed, prefix, errors):

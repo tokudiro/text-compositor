@@ -30,6 +30,7 @@ from text_compositor import graphviz_render
 from text_compositor import vega_render
 from text_compositor import wavedrom_render
 from text_compositor import bytefield_render
+from text_compositor import chordpro_render
 from text_compositor.renderer import TypstRenderer
 
 # CSSに、そのまま書いてよい値だけを通す（原稿の値が、CSSの構文を壊したり、別の宣言を足したりしないように）。
@@ -127,6 +128,24 @@ table.layout { width: 100%; table-layout: fixed; }
   color: var(--muted); background: var(--code-bg); }
 .blocked-image p { margin: 0.25em 0; overflow-wrap: anywhere; }
 .blocked-image-title { font-weight: bold; }
+/* ChordPro（#440）。コードと直後の歌詞の断片を1組（.cp-seg）にして縦に積む。等幅の桁揃えに頼らないので、日本語でも揃う。 */
+.chordpro { margin: 1em 0; }
+.cp-title { font-size: 1.6em; font-weight: bold; line-height: 1.3; margin: 0; border: 0; padding: 0; }
+.cp-subtitle, .cp-artist { color: var(--muted); }
+.cp-gap { height: 1em; }
+.cp-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin: 0 0 0.35em; line-height: 1.5; }
+.cp-seg { display: inline-flex; flex-direction: column; }
+.cp-chord, .cp-note { min-height: 1.3em; padding-right: 0.5em; font-weight: bold; color: var(--link); white-space: pre; }
+.cp-note { font-weight: normal; font-style: italic; color: var(--muted); }
+.cp-lyric { white-space: pre; }
+.cp-plain { white-space: pre-wrap; }
+.cp-section { margin: 0.5em 0; }
+.cp-chorus { border-left: 4px solid var(--line); padding-left: 1em; }
+.cp-label { color: var(--muted); font-size: 0.85em; font-weight: bold; }
+.cp-comment { margin: 0.5em 0; }
+.cp-comment-italic { font-style: italic; }
+.cp-comment-box { display: inline-block; border: 1px solid var(--line); padding: 0 0.5em; }
+.cp-tab pre { margin: 0; }
 """
 
 
@@ -326,6 +345,8 @@ class HtmlRenderer(TypstRenderer):
                 body = self._render_markdown(text)
             else:
                 body = self._diagram_source_html(self.DIAGRAM_FILE_EXTS[ext], text)
+        elif ext in chordpro_render.FILE_EXTS:
+            body = self._chordpro_file_html(md_path)
         elif ext == TEXT_FILE_EXT:
             body = self._plain_text_html(md_path)
         elif ext in highlight.SOURCE_FILE_LANGS:
@@ -368,7 +389,7 @@ class HtmlRenderer(TypstRenderer):
     # -- Markdown・図以外のファイル（#196） -------------------------------------------
 
     SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot・.pikchr など）・"
-                             "テキスト（.txt）・CSV（.csv）・画像（.svg・.png・.jpg・.gif・.webp など）・設定ファイルとソースコード（.yaml・.json・.py など）です。")
+                             "テキスト（.txt）・CSV（.csv）・コード譜（.cho・.chordpro・.pro）・画像（.svg・.png・.jpg・.gif・.webp など）・設定ファイルとソースコード（.yaml・.json・.py など）です。")
 
     def _unsupported_file(self, path: str, ext: str) -> None:
         name = os.path.basename(path)
@@ -440,6 +461,57 @@ class HtmlRenderer(TypstRenderer):
             return f'{note}<pre class="plain-text">{escapeHtml(text)}</pre>\n'
         return (f'{note}<pre class="plain-text"><code class="language-{escapeHtml(lang)} {highlight.CODE_CLASS}">'
                 f'{html}</code></pre>\n')
+
+    def _chordpro_file_html(self, path: str) -> str:
+        """`.cho`・`.chordpro`・`.pro`（ChordPro。#440）を、コード譜にする。plugins.chordproがfalseなら、素のコード表示。"""
+        text, truncated, size = self._read_utf8(path)
+        note = self._truncation_note(path, size, "文字数で約" + f"{len(text):,}" + "文字") if truncated else ""
+        if not self.chordpro_enabled:
+            return note + self._code_block(text, 'chordpro')
+        return note + self._chordpro_html(text, code_line=1, standalone=True)
+
+    def _chordpro_html(self, code: str, code_line=None, standalone: bool = False) -> str:
+        """ChordProの本文を、コード譜のHTMLにする（#440）。コードは、直後の歌詞の断片と1組にして、縦に積む。
+        等幅フォントの桁揃えに頼らないため（日本語の等幅は、環境のフォントしだいで崩れる）、フォントが何でも、コードは歌詞の真上に揃う。
+        standalone: 単体ファイルのとき、題名を、ページの見出し（h1）にし、ページのタイトルにも使う。"""
+        song = chordpro_render.parse(code)
+        for lineno, message in song.warnings:
+            at = code_line + lineno - 1 if code_line and lineno else code_line
+            self._warn_line(f"ChordPro: {message}", at)
+        if standalone and song.title and self._title is None:
+            self._title = song.title
+
+        def segment(seg) -> str:
+            kind = 'cp-note' if seg.annotation else 'cp-chord'
+            chord = f'<span class="{kind}">{escapeHtml(seg.chord)}</span>' if seg.chord else '<span class="cp-chord"></span>'
+            return f'<span class="cp-seg">{chord}<span class="cp-lyric">{escapeHtml(seg.lyric)}</span></span>'
+
+        def item(it) -> str:
+            if isinstance(it, chordpro_render.Blank):
+                return '<div class="cp-gap"></div>\n'
+            if isinstance(it, chordpro_render.Comment):
+                return f'<div class="cp-comment cp-comment-{it.style}">{escapeHtml(it.text)}</div>\n'
+            if isinstance(it, chordpro_render.Section):
+                label = f'<div class="cp-label">{escapeHtml(it.label)}</div>' if it.label else ''
+                if it.kind == 'tab':
+                    tab = escapeHtml("\n".join(i.text for i in it.items if isinstance(i, chordpro_render.Line)))
+                    return f'<div class="cp-section cp-tab">{label}<pre>{tab}</pre></div>\n'
+                inner = "".join(item(i) for i in it.items)
+                return f'<div class="cp-section cp-{it.kind}">{label}\n{inner}</div>\n'
+            if it.has_chords:
+                return '<div class="cp-line">' + "".join(segment(s) for s in it.segments) + '</div>\n'
+            return f'<div class="cp-line cp-plain">{escapeHtml("".join(s.lyric for s in it.segments))}</div>\n'
+
+        header = ''
+        if song.title:
+            tag = 'h1' if standalone else 'div'
+            header += f'<{tag} class="cp-title">{escapeHtml(song.title)}</{tag}>\n'
+        if song.subtitle:
+            header += f'<div class="cp-subtitle">{escapeHtml(song.subtitle)}</div>\n'
+        if song.artist:
+            header += f'<div class="cp-artist">{escapeHtml(song.artist)}</div>\n'
+        body = "".join(item(i) for i in song.items)
+        return f'<div class="chordpro">\n{header}{body}</div>\n'
 
     def _csv_html(self, path: str) -> str:
         """`.csv`を、表にする。1行目は、見出し行（PDF出力と同じ）。列の数が足りない行は、空のセルで、そろえる。"""
@@ -541,6 +613,8 @@ class HtmlRenderer(TypstRenderer):
                 return self._diagram_html(lang, svg_path, width, height, alt)
         elif lang == 'math':
             return self._math_block_html(code, line=line, code_line=code_line)
+        elif lang in chordpro_render.LANGS and self.chordpro_enabled:
+            return self._chordpro_html(code, code_line=code_line or line)
         elif lang in _UNSUPPORTED_FENCES:
             self._warn_line(f"{_UNSUPPORTED_FENCES[lang]}; showing the source as a code block.", line)
         return self._code_block(code, lang)

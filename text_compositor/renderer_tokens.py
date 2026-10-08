@@ -4,6 +4,7 @@
 """
 import re
 import sys
+from text_compositor import chordpro_render
 from text_compositor.emphasis_lint import find_unapplied_bold, unapplied_bold_message
 from text_compositor.log import _error, _log_info, _warn
 from text_compositor.typst_literal import _typst_multiline_literal
@@ -232,6 +233,9 @@ class TokenMixin:
                                                                  self._parse_alt_attr(attrs_str)))
                     elif lang == 'math':
                         result.append(self._render_math_block_typst(t.content))
+                    elif lang in chordpro_render.LANGS and self.chordpro_enabled:
+                        fence_line = self._line_of(t)
+                        result.append(self._render_chordpro_typst(t.content, code_line=fence_line + 1 if fence_line else None))
                     else:
                         # ```` ``` ````フェンス構文で直接組み立てると、コード内容自体に```が
                         # 含まれる場合にTypst側のフェンスが早期に閉じて壊れる。文字列リテラルとして

@@ -31,6 +31,12 @@ describe('openDialogFilters', () => {
     for (const extension of images.extensions) assert.ok(filters[0].extensions.includes(extension), extension);   // 「対象ファイル」にも入る
   });
 
+  test('ChordPro files have their own kind (#440)', () => {
+    const chords = filters.find((filter) => filter.name.startsWith('コード譜'));
+    assert.deepEqual(chords.extensions, ['cho', 'chordpro', 'pro']);
+    for (const extension of chords.extensions) assert.ok(filters[0].extensions.includes(extension), extension);   // 「対象ファイル」にも入る
+  });
+
   test('settings files and source code have their own kind (#218)', () => {
     const source = filters.find((filter) => filter.name.startsWith('設定'));
     for (const extension of ['yaml', 'yml', 'json', 'toml', 'py', 'js', 'ts', 'sh']) assert.ok(source.extensions.includes(extension), extension);

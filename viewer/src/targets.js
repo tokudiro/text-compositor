@@ -6,12 +6,14 @@ const path = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 
 /**
- * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・Text（.txt）・画像（#413）・設定ファイルとソースコード（#218）。
+ * Viewerで開ける拡張子（#196）。Markdown・図の単体ファイル（SVGを含む）・CSV（表）・コード譜（ChordPro。#440）・Text（.txt）・画像（#413）・設定ファイルとソースコード（#218）。
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
 const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.svg'];
 const CSV_EXTENSIONS = ['.csv'];
+// コード譜（ChordPro。#440）。ワーカー側の`chordpro_render.FILE_EXTS`と、そろえる。
+const CHORDPRO_EXTENSIONS = ['.cho', '.chordpro', '.pro'];
 // 画像ファイル（#413）。ワーカー側の`html_output.IMAGE_FILE_EXTS`と、そろえる。`.svg`は、図の種類に入れている。
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.bmp'];
 const TEXT_EXTENSIONS = ['.txt'];
@@ -31,6 +33,7 @@ const OPEN_FILE_KINDS = [
   { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
   { name: '図（Mermaid・PlantUML・D2・Graphviz・Pikchr・SVG）', extensions: DIAGRAM_EXTENSIONS },
   { name: 'CSV', extensions: CSV_EXTENSIONS },
+  { name: 'コード譜（ChordPro）', extensions: CHORDPRO_EXTENSIONS },
   { name: '画像（PNG・JPEG・GIF・WebP・AVIF・BMP）', extensions: IMAGE_EXTENSIONS },
   { name: '設定・ソース（YAML・JSON・コード）', extensions: SOURCE_EXTENSIONS },
 ];
