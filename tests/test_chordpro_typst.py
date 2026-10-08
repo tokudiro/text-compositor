@@ -48,5 +48,13 @@ def test_a_warning_points_at_the_line_in_the_document(tmp_path):
     seen = []
     r = renderer(tmp_path)
     r._warn_here = lambda message, line=None: seen.append((line, message))
-    r.render("# T\n\n```chordpro\n[C]x\n{transpose: 2}\n```\n")
-    assert [(line, "transpose" in m) for line, m in seen] == [(5, True)]
+    r.render("# T\n\n```chordpro\n[C]x\n{define: C base-fret 1}\n```\n")
+    assert [(line, "define" in m) for line, m in seen] == [(5, True)]
+
+
+def test_the_key_header_and_the_transposed_chords_are_in_the_typst_code(tmp_path):
+    typst = pytest.importorskip("typst")
+    code = renderer(tmp_path)._render_chordpro_typst("{key: B}\n{transpose: 1}\n{capo: 2}\n[B]a[E]b\n")
+    assert '"Key: B (play in C) / Capo: 2"' in code
+    assert '"C"' in code and '"F"' in code and '"B"' not in code
+    assert typst.compile(code.encode("utf-8"))[:5] == b"%PDF-"

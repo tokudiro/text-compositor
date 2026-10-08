@@ -132,6 +132,7 @@ table.layout { width: 100%; table-layout: fixed; }
 .chordpro { margin: 1em 0; }
 .cp-title { font-size: 1.6em; font-weight: bold; line-height: 1.3; margin: 0; border: 0; padding: 0; }
 .cp-subtitle, .cp-artist { color: var(--muted); }
+.cp-meta { color: var(--muted); font-size: 0.9em; margin-top: 0.25em; }
 .cp-gap { height: 1em; }
 .cp-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin: 0 0 0.35em; line-height: 1.5; }
 .cp-seg { display: inline-flex; flex-direction: column; }
@@ -510,7 +511,10 @@ class HtmlRenderer(TypstRenderer):
             header += f'<div class="cp-subtitle">{escapeHtml(song.subtitle)}</div>\n'
         if song.artist:
             header += f'<div class="cp-artist">{escapeHtml(song.artist)}</div>\n'
-        body = "".join(item(i) for i in song.items)
+        meta = chordpro_render.header_meta(song)
+        if meta:
+            header += f'<div class="cp-meta">{escapeHtml(meta)}</div>\n'
+        body ="".join(item(i) for i in song.items)
         return f'<div class="chordpro">\n{header}{body}</div>\n'
 
     def _csv_html(self, path: str) -> str:

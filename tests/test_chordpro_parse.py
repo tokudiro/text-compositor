@@ -56,8 +56,8 @@ class TestParse:
         assert song.items[0].items[0].text == "e|--[0]--|"
 
     def test_unsupported_directives_are_reported_not_swallowed(self):
-        song = cp.parse("{transpose: 2}\n[C]x\n")
-        assert song.warnings == [(1, "Unsupported directive 'transpose'; ignored.")]
+        song = cp.parse("{define: C base-fret 1}\n[C]x\n")
+        assert song.warnings == [(1, "Unsupported directive 'define'; ignored.")]
         assert len(song.items) == 1
 
     def test_an_unclosed_section_warns_and_does_not_raise(self):
