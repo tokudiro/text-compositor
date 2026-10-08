@@ -31,6 +31,9 @@ class ChordproMixin:
         for value in (song.subtitle, song.artist):
             if value:
                 out.append(f'#block(spacing: 0.3em, text(fill: luma(100), {_s(value)}))\n')
+        meta = chordpro_render.header_meta(song)
+        if meta:
+            out.append(f'#block(spacing: 0.5em, text(size: 0.9em, fill: luma(100), {_s(meta)}))\n')
         out.extend(self._chordpro_item_typst(i) for i in song.items)
         return ''.join(out) + '\n'
 

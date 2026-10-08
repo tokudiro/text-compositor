@@ -39,9 +39,9 @@ class TestFence:
         assert '<span class="cp-lyric">あおい</span>' in body(html)
 
     def test_an_unsupported_directive_warns_at_the_line_in_the_document(self, tmp_path):
-        result, _ = convert(tmp_path, "# T\n\n```chordpro\n[C]x\n{transpose: 2}\n```\n")
+        result, _ = convert(tmp_path, "# T\n\n```chordpro\n[C]x\n{define: C base-fret 1}\n```\n")
         assert result.ok
-        assert [(d.line, "transpose" in d.message) for d in result.warnings] == [(5, True)]
+        assert [(d.line, "define" in d.message) for d in result.warnings] == [(5, True)]
 
     def test_the_plugin_off_shows_the_source_as_code(self, tmp_path):
         result, html = convert(tmp_path, "# T\n\n```chordpro\n[C]x\n```\n", plugins=plugins(chordpro=False))
@@ -75,3 +75,31 @@ class TestFile:
     def test_the_plugin_off_shows_the_file_as_code(self, tmp_path):
         result, html = convert(tmp_path, "[C]x\n", name="s.cho", plugins=plugins(chordpro=False))
         assert result.ok and "language-chordpro" in html
+
+
+class TestKeyHeader:
+    def test_the_original_key_and_the_play_key_are_shown_and_chords_move(self, tmp_path):
+        result, html = convert(tmp_path, "{title: T}\n{key: B}\n{transpose: 1}\n[B]a[E]b\n", name="s.cho")
+        assert result.ok and not result.warnings
+        assert '<div class="cp-meta">Key: B (play in C)</div>' in body(html)
+        assert '<span class="cp-chord">C</span>' in body(html) and '<span class="cp-chord">F</span>' in body(html)
+
+    def test_capo_is_shown_and_the_chords_stay(self, tmp_path):
+        _, html = convert(tmp_path, "{capo: 2}\n[C]a\n", name="s.cho")
+        assert '<div class="cp-meta">Capo: 2</div>' in body(html) and '<span class="cp-chord">C</span>' in body(html)
+
+    def test_a_key_without_transpose(self, tmp_path):
+        _, html = convert(tmp_path, "{key: Am}\n{capo: 3}\n[Am]a\n", name="s.cho")
+        assert '<div class="cp-meta">Key: Am / Capo: 3</div>' in body(html)
+
+    def test_transpose_without_a_key_shows_the_amount(self, tmp_path):
+        _, html = convert(tmp_path, "{transpose: 2}\n[C]a\n", name="s.cho")
+        assert '<div class="cp-meta">Transposed: +2</div>' in body(html)
+
+    def test_no_meta_line_without_key_capo_or_transpose(self, tmp_path):
+        _, html = convert(tmp_path, "{title: T}\n[C]a\n", name="s.cho")
+        assert 'class="cp-meta"' not in body(html)
+
+    def test_it_works_in_a_fence(self, tmp_path):
+        _, html = convert(tmp_path, "# T\n\n```chordpro\n{key: B}\n{transpose: 1}\n[B]a\n```\n")
+        assert "Key: B (play in C)" in body(html)
