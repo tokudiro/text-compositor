@@ -323,6 +323,7 @@ class Session:
                     vega_enabled=bool(plugins_config.get("vega", True)),
                     wavedrom_enabled=bool(plugins_config.get("wavedrom", True)),
                     bytefield_enabled=bool(plugins_config.get("bytefield", True)),
+                    chordpro_enabled=bool(plugins_config.get("chordpro", True)),
                     variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header,
                     allow_external_images=allow_external_images, cache_dir=cache_dir)

@@ -12,6 +12,7 @@ from mdit_py_plugins.tasklists import tasklists_plugin
 from mdit_py_plugins.attrs import attrs_plugin
 # 数式（LaTeX記法、#183）。GitHub標準の$...$/$$...$$をパースする。
 from mdit_py_plugins.dollarmath import dollarmath_plugin
+from text_compositor import chordpro_render
 from text_compositor.config import yaml
 from text_compositor.log import _error
 from text_compositor.mermaid import MermaidBrowser
@@ -20,6 +21,7 @@ from text_compositor.typst_literal import escape_string_literal
 #   DiagramMixin: 図のフェンスの描画と、SVGのキャッシュ / LayoutMixin: `:::`のレイアウトブロック / InlineMixin: インライン要素
 #   TableMixin: 表・CSV / TokenMixin: markdown-itのトークン列の走査（ブロック要素）
 # _diagram_cache_keyは、ここから読む側（テスト）があるため、再エクスポートする。
+from text_compositor.renderer_chordpro import ChordproMixin
 from text_compositor.renderer_diagrams import DiagramMixin, _diagram_cache_key  # noqa: F401
 from text_compositor.renderer_inline import InlineMixin
 from text_compositor.renderer_layout import LayoutMixin
@@ -27,7 +29,7 @@ from text_compositor.renderer_tables import TableMixin
 from text_compositor.renderer_tokens import TokenMixin
 
 
-class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMixin):
+class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMixin, ChordproMixin):
     """
     markdown-it-py が生成したAST（構文木）を走査し、
     安全かつ正確にTypst構文へ変換するカスタムレンダラー
@@ -118,7 +120,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                  mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
                  cetz_enabled=True, fletcher_enabled=True, timeliney_enabled=True, structurizr_enabled=False,
                  structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True, wavedrom_enabled=True, bytefield_enabled=True,
-                 finite_enabled=True):
+                 finite_enabled=True, chordpro_enabled=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
@@ -141,6 +143,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         # plugins.bytefield（既定true。#300）。falseなら、```bytefieldフェンスを、素のコードのまま表示する。ブラウザは、Mermaid・Vega・WaveDromと共有する。
         self.bytefield_enabled = bytefield_enabled
         self._bytefield_disabled_warned = False
+        # plugins.chordpro（既定true。#440）。falseなら、```chordproフェンスと、.cho・.chordpro・.proを、素のコードのまま表示する。
+        self.chordpro_enabled = chordpro_enabled
         # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
         # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
         self.csv_header_default = csv_header
@@ -302,6 +306,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             return self._render_structurizr(text)
         elif ext == '.csv':
             return self._render_csv_table(text)
+        elif ext in chordpro_render.FILE_EXTS and self.chordpro_enabled:
+            return self._render_chordpro_typst(text, code_line=1)
 
         return self._render_raw_text(text, self.STRUCTURED_TEXT_LANGS.get(ext))
 

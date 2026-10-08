@@ -11,6 +11,7 @@ plugins:
   vega: true                    # 既定 true（vega-lite・vegaフェンス）
   wavedrom: true                # 既定 true（wavedromフェンス）
   bytefield: true               # 既定 true（bytefieldフェンス）
+  chordpro: true                # 既定 true（chordproフェンスと、.cho・.chordpro・.pro。27章）
   mermaid: true                # 既定 true
   mermaid_auto_download: false # 既定 false
   plantuml: true                # 既定 true

@@ -22,6 +22,7 @@ text-compositorは、Mermaid・PlantUML・D2・Graphvizなど複数の図表形�
 - `.yaml`/`.yml`/`.json`: シンタックスハイライト付きの等幅表示
 - `.dot`/`.gv`・`.mmd`・`.puml`/`.plantuml`/`.pu`・`.d2`・`.pikchr`・`.dsl`: それぞれGraphviz/Mermaid/PlantUML/D2/Pikchr/Structurizrの図として1章分描画（Structurizrは既定オフ。`plugins: { structurizr: true }`が要る。後述）
 - `.csv`: Typstのテーブルとして構造化して描画
+- `.cho`/`.chordpro`/`.pro`: ChordProのコード譜として描画（コードが歌詞の真上に並ぶ。` ```chordpro `フェンスと同じ）
 - それ以外（プレーンテキスト・コードファイル等）: 素の等幅表示
 
 詳細は[使い方ガイド](doc/usage/)を参照してください。

@@ -54,6 +54,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     timeliney_enabled = bool(plugins_config.get("timeliney", True))   # #294
     finite_enabled = bool(plugins_config.get("finite", True))   # #292
     vega_enabled = bool(plugins_config.get("vega", True))   # #211
+    chordpro_enabled = bool(plugins_config.get("chordpro", True))   # #440
     wavedrom_enabled = bool(plugins_config.get("wavedrom", True))   # #299
     bytefield_enabled = bool(plugins_config.get("bytefield", True))   # #300
     mermaid_enabled = bool(plugins_config.get("mermaid", True))
@@ -101,7 +102,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               cetz_enabled=cetz_enabled, fletcher_enabled=fletcher_enabled,
                               timeliney_enabled=timeliney_enabled, finite_enabled=finite_enabled,
                               structurizr_enabled=structurizr_enabled, structurizr_auto_download=structurizr_auto_download,
-                              diagram_trim_enabled=diagram_trim_enabled, vega_enabled=vega_enabled, wavedrom_enabled=wavedrom_enabled, bytefield_enabled=bytefield_enabled,
+                              diagram_trim_enabled=diagram_trim_enabled, vega_enabled=vega_enabled, wavedrom_enabled=wavedrom_enabled, bytefield_enabled=bytefield_enabled, chordpro_enabled=chordpro_enabled,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
                               mermaid_browser=mermaid_browser, csv_header=csv_header)

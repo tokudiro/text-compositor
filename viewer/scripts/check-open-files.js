@@ -59,6 +59,7 @@ async function open(arg, wait = 4500, act = null) {
       + "notes: [...document.querySelectorAll('.text-note')].map((n) => n.textContent), headings: document.querySelectorAll('h1,h2,ul').length, "
       + "images: [...document.querySelectorAll('img')].map((i) => i.complete && i.naturalWidth > 0), "
       + "tableHead: [...document.querySelectorAll('table.csv th')].map((c) => c.textContent), tableRows: document.querySelectorAll('table.csv tbody tr').length, "
+      + "chordSegments: document.querySelectorAll('.chordpro .cp-seg').length, "
       + "code: document.querySelector('pre code')?.textContent ?? null })")) : null;
     const csvButton = JSON.parse(await chrome("JSON.stringify({ hidden: document.getElementById('csv-header').hidden, checked: document.getElementById('csv-header').getAttribute('aria-checked') })"));
     let saved = null;
@@ -80,6 +81,8 @@ async function main() {
   check('.txtが、Markdownとして解釈されず、等幅の素のテキストで表示される',
     r.page?.text === '# 見出しに見える行\n- リストに見える行\n    インデント\n' && r.page.headings === 0 && r.state.banner === '', JSON.stringify(r.page));
 
+  r = await open(write('song.cho', '{title: 蛍の光}\n[C]ほたるの[G]ひかり\n'), 4000);
+  check('.cho（ChordPro）が、コードと歌詞を組にしたコード譜で表示される（#440）', r.page?.chordSegments === 2 && r.state.banner === '', JSON.stringify(r.page));
   r = await open(write('日本語の フォルダ/一覧.csv', '名前,数,備考\nりんご,10,"甘い, 赤い"\nみかん,3,\n'));
   check('.csvが、1行目を見出しにした表で表示される（日本語のフォルダ名）',
     JSON.stringify(r.page?.tableHead) === JSON.stringify(['名前', '数', '備考']) && r.page.tableRows === 2 && r.state.banner === '', JSON.stringify(r.page));
