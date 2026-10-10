@@ -565,6 +565,9 @@ function push() {
   // 「表示」メニューの、CSVの見出し行の項目は、.csvを開いているときだけ、有効にする
   const csvItem = menu?.getMenuItemById('csv-header');
   if (csvItem) { csvItem.enabled = tab.isCsv; csvItem.checked = state.settings.csvHeader; }
+  // 印刷は、内容のビューが見えているとき（文書があり、設定画面を開いていないとき）だけ使える（#333）
+  const printItem = menu?.getMenuItemById('print');
+  if (printItem) printItem.enabled = Boolean(tab.hasDocument && !state.settingsOpen);
   // ファイルツリーの入口は、設定「ファイルツリー」がオンのときだけ出す（#339）
   for (const id of ['open-folder', 'toggle-sidebar']) {
     const item = menu?.getMenuItemById(id);
@@ -650,6 +653,33 @@ function rememberDirectory(directory) {
   state.settings = normalizeSettings({ ...state.settings, lastDirectory: directory });
   saveSettings(settingsFile, state.settings);
 }
+
+/**
+ * 表示中の文書を、システムの印刷ダイアログへ渡す（#333）。「PDFとして保存」は、OS標準の仮想プリンターに任せる。
+ * ダーク配色のまま印刷すると、黒背景・白文字で出てしまう。紙に出すものなので、印刷の間だけ、内容のビューを
+ * ライト配色にする（nativeThemeを切り替えると、ウィンドウ全体がちらつくため、このビューだけに限る）。
+ */
+function printDocument() {
+  if (!tab.hasDocument || state.settingsOpen || !tab.contentView || printing) return;
+  const contents = tab.contentView.webContents;
+  printing = true;
+  const finish = () => {
+    printing = false;
+    try { if (contents.debugger.isAttached()) contents.debugger.detach(); } catch { /* ビューが破棄済み */ }
+  };
+  const start = async () => {
+    try {
+      contents.debugger.attach('1.3');
+      await contents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    } catch {
+      // 配色を切り替えられなくても、印刷自体は続ける（ダークのまま出るだけ）
+    }
+    contents.print({ silent: false, printBackground: false }, finish);
+  };
+  void start();
+}
+
+let printing = false;   // 印刷ダイアログを開いている間は、二重に開かない
 
 function reload() {
   leaveSettings();
@@ -1187,6 +1217,9 @@ function buildMenu() {
         { label: '再読み込み', accelerator: 'F5', click: reload },
         { label: '再読み込み', accelerator: 'CommandOrControl+R', click: reload, visible: false },
         { id: 'auto-reload', label: '保存したら自動で更新', type: 'checkbox', checked: state.autoReload, click: (item) => setAutoReload(item.checked) },
+        { type: 'separator' },
+        // 画面の表示のまま印刷する簡易な機能（#333）。ページ番号・表紙などを反映した正式なPDFは、text-compositor本体が作る
+        { id: 'print', label: '印刷…（画面の表示のまま）', accelerator: 'CommandOrControl+P', enabled: false, click: () => printDocument() },
         { type: 'separator' },
         { label: '終了', accelerator: 'CommandOrControl+Q', click: () => app.quit() },
       ],
