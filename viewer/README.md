@@ -2,7 +2,7 @@
 
 English | [日本語](README-ja.md)
 
-Obunzu Markdown Viewer ("Obunzu" for short) is a fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, Structurizr, Graphviz, Pikchr, CeTZ, Fletcher, timeliney, finite, Vega-Lite, Vega, WaveDrom, Bytefield, `svg`) as images. There is no editor and no PDF output.
+Obunzu Markdown Viewer ("Obunzu" for short) is a fast, read-only Markdown viewer for Docs, Diagrams and Design as Code, built with Electron on top of text-compositor. The name is a coined word: "Observe" plus 文図 (*bunzu*, "text and diagrams"), pronounced "oh-boon-zu". Open a Markdown file and it is converted to HTML by the resident Python worker (`render_html`, see section 14 of [doc/spec.md](../doc/spec.md)) and shown with its diagrams (Mermaid, PlantUML, D2, Structurizr, Graphviz, Pikchr, CeTZ, Fletcher, timeliney, finite, Vega-Lite, Vega, WaveDrom, Bytefield, `svg`) as images. There is no editor and no PDF output. Only a simple print of what is on screen is available (`Ctrl+P`; the formal PDF comes from text-compositor itself).
 
 This README is for developers. The guide for people who use Obunzu is the [Obunzu usage guide](../doc/obunzu-guide/) (in Japanese; its PDF is attached to each release).
 

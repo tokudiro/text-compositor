@@ -16,7 +16,7 @@ Obunzu Markdown Viewer（略称はObunzu。お文図。「おぶんず」と読�
 ## できないこと
 
 - 文書の編集はできません（閲覧専用です）。書くときは、お使いのエディタを使ってください。
-- PDFの出力はできません。PDFにするときは、同じ仕組みの[text-compositor](https://github.com/tokudiro/text-compositor)を使います。Obunzuの図は、text-compositorが作るPDFと、同じ描き方で描くため、同じ図になります。
+- PDFの出力はできません。画面の表示のままの簡易な印刷（`Ctrl+P`）だけ、できます。ページ番号・表紙・余白などを反映した、正式なPDFにするときは、同じ仕組みの[text-compositor](https://github.com/tokudiro/text-compositor)を使います。Obunzuの図は、text-compositorが作るPDFと、同じ描き方で描くため、同じ図になります。
 - 生のHTMLには、対応していません。無視して、警告を出します。
 - Windows（64ビット）向けです。Mac・Linux向けの配布物は、ありません。
 
