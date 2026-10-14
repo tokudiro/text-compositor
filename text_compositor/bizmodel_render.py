@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "1"
+CACHE_VERSION = "3"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -396,15 +396,13 @@ def _text(x, y, s, size=LABEL_SIZE, anchor="middle", bold=False):
 def _svg_company(a):
     out = [f'<rect x="{_fmt(a["x"])}" y="{_fmt(a["y"])}" width="{_fmt(a["w"])}" height="{_fmt(a["h"])}" '
            f'fill="#fff" stroke="{INK}" stroke-width="{STROKE}"/>']
-    chars = list(a["label"])
-    # 長い名前は、長方形に収まるまで、文字を小さくする
+    # 名前は、縦書き（writing-mode）で、長方形の中央に置く。括弧・長音符・句読点が、縦書きの形になる
+    # （PDF（Typst）・resvg・ブラウザで、同じに表示されることを確認してある）。長い名前は、収まるまで、文字を小さくする
     size = LABEL_SIZE
-    while size > 8 and len(chars) * (size + 3) > a["h"] - 16:
+    while size > 8 and _text_width(a["label"], size) > a["h"] - 16:
         size -= 1
-    lh = size + 3
-    y0 = a["cy"] - (len(chars) - 1) * lh / 2 + size * 0.35
-    for i, ch in enumerate(chars):
-        out.append(_text(a["cx"], y0 + i * lh, ch, size))
+    out.append(f'<text x="{_fmt(a["cx"])}" y="{_fmt(a["cy"])}" writing-mode="tb" font-family="{FONT_FAMILY}" '
+               f'font-size="{_fmt(size)}" text-anchor="middle" fill="{INK}">{escape(a["label"])}</text>')
     return "\n".join(out)
 
 
