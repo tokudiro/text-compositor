@@ -217,8 +217,51 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 ## 更新の方法
 
 - **新しいZIPを取得して、展開し直す**（フォルダごと置き換える）。自動更新は、行わない（署名と、配布の基盤が要るため。必要になったら、別に検討する）。
+- **wingetに登録した後は、`winget upgrade`で更新できる**（下の「wingetでの配布」。登録は、まだ行っていない）。
 - 設定・ウィンドウの状態は、`%APPDATA%\Obunzu\settings.json`に、図のキャッシュ等は、`%LOCALAPPDATA%\text-compositor\`にあり、アプリのフォルダの外のため、置き換えても、残る。
 - **Chromium（Electron）の更新**は、Electronの版を上げて、Obunzuの新版を出すことで、行う。組込版Pythonと、パッケージも、同様（版は、`build-dist.js`と`dist-requirements.txt`で固定している）。セキュリティ更新が出たときは、新版を出す。
+
+## wingetでの配布（[#334](https://github.com/tokudiro/text-compositor/issues/334)）
+
+ZIPだけでは、更新が、手動の取得・展開し直しになる。そのため、**同じZIPを、wingetの`portable (zip)`として配る**。自前のインストーラーは、作らない（ZIPの配布も、そのまま残す）。アプリ内の更新確認は、ツール群の方針2（外部通信を起こさない）と衝突するため、行わない。
+
+状態: **マニフェストの雛形と、生成の手順を用意した。`microsoft/winget-pkgs`への登録は、まだ行っていない。**
+
+### 手元の検証（v0.4.5のZIP）
+
+| 確認 | 結果 |
+|---|---|
+| インストール | ユーザー単位（管理者権限は不要）。約1,890ファイル（約700 MB）を、`%LOCALAPPDATA%\Microsoft\WinGet\Packages\`の下に展開 |
+| コマンド名 | `obunzu`が、`%LOCALAPPDATA%\Microsoft\WinGet\Links`に登録される |
+| 登録情報 | `HKCU`に、削除の情報を、1つだけ書く（「アプリと機能」に出る） |
+| 起動 | 成功 |
+| 削除 | 展開先・コマンド名・登録が、すべて消える。設定（`%APPDATA%\Obunzu`）とキャッシュ（`%LOCALAPPDATA%\text-compositor\Cache`）は、残る（ZIPと同じ） |
+
+### マニフェストの作り方
+
+`packaging/winget/make_manifest.py`が、版ごとの3つのファイルを、`winget-pkgs`の配置（`manifests/t/tokudiro/ObunzuMarkdownViewer/<版>/`）で出す。
+
+```text
+python packaging/winget/make_manifest.py --version 0.4.6 --out temp/winget
+```
+
+- ZIPのSHA256は、省略すると、Releaseの添付ファイルのダイジェストを、`gh`で読む（ZIPは、取得しない）。`--zip <パス>`か、`--sha256 <値>`でも渡せる。
+- 内容の要点: `InstallerType: zip`、`NestedInstallerType: portable`、展開したフォルダの`obunzu-markdown-viewer.exe`を、コマンド名`obunzu`として登録する。
+- ZIPの名前と、展開したフォルダの名前は、`viewer/scripts/build-dist.js`と同じ。`tests/test_winget_manifest.py`が、そろっていることを確かめる。
+
+### 検証の手順
+
+1. `winget validate --manifest <フォルダ>`（スキーマの検証。管理者権限は、不要）。
+2. インストールの試験（任意）: ローカルのマニフェストを使うには、管理者が、`winget settings --enable LocalManifestFiles`を実行する必要がある。試験が終わったら、`winget settings --disable LocalManifestFiles`で、元に戻す。ローカルのマニフェストからのインストールでは、wingetのクライアントが、アーカイブの検査を行うため、環境によっては、止まる場合がある。
+
+### 登録の手順（最初の1版は、手動）
+
+1. Releaseが公開され、ZIPが添付されていることを確認する（URLが、取得できること）。
+2. `microsoft/winget-pkgs`を、フォークする。
+3. 上のスクリプトで作ったマニフェストを、フォークの`manifests/t/tokudiro/ObunzuMarkdownViewer/<版>/`に置き、PRを出す。
+4. 自動の検証（Azure Pipelines）と、レビューの指摘に、対応する。
+
+登録の後は、版ごとに、同じ形のPRを出す（版・URL・SHA256だけが変わる）。自動化（`winget-releaser`などのGitHub Actions。classic形式のトークンを、シークレットに置く必要がある）は、登録が通ってから、検討する。
 
 ## 更新の方針
 

@@ -25,6 +25,16 @@ Obunzuがすでに起動しているときに、別のファイルを開くと�
 
 Obunzuには、コード署名をしていません。そのため、Windowsの「SmartScreen」が、初回の起動で、警告を出す場合があります（推測です。この環境では、確認できていません）。警告が出たときは、配布元（上のReleases）から取得したことを確かめてから、実行するかどうかを決めてください。
 
+## wingetで入手する（準備中）
+
+Windowsのパッケージ管理（`winget`）で、入手・更新・削除ができるように、準備を進めています。登録が済むまでは、上の「入手する」のZIPを使ってください。登録後は、次の形になる予定です。
+
+```text
+winget install tokudiro.ObunzuMarkdownViewer
+winget upgrade tokudiro.ObunzuMarkdownViewer
+winget uninstall tokudiro.ObunzuMarkdownViewer
+```
+
 ## 更新する
 
 Obunzuは、自動では更新しません。新しい版が出たときは、新しいZIPを取得して、展開し直します（古いフォルダは、削除して構いません）。セキュリティの修正も、新しい版として出すため、最新の版を使ってください。
