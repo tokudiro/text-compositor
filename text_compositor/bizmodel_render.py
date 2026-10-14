@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "3"
+CACHE_VERSION = "4"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -105,8 +105,21 @@ def _tokenize(line, lineno):
 # 構文解析（AST）
 # ---------------------------------------------------------------------------
 
+def _is_canvas(text):
+    """最初の文が`type canvas`か（記法2。bizmodel_canvas.pyが扱う）。"""
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return re.match(r"type\s+canvas\b", stripped) is not None
+    return False
+
+
 def parse(text):
-    """DSLを、AST（JSONにできる辞書）にする。"""
+    """DSLを、AST（JSONにできる辞書）にする。`type canvas`なら、記法2（ビジネスモデルキャンバス）。"""
+    if _is_canvas(text):
+        from text_compositor import bizmodel_canvas   # 循環を避けるため、ここで読む
+        return bizmodel_canvas.parse(text)
     actors = []
     groups = []
     title = None
@@ -272,6 +285,9 @@ def _text_width(s, size):
 
 def layout(ast):
     """ASTから、座標を決める。最初の実装は、売り手が1つの2者間の取引（買い手は複数可）だけを扱う。"""
+    if ast.get("type") == "canvas":
+        from text_compositor import bizmodel_canvas
+        return bizmodel_canvas.layout(ast)
     actors = {a["id"]: a for a in ast["actors"]}
     trades = [t for g in ast["groups"] for t in g["trades"]]
     sellers = []
@@ -457,6 +473,9 @@ def _svg_timeline(t):
 
 def to_svg(lay):
     """Layoutを、SVGの文字列にする。"""
+    if getattr(lay, "kind", "flow") == "canvas":
+        from text_compositor import bizmodel_canvas
+        return bizmodel_canvas.to_svg(lay)
     parts = []
     if lay.title:
         parts.append(_text(lay.width / 2, lay.title_y, lay.title, 16, bold=True))
