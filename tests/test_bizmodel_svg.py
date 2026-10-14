@@ -33,9 +33,10 @@ class TestSvg:
         assert len(r.findall(".//s:polygon", NS)) == 1         # 先端を塗りつぶした販売の矢印
         assert len(r.findall(".//s:polyline", NS)) == 1        # 先端が開いた支払の矢印
 
-    def test_company_name_is_stacked_one_character_per_line(self):
+    def test_company_name_is_one_vertical_text(self):
         r = root(BASIC)
-        assert [c for c in "配信事業者" if c in texts(r)] == list("配信事業者")
+        (name,) = [t for t in r.iter("{http://www.w3.org/2000/svg}text") if t.text == "配信事業者"]
+        assert name.attrib["writing-mode"] == "tb" and name.attrib["text-anchor"] == "middle"
 
     def test_a_bundle_adds_a_brace_and_a_timeline_adds_t(self):
         body = ('company S "企業"\nperson X "顧客"\n{kind} {{\n'
@@ -57,14 +58,12 @@ class TestSvg:
     def test_the_output_is_deterministic(self):
         assert bm.render_svg(BASIC) == bm.render_svg(BASIC)
 
-    def test_the_long_vowel_mark_is_drawn_upright_in_the_stacked_name(self):
-        r = root(BASIC.replace("配信事業者", "メーカー"))
-        stacked = [t for t in texts(r) if t in "メーカー｜"]
-        assert stacked == ["メ", "｜", "カ", "｜"]
+    def test_punctuation_and_the_long_vowel_mark_stay_in_the_same_vertical_text(self):
+        r = root(BASIC.replace("配信事業者", "メーカー（株）「東京」"))
+        assert "メーカー（株）「東京」" in texts(r)
 
     def test_a_long_company_name_shrinks_to_fit_the_rectangle(self):
         name = "とても長い名前の会社のサービス部門"
         r = root(BASIC.replace("配信事業者", name))
-        sizes = {float(t.attrib["font-size"]) for t in r.iter("{http://www.w3.org/2000/svg}text")
-                 if t.text and len(t.text) == 1 and t.text in name}
-        assert sizes and max(sizes) < 14
+        (el,) = [t for t in r.iter("{http://www.w3.org/2000/svg}text") if t.text == name]
+        assert float(el.attrib["font-size"]) < 14
