@@ -182,6 +182,11 @@ async function main() {
   check('.pikchr（Pikchr）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   r = await open(write('bad.pikchr', 'box "unterminated\n'), 9000);
   check('Pikchrの構文エラーは、変換エラーとして、Pikchr自身の原因が示される', r.state.banner.includes('変換エラー') && /unrecognized token/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
+  // bizmodel（#447）。Pythonだけで描画する（外部ツールは、使わない）。
+  r = await open(write('t.bizmodel', 'company A "売り手"\nperson B "買い手"\nA -> B : goods "商品" / money "100円"\n'), 9000);
+  check('.bizmodel（モノ・カネの流れの図）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
+  r = await open(write('bad.bizmodel', 'company A "売り手"\nperson B "買い手"\nA -> B : goods "商品"\n'), 9000);
+  check('bizmodelの構文エラーは、変換エラーとして、エラー番号が示される', r.state.banner.includes('変換エラー') && /E01/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
   r = await open(write('bad.dot', 'graph { a -- b -- }\n'), 9000);
   check('Graphvizの構文エラーは、変換エラーとして、原因が示される', r.state.banner.includes('変換エラー') && /syntax error/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
 
