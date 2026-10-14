@@ -187,6 +187,11 @@ async function main() {
   check('.bizmodel（モノ・カネの流れの図）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   r = await open(write('bad.bizmodel', 'company A "売り手"\nperson B "買い手"\nA -> B : goods "商品"\n'), 9000);
   check('bizmodelの構文エラーは、変換エラーとして、エラー番号が示される', r.state.banner.includes('変換エラー') && /E01/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
+  // bizmodelのキャンバス（#458）。
+  r = await open(write('c.bizmodel', 'type canvas\ntitle "題"\nvalue "価値"\nsegments "顧客"\n'), 9000);
+  check('type canvas（ビジネスモデルキャンバス）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
+  r = await open(write('bad-canvas.bizmodel', 'type canvas\nbanana "x"\n'), 9000);
+  check('キャンバスの構文エラーは、変換エラーとして、エラー番号が示される', r.state.banner.includes('変換エラー') && /E06/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
   r = await open(write('bad.dot', 'graph { a -- b -- }\n'), 9000);
   check('Graphvizの構文エラーは、変換エラーとして、原因が示される', r.state.banner.includes('変換エラー') && /syntax error/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
 
