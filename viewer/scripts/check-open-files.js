@@ -34,27 +34,70 @@ async function connect(match) {
   let id = 0;
   const pending = new Map();
   ws.addEventListener('message', (event) => { const m = JSON.parse(event.data); pending.get(m.id)?.(m); });
-  return (expression) => new Promise((resolve) => {
+  const evaluate = (expression) => new Promise((resolve) => {
     const i = ++id;
     pending.set(i, (m) => resolve(m.result.result.value));
     ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression, returnByValue: true } }));
   });
+  evaluate.close = () => ws.close();
+  return evaluate;
 }
 
-/** ファイルを引数にして起動し、少し待って、画面の状態（帯・状態・文書の中身）を読む。 */
-async function open(arg, wait = 4500, act = null) {
+/**
+ * ツールバー（chrome.html）の状態が、決まるまで、短い間隔で確かめる（固定の待ちをやめて、時間を減らす。#467）。
+ * 決まった、とは、変換が終わって状態の表示が出た（変換中は空）こと。状態が出ないまま、帯（案内・エラー）が、
+ * 少しの間、出続けているときも、決まったとみなす（帯が、状態より、わずかに先に出ることがある）。
+ * timeoutは、上限。超えたら、そのときの画面を、そのまま読む（判定は、これまでと同じ）。
+ * requireStatusは、状態の表示を、必ず待つ（帯が出ていても、状態の表示を、判定に使うケース用）。
+ */
+async function waitReady(timeout, requireStatus = false) {
+  const deadline = Date.now() + timeout;
+  let chrome = null;
+  let bannerPolls = 0;
+  while (Date.now() < deadline) {
+    try {
+      chrome = chrome || await connect('chrome.html');
+      if (chrome) {
+        const s = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
+          + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent })"));
+        bannerPolls = s.banner !== '' ? bannerPolls + 1 : 0;
+        if (s.status !== '' || (!requireStatus && bannerPolls >= 5)) return chrome;
+      }
+    } catch { chrome = null; }
+    await sleep(100);
+  }
+  return chrome ?? connect('chrome.html');
+}
+
+/** 文書のビューが、読み込み終わり、画像も、読み込みが済むまで、短い間隔で確かめる。見つからなければ、nullを返す。 */
+async function waitContent(timeout) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    let content = null;
+    try {
+      content = await connect(isContent);
+      if (content && await content("document.readyState === 'complete' && [...document.images].every((i) => i.complete)")) return content;
+    } catch { /* 次の確認で、もう一度 */ }
+    content?.close();
+    await sleep(100);
+  }
+  return connect(isContent);
+}
+
+/** ファイルを引数にして起動し、画面の状態が決まるまで待って（waitは、その上限）、画面の状態（帯・状態・文書の中身）を読む。 */
+async function open(arg, wait = 4500, act = null, { requireStatus = false } = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-open-'));
   const args = packaged ? [] : [viewerDir];
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env }, stdio: 'ignore' });
   const started = Date.now();
   try {
-    await sleep(wait);
-    const chrome = await connect('chrome.html');
-    if (act) { await act(chrome); await sleep(3000); }
+    const chrome = await waitReady(wait, requireStatus);
+    if (act) { await waitContent(Math.min(wait, 5000)); await act(chrome); await sleep(3000); }
     const state = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "detail: document.querySelector('#details .item')?.textContent ?? '' })"));
-    const content = await connect(isContent);
+    // 帯（エラー）が出ていないときは、文書の読み込みが済むまで待つ。帯が出ているときは、文書は、無いか、前のまま
+    const content = state.banner === '' ? await waitContent(Math.min(wait, 5000)) : await connect(isContent);
     const page = content ? JSON.parse(await content("JSON.stringify({ text: (() => { const pre = document.querySelector('pre.plain-text')?.cloneNode(true); pre?.querySelectorAll('.tc-ui').forEach((e) => e.remove()); return pre?.textContent ?? null; })(), "
       + "notes: [...document.querySelectorAll('.text-note')].map((n) => n.textContent), headings: document.querySelectorAll('h1,h2,ul').length, "
       + "images: [...document.querySelectorAll('img')].map((i) => i.complete && i.naturalWidth > 0), "
@@ -75,6 +118,7 @@ async function open(arg, wait = 4500, act = null) {
 }
 
 async function main() {
+  const startedAll = Date.now();
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-open-docs-'));
   const write = (name, data) => { const p = path.join(work, name); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, data); return p; };
   const guide = (state) => /Markdown（\.md）/.test(state.detail) && /テキスト（\.txt）/.test(state.detail);
@@ -150,7 +194,7 @@ async function main() {
   r = await open(path.join(work, 'フォルダ'), 3000);
   check('フォルダの指定は、案内が出る', r.state.detail.includes('フォルダは開けません'), r.state.detail);
 
-  r = await open(write('big.txt', ('2026-09-20 12:34:56 INFO request handled path=/api/items id=42 ms=13 ok\n').repeat(30_000)), 7000);
+  r = await open(write('big.txt', ('2026-09-20 12:34:56 INFO request handled path=/api/items id=42 ms=13 ok\n').repeat(30_000)), 7000, null, { requireStatus: true });
   check('大きなファイル（約2 MB）は、先頭の約512 KBだけが、表示され、案内が出る（固まらない）',
     r.page?.notes.some((n) => n.includes('先頭の約512 KB')) && r.page.text.length <= 512 * 1024 && /更新/.test(r.state.status), `${r.state.status} / ${r.page?.notes}`);
 
@@ -196,6 +240,7 @@ async function main() {
   check('Graphvizの構文エラーは、変換エラーとして、原因が示される', r.state.banner.includes('変換エラー') && /syntax error/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
 
   fs.rmSync(work, { recursive: true, force: true });
+  console.log(`INFO 所要時間: ${Math.round((Date.now() - startedAll) / 1000)} 秒`);
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);
   process.exit(failures === 0 ? 0 : 1);
 }
