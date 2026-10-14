@@ -23,7 +23,7 @@ Files listed in `chapters` are handled differently depending on their extension:
 - `.dot`/`.gv`, `.mmd`, `.puml`/`.plantuml`/`.pu`, `.d2`, `.pikchr`, `.dsl`: each rendered as a one-chapter diagram (Graphviz, Mermaid, PlantUML, D2, Pikchr, Structurizr respectively — Structurizr is off by default, see "Using Structurizr diagrams" below)
 - `.csv`: rendered as a structured Typst table
 - `.cho`/`.chordpro`/`.pro`: rendered as a ChordPro chord sheet (chords above the lyrics; the same as a ` ```chordpro ` fence)
-- `.bizmodel`: rendered as a business model diagram (the flow of goods and money; the same as a ` ```bizmodel ` fence)
+- `.bizmodel`/`.bmv`: rendered as a business model diagram (the flow of goods and money; the same as a ` ```bizmodel ` fence)
 - everything else (plain text, code files, etc.): rendered as plain monospaced text
 
 See the [usage guide](doc/usage/) for details.

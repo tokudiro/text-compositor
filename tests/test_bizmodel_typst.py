@@ -21,8 +21,9 @@ def test_width_and_height_attributes_reach_the_image(tmp_path):
     assert "width: 50%" in code
 
 
-def test_a_bizmodel_file_chapter_becomes_an_image(tmp_path):
-    code = renderer(tmp_path).render_chapter(DSL, filepath=str(tmp_path / "flow.bizmodel"))
+@pytest.mark.parametrize("name", ["flow.bizmodel", "flow.bmv"])
+def test_a_bizmodel_file_chapter_becomes_an_image(tmp_path, name):
+    code = renderer(tmp_path).render_chapter(DSL, filepath=str(tmp_path / name))
     assert ".svg" in code and "bizmodel_" in code
 
 

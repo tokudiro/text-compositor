@@ -10,7 +10,7 @@ const { fileURLToPath, pathToFileURL } = require('node:url');
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
-const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.bizmodel', '.svg'];
+const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.bizmodel', '.bmv', '.svg'];
 const CSV_EXTENSIONS = ['.csv'];
 // コード譜（ChordPro。#440）。ワーカー側の`chordpro_render.FILE_EXTS`と、そろえる。
 const CHORDPRO_EXTENSIONS = ['.cho', '.chordpro', '.pro'];

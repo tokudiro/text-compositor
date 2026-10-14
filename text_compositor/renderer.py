@@ -272,7 +272,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         '.puml': 'plantuml', '.plantuml': 'plantuml', '.pu': 'plantuml',
         '.d2': 'd2',
         '.pikchr': 'pikchr',
-        '.bizmodel': 'bizmodel',
+        '.bizmodel': 'bizmodel', '.bmv': 'bizmodel',   # .bmvは、短い別名（#463）
         '.dsl': 'structurizr',
     }
 

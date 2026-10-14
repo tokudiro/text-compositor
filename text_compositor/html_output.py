@@ -389,7 +389,7 @@ class HtmlRenderer(TypstRenderer):
 
     # -- Markdown・図以外のファイル（#196） -------------------------------------------
 
-    SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot・.pikchr・.bizmodel など）・"
+    SUPPORTED_FILES_GUIDE = ("Obunzuで開けるのは、Markdown（.md）・図（.mmd・.puml・.d2・.dot・.pikchr・.bizmodel・.bmv など）・"
                              "テキスト（.txt）・CSV（.csv）・コード譜（.cho・.chordpro・.pro）・画像（.svg・.png・.jpg・.gif・.webp など）・設定ファイルとソースコード（.yaml・.json・.py など）です。")
 
     def _unsupported_file(self, path: str, ext: str) -> None:

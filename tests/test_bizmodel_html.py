@@ -61,8 +61,9 @@ class TestFence:
 
 
 class TestFile:
-    def test_a_bizmodel_file_is_a_diagram_page(self, tmp_path):
-        result, html = convert(tmp_path, DSL, name="flow.bizmodel")
+    @pytest.mark.parametrize("name", ["flow.bizmodel", "flow.bmv", "FLOW.BMV"])
+    def test_a_bizmodel_file_is_a_diagram_page(self, tmp_path, name):
+        result, html = convert(tmp_path, DSL, name=name)
         assert result.ok and not result.warnings
         assert 'class="diagram diagram-bizmodel"' in body(html)
 
@@ -73,6 +74,7 @@ class TestFile:
         (error,) = [d for d in result.errors if d.detail and "E01" in d.detail]
         assert error.line == 3
 
-    def test_the_plugin_off_shows_the_file_as_code(self, tmp_path):
-        result, html = convert(tmp_path, DSL, name="flow.bizmodel", plugins=plugins(bizmodel=False))
+    @pytest.mark.parametrize("name", ["flow.bizmodel", "flow.bmv"])
+    def test_the_plugin_off_shows_the_file_as_code(self, tmp_path, name):
+        result, html = convert(tmp_path, DSL, name=name, plugins=plugins(bizmodel=False))
         assert result.ok and "language-bizmodel" in html
