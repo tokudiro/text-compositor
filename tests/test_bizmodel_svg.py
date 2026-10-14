@@ -57,6 +57,11 @@ class TestSvg:
     def test_the_output_is_deterministic(self):
         assert bm.render_svg(BASIC) == bm.render_svg(BASIC)
 
+    def test_the_long_vowel_mark_is_drawn_upright_in_the_stacked_name(self):
+        r = root(BASIC.replace("配信事業者", "メーカー"))
+        stacked = [t for t in texts(r) if t in "メーカー｜"]
+        assert stacked == ["メ", "｜", "カ", "｜"]
+
     def test_a_long_company_name_shrinks_to_fit_the_rectangle(self):
         name = "とても長い名前の会社のサービス部門"
         r = root(BASIC.replace("配信事業者", name))

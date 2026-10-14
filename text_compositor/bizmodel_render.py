@@ -396,7 +396,8 @@ def _text(x, y, s, size=LABEL_SIZE, anchor="middle", bold=False):
 def _svg_company(a):
     out = [f'<rect x="{_fmt(a["x"])}" y="{_fmt(a["y"])}" width="{_fmt(a["w"])}" height="{_fmt(a["h"])}" '
            f'fill="#fff" stroke="{INK}" stroke-width="{STROKE}"/>']
-    chars = list(a["label"])
+    # 縦に積むと、長音符「ー」は、横棒のまま残って、読みにくい。縦書きの形（縦棒）にする
+    chars = ["｜" if ch == "ー" else ch for ch in a["label"]]
     # 長い名前は、長方形に収まるまで、文字を小さくする
     size = LABEL_SIZE
     while size > 8 and len(chars) * (size + 3) > a["h"] - 16:

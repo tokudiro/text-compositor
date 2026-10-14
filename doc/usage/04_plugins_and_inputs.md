@@ -12,6 +12,7 @@ plugins:
   wavedrom: true                # 既定 true（wavedromフェンス）
   bytefield: true               # 既定 true（bytefieldフェンス）
   chordpro: true                # 既定 true（chordproフェンスと、.cho・.chordpro・.pro。27章）
+  bizmodel: true                # 既定 true（bizmodelフェンスと、.bizmodel。28章）
   mermaid: true                # 既定 true
   mermaid_auto_download: false # 既定 false
   plantuml: true                # 既定 true
