@@ -120,7 +120,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                  mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
                  cetz_enabled=True, fletcher_enabled=True, timeliney_enabled=True, structurizr_enabled=False,
                  structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True, wavedrom_enabled=True, bytefield_enabled=True,
-                 finite_enabled=True, chordpro_enabled=True):
+                 finite_enabled=True, chordpro_enabled=True, bizmodel_enabled=True):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
@@ -129,6 +129,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         self.graphviz_enabled = graphviz_enabled
         # plugins.pikchr（既定true。#213）。falseなら、```pikchrフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
         self.pikchr_enabled = pikchr_enabled
+        self.bizmodel_enabled = bizmodel_enabled   # plugins.bizmodel（既定true。#447）。falseなら、素のコード表示にする
         # plugins.cetz・plugins.fletcher（既定true。#236）・plugins.timeliney（既定true。#294）・plugins.finite（既定true。#292）。
         # falseなら、そのフェンスを、素のコード表示にする。
         self.figure_enabled = {'cetz': cetz_enabled, 'fletcher': fletcher_enabled, 'timeliney': timeliney_enabled,
@@ -271,6 +272,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         '.puml': 'plantuml', '.plantuml': 'plantuml', '.pu': 'plantuml',
         '.d2': 'd2',
         '.pikchr': 'pikchr',
+        '.bizmodel': 'bizmodel',
         '.dsl': 'structurizr',
     }
 
@@ -300,10 +302,8 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             return self._render_plantuml(text)
         elif diagram_kind == 'd2':
             return self._render_d2(text)
-        elif diagram_kind == 'pikchr':
-            return self._render_pikchr(text)
-        elif diagram_kind == 'structurizr':
-            return self._render_structurizr(text)
+        elif diagram_kind in ('pikchr', 'bizmodel', 'structurizr'):   # `_render_<種類>(text)`の形で、そろっている
+            return getattr(self, f'_render_{diagram_kind}')(text)
         elif ext == '.csv':
             return self._render_csv_table(text)
         elif ext in chordpro_render.FILE_EXTS and self.chordpro_enabled:

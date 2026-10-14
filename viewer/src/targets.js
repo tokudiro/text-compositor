@@ -10,7 +10,7 @@ const { fileURLToPath, pathToFileURL } = require('node:url');
  * それ以外は、開こうとすると、ワーカーが、案内つきのエラーにする。
  */
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown'];
-const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.svg'];
+const DIAGRAM_EXTENSIONS = ['.mmd', '.puml', '.plantuml', '.pu', '.d2', '.dot', '.gv', '.pikchr', '.bizmodel', '.svg'];
 const CSV_EXTENSIONS = ['.csv'];
 // コード譜（ChordPro。#440）。ワーカー側の`chordpro_render.FILE_EXTS`と、そろえる。
 const CHORDPRO_EXTENSIONS = ['.cho', '.chordpro', '.pro'];
@@ -31,7 +31,7 @@ const SOURCE_EXTENSIONS = [
 const OPEN_FILE_KINDS = [
   { name: '文（Markdown・Text）', extensions: [...MARKDOWN_EXTENSIONS, ...TEXT_EXTENSIONS] },
   { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
-  { name: '図（Mermaid・PlantUML・D2・Graphviz・Pikchr・SVG）', extensions: DIAGRAM_EXTENSIONS },
+  { name: '図（Mermaid・PlantUML・D2・Graphviz・Pikchr・bizmodel・SVG）', extensions: DIAGRAM_EXTENSIONS },
   { name: 'CSV', extensions: CSV_EXTENSIONS },
   { name: 'コード譜（ChordPro）', extensions: CHORDPRO_EXTENSIONS },
   { name: '画像（PNG・JPEG・GIF・WebP・AVIF・BMP）', extensions: IMAGE_EXTENSIONS },

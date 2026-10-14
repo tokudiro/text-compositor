@@ -21,7 +21,7 @@ describe('openDialogFilters', () => {
     assert.deepEqual(byName('Markdown').extensions, ['md', 'markdown']);
     assert.deepEqual(byName('CSV').extensions, ['csv']);
     const diagrams = filters.find((filter) => filter.name.startsWith('図'));
-    for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'pikchr', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
+    for (const extension of ['mmd', 'puml', 'plantuml', 'pu', 'd2', 'dot', 'gv', 'pikchr', 'bizmodel', 'svg']) assert.ok(diagrams.extensions.includes(extension), extension);
   });
 
   test('image files have their own kind, and the SVG stays with the diagrams (#413)', () => {

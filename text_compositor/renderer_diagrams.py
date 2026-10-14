@@ -10,7 +10,7 @@ import sys
 import subprocess
 import hashlib
 import tempfile
-from text_compositor import cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render, bytefield_render
+from text_compositor import bizmodel_render, cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render, bytefield_render
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, BYTEFIELD_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, ensure_bytefield_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
@@ -106,6 +106,8 @@ class DiagramMixin:
             return self._render_structurizr(code, width, height, trim)
         elif lang == 'pikchr':
             return self._render_pikchr(code, width, height)
+        elif lang == 'bizmodel':
+            return self._render_bizmodel(code, width, height)
         elif lang in cetz_render.KINDS:
             return self._render_figure(lang, code, width, height)
         elif lang in vega_render.LANGS:
@@ -150,6 +152,41 @@ class DiagramMixin:
                 '  if not out.trim().starts-with("<svg") { panic("Pikchr error: " + out) }\n'
                 f'  {body}\n'
                 '}]\n\n')
+
+    def _render_bizmodel(self, code, width=None, height=None):
+        """```bizmodelフェンス（モノ・カネの流れの図）を、SVGにして、Typstのimage呼び出しに変換する（#447）。
+        SVGは、bizmodel_render（Pythonだけ。外部ツールは要らない）で作り、キャッシュを通して、PDF・HTMLで共有する。
+        plugins.bizmodel: falseなら、素のコード表示にする。"""
+        svg_path = self._bizmodel_svg_path(code)
+        if svg_path is None:
+            return self._render_raw_text(code, 'bizmodel')
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
+    def _bizmodel_svg_path(self, code, line=None, code_line=None):
+        """bizmodelの図のSVG（キャッシュ）のパスを返す。無効なプラグインなら、Noneを返す（呼び出し側が、素のコード表示にする）。
+        line: 失敗したときの診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。
+        構文・意味のエラーは、仕様9章のFail-fast方針で、原稿の行つきで、即エラーにする。"""
+        if not self.bizmodel_enabled:
+            if not getattr(self, '_bizmodel_disabled_warned', False):   # 初回だけ知らせる
+                _log_info(f"plugins.bizmodel is disabled; leaving ```bizmodel fences as plain code (first seen in {self.current_file}).")
+                self._bizmodel_disabled_warned = True
+            return None
+        svg_path, _ = self._diagram_cache_path("bizmodel", bizmodel_render.CACHE_VERSION, code)
+        if not os.path.exists(svg_path):
+            _log_info(f"Rendering bizmodel diagram -> {os.path.basename(svg_path)}")
+            try:
+                svg = bizmodel_render.render_svg(code)
+            except bizmodel_render.BizModelError as e:
+                # 図の中の行を、原稿の行にする
+                at = code_line + e.line - 1 if (code_line and e.line) else line
+                self._diagram_error("bizmodel", f"{e.code}: {e.message}" + (f" (column {e.column})" if e.column else ""), at)
+                sys.exit(1)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        else:
+            _log_verbose(f"Reusing cached bizmodel diagram: {os.path.basename(svg_path)}")
+        return svg_path
 
     def _render_figure(self, kind, code, width=None, height=None):
         """```cetz・```fletcher・```timeliney・```finiteフェンスの内容を、Typstのcetz・fletcher・timeliney・finiteで描くコードへ変換する（#236・#294・#292）。
