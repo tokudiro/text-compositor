@@ -12,7 +12,10 @@ const path = require('node:path');
 const viewerDir = path.resolve(__dirname, '..');
 const packaged = process.argv[2] ? path.resolve(process.argv[2]) : null;
 const electron = packaged ? path.join(packaged, 'obunzu-markdown-viewer.exe') : require('electron');
-const port = 9700 + Math.floor(Math.random() * 100);
+// ケースごとに、別のポートを使う（前のケースのプロセスが、終わりきっていなくても、ぶつからないため。並行実行にも備える）
+const basePort = 9700 + Math.floor(Math.random() * 100);
+let portCounter = 0;
+const nextPort = () => basePort + portCounter++;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let failures = 0;
@@ -24,7 +27,7 @@ function check(name, ok, detail = '') {
 /** 文書のビューのURL。変換したHTMLは、アプリの領域の`html/<ハッシュ>.html`（設定が「原稿の隣」のときは`preview.html`）。ツールバーの`chrome.html`は除く。 */
 const isContent = (url) => url.endsWith('.html') && !url.endsWith('/chrome.html');
 
-async function connect(match) {
+async function connect(match, port) {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
   const matches = typeof match === 'function' ? match : (url) => url.includes(match);
   const target = targets.find((t) => matches(t.url));
@@ -50,13 +53,13 @@ async function connect(match) {
  * timeoutは、上限。超えたら、そのときの画面を、そのまま読む（判定は、これまでと同じ）。
  * requireStatusは、状態の表示を、必ず待つ（帯が出ていても、状態の表示を、判定に使うケース用）。
  */
-async function waitReady(timeout, requireStatus = false) {
+async function waitReady(timeout, requireStatus, port) {
   const deadline = Date.now() + timeout;
   let chrome = null;
   let bannerPolls = 0;
   while (Date.now() < deadline) {
     try {
-      chrome = chrome || await connect('chrome.html');
+      chrome = chrome || await connect('chrome.html', port);
       if (chrome) {
         const s = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
           + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent })"));
@@ -66,41 +69,54 @@ async function waitReady(timeout, requireStatus = false) {
     } catch { chrome = null; }
     await sleep(100);
   }
-  return chrome ?? connect('chrome.html');
+  return chrome ?? await connect('chrome.html', port).catch(() => null);
 }
 
 /** 文書のビューが、読み込み終わり、画像も、読み込みが済むまで、短い間隔で確かめる。見つからなければ、nullを返す。 */
-async function waitContent(timeout) {
+async function waitContent(timeout, port) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     let content = null;
     try {
-      content = await connect(isContent);
+      content = await connect(isContent, port);
       if (content && await content("document.readyState === 'complete' && [...document.images].every((i) => i.complete)")) return content;
     } catch { /* 次の確認で、もう一度 */ }
     content?.close();
     await sleep(100);
   }
-  return connect(isContent);
+  return connect(isContent, port);
+}
+
+/** ポートが閉じる（アプリが終わる）まで待つ。次のケースに、前のプロセスを、持ち越さないため。 */
+async function waitPortClosed(port, timeout = 6000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    try { await fetch(`http://127.0.0.1:${port}/json`); } catch { return; }
+    await sleep(100);
+  }
 }
 
 /** ファイルを引数にして起動し、画面の状態が決まるまで待って（waitは、その上限）、画面の状態（帯・状態・文書の中身）を読む。 */
 async function open(arg, wait = 4500, act = null, { requireStatus = false } = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-open-'));
+  const port = nextPort();
   const args = packaged ? [] : [viewerDir];
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env }, stdio: 'ignore' });
   const started = Date.now();
   try {
-    const chrome = await waitReady(wait, requireStatus);
-    if (act) { await waitContent(Math.min(wait, 5000)); await act(chrome); await sleep(3000); }
+    // 待ちの上限は、起動に掛かる時間（数秒。負荷で伸びる）より短くしない。成功すれば、すぐ先へ進むため、待ちは増えない
+    const chrome = await waitReady(Math.max(wait, 10000), requireStatus, port);
+    if (!chrome) throw new Error(`アプリの画面に、接続できませんでした（${arg}）。起動に失敗したか、ポートが使えません`);
+    if (act) { await waitContent(Math.min(wait, 5000), port); await act(chrome, (match) => connect(match, port)); await sleep(3000); }
     const state = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "detail: document.querySelector('#details .item')?.textContent ?? '' })"));
     // 帯（エラー）が出ていないときは、文書の読み込みが済むまで待つ。帯が出ているときは、文書は、無いか、前のまま
-    const content = state.banner === '' ? await waitContent(Math.min(wait, 5000)) : await connect(isContent);
+    const content = state.banner === '' ? await waitContent(Math.min(wait, 5000), port) : await connect(isContent, port);
     const page = content ? JSON.parse(await content("JSON.stringify({ text: (() => { const pre = document.querySelector('pre.plain-text')?.cloneNode(true); pre?.querySelectorAll('.tc-ui').forEach((e) => e.remove()); return pre?.textContent ?? null; })(), "
       + "notes: [...document.querySelectorAll('.text-note')].map((n) => n.textContent), headings: document.querySelectorAll('h1,h2,ul').length, "
       + "images: [...document.querySelectorAll('img')].map((i) => i.complete && i.naturalWidth > 0), "
+      + "diagrams: [...document.querySelectorAll('.diagram')].map((el) => ({ kind: [...el.classList].find((c) => c.startsWith('diagram-'))?.slice(8) ?? null, ok: (() => { const i = el.querySelector('img'); return !!i && i.complete && i.naturalWidth > 0; })() })), "
       + "tableHead: [...document.querySelectorAll('table.csv th')].map((c) => c.textContent), tableRows: document.querySelectorAll('table.csv tbody tr').length, "
       + "chordSegments: document.querySelectorAll('.chordpro .cp-seg').length, "
       + "chordMeta: document.querySelector('.chordpro .cp-meta')?.textContent ?? null, "
@@ -112,7 +128,8 @@ async function open(arg, wait = 4500, act = null, { requireStatus = false } = {}
     return { state, page, csvButton, saved, ms: Date.now() - started };
   } finally {
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-    await sleep(1500);
+    await waitPortClosed(port);
+    await sleep(500);
     try { fs.rmSync(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
 }
@@ -151,8 +168,8 @@ async function main() {
   bmp.fill(0x80, 54);
   const widths = [];
   const zoomed = [];
-  await open(write('wide.bmp', bmp), 4500, async (chrome) => {
-    const content = await connect(isContent);
+  await open(write('wide.bmp', bmp), 4500, async (chrome, connectTo) => {
+    const content = await connectTo(isContent);
     // ズームとの関係。画面上の幅は、描画の幅 × ページのズーム倍率（devicePixelRatio）で測る。
     const screenWidth = async () => content("document.querySelector('.image-view img').getBoundingClientRect().width * window.devicePixelRatio");
     await chrome("document.getElementById('zoom-in').click()"); await chrome("document.getElementById('zoom-in').click()");
@@ -207,20 +224,42 @@ async function main() {
     r.page?.tableHead.length === 0 && r.page.tableRows === 3 && r.csvButton.checked === 'false' && r.saved?.csvHeader === false, JSON.stringify({ head: r.page?.tableHead, rows: r.page?.tableRows, saved: r.saved?.csvHeader }));
   r = await open(write('other.txt', 'text\n'));
   check('.csv以外では、見出しの切り替えのボタンが出ない', r.csvButton.hidden === true);
-  // 図の単体ファイル（Mermaid・PlantUML・D2・Graphviz）は、図として表示される。
-  r = await open(write('flow.mmd', 'graph LR\n  A[開始] --> B[終了]\n'), 9000);
-  check('.mmd（Mermaid）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${JSON.stringify(r.page?.images)}`);
-  r = await open(write('seq.puml', '@startuml\nAlice -> Bob: Hello\n@enduml\n'), 15000);
-  check('.puml（PlantUML）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
-  r = await open(write('graph.d2', 'A -> B: hello\n'), 12000);
-  check('.d2（D2）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
-  // Graphviz（#264）。同梱のtypstとdiagraph（Typstのパッケージ）で描画する。
+  // 図の種類（フェンス）は、1つの文書に並べて、1回の起動で確かめる（描画の中身は、pytestが確かめる。#467）。
+  // 外部のツール（Mermaid・PlantUML・D2）は、起動が重いため、単体ファイルの確認は、ここに寄せている（拡張子の扱いは、
+  // pytestの`.mmd`のHTML出力と、Viewerの対象拡張子のテスト（targets.test.js）、下の`.dot`・`.pikchr`・`.bizmodel`が確かめる）。
+  const kindsDoc = [
+    '# 図の種類',
+    '',
+    '```mermaid', 'graph LR', '  A[開始] --> B[終了]', '```', '',
+    '```plantuml', '@startuml', 'Alice -> Bob: Hello', '@enduml', '```', '',
+    '```d2', 'A -> B: hello', '```', '',
+    '```dot', 'digraph { rankdir=LR; 長い日本語のラベルを持つノード -> b }', '```', '',
+    '```graphviz', 'graph { a -- b }', '```', '',
+    '```pikchr', 'box "開始" fit; arrow; circle "終了"', '```', '',
+    '```bizmodel', 'company A "売り手"', 'person B "買い手"', 'A -> B : goods "商品" / money "100円"', '```', '',
+    '```bizmodel', 'type canvas', 'title "題"', 'value "価値"', 'segments "顧客"', '```', '',
+    '```svg', '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#3f9be0"/></svg>', '```', '',
+  ].join('\n');
+  r = await open(write('kinds.md', kindsDoc), 25000);
+  const kinds = {};
+  for (const d of r.page?.diagrams ?? []) (kinds[d.kind] ??= []).push(d.ok);
+  const loaded = (kind, count) => kinds[kind]?.length === count && kinds[kind].every(Boolean);
+  const kindsNote = `${r.state.status} ${r.state.banner} ${JSON.stringify(kinds)} ${r.state.detail.slice(0, 120)}`;
+  check('図の種類を並べた文書が、エラーの帯なしで、9つの図として表示される', r.state.banner === '' && r.page?.diagrams.length === 9, kindsNote);
+  check('```mermaid（Mermaid）が、図として表示される', loaded('mermaid', 1), kindsNote);
+  check('```plantuml（PlantUML）が、図として表示される', loaded('plantuml', 1), kindsNote);
+  check('```d2（D2）が、図として表示される', loaded('d2', 1), kindsNote);
+  check('```dot（Graphviz）が、図として表示される', loaded('dot', 1), kindsNote);
+  check('```graphviz（Graphviz）が、図として表示される', loaded('graphviz', 1), kindsNote);
+  check('```pikchr（Pikchr）が、図として表示される', loaded('pikchr', 1), kindsNote);
+  check('```bizmodel（モノ・カネの流れの図と、キャンバス）が、2つの図として表示される', loaded('bizmodel', 2), kindsNote);
+  check('```svgが、図として表示される', loaded('svg', 1), kindsNote);
+  // 図の単体ファイルは、拡張子ごとの扱い（Python側の表と、Viewerの対象）を、代表で確かめる。Graphviz（#264）は、
+  // 同梱のtypstとdiagraph（Typstのパッケージ）で描画する。
   for (const name of ['g.dot', 'g.gv']) {
     r = await open(write(name, 'digraph { 開始 -> 処理 -> 終了 }\n'), 9000);
     check(`${name}（Graphviz）が、図として表示される`, r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   }
-  r = await open(write('with-dot.md', '# 図\n\n```dot\ndigraph { rankdir=LR; 長い日本語のラベルを持つノード -> b }\n```\n\n```graphviz\ngraph { a -- b }\n```\n'), 9000);
-  check('Markdownの```dotと```graphvizが、図として表示される', r.page?.images.length === 2 && r.page.images.every(Boolean) && r.state.banner === '', `${r.state.status} ${JSON.stringify(r.page?.images)} ${r.state.banner}`);
   // Pikchr（#213）。同梱のtypstとkipで描画する。
   r = await open(write('p.pikchr', 'box "開始" fit; arrow; circle "終了"\n'), 9000);
   check('.pikchr（Pikchr）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
