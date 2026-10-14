@@ -78,3 +78,25 @@ class TestFile:
     def test_the_plugin_off_shows_the_file_as_code(self, tmp_path, name):
         result, html = convert(tmp_path, DSL, name=name, plugins=plugins(bizmodel=False))
         assert result.ok and "language-bizmodel" in html
+
+
+class TestCanvas:
+    CANVAS = 'type canvas\ntitle "ダイソー"\nvalue "手軽さ、安さ！"\nsegments "一般顧客"\n'
+
+    def test_a_canvas_fence_becomes_a_diagram_with_the_credit(self, tmp_path):
+        result, html = convert(tmp_path, f"# T\n\n```bizmodel\n{self.CANVAS}```\n")
+        assert result.ok and not result.warnings
+        svg = svg_of(result, html)
+        assert "価値提案（VP）" in svg and "Strategyzer.com (CC BY-SA 3.0)" in svg
+
+    def test_a_canvas_file_is_a_diagram_page(self, tmp_path):
+        result, html = convert(tmp_path, self.CANVAS, name="model.bmv")
+        assert result.ok and 'class="diagram diagram-bizmodel"' in body(html)
+
+    def test_a_canvas_error_is_reported_at_the_line_in_the_document(self, tmp_path):
+        bad = 'type canvas\nvalue "a"\nbanana "x"\n'   # E06。図の3行目
+        result, _ = convert(tmp_path, f"# T\n\n```bizmodel\n{bad}```\n")
+        assert not result.ok
+        (error,) = [d for d in result.errors if d.detail and "E06" in d.detail]
+        assert error.line == 6   # フェンスは3行目。図の3行目は、原稿の6行目
+
