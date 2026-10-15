@@ -63,7 +63,7 @@ PDFとHTMLに、図をどの形で渡しているかは、図種ごとにコー�
 * **Graphvizは、Cである。** `diagraph`は、WASMのGraphvizでレイアウトを求め、図形をTypstで描く。これは、リポジトリの記述から確かめた。`diagraph`が`shape=record`・`Mrecord`・図全体の`label`を描けない（spec 11章。「`diagraph`の制限」として警告する）のは、図形の描画を`diagraph`自身が持つためである。また、`finite`は`diagraph-layout`に依存する（spec 11章）。`diagraph`のソース（`packages.typst.org`）そのものは、この環境から取得できず、読んでいない。
 * **Dは、ネイティブ変換器の手本になる。** 解析して中間表現を作り、出力ごとに別の描画器で描く構造は、3.2.1の「同じ中間表現から`svg`と`typst`を描く」と同じである。
 * **ChordProは、本書の対象外とする。** 図ではなく、コード譜（歌詞の上にコードを並べる文書要素）であり、HTMLにSVGではなくHTML自体を出す。3.2.1の「HTMLは常に`svg`」「すべてのバックエンドは`svg`を出力できる」が当てはまらない。`DiagramPlugin`の契約に載せると、この規則に例外が要る。したがって、ChordProは、現行の経路（`chordpro_render.py`・`renderer_chordpro.py`、拡張子`.cho`・`.chordpro`・`.pro`、`plugins.chordpro`）のまま、レジストリの外に置く。レジストリが導出する拡張子の対応・許可キー（3.4）は、ChordProの分を、これまでどおり別に持つ。
-  ただし、**ChordProの中のタブ譜（`{start_of_tab}`〜`{end_of_tab}`）は、図として扱うことを検討する。** 現状は、中身を探さず、等幅の素のテキストとして描いている（`renderer_chordpro.py`）。タブ譜は、弦と指板を表す図であり、ASCIIの記述から、五線に近い図（SVG）を作れる。その場合、ChordPro本体は対象外のまま、タブ譜の部分だけを、図のプラグイン（例：`tab`）に委譲する。詳しくは5章・6章。
+  ただし、**ChordProの中のタブ譜（`{start_of_tab}`〜`{end_of_tab}`）は、図として扱うことを検討する。** 現状は、中身を探さず、等幅の素のテキストとして描いている（`renderer_chordpro.py`）。タブ譜は、弦と指板を表す図であり、ASCIIの記述から、五線に近い図（SVG）を作れる。その場合、ChordPro本体は対象外のまま、タブ譜の部分だけを、図のプラグイン（例：`tab`）に委譲する。詳しくは5章・6章と、[#476](https://github.com/tokudiro/text-compositor/issues/476)。
 
 一方、既存の設計には、守るべきものがある。
 
