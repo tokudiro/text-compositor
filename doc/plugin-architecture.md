@@ -48,6 +48,21 @@
 
 この構造では、1つの図種に複数のバックエンド（ネイティブ版と外部ツール版）を持たせる分岐が、これらすべてに入る。変換器を足すほど収拾がつかなくなる。
 
+### 2.1 現状の出力方式の分類
+
+PDFとHTMLに、図をどの形で渡しているかは、図種ごとにコードが決めており、設計としては明示されていない。調べた結果は次のとおり（3.2.1の`default_output`の根拠になる）。
+
+| 分類 | 図種 | PDF | HTML |
+| --- | --- | --- | --- |
+| **A. SVGを作り、画像として埋め込む** | Mermaid・PlantUML・D2・Structurizr・Vega・WaveDrom・Bytefield・bizmodel・`svg`フェンス | SVGのファイルを`image()`で埋め込む | 同じSVG |
+| **B. Typstの中でSVGを作り、画像として埋め込む** | Pikchr | Typstのパッケージ`kip`（WASM）が返したSVGを、`image(bytes(out), format: "svg")`で埋め込む。**結果は画像** | Typstでコンパイルして得たSVG |
+| **C. Typstが図形として直接描く** | Graphviz（`diagraph`）・CeTZ・Fletcher・timeliney・finite | Typstのコードとして本文に描く（図形・文字はベクター） | Typstでコンパイルして得たSVG |
+| **D. 中間表現から、出力ごとに別々に描く** | ChordPro | 解析結果をTypstのコードに描く | 同じ解析結果をHTMLに描く |
+
+* **BとCは、見た目が似ていても別物である。** Pikchrは、Typstが実行するだけで、PDFに入るのは画像である。Cは、PDFに入るのがTypstの図形そのものである。
+* **Graphvizは、Cである。** `diagraph`は、WASMのGraphvizでレイアウトを求め、図形をTypstで描く。これは、リポジトリの記述から確かめた。`diagraph`が`shape=record`・`Mrecord`・図全体の`label`を描けない（spec 11章。「`diagraph`の制限」として警告する）のは、図形の描画を`diagraph`自身が持つためである。また、`finite`は`diagraph-layout`に依存する（spec 11章）。`diagraph`のソース（`packages.typst.org`）そのものは、この環境から取得できず、読んでいない。
+* **Dは、ネイティブ変換器の手本になる。** 解析して中間表現を作り、出力ごとに別の描画器で描く構造は、3.2.1の「同じ中間表現から`svg`と`typst`を描く」と同じである。
+
 一方、既存の設計には、守るべきものがある。
 
 * **Fail-fast（spec 9章）**：描画に失敗したら、テキストへ静かにフォールバックせず、診断つきで終了する。
@@ -106,7 +121,7 @@ class Backend:
 | `browser` | 現行のPlaywright＋システムのブラウザ | Mermaid |
 | `host` | 呼び出し元（Viewer）に任せる | Mermaid（Electron） |
 | `binary` | 外部の実行ファイル | D2 |
-| `typst` | Typstのパッケージ | Graphviz・Pikchr・CeTZなど |
+| `typst` | Typstのパッケージ（出力方式は図種による。2.1のBとC） | Graphviz・Pikchr・CeTZなど |
 
 設定は、`plugins:`に、バックエンド名を値に取る形を足す。**既存の記法（`plantuml: true/false`）は、そのまま動く。**
 
@@ -136,8 +151,8 @@ plugins:
 ```
 
 * **標準はSVG。** 図種の`default_output`は、新規のプラグインでは`svg`とする。`typst`は、その方式が必要な図種だけに、後から足す。
-* `auto`は、`default_output`に解決される。現行のTypstで描く図（Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite）は、現行のPDFの出力を保つため、`default_output`を`typst`とする。**既存の出力は変わらない。**
-* バックエンドは、`outputs`に、出力できる方式を宣言する。**すべてのバックエンドは、`svg`を出力できなければならない。** HTML・Viewer・図の単体表示は、常にSVGを使うためである（現行のTypstで描く図も、HTMLではSVGを作っている）。`typst`は任意である。
+* `auto`は、`default_output`に解決される。2.1の分類Cの図種（Graphviz・CeTZ・Fletcher・timeliney・finite）は、現行のPDFの出力を保つため、`default_output`を`typst`とする。分類A・Bの図種（Pikchrを含む。PDFに入るのが画像のため）は、`svg`とする。**既存の出力は変わらない。**
+* バックエンドは、`outputs`に、出力できる方式を宣言する。**すべてのバックエンドは、`svg`を出力できなければならない。** HTML・Viewer・図の単体表示は、常にSVGを使うためである（分類Cの図も、HTMLではTypstでコンパイルしてSVGを作っている）。`typst`は任意である。
 * **出力先による制約。** HTML出力・Viewer・単体の図は、設定にかかわらず`svg`で描く。`typst`が効くのは、PDF出力だけである。
 * 明示した方式（`typst`）を、選ばれたバックエンドが出力できない場合は、診断つきで終了する（Fail-fast）。`auto`のバックエンド選択では、方式も含めて`supports(code, output)`で判定し、`outputs`が対応するバックエンドを選ぶ。
 * ネイティブ変換器は、`svg`と`typst`で、**同じ中間表現から**描く。レイアウトの結果が方式によって変わらないようにするためである（段階2）。
@@ -202,8 +217,9 @@ host_renderers.set_host_renderer(name, fn_or_None)   # nameは、図種のname
 
 1. **基盤の導入**：`plugins/registry.py`と契約を追加する。まだ誰も使わない。契約の単体テストだけを書く。
 2. **Pikchrの移行**：最も小さい図種で、全経路（フェンス、章ファイル、有効・無効、`--check-env`、キャッシュ）を、レジストリ経由に切り替える。
-3. **Typstで描く図の移行**：Graphviz・CeTZ・Fletcher・timeliney・finite・WaveDrom・Bytefield・Vega・bizmodel。
-4. **外部ツールを使う図の移行**：D2・Structurizr・PlantUML・Mermaid。ここで、`java`・`browser`・`host`・`binary`のバックエンドを定義する。
+3. **Typstを使う図の移行**：分類C（Graphviz・CeTZ・Fletcher・timeliney・finite。`default_output: typst`）と、分類B（Pikchr。`svg`）。出力方式の違いを、プラグインの契約で扱えることを、ここで確かめる。
+   あわせて、分類Aのうち、ブラウザも外部ツールも使わないもの（bizmodel・`svg`フェンス）も、ここで移行する。
+4. **外部ツール・ブラウザを使う図の移行**：D2・Structurizr・PlantUML・Mermaid・Vega・WaveDrom・Bytefield（後の3つは、ヘッドレスブラウザまたはホストで描く）。ここで、`java`・`browser`・`host`・`binary`のバックエンドを定義する。
 5. **周辺の統合**：`host_renderers.py`の統合、`config.py`の許可キーの生成、`project.py`・`api.py`の`plugins_config.get(...)`の列の削除、`renderer_diagrams.py`の整理。
 6. **バックエンド・出力方式の選択の公開**：`<name>_backend`と`<name>_output`を、設定として有効にし、spec・使い方ガイドへ書く。
 
