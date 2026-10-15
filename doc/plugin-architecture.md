@@ -57,11 +57,12 @@ PDFとHTMLに、図をどの形で渡しているかは、図種ごとにコー�
 | **A. SVGを作り、画像として埋め込む** | Mermaid・PlantUML・D2・Structurizr・Vega・WaveDrom・Bytefield・bizmodel・`svg`フェンス | SVGのファイルを`image()`で埋め込む | 同じSVG |
 | **B. Typstの中でSVGを作り、画像として埋め込む** | Pikchr | Typstのパッケージ`kip`（WASM）が返したSVGを、`image(bytes(out), format: "svg")`で埋め込む。**結果は画像** | Typstでコンパイルして得たSVG |
 | **C. Typstが図形として直接描く** | Graphviz（`diagraph`）・CeTZ・Fletcher・timeliney・finite | Typstのコードとして本文に描く（図形・文字はベクター） | Typstでコンパイルして得たSVG |
-| **D. 中間表現から、出力ごとに別々に描く** | ChordPro | 解析結果をTypstのコードに描く | 同じ解析結果をHTMLに描く |
+| **D. 中間表現から、出力ごとに別々に描く** | ChordPro（**本書の対象外**。下記） | 解析結果をTypstのコードに描く | 同じ解析結果をHTMLに描く |
 
 * **BとCは、見た目が似ていても別物である。** Pikchrは、Typstが実行するだけで、PDFに入るのは画像である。Cは、PDFに入るのがTypstの図形そのものである。
 * **Graphvizは、Cである。** `diagraph`は、WASMのGraphvizでレイアウトを求め、図形をTypstで描く。これは、リポジトリの記述から確かめた。`diagraph`が`shape=record`・`Mrecord`・図全体の`label`を描けない（spec 11章。「`diagraph`の制限」として警告する）のは、図形の描画を`diagraph`自身が持つためである。また、`finite`は`diagraph-layout`に依存する（spec 11章）。`diagraph`のソース（`packages.typst.org`）そのものは、この環境から取得できず、読んでいない。
 * **Dは、ネイティブ変換器の手本になる。** 解析して中間表現を作り、出力ごとに別の描画器で描く構造は、3.2.1の「同じ中間表現から`svg`と`typst`を描く」と同じである。
+* **ChordProは、本書の対象外とする。** 図ではなく、コード譜（歌詞の上にコードを並べる文書要素）であり、HTMLにSVGではなくHTML自体を出す。3.2.1の「HTMLは常に`svg`」「すべてのバックエンドは`svg`を出力できる」が当てはまらない。`DiagramPlugin`の契約に載せると、この規則に例外が要る。したがって、ChordProは、現行の経路（`chordpro_render.py`・`renderer_chordpro.py`、拡張子`.cho`・`.chordpro`・`.pro`、`plugins.chordpro`）のまま、レジストリの外に置く。レジストリが導出する拡張子の対応・許可キー（3.4）は、ChordProの分を、これまでどおり別に持つ。
 
 一方、既存の設計には、守るべきものがある。
 
@@ -239,6 +240,7 @@ host_renderers.set_host_renderer(name, fn_or_None)   # nameは、図種のname
 * **ホスト描画のシグネチャの統一**：3.5のとおり。Electron側との契約を保つ。
 * **ネイティブ変換器・中間表現**：段階2以降。本書は、それらを載せる基盤だけを定める。
 * **設定の名前の最終決定**：`<name>_backend`と`<name>_output`は案である。未決事項（#474）として残し、ステップ6の前に確定する。
+* **ChordProのプラグイン化**：2.1のとおり、図ではなく、HTMLにHTML自体を出すため、対象外。必要になった時点で、別の契約（出力ごとの描画器を持つ文書要素）として検討する。
 * **外部ツール版の削除**：行わない。ネイティブ版が対応できない構文のための、フォールバックとして残す。
 
 ## 6. 未決事項
