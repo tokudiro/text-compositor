@@ -72,18 +72,20 @@ class DiagramPlugin:
     default_enabled: bool = True
     backends: dict[str, Backend]   # バックエンド名 → 実装（3.2）
     default_backend: str = "auto"
+    default_output: str = "svg"    # 出力方式の既定（3.2）。"svg" | "typst"
     options: tuple[Option, ...]    # この図種固有のplugins:キー（例: plantuml_auto_download）
 
 class Backend:
     name: str
+    outputs: tuple[str, ...]       # 出力できる方式。"svg"は必ず含む。例: ("svg",)、("svg", "typst")
     def version(self) -> str: ...                       # キャッシュキーに入る。バックエンド名を含む
-    def supports(self, code: str) -> Support: ...       # 3.3。既定は常に対応
-    def render(self, code: str, ctx: RenderContext) -> RenderResult: ...
+    def supports(self, code: str, output: str) -> Support: ...   # 3.3。既定は、outputsに含まれる方式なら対応
+    def render(self, code: str, ctx: RenderContext, output: str) -> RenderResult: ...
     def check_env(self) -> list[CheckResult]: ...       # --check-envの項目
     def prefetch(self, codes: list[str], ctx) -> None: ...   # 任意。PlantUMLのJVMの一括起動など
 ```
 
-`RenderResult`は、SVG（文字列）と、必要なら、Typstへ直接渡す断片のどちらかである。Typstが描く図（Graphviz・Pikchr・CeTZなど）は、現行どおり、Typstのコードを返せる。
+`RenderResult`は、`output`で要求された方式に応じて、SVG（文字列）か、Typstへ直接渡す断片のどちらかである。方式の選択は3.2で定める。Typstが描く図（Graphviz・Pikchr・CeTZなど）は、現行どおり、Typstのコードを返せる。
 
 `RenderContext`が、共通の部品を渡す。各プラグインが個別に持っているものを、ここに集める。
 
@@ -114,10 +116,33 @@ plugins:
   plantuml_backend: auto     # 新規。native | java | auto（既定auto）
 ```
 
-* 値は、`<name>_backend`というキーで指定する。`plugins:`の中の名前空間を保ち、既存の`xxx_auto_download`と並べられる。
+* 値は、`<name>_backend`というキーで指定する（出力方式は`<name>_output`。3.2.1）。`plugins:`の中の名前空間を保ち、既存の`xxx_auto_download`と並べられる。
 * `auto`は、登録順にバックエンドを並べ、**最初に`supports`が対応と答えたもの**を使う。
 * 明示した値（`native`など）では、そのバックエンドだけを使う。`supports`が非対応なら、診断つきで終了する（Fail-fast）。
 * ネイティブ版が存在しない現時点では、`auto`は、現行のバックエンドに解決される。**既存の挙動は変わらない。**
+
+### 3.2.1 出力方式（SVGとTypst直接）
+
+描画の結果を、どの形で本文に渡すかを、**出力方式**として、バックエンドの選択とは別の軸で切り替えられるようにする。
+
+| 方式 | 意味 | 特徴 |
+| --- | --- | --- |
+| `svg` | SVGを作り、画像としてTypstに埋め込む | PDF・HTML・Viewerで共通。キャッシュと比較が簡単。文字は画像になり、図中リンクは使えない |
+| `typst` | Typstのコードとして、本文に直接描く | 本文のフォント・色を継承し、図中の文字がPDFの検索・選択の対象になる。図中リンクも使える。PDF専用 |
+
+```yaml
+plugins:
+  plantuml_output: auto      # 新規。svg | typst | auto（既定auto）
+```
+
+* **標準はSVG。** 図種の`default_output`は、新規のプラグインでは`svg`とする。`typst`は、その方式が必要な図種だけに、後から足す。
+* `auto`は、`default_output`に解決される。現行のTypstで描く図（Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite）は、現行のPDFの出力を保つため、`default_output`を`typst`とする。**既存の出力は変わらない。**
+* バックエンドは、`outputs`に、出力できる方式を宣言する。**すべてのバックエンドは、`svg`を出力できなければならない。** HTML・Viewer・図の単体表示は、常にSVGを使うためである（現行のTypstで描く図も、HTMLではSVGを作っている）。`typst`は任意である。
+* **出力先による制約。** HTML出力・Viewer・単体の図は、設定にかかわらず`svg`で描く。`typst`が効くのは、PDF出力だけである。
+* 明示した方式（`typst`）を、選ばれたバックエンドが出力できない場合は、診断つきで終了する（Fail-fast）。`auto`のバックエンド選択では、方式も含めて`supports(code, output)`で判定し、`outputs`が対応するバックエンドを選ぶ。
+* ネイティブ変換器は、`svg`と`typst`で、**同じ中間表現から**描く。レイアウトの結果が方式によって変わらないようにするためである（段階2）。
+
+`typst`方式に対しては、`ctx`が、本文のフォントと色を渡す。`svg`方式でも、同じ値を`font-family`などに反映し、見た目の不一致を減らす。
 
 ### 3.3 フォールバックの規則（Fail-fastとの両立）
 
@@ -168,6 +193,7 @@ host_renderers.set_host_renderer(name, fn_or_None)   # nameは、図種のname
 
 * キャッシュキーは、現行の`_diagram_cache_key(kind, tool_version, code)`を、そのまま使う。
 * `tool_version`に、バックエンド名を含める（例：`native-1`、`java-<jar版>`）。これにより、バックエンドを切り替えたときに、別のバックエンドのキャッシュを再利用しない。
+* 出力方式が`svg`のときは、現行のSVGのキャッシュと同じ形にする。`typst`のときは、キャッシュキーの`kind`に方式を含め（例：`plantuml:typst`）、SVGのキャッシュと混ざらないようにする。
 * **現行のバックエンドの`tool_version`の文字列は、変えない。** 移行によって既存のキャッシュが無効にならないようにする。
 
 ## 4. 移行手順
@@ -179,7 +205,7 @@ host_renderers.set_host_renderer(name, fn_or_None)   # nameは、図種のname
 3. **Typstで描く図の移行**：Graphviz・CeTZ・Fletcher・timeliney・finite・WaveDrom・Bytefield・Vega・bizmodel。
 4. **外部ツールを使う図の移行**：D2・Structurizr・PlantUML・Mermaid。ここで、`java`・`browser`・`host`・`binary`のバックエンドを定義する。
 5. **周辺の統合**：`host_renderers.py`の統合、`config.py`の許可キーの生成、`project.py`・`api.py`の`plugins_config.get(...)`の列の削除、`renderer_diagrams.py`の整理。
-6. **バックエンド選択の公開**：`<name>_backend`を、設定として有効にし、spec・使い方ガイドへ書く。
+6. **バックエンド・出力方式の選択の公開**：`<name>_backend`と`<name>_output`を、設定として有効にし、spec・使い方ガイドへ書く。
 
 ステップ1〜5は、利用者から見える挙動を変えない（内部のリファクタリング）。ステップ6で初めて、設定が増える。
 
@@ -196,11 +222,13 @@ host_renderers.set_host_renderer(name, fn_or_None)   # nameは、図種のname
 * **第三者の拡張点**：3.4のとおり。組み込みのみ。
 * **ホスト描画のシグネチャの統一**：3.5のとおり。Electron側との契約を保つ。
 * **ネイティブ変換器・中間表現**：段階2以降。本書は、それらを載せる基盤だけを定める。
-* **設定の名前の最終決定**：`<name>_backend`は案である。未決事項（#474）として残し、ステップ6の前に確定する。
+* **設定の名前の最終決定**：`<name>_backend`と`<name>_output`は案である。未決事項（#474）として残し、ステップ6の前に確定する。
 * **外部ツール版の削除**：行わない。ネイティブ版が対応できない構文のための、フォールバックとして残す。
 
 ## 6. 未決事項
 
 * `auto`の既定を、ネイティブ版が揃った後に、どうするか。ネイティブ版が先に選ばれると、見た目が変わる図が出る。図種・構文ごとに、`supports`の範囲を小さく保ち、段階的に広げる前提で決める。
 * `supports`の判定を、簡易な字句の走査でよいか。誤判定（対応すると答えて、描画で失敗する）は、Fail-fastで報告されるため安全側に倒れるが、その場合の診断に「ネイティブ版で失敗した。`<name>_backend: java`で回避できる」と案内を付けるか。
-* 描画層を、SVG経由にするか、Typstへの直接出力にするか（#474の未決事項）。`RenderResult`が両方を表せるようにしてあるが、ネイティブ変換器の設計時に決める。
+* ~~描画層を、SVG経由にするか、Typstへの直接出力にするか（#474の未決事項）。~~ **決定：SVGを標準とし、Typst直接出力は、図中リンクやフォントの継承が必要になった図種だけ、後から追加する。** 両方を切り替えられるよう、出力方式を契約に含める（3.2.1）。残る論点は、次の2つ。
+  * `typst`方式で、図中リンクをどう記述するか（フェンスの属性か、図の記法の拡張か）。最初に`typst`方式を足す図種の設計時に決める。
+  * `typst`方式のエラーの診断。Typstのエラーは`eval`の中の位置を含まないため、原稿の行への対応が粗くなる。ネイティブ変換器が、Typstへ渡す前に、自分の入力の行を検査して報告する。
