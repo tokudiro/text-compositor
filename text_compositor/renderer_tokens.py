@@ -6,19 +6,12 @@ import re
 import sys
 from text_compositor import chordpro_render
 from text_compositor.emphasis_lint import find_unapplied_bold, unapplied_bold_message
-from text_compositor.lints import lint_defaults
 from text_compositor.log import _error, _log_info, _warn
 from text_compositor.typst_literal import _typst_multiline_literal
 
 
 class TokenMixin:
     """markdown-itのトークン列（ブロック要素）を、Typstにする処理と、その補助（行番号・警告・HTMLトークン・ソース位置の対応づけ）。"""
-
-    # lint（原稿の警告）の{名前: ON/OFF}（#271）。クラスの既定値は、すべてON。呼び出し側（project.py・api.py）が、
-    # 構築した後に、resolve_lints()の結果で`renderer.lints = ...`と差し替える。OFFのlintは、検出の処理自体を飛ばす
-    # （renderer.pyは、行数の上限（#225）に近いため、コンストラクタの引数にしていない）。lintを足したときは、
-    # 検出の入口で、self.lints[名前]を見る。
-    lints = lint_defaults()
 
     # Marpディレクティブコメント。7章の要件（Marp原稿との共用）を満たすため認識はするが、
     # 何も反映しない（#41、_handle_html_tokenを参照）。#42でheader/footer/paginateがfront-matter/

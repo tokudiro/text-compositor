@@ -14,8 +14,10 @@ from mdit_py_plugins.attrs import attrs_plugin
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from text_compositor import chordpro_render
 from text_compositor.config import yaml
+from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
 from text_compositor.mermaid import MermaidBrowser
+from text_compositor.renderer_options import apply_plugin_flags
 from text_compositor.typst_literal import escape_string_literal
 # 責務ごとに、ミックスインへ分けてある（#225）。状態（self._mermaidなど）は、TypstRendererが持ち、全ミックスインで共有する。
 #   DiagramMixin: 図のフェンスの描画と、SVGのキャッシュ / LayoutMixin: `:::`のレイアウトブロック / InlineMixin: インライン要素
@@ -114,38 +116,18 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         out.append(text[pos:])
         return ''.join(out)
 
-    def __init__(self, base_dir=None, typst_root=None, mermaid_enabled=True, mermaid_auto_download=False,
-                 plantuml_enabled=True, plantuml_auto_download=True, d2_enabled=True, d2_auto_download=True,
-                 glossary_enabled=False, line_mapping="block", marp_compat=False, variables=None,
-                 mermaid_browser=None, csv_header=True, graphviz_enabled=True, cache_dir=None, pikchr_enabled=True,
-                 cetz_enabled=True, fletcher_enabled=True, timeliney_enabled=True, structurizr_enabled=False,
-                 structurizr_auto_download=True, diagram_trim_enabled=False, vega_enabled=True, wavedrom_enabled=True, bytefield_enabled=True,
-                 finite_enabled=True, chordpro_enabled=True, bizmodel_enabled=True):
+    def __init__(self, base_dir=None, typst_root=None, *, glossary_enabled=False, line_mapping="block",
+                 marp_compat=False, variables=None, mermaid_browser=None, csv_header=True, cache_dir=None, lint=None,
+                 **plugin_flags):
         # 図のSVGのキャッシュの置き場所。既定は、原稿の隣の.text-compositor/cache/（PDFもHTMLも、共有する）。
         # ViewerのHTML出力は、原稿のフォルダを汚さないため、アプリの領域を渡す（#258）。
         self.cache_dir = os.path.abspath(cache_dir) if cache_dir else None
-        # plugins.graphviz（既定true）。PDFでは、Typst側のプリアンブルが使う。HTML出力では、falseなら、Graphvizの
-        # フェンスを、素のコードのまま表示する（他の図の、無効のときと同じ。#181）。
-        self.graphviz_enabled = graphviz_enabled
-        # plugins.pikchr（既定true。#213）。falseなら、```pikchrフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
-        self.pikchr_enabled = pikchr_enabled
-        self.bizmodel_enabled = bizmodel_enabled   # plugins.bizmodel（既定true。#447）。falseなら、素のコード表示にする
-        # plugins.cetz・plugins.fletcher（既定true。#236）・plugins.timeliney（既定true。#294）・plugins.finite（既定true。#292）。
-        # falseなら、そのフェンスを、素のコード表示にする。
-        self.figure_enabled = {'cetz': cetz_enabled, 'fletcher': fletcher_enabled, 'timeliney': timeliney_enabled,
-                               'finite': finite_enabled}
-        # plugins.vega（既定true。#211）。falseなら、```vega-lite・```vegaフェンスを、素のコードのまま表示する（他の図の、無効のときと同じ）。
-        # ブラウザは、Mermaidと共有する（plugins.mermaid_auto_downloadも、共通）。
-        self.vega_enabled = vega_enabled
-        self._vega_disabled_warned = False
-        # plugins.wavedrom（既定true。#299）。falseなら、```wavedromフェンスを、素のコードのまま表示する。ブラウザは、Mermaid・Vegaと共有する。
-        self.wavedrom_enabled = wavedrom_enabled
-        self._wavedrom_disabled_warned = False
-        # plugins.bytefield（既定true。#300）。falseなら、```bytefieldフェンスを、素のコードのまま表示する。ブラウザは、Mermaid・Vega・WaveDromと共有する。
-        self.bytefield_enabled = bytefield_enabled
-        self._bytefield_disabled_warned = False
-        # plugins.chordpro（既定true。#440）。falseなら、```chordproフェンスと、.cho・.chordpro・.proを、素のコードのまま表示する。
-        self.chordpro_enabled = chordpro_enabled
+        # プラグインの有効・無効（`plugins:`。名前・既定値・属性名は、renderer_options.pyの表。#488）。falseのプラグインの
+        # フェンスは、素のコードのまま表示する（図のミックスインが、self.<名前>_enabledを見る）。
+        apply_plugin_flags(self, plugin_flags)
+        # lint（原稿の警告）の{名前: ON/OFF}（#271）。OFFのlintは、検出の処理自体を飛ばす。lintを足したときは、
+        # 検出の入口で、self.lints[名前]を見る。
+        self.lints = resolve_lints(lint)
         # .csvの1行目を、ヘッダー行にするか（#220）。document.csv_header（既定true）が、csv_header引数。
         # chapters[].csv_headerが、章ごとに、self.csv_headerを上書きする（_render_markdown_chapter）。
         self.csv_header_default = csv_header
@@ -175,15 +157,6 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         self.typst_root = typst_root or os.path.dirname(self.base_dir)
         self.allow_exec = False
         self.front_matter = {}
-        # plugins.mermaid: false（6章、#21）。falseなら```mermaidフェンスをヘッドレスブラウザで
-        # 描画せず、他の未対応言語と同じく素のコード表示にフォールバックする。
-        self.mermaid_enabled = mermaid_enabled
-        self._mermaid_disabled_warned = False
-        # plugins.mermaid_auto_download: false（既定。#22の設計議論を踏まえて追加）。システムに
-        # Chrome/Edgeが無い場合、falseならFail-fast（従来どおり）、trueならPlaywright自身の
-        # Chromiumをダウンロードして使う（実測約700MB。#34/#35で避けた重いダウンロードそのものなので
-        # 既定はfalseのまま。手元にどうしても持っていない場合の最後の手段として明示的に選ばせる）。
-        self.mermaid_auto_download = mermaid_auto_download
         # Mermaidレンダリング用ヘッドレスブラウザのライフサイクル状態。最初のmermaid図を描画する
         # ときに遅延起動し、ビルド終了時にclose()で片付ける（複数の図で1つのブラウザ・ページを
         # 使い回し、図ごとに起動し直さない）。
@@ -204,50 +177,15 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         # 改ページとして描画する（従来の挙動）。
         self.marp_compat = marp_compat
         self._glossary_label_counter = 0
-        # plugins.plantuml: true（既定。#22）。falseなら```plantumlフェンスをローカルのjava+
-        # plantuml.jarで描画せず、他の未対応言語と同じく素のコード表示にフォールバックする。
-        self.plantuml_enabled = plantuml_enabled
-        self._plantuml_disabled_warned = False
-        # plugins.plantuml_auto_download: true（既定）。システムにJava 11+が無い場合、trueなら
-        # Eclipse Temurin JREを自動取得（実測約49.7MB。Chromiumの約700MBと違い許容できる規模）、
-        # falseならFail-fast。mermaidと非対称な既定値なのは意図的（ダウンロードされる実体の
-        # サイズが1桁違うため。#22の設計議論を参照）。
-        self.plantuml_auto_download = plantuml_auto_download
         # java実行ファイル・plantuml.jarのパスは初回の```plantuml描画時に遅延解決する
         # （mermaidのヘッドレスブラウザと異なり常駐プロセスではないため、都度subprocessで起動する）。
         self._plantuml_java_bin = None
         self._plantuml_jar_path = None
-        # plugins.d2: true（既定。#90）。falseなら```d2フェンスをローカルのD2 CLIバイナリで
-        # 描画せず、他の未対応言語と同じく素のコード表示にフォールバックする。
-        self.d2_enabled = d2_enabled
-        self._d2_disabled_warned = False
-        # plugins.d2_auto_download: true（既定）。システムにdコマンドが無い場合、trueならD2公式
-        # CLIバイナリを自動取得（実測約13MB。plantumlのJRE(約49.7MB)よりさらに小さいため、
-        # plantuml_auto_downloadと同じくtrueを既定にする。#22の設計議論を参照）、falseならFail-fast。
-        self.d2_auto_download = d2_auto_download
         # d2実行ファイルのパスは初回の```d2描画時に遅延解決する（plantumlのjava/jarと同様）。
         self._d2_bin = None
-        # plugins.structurizr: false（既定。#212）。既定がfalseなのは、内部で使うstructurizr-cli
-        # 一式が約99MBあり、他のプラグイン（PlantUML約17.6MB・D2約13MB）と一桁違うため
-        # （mermaidの自動ダウンロード（既定false、約700MB）と同じ「重いので既定オフ」の位置づけ）。
-        # trueなら```structurizrフェンス（C4モデルのDSL）をローカルのjava+structurizr-cliで
-        # PlantUMLへ書き出し、既存のPlantUMLパイプラインで描画する。falseなら、他の未対応言語と
-        # 同じく素のコード表示にフォールバックする。
-        self.structurizr_enabled = structurizr_enabled
-        self._structurizr_disabled_warned = False
-        # plugins.structurizr_auto_download: true（既定）。Java・structurizr-cli一式、どちらの
-        # 自動取得も併せて制御する。plugins.plantuml_auto_downloadとは独立させる（structurizrを
-        # 使うプロジェクトが常にPlantUMLも有効とは限らないため）。
-        self.structurizr_auto_download = structurizr_auto_download
         self._structurizr_java_bin = None
         self._structurizr_lib_dir = None
         self._structurizr_plantuml_jar_path = None
-        # plugins.diagram_trim: false（既定。#315）。trueなら、mermaid/plantuml/d2/structurizrが
-        # 生成したSVGの余白を、実際に描かれている範囲へ自動で縮める（svg_trim.trim_svg）。
-        # resvg_py・Pillowという新しい依存＋まだ実績のないアルゴリズムに頼るため、既定はopt-in
-        # とし、実績が積み重なってから既定を見直す（#315の設計議論）。フェンス属性`{trim=...}`で、
-        # 図ごとに上書きできる（_parse_trim_attr）。
-        self.diagram_trim_enabled = diagram_trim_enabled
         # キャッシュキー用のd2バージョン（#26）。キャッシュヒット時にバイナリの自動取得を
         # 起こさないよう、_d2_binの解決とは別に遅延評価する。
         self._d2_version_cache = None

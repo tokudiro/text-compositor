@@ -1,32 +1,63 @@
 """プラグインの有効・無効の表（renderer_options.py、#488）のテスト。"""
-import inspect
+import re
 
 import pytest
 
+import text_compositor.renderer_diagrams as diagrams_module
 from text_compositor.config import _ALLOWED_PLUGINS_KEYS
+from text_compositor.html_output import HtmlRenderer
 from text_compositor.renderer import TypstRenderer
-from text_compositor.renderer_options import PLUGIN_FLAGS, plugin_flags_from_config
-
-# `*_enabled`でも、プラグインではない（`document.glossary`で決まる）引数
-NOT_PLUGINS = {"glossary_enabled"}
+from text_compositor.renderer_options import PLUGIN_FLAGS, _FIGURE_FLAGS, apply_plugin_flags, plugin_flags_from_config
 
 
-def _init_parameters():
-    return inspect.signature(TypstRenderer.__init__).parameters
+class TestApplyPluginFlags:
+    @pytest.mark.parametrize("flag", PLUGIN_FLAGS, ids=lambda f: f.kwarg)
+    def test_each_constructor_argument_reaches_its_attribute(self, flag):
+        renderer = TypstRenderer(line_mapping="off", **{flag.kwarg: not flag.default})
+        if flag.kwarg in _FIGURE_FLAGS:
+            assert renderer.figure_enabled[_FIGURE_FLAGS[flag.kwarg]] is (not flag.default)
+        else:
+            assert getattr(renderer, flag.kwarg) is (not flag.default)
+
+    def test_nothing_given_means_the_defaults(self):
+        renderer = TypstRenderer(line_mapping="off")
+        for flag in PLUGIN_FLAGS:
+            if flag.kwarg in _FIGURE_FLAGS:
+                assert renderer.figure_enabled[_FIGURE_FLAGS[flag.kwarg]] is flag.default
+            else:
+                assert getattr(renderer, flag.kwarg) is flag.default
+
+    def test_the_other_figure_flags_keep_their_defaults(self):
+        renderer = TypstRenderer(line_mapping="off", cetz_enabled=False)
+        assert renderer.figure_enabled == {"cetz": False, "fletcher": True, "timeliney": True, "finite": True}
+
+    def test_an_unknown_argument_is_a_type_error(self):
+        with pytest.raises(TypeError, match="mermaid_enabld"):
+            TypstRenderer(line_mapping="off", mermaid_enabld=False)
+        with pytest.raises(TypeError):
+            apply_plugin_flags(object(), {"nope": True})
+
+    def test_html_renderer_passes_the_flags_through(self):
+        renderer = HtmlRenderer(None, structurizr_enabled=True, vega_enabled=False)
+        assert renderer.structurizr_enabled is True and renderer.vega_enabled is False
+
+    def test_only_base_dir_and_typst_root_are_positional(self, tmp_path):
+        TypstRenderer(str(tmp_path), str(tmp_path), line_mapping="off")
+        with pytest.raises(TypeError):
+            TypstRenderer(str(tmp_path), str(tmp_path), True)
+
+    def test_every_warn_once_flag_the_diagram_mixin_reads_is_initialized(self):
+        # `_<名前>_disabled_warned`を、ミックスインが読むのに、初期化を忘れると、AttributeErrorになる
+        source = open(diagrams_module.__file__, encoding="utf-8").read()
+        names = set(re.findall(r"self\.(_\w+_disabled_warned)\b", source))
+        assert names
+        renderer = TypstRenderer(line_mapping="off")
+        # bizmodelは、`getattr(self, ..., False)`で読むため、初期化されていなくてよい
+        missing = {name for name in names if not hasattr(renderer, name) and "bizmodel" not in name}
+        assert missing == set()
 
 
 class TestTableMatchesTheRest:
-    def test_every_flag_is_a_constructor_argument_with_the_same_default(self):
-        params = _init_parameters()
-        for flag in PLUGIN_FLAGS:
-            assert flag.kwarg in params, flag.kwarg
-            assert params[flag.kwarg].default is flag.default, flag.kwarg
-
-    def test_every_plugin_argument_of_the_constructor_is_in_the_table(self):
-        # 表に書き忘れたプラグインが、configから渡されず、黙って既定値のままになることを防ぐ
-        plugin_params = {name for name in _init_parameters() if name.endswith(("_enabled", "_auto_download")) and name not in NOT_PLUGINS}
-        assert plugin_params == {flag.kwarg for flag in PLUGIN_FLAGS}
-
     def test_the_config_keys_are_the_ones_config_py_allows_under_plugins(self):
         assert {flag.config_key for flag in PLUGIN_FLAGS} == _ALLOWED_PLUGINS_KEYS
 

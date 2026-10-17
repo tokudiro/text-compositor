@@ -317,8 +317,8 @@ class Session:
                     **plugin_flags_from_config(config),
                     variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header,
-                    allow_external_images=allow_external_images, cache_dir=cache_dir)
-                renderer.lints = resolve_lints(config.get("lint"))
+                    allow_external_images=allow_external_images, cache_dir=cache_dir,
+                    lint=resolve_lints(config.get("lint")))
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)
             timings["render"] = (time.perf_counter() - started) * 1000.0
