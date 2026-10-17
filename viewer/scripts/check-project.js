@@ -81,6 +81,7 @@ async function waitFor(read, predicate, timeoutMs = 10000) {
     '      - 01_a.md',
     '      - file: c.csv',
     '  - aggregate: tests',
+    '    title: 試験一覧',
     '  - notes.docx',
     '  - 42',
     '  - 03_z.md', '',
@@ -117,11 +118,21 @@ async function waitFor(read, predicate, timeoutMs = 10000) {
     start(config);
     chrome = await connect(await findTarget(/chrome\.html/));
     await waitFor(fileName, (name) => name === 'text-compositor.config.yaml');
-    const expected = ['02_b.md', '第一編', '01_a.md', 'c.csv', '03_z.md'];
+    const expected = ['02_b.md', '第一編', '01_a.md', 'c.csv', '試験一覧（表）', '03_z.md'];
     const listed = await waitFor(items, (names) => names.length >= expected.length);
     check('設定ファイルを開くと、サイドバーが開き、章が、書いた順序で、見出しを開いた状態で出る',
       (await sidebarVisible()) === true && JSON.stringify(listed) === JSON.stringify(expected), JSON.stringify(listed));
-    check('開けないファイル・aggregate・誤った章は、出ない', !listed.includes('notes.docx') && !listed.includes('42') && !listed.includes('tests'));
+    check('開けないファイル・誤った章は、出ない', !listed.includes('notes.docx') && !listed.includes('42'));
+    // 表の章（aggregate。#478）は、title（無ければフォルダ名）に「（表）」を付けて、押せない項目として出る
+    const note = JSON.parse(await chrome.eval("JSON.stringify((() => { const i = [...document.querySelectorAll('#tree [role=treeitem]')].find((x) => x.getAttribute('aria-label') === '試験一覧（表）'); "
+      + "return i ? { disabled: i.getAttribute('aria-disabled'), type: i.dataset.type, noteClass: i.classList.contains('tree-note'), title: i.querySelector('.tree-name').title, description: i.getAttribute('aria-description') } : null; })())"));
+    check('表の章は、「（表）」を付けた、押せない項目（aria-disabled）として出る',
+      note !== null && note.disabled === 'true' && note.type === 'note' && note.noteClass === true, JSON.stringify(note));
+    check('表の章のツールチップは、Obunzuでは表を出さず、PDFで確認することを伝える', /PDF/.test(note?.title ?? '') && note?.title === note?.description, note?.title);
+    await click('試験一覧（表）');
+    await sleep(500);
+    check('表の章を押しても、何も開かない（文書も、章の一覧も、そのまま）',
+      (await fileName()) === 'text-compositor.config.yaml' && (await sidebarVisible()) === true && (await items()).length === expected.length);
     check('サイドバーの見出しに、設定ファイルの名前が出る', (await rootName()) === 'text-compositor.config.yaml', await rootName());
     check('ツリーの名前が、「章の一覧」になる', (await chrome.eval("document.getElementById('tree').getAttribute('aria-label')")) === '章の一覧');
     const warning = await waitFor(banner, (text) => text.includes('章の一覧'));
@@ -135,7 +146,7 @@ async function waitFor(read, predicate, timeoutMs = 10000) {
 
     await click('第一編');
     await sleep(200);
-    check('見出しをクリックすると、章が、たたまれる', (await items()).length === 3, JSON.stringify(await items()));
+    check('見出しをクリックすると、章が、たたまれる', (await items()).length === 4, JSON.stringify(await items()));
     await click('第一編');
     await sleep(200);
 

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { describe, test } = require('node:test');
 
-const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('../src/project');
+const { AGGREGATE_HINT, AGGREGATE_SUFFIX, buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('../src/project');
 
 const config = path.resolve('work', 'text-compositor.config.yaml');
 const chapter = (name) => ({ kind: 'file', name, path: path.resolve('work', 'inputs', name) });
@@ -43,6 +43,38 @@ describe('buildProject / projectEntries', () => {
     const project = buildProject(config, [chapter('a.md')]);
     assert.equal(projectEntries(project, 'section:99').ok, false);
     assert.equal(projectEntries(null, config).ok, false);
+  });
+
+  test('a chapter that turns a folder into a table is listed as a note that cannot be opened (#478)', () => {
+    const folder = path.resolve('work', 'inputs', 'testcases');
+    const project = buildProject(config, [chapter('a.md'), { kind: 'aggregate', name: 'テストケース一覧', path: folder }, chapter('b.md')]);
+    const entries = projectEntries(project, config).entries;
+    assert.deepEqual(entries.map((e) => [e.name, e.type]), [['a.md', 'file'], ['テストケース一覧（表）', 'note'], ['b.md', 'file']]);
+    assert.equal(entries[1].path, folder);
+    assert.equal(entries[1].hint, AGGREGATE_HINT);
+    assert.match(entries[1].hint, /PDF/);
+    assert.equal(entries[1].name.endsWith(AGGREGATE_SUFFIX), true);
+  });
+
+  test('a section that holds only a table chapter is still listed (#478)', () => {
+    const project = buildProject(config, [{ kind: 'section', name: '試験', children: [{ kind: 'aggregate', name: 'tc', path: path.resolve('work', 'tc') }] }]);
+    const root = projectEntries(project, config).entries;
+    assert.deepEqual(root.map((e) => [e.name, e.type]), [['試験', 'directory']]);
+    assert.deepEqual(projectEntries(project, root[0].path).entries.map((e) => [e.name, e.type]), [['tc（表）', 'note']]);
+  });
+
+  test('a table chapter is not a file of the project: opening its folder leaves the chapter list (#478)', () => {
+    const folder = path.resolve('work', 'inputs', 'testcases');
+    const project = buildProject(config, [chapter('a.md'), { kind: 'aggregate', name: 'tc', path: folder }]);
+    assert.equal(isInsideProject(project, folder), false);
+    assert.equal(isInsideProject(project, path.join(folder, 'TC-001.yaml')), false);
+  });
+
+  test('a table chapter without a name is ignored, and a missing path does not break it (#478)', () => {
+    const project = buildProject(config, [{ kind: 'aggregate' }, { kind: 'aggregate', name: '' }, { kind: 'aggregate', name: 'x' }, chapter('ok.md')]);
+    const entries = projectEntries(project, config).entries;
+    assert.deepEqual(entries.map((e) => e.name), ['x（表）', 'ok.md']);
+    assert.equal(entries[0].path, '');
   });
 
   test('malformed items are ignored', () => {

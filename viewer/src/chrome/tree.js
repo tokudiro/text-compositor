@@ -58,11 +58,16 @@ function createFileTree({ container, listDirectory, openFile, autoExpand = () =>
     const label = document.createElement('span');
     label.className = 'tree-name';
     label.textContent = entry.name;
-    label.title = entry.path;
+    label.title = entry.type === 'note' ? (entry.hint ?? entry.path) : entry.path;
     row.append(mark, label);
     item.append(row);
     if (entry.type === 'directory') item.setAttribute('aria-expanded', 'false');
-    else if (sameFile(entry.path, current)) markCurrent(item, true);
+    else if (entry.type === 'note') {
+      // 開けない項目（フォルダを表にする章など。#478）。章の一覧に、抜けたように見えないよう、出すだけ。押しても、何も起きない
+      item.classList.add('tree-note');
+      item.setAttribute('aria-disabled', 'true');
+      if (entry.hint) item.setAttribute('aria-description', entry.hint);
+    } else if (sameFile(entry.path, current)) markCurrent(item, true);
     return item;
   }
 

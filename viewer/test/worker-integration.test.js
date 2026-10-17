@@ -159,9 +159,12 @@ describe('real worker + WorkerClient (#172)', { skip: prepared.reason ? `${prepa
     const config = path.join(dir, 'text-compositor.config.yaml');
     fs.writeFileSync(config, 'chapters:\n  - b.md\n  - section: 編\n    chapters:\n      - file: a.md\n  - aggregate: x\n  - 42\n', 'utf8');
     const { items, warnings } = await client.listChapters(config);
-    assert.deepEqual(items.map((i) => i.name), ['b.md', '編']);
+    // フォルダを表にする章（aggregate）は、`kind: aggregate`の項目として、書いた順序の位置に出る（#478）
+    assert.deepEqual(items.map((i) => i.name), ['b.md', '編', 'x']);
+    assert.deepEqual(items.map((i) => i.kind), ['file', 'section', 'aggregate']);
     assert.deepEqual(items[1].children.map((c) => c.name), ['a.md']);
     assert.equal(items[0].path, path.join(dir, 'inputs', 'b.md'));
+    assert.equal(items[2].path, path.join(dir, 'inputs', 'x'));
     assert.equal(warnings.length, 1);
 
     fs.writeFileSync(config, 'chapters: [a.md\n', 'utf8');

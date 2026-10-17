@@ -116,6 +116,8 @@ button.icon.text { font-weight: 700; font-size: 12px; }
 .tree-mark { flex: none; width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
 .tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 li.tree-message { padding: 2px 8px; color: var(--muted); cursor: default; }
+#tree li.tree-note > .tree-row { color: var(--muted); cursor: default; }   /* 開けない項目（表の章。#478）。薄く出し、押せない */
+#tree li.tree-note > .tree-row:hover { background: none; }
 /* 設定画面。ウィンドウ本体の側に表示し、内容のビューは、開いている間、隠す */
 #settings { position: absolute; left: 0; right: 0; top: var(--chrome-height, 40px); bottom: 0; overflow: auto; }
 .toolbar-bottom #settings { top: 0; bottom: var(--chrome-height, 40px); }

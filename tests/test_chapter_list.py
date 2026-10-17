@@ -36,10 +36,34 @@ class TestListChapters:
         config = write_config(tmp_path, "chapters:\n  - file: a.md\n    landscape: true\n")
         assert names(list_chapters(config)["items"]) == ["a.md"]
 
-    def test_aggregate_is_not_listed(self, tmp_path):
+    def test_aggregate_is_listed_in_the_written_order_as_its_own_kind(self, tmp_path):
+        # フォルダを表にする章は、1つのファイルではない。Viewerが、押せない項目として出せるよう、`kind: aggregate`で返す（#478）
         config = write_config(tmp_path, "chapters:\n  - a.md\n  - aggregate: testcases\n  - b.md\n")
         result = list_chapters(config)
-        assert names(result["items"]) == ["a.md", "b.md"] and result["warnings"] == []
+        assert names(result["items"]) == ["a.md", "testcases", "b.md"] and result["warnings"] == []
+        aggregate = result["items"][1]
+        assert aggregate["kind"] == "aggregate"
+        assert aggregate["path"] == str(tmp_path / "inputs" / "testcases")   # 基準は、ファイルの章と同じ（inputs.dir）
+
+    def test_an_aggregate_is_named_by_its_title_or_else_by_its_folder(self, tmp_path):
+        config = write_config(tmp_path, "chapters:\n  - aggregate: tc\n    title: テストケース一覧\n  - aggregate: other\n"
+                                        "  - aggregate: third\n    title: ''\n  - aggregate: fourth\n    title: 5\n")
+        assert names(list_chapters(config)["items"]) == ["テストケース一覧", "other", "third", "fourth"]
+
+    def test_an_aggregate_inside_a_section_is_kept(self, tmp_path):
+        config = write_config(tmp_path, "chapters:\n  - section: Tests\n    chapters:\n      - aggregate: tc\n      - b.md\n")
+        assert names(list_chapters(config)["items"]) == [("Tests", ["tc", "b.md"])]
+
+    def test_an_aggregate_path_follows_inputs_dir(self, tmp_path):
+        config = write_config(tmp_path, 'inputs:\n  dir: "."\nchapters:\n  - aggregate: sub/tc\n')
+        assert list_chapters(config)["items"][0]["path"] == os.path.normpath(str(tmp_path / "sub" / "tc"))
+
+    @pytest.mark.parametrize("value", ["''", "[a]", "5"])
+    def test_a_broken_aggregate_is_a_warning_and_is_not_listed(self, tmp_path, value):
+        config = write_config(tmp_path, f"chapters:\n  - a.md\n  - aggregate: {value}\n")
+        result = list_chapters(config)
+        assert names(result["items"]) == ["a.md"]
+        assert len(result["warnings"]) == 1 and "Invalid chapter entry" in result["warnings"][0]
 
     def test_a_section_holds_its_chapters(self, tmp_path):
         config = write_config(tmp_path, "chapters:\n  - a.md\n  - section: Maintenance\n    chapters:\n      - b.md\n      - file: c.md\n")

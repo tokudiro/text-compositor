@@ -56,8 +56,10 @@ Mermaidと、Vega・Vega-Lite・WaveDrom・Bytefieldの図を、Playwrightとシ
   呼び出し元 → ワーカー: {"callback": <同じ番号>, "ok": true, "svg": "..."} または {"callback": <同じ番号>, "ok": false, "error": "..."}
   待っている間に届いた、番号の違う行は、読み捨てる。呼び出し元が、標準入力を閉じたときは、描画の失敗になる。
 応答（`list_chapters`）: {"id": ..., "ok": true, "result": {"items": [...], "warnings": [...]}}。`items`は、書いた順序で、
-  `{"kind": "file", "name": ..., "path": <絶対パス。基準は`inputs.dir`>}`または`{"kind": "section", "name": ..., "children": [...]}`。
-  `aggregate`の章は、出さない。読めない設定（存在しない・構文の誤り・`chapters`が無い）は、`{"ok": false, "error": {"code": "bad_config", ...}}`。
+  `{"kind": "file", "name": ..., "path": <絶対パス。基準は`inputs.dir`>}`・`{"kind": "section", "name": ..., "children": [...]}`・
+  `{"kind": "aggregate", "name": <`title`、無ければフォルダ名>, "path": <フォルダの絶対パス>}`（フォルダを1つの表にする章。
+  1つのファイルではないため、呼び出し側は、開けない項目として扱う。#478。古い呼び出し側は、知らない`kind`を読み飛ばす）。
+  読めない設定（存在しない・構文の誤り・`chapters`が無い）は、`{"ok": false, "error": {"code": "bad_config", ...}}`。
 応答（その他）: {"id": ..., "ok": true, "result": {...}}
 プロトコルの誤り（JSONでない、未知のメソッド、引数の不足）: {"id": ..., "ok": false, "error": {"code": ..., "message": ...}}
   `error`キーがあれば、依頼が処理されていない。
