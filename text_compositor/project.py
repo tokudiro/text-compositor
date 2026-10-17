@@ -7,6 +7,7 @@ from text_compositor.compiler import _compile_and_cleanup
 from text_compositor.config import _load_project_config, _resolve_line_mapping, _resolve_project_dirs, _resolve_variables, find_config_in_cwd
 from text_compositor.fonts import resolve_extra_font_dirs, set_extra_font_dirs
 from text_compositor.document import _build_document_preamble, _build_glossary_section, _page_set_fragment, _prepare_template
+from text_compositor.lints import resolve_lints
 from text_compositor.log import _log_info, _log_verbose
 from text_compositor.renderer import TypstRenderer
 
@@ -82,6 +83,8 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     variables = _resolve_variables(config)
     # document.csv_header: true（既定、#220）。.csvの章の1行目を、ヘッダー行にするか。
     csv_header = _parse_csv_header(config.get("document", {}).get("csv_header", True), "document")
+    # lint: {名前: true/false}（#271）。原稿の警告のON/OFF。誤りは、描画の前にFail-fastで報告する。
+    lints = resolve_lints(config.get("lint"))
 
     outputs_dir, inputs_dir, work_dir, typst_root = _resolve_project_dirs(
         project_dir, config, create_outputs=out_pdf is None)
@@ -107,6 +110,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
                               mermaid_browser=mermaid_browser, csv_header=csv_header)
+    renderer.lints = lints
     current_landscape, current_paper = global_landscape, global_paper
     current_header, current_footer, current_paginate = effective_global_header, global_footer, global_paginate
     current_background = global_background

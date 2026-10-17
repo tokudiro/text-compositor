@@ -12,7 +12,8 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
 
 依頼: {"id": <任意の値。応答にそのまま返る>, "method": <メソッド名>, "params": {...}}
   - `build`  : Markdownをビルドする。params: `path`（必須）・`output`・`template`・`plugins`・
-               `document`・`variables`・`config`・`keep_temp`（意味は、`Session.build`と同じ）。
+               `document`・`variables`・`config`・`lint`・`keep_temp`（意味は、`Session.build`と同じ。
+               `lint`は、`{lintの名前: 真偽値}`。原稿の警告のON/OFF。例: `{"bold": false}`。#271）。
   - `render_html`: Markdown（または図の単体ファイル）をHTMLにする（実験的、#161）。params: `path`（必須）・
                `output`・`plugins`・`variables`・`config`・`csv_header`（意味は、`Session.render_html`と同じ。
                `csv_header`は、真偽値。`.csv`の1行目を見出し行にするか。既定`true`。#220）。
@@ -20,6 +21,7 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
                （方針2章「ローカルに閉じる」。#238）。
                `cache_dir`は、文字列。図のSVGのキャッシュのフォルダ。`output`とともに指定すると、原稿のフォルダに、
                何も書かない。#258）。
+               `lint`は、`build`と同じ。
   - `list_chapters`: 設定ファイルの`chapters`を、ファイルの一覧にする（Viewerのサイドバー用、#373）。params: `path`
                （必須。設定ファイル）。中身は読まない。設定の誤りでも、ワーカーは終了しない。
   - `ping`   : 生きているかの確認。
@@ -75,11 +77,12 @@ from text_compositor import __version__
 from text_compositor import host_renderers as _host_renderers
 from text_compositor.api import Session
 from text_compositor.chapter_list import ChapterListError, list_chapters
+from text_compositor.lints import check_lint_overrides
 
 PROTOCOL_VERSION = 1
 
-_BUILD_PARAMS = ("output", "template", "plugins", "document", "variables", "config", "keep_temp")
-_HTML_PARAMS = ("output", "plugins", "variables", "config", "csv_header", "allow_external_images", "cache_dir")
+_BUILD_PARAMS = ("output", "template", "plugins", "document", "variables", "config", "lint", "keep_temp")
+_HTML_PARAMS = ("output", "plugins", "variables", "config", "csv_header", "allow_external_images", "cache_dir", "lint")
 
 
 def _write(out: TextIO, obj: Dict[str, Any]) -> None:
@@ -89,6 +92,14 @@ def _write(out: TextIO, obj: Dict[str, Any]) -> None:
 
 def _protocol_error(request_id: Any, code: str, message: str) -> Dict[str, Any]:
     return {"id": request_id, "ok": False, "error": {"code": code, "message": message}}
+
+
+def _check_lint_param(request_id: Any, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """`params.lint`（{lintの名前: 真偽値}。#271）の誤りを、プロトコルエラーにする。無ければ、None。"""
+    if "lint" not in params or params["lint"] is None:
+        return None
+    problem = check_lint_overrides(params["lint"])
+    return _protocol_error(request_id, "bad_request", f"'params.lint': {problem}") if problem else None
 
 
 def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
@@ -127,6 +138,9 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
         for name in ("output", "cache_dir"):
             if name in params and params[name] is not None and not isinstance(params[name], str):
                 return _protocol_error(request_id, "bad_request", f"'params.{name}' must be a string.")
+        bad_lint = _check_lint_param(request_id, params)
+        if bad_lint:
+            return bad_lint
         options = {k: params[k] for k in _HTML_PARAMS if k in params}
         output = options.pop("output", None)
         result = session.render_html(path, output, **options)
@@ -140,6 +154,9 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
         unknown = sorted(set(params) - set(_BUILD_PARAMS) - {"path"})
         if unknown:
             return _protocol_error(request_id, "bad_request", f"Unknown params: {', '.join(unknown)}.")
+        bad_lint = _check_lint_param(request_id, params)
+        if bad_lint:
+            return bad_lint
         options = {k: params[k] for k in _BUILD_PARAMS if k in params}
         output = options.pop("output", None)
         result = session.build(path, output, **options)
