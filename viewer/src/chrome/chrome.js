@@ -79,6 +79,8 @@ $('tree').addEventListener('contextmenu', (event) => {
   const item = event.target.closest?.('[role="treeitem"][data-path]');
   if (item) api.sidebarContextMenu(item.dataset.path, item.dataset.type);
 });
+// ファイル名の右クリック（#497）。メニューの中身は、メインプロセスが、いま見ているタブのファイルから作る（ここからは、パスを渡さない）
+$('file').addEventListener('contextmenu', (event) => { event.preventDefault(); api.fileContextMenu(); });
 $('tab-new').addEventListener('click', () => api.newTab());
 $('tab-close').addEventListener('click', () => { const active = lastState?.tabs?.find((t) => t.active); if (active) api.closeTab(active.id); });
 $('banner').addEventListener('click', () => { detailsOpen = !detailsOpen; render(lastState); });
@@ -395,10 +397,10 @@ function render(state) {
   $('clear-cache').disabled = state.cache.clearing || !state.cache.bytes;
   $('clear-cache').textContent = state.cache.clearing ? '削除中…' : '削除';
 
-  // ファイル名を主にして、フォルダは、控えめに添える。全体は、ホバーで表示する
+  // ファイル名だけを出す。フォルダは、常時は出さない（深いパスは、どう省略しても中途半端で、サイドバーが、根元を示すため。#497）。
+  // 全体のパスは、ホバーで出し、右クリックで、コピー・エクスプローラーで表示できる
   const split = state.file ? Math.max(state.file.lastIndexOf('\\'), state.file.lastIndexOf('/')) : -1;
   $('file-name').textContent = state.file ? state.file.slice(split + 1) : '';
-  $('file-dir').textContent = split > 0 ? state.file.slice(0, split) : '';
   $('file').title = state.file ?? '';
   // 行番号（#328）。マウスを乗せたブロックの行を、ファイル名の右横に出す。乗せていない間も、最後の行を保つ
   const lineRef = $('line-ref');
