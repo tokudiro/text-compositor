@@ -24,6 +24,11 @@ class InlineMixin:
 
     HTML_SPAN_CLOSE_RE = re.compile(r'^</span\s*>$', re.IGNORECASE)
 
+    # 改行の`<br>`（#489）。表のセルの中で改行する書き方は、GitHubでは`<br>`が事実上の標準のため、これも「閉じた
+    # 許可リスト」に1パターン足す（`<br>`・`<br/>`・`<br />`。大文字小文字は区別しない）。属性つき（`<br class=...>`）は、
+    # 対象外で、従来どおり警告する。PDFもHTML出力も、これを使う。
+    HTML_BR_RE = re.compile(r'^<br\s*/?>$', re.IGNORECASE)
+
     # フォントサイズ指定（#93）。[text]{size=10pt}のsize属性、front-matterのfont_sizeの両方で使う
     # 共通フォーマット。Typstの#text(size: ...)にそのまま渡せる"10pt"/"10.5pt"のような値のみ許可する。
     FONT_SIZE_RE = re.compile(r'^\d+(\.\d+)?pt$')
@@ -185,7 +190,9 @@ class InlineMixin:
                 # tasklists_pluginはチェックボックスを生HTML(<input class="task-list-item-checkbox" ...>)
                 # として出力する。<span style="color:...">とあわせ、#46で決めた「閉じた許可リスト」の
                 # 考え方に沿い、このパターンだけを特別扱いする（#48）。それ以外のHTMLは従来どおり警告。
-                if span_color_match:
+                if self.HTML_BR_RE.match(content):
+                    res.append('#linebreak()\n')   # 警告は出さない（意図した書き方。#489）。softbreak・hardbreakと同じ
+                elif span_color_match:
                     color = span_color_match.group(1).strip()
                     res.append(f'#text(fill: {self._color_to_typst(color)})[')
                     html_span_depth += 1
@@ -204,7 +211,8 @@ class InlineMixin:
                 line_no = self._line_of(t)
                 self._warn_here(f"Unhandled inline token '{t.type}' at {self.current_file}:{line_no if line_no else '?'}", line=line_no)
             # 改行直後のテキストのみ行頭エスケープの対象にする
-            at_line_start = t.type in ['softbreak', 'hardbreak']
+            at_line_start = t.type in ['softbreak', 'hardbreak'] or (
+                t.type == 'html_inline' and bool(self.HTML_BR_RE.match(t.content.strip())))
         if html_span_depth > 0:
             # 壊れたTypstコード（閉じ角括弧の不足）を生成しないよう自動で閉じ、書き忘れに気付けるよう警告する
             self._warn_here(f"Unclosed <span style=\"color:...\"> in {self.current_file}; closing it automatically.")
