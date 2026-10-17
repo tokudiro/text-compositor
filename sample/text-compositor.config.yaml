@@ -58,6 +58,13 @@ chapters:
       aggregate: "testresults"    # 結果のディレクトリ。idで突き合わせる
       runs: latest                # 最新の1件だけ出す（all なら、実施の数だけ行を出す）
       missing: "未実施"            # 結果が無いテストに入れる文字列
+      skip_missing: true          # 「未実施」と書いた記録(再実施の予定)を、最新の判定から除く
+      summary:                    # 表の下に、集計を出す
+        order: [OK, NG]
+        rate: true
+        classes:
+          pass: [OK]
+          fail: [NG]
       columns:                    # 結果の列
         - { key: tested_at, title: 実施日, width: auto }
         - { key: tested_by, title: 実施者, width: auto }
