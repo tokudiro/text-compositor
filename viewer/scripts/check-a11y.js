@@ -179,7 +179,8 @@ async function main() {
     check('ツールバーが、role=toolbarで、名前がある', parts.toolbar.role === 'toolbar' && !!parts.toolbar.name, JSON.stringify(parts.toolbar));
     check('部品が、ランドマーク（header・search）に入っている', parts.header === 'HEADER' && parts.search === 'search', JSON.stringify(parts));
     check('名前のないボタンがない', parts.unnamed.length === 0, parts.unnamed.join(','));
-    check('拡大率のボタンの名前に、今の倍率が入る', /現在 \d+%/.test(parts.zoomLabel), parts.zoomLabel);
+    // 見えている文字（倍率）で始まり、操作が続く（WCAG 2.5.3。axe-core 4.14のlabel-content-name-mismatch。#499）
+    check('拡大率のボタンの名前は、今の倍率で始まり、操作が続く（「100%、実寸に戻す」）', /^\d+%、実寸に戻す$/.test(parts.zoomLabel), parts.zoomLabel);
     check('読み上げ用の領域（role=status）がある。画面の状態表示は、二重に読ませない', parts.live === 'status' && parts.status === 'true', JSON.stringify(parts));
 
     // キーボード: 設定を開いたとき、フォーカスが、見出しへ移る

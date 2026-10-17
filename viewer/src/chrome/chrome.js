@@ -408,8 +408,10 @@ function render(state) {
   lineRef.textContent = `:${state.line}`;
   lineRef.title = `マウスを乗せたブロックの、元のMarkdownの行（内容を右クリックすると、コピーできます）`;
   setText($('zoom'), `${state.zoomPercent}%`);
-  // 文字が「100%」だけだと、ボタンの名前が、操作（実寸に戻す）だけになり、今の倍率が伝わらない（#340）
-  $('zoom').setAttribute('aria-label', `実寸に戻す（現在 ${state.zoomPercent}%）`);
+  // 文字が「100%」だけだと、ボタンの名前が、操作（実寸に戻す）だけになり、今の倍率が伝わらない（#340）。
+  // 名前は、見えている文字（倍率）で始める（WCAG 2.5.3「ラベルを名前に含める」。音声操作の「100%をクリック」も効く。axe-core 4.14の
+  // label-content-name-mismatchも、これを求める。#499）
+  $('zoom').setAttribute('aria-label', `${state.zoomPercent}%、実寸に戻す`);
   $('auto-reload').setAttribute('aria-checked', String(state.autoReload));
   $('csv-header').hidden = !state.isCsv;
   $('csv-header').setAttribute('aria-checked', String(state.settings.csvHeader));
