@@ -67,6 +67,18 @@ def _parse_aggregate_columns(value, where):
                         "align": align, "markdown": markdown})
     return columns
 
+_FONT_SIZE_RE = re.compile(r"\d+(\.\d+)?pt")
+
+def _parse_aggregate_font_size(value, where):
+    """aggregateの`font_size`（#484）を検証して返す。`8pt`・`7.5pt`のように、数値＋ptのみ
+    （front-matterのfont_sizeと同じ書式）。省略（None）はNone＝本文と同じ大きさ。"""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not _FONT_SIZE_RE.fullmatch(value):
+        _error(f"{where}: font_size must look like '8pt' or '7.5pt' (got {value!r}).")
+        sys.exit(1)
+    return value
+
 def _parse_aggregate_join(value, where):
     """aggregateの`join`（#66）を検証し、正規化したdictを返す。結果の列（columns）は必須で、
     既定の列は無い（結果のキーは、利用者ごとに違うため）。"""
@@ -499,4 +511,8 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
     code += ')\n\n'
     if summary_code:
         code = summary_code + code if join["summary"]["position"] == "top" else code + summary_code
+    # 文字の大きさは、表と集計だけに効かせる（章の見出しは、呼び出し側で表の外に出している）。
+    font_size = _parse_aggregate_font_size(ch_dict.get("font_size"), where)
+    if font_size:
+        code = f'#[\n#set text(size: {font_size})\n{code}]\n'
     return code + '#pagebreak(weak: true)\n'
