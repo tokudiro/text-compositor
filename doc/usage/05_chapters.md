@@ -42,6 +42,35 @@ chapters:
 
 対象ディレクトリ配下の `.yaml`/`.yml`/`.json` ファイルをファイル名順に読み込み、各ファイルの `id`/`title`/`priority`/`steps`/`expected` キーをテーブルの列にします。
 
+### 列を設定する（`columns`）
+
+`columns` を書くと、表の列を自由に決められます。省略すると、上の5列（ID・Title・Priority・Steps・Expected）になります。
+
+```yaml
+chapters:
+  - aggregate: "results"
+    title: "テスト結果"
+    columns:
+      - key: id
+        title: ID            # 見出し。省略時は key
+        width: auto          # auto / 1fr / 2fr … 省略時は 1fr
+        align: center        # left / center / right。省略時は left
+      - key: tested_by
+        title: 実施者
+      - key: actual_result
+        title: 実際の結果
+        width: 2fr
+        markdown: true       # true のとき Markdown として描画。省略時は false
+      - key: status
+        title: 合否
+        align: center
+```
+
+- **値の取り出し**: 各ファイルのトップレベルの `key` を、そのセルに出します。キーが無いファイルは、空欄になります。
+- **`markdown: false`（既定）**: 文字をそのまま出します（Typst の特殊文字はエスケープ）。値がリストなら、読点（、）で連結します。`auto` 以外の幅の列には、長い識別子を折り返すための改行点を入れます。
+- **`markdown: true`**: Markdown として描画します。値がリストなら、各要素を改行で連結します。
+- **エラー**: `key` が無い、`width`・`align` が不正、`key` が重複、未知のキーがある場合は、ビルドの最初にエラーで止まります。`columns` は `aggregate:` の章だけに書けます。
+
 ## 4. section: （複数の章をまとめて、目次を2階層にする）
 
 3編構成のマニュアルのように、「編の見出し → その配下の章」という構造を作りたいときに使います。`section:` に見出しを書き、入れ子の `chapters:` に配下の章を並べます。
