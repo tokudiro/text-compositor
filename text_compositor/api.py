@@ -292,6 +292,7 @@ class Session:
         from text_compositor.html_output import HtmlRenderer
         from text_compositor.lints import resolve_lints
         from text_compositor.mermaid import MermaidBrowser
+        from text_compositor.renderer_options import plugin_flags_from_config
 
         if self._closed:
             diagnostics.error("The session is closed.")
@@ -309,31 +310,11 @@ class Session:
         try:
             with contextlib.redirect_stdout(sys.stderr):
                 config = _single_markdown_config(md_path, "template", plugins, None, variables, overrides, lint)
-                plugins_config = config.get("plugins") or {}
                 if self._mermaid is None:
                     self._mermaid = MermaidBrowser()
                 renderer = HtmlRenderer(
                     project_dir,
-                    mermaid_enabled=bool(plugins_config.get("mermaid", True)),
-                    mermaid_auto_download=bool(plugins_config.get("mermaid_auto_download", False)),
-                    plantuml_enabled=bool(plugins_config.get("plantuml", True)),
-                    plantuml_auto_download=bool(plugins_config.get("plantuml_auto_download", True)),
-                    d2_enabled=bool(plugins_config.get("d2", True)),
-                    d2_auto_download=bool(plugins_config.get("d2_auto_download", True)),
-                    structurizr_enabled=bool(plugins_config.get("structurizr", False)),
-                    structurizr_auto_download=bool(plugins_config.get("structurizr_auto_download", True)),
-                    diagram_trim_enabled=bool(plugins_config.get("diagram_trim", False)),
-                    graphviz_enabled=bool(plugins_config.get("graphviz", True)),
-                    pikchr_enabled=bool(plugins_config.get("pikchr", True)),
-                    cetz_enabled=bool(plugins_config.get("cetz", True)),
-                    fletcher_enabled=bool(plugins_config.get("fletcher", True)),
-                    timeliney_enabled=bool(plugins_config.get("timeliney", True)),
-                    finite_enabled=bool(plugins_config.get("finite", True)),
-                    vega_enabled=bool(plugins_config.get("vega", True)),
-                    wavedrom_enabled=bool(plugins_config.get("wavedrom", True)),
-                    bytefield_enabled=bool(plugins_config.get("bytefield", True)),
-                    chordpro_enabled=bool(plugins_config.get("chordpro", True)),
-                    bizmodel_enabled=bool(plugins_config.get("bizmodel", True)),
+                    **plugin_flags_from_config(config),
                     variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header,
                     allow_external_images=allow_external_images, cache_dir=cache_dir)

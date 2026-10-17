@@ -10,6 +10,7 @@ from text_compositor.document import _build_document_preamble, _build_glossary_s
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _log_info, _log_verbose
 from text_compositor.renderer import TypstRenderer
+from text_compositor.renderer_options import plugin_flags_from_config
 
 def _build_one(tool_dir, repo_root, font_dir, config_path, keep_temp=False, if_changed=False):
     # 汎用ツールとして、呼び出し元プロジェクトが持つ設定ファイルを指定できるようにする。
@@ -42,36 +43,9 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     started = time.perf_counter()
     # 追加のフォント（config.yamlのfonts.dir。#376）。PDFと、図（Graphviz等）の文字が、これらのフォントも使う。
     set_extra_font_dirs(resolve_extra_font_dirs(config, project_dir))
-    # plugins: Graphviz/PlantUML/Mermaid/D2の有効・無効切り替え（6章、#21、#90）。未指定時は
-    # 既存動作を維持する既定値（graphviz/mermaid/plantuml/d2はいずれも常時有効）。
-    # *_auto_download は、システムに必要なツール（ブラウザ/Java/D2）が無い場合の振る舞いを制御する
-    # 別軸のフラグ（#22の設計議論）。既定値が非対称なのは、ダウンロードされる実体のサイズが
-    # 一桁違うため（Playwright自身のChromium: 約700MB対Eclipse Temurin JRE: 約49.7MB対D2 CLI: 約13MB）。
-    plugins_config = config.get("plugins") or {}
-    graphviz_enabled = bool(plugins_config.get("graphviz", True))
-    pikchr_enabled = bool(plugins_config.get("pikchr", True))   # #213
-    cetz_enabled = bool(plugins_config.get("cetz", True))   # #236
-    fletcher_enabled = bool(plugins_config.get("fletcher", True))
-    timeliney_enabled = bool(plugins_config.get("timeliney", True))   # #294
-    finite_enabled = bool(plugins_config.get("finite", True))   # #292
-    vega_enabled = bool(plugins_config.get("vega", True))   # #211
-    chordpro_enabled = bool(plugins_config.get("chordpro", True))   # #440
-    bizmodel_enabled = bool(plugins_config.get("bizmodel", True))   # #447
-    wavedrom_enabled = bool(plugins_config.get("wavedrom", True))   # #299
-    bytefield_enabled = bool(plugins_config.get("bytefield", True))   # #300
-    mermaid_enabled = bool(plugins_config.get("mermaid", True))
-    mermaid_auto_download = bool(plugins_config.get("mermaid_auto_download", False))
-    plantuml_enabled = bool(plugins_config.get("plantuml", True))
-    plantuml_auto_download = bool(plugins_config.get("plantuml_auto_download", True))
-    d2_enabled = bool(plugins_config.get("d2", True))
-    d2_auto_download = bool(plugins_config.get("d2_auto_download", True))
-    # plugins.structurizr: false（既定。#212）。内部で使うstructurizr-cli一式が約99MBあり、
-    # 他のプラグインと一桁違うため、mermaidと同じ「重いので既定オフ」の位置づけにする。
-    structurizr_enabled = bool(plugins_config.get("structurizr", False))
-    structurizr_auto_download = bool(plugins_config.get("structurizr_auto_download", True))
-    # plugins.diagram_trim: false（既定。#315）。生成された図のSVGの余白を、実際に描かれている
-    # 範囲へ自動で縮める（resvg_py・Pillowという新しい依存に頼るため、既定はopt-in）。
-    diagram_trim_enabled = bool(plugins_config.get("diagram_trim", False))
+    # plugins: 図表プラグインの有効・無効（6章、#21、#90）。名前・既定値の表と読み取りは、renderer_options.py（#488）。
+    # PDFのビルドと、Python API・HTML出力（api.py）が、同じ表から読む。
+    plugin_flags = plugin_flags_from_config(config)
     # document.glossary: false（既定。#47）。trueなら[[用語]]を検出し、巻末に索引ページを生成する。
     glossary_enabled = bool(config.get("document", {}).get("glossary", False))
     # document.marp_compat: false（既定、#92）。trueなら実際のMarpitに合わせ、hr（---/***/___）を
@@ -92,21 +66,14 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
 
     (typst_code, global_landscape, global_paper, cover_mode, global_table_header,
      global_header, global_footer, global_paginate, global_background, global_logo) = _build_document_preamble(
-        config, template_root_rel_path, graphviz_enabled, project_dir, typst_root)
+        config, template_root_rel_path, plugin_flags["graphviz_enabled"], project_dir, typst_root)
 
     # headerの実効グローバル既定値。document.headerが未指定ならテンプレート側と同じくtitleへ
     # フォールバックする（#42）。章ごとの解決(chapters[]/front-matter)は、この実効値を起点にする。
     doc_title = config.get("document", {}).get("title", "Untitled")
     effective_global_header = global_header if global_header is not None else doc_title
 
-    renderer = TypstRenderer(project_dir, typst_root=typst_root,
-                              mermaid_enabled=mermaid_enabled, mermaid_auto_download=mermaid_auto_download,
-                              plantuml_enabled=plantuml_enabled, plantuml_auto_download=plantuml_auto_download,
-                              d2_enabled=d2_enabled, d2_auto_download=d2_auto_download, pikchr_enabled=pikchr_enabled,
-                              cetz_enabled=cetz_enabled, fletcher_enabled=fletcher_enabled,
-                              timeliney_enabled=timeliney_enabled, finite_enabled=finite_enabled,
-                              structurizr_enabled=structurizr_enabled, structurizr_auto_download=structurizr_auto_download,
-                              diagram_trim_enabled=diagram_trim_enabled, vega_enabled=vega_enabled, wavedrom_enabled=wavedrom_enabled, bytefield_enabled=bytefield_enabled, chordpro_enabled=chordpro_enabled, bizmodel_enabled=bizmodel_enabled,
+    renderer = TypstRenderer(project_dir, typst_root=typst_root, **plugin_flags,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
                               mermaid_browser=mermaid_browser, csv_header=csv_header)
