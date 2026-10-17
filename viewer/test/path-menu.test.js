@@ -92,6 +92,12 @@ describe('isSidebarPath', () => {
     for (const filePath of [undefined, null, 5, {}]) assert.equal(check({ filePath }), false);
   });
 
+  test('rejects a note (a table chapter of the chapter list, #478): it has no menu', () => {
+    const folder = path.join(root, 'tests');
+    assert.equal(check({ filePath: folder, type: 'note' }), false);
+    assert.equal(check({ filePath: folder, type: 'note', tree: { kind: 'project', root }, projectFiles: new Set([folder]) }), false);
+  });
+
   test('rejects everything when the sidebar is off or no folder is open', () => {
     assert.equal(check({ showFileTree: false }), false);
     assert.equal(check({ tree: { kind: null, root: null } }), false);

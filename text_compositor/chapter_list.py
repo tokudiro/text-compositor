@@ -43,6 +43,19 @@ def _file_item(name, inputs_dir):
     return {"kind": "file", "name": name, "path": os.path.normpath(os.path.join(inputs_dir, name))}
 
 
+def _aggregate_item(ch, inputs_dir, warnings):
+    """フォルダを1つの表に集約する章（`aggregate`）の項目（#478）。1つのファイルではなく、Obunzuは表を出さない（PDFで
+    確認する）ため、Viewerは、押せない項目として出す。章が、一覧から黙って消えて、抜けたように見えるのを避けるため。
+    `name`は、`title`（文字列のとき）、無ければ、フォルダ名。`path`は、フォルダ（案内のための情報で、開かない）。"""
+    folder = ch["aggregate"]
+    if not isinstance(folder, str) or not folder:
+        warnings.append(f"Invalid chapter entry: {ch!r}")
+        return None
+    title = ch.get("title")
+    name = title if isinstance(title, str) and title.strip() else folder
+    return {"kind": "aggregate", "name": name, "path": os.path.normpath(os.path.join(inputs_dir, folder))}
+
+
 def _entries(chapters, inputs_dir, warnings, in_section):
     items = []
     for ch in chapters:
@@ -58,7 +71,9 @@ def _entries(chapters, inputs_dir, warnings, in_section):
             else:
                 items.append({"kind": "section", "name": title, "children": _entries(children, inputs_dir, warnings, True)})
         elif isinstance(ch, dict) and "aggregate" in ch:
-            continue   # フォルダを1つの表に集約する章は、1つのファイルではないため、出さない
+            item = _aggregate_item(ch, inputs_dir, warnings)
+            if item is not None:
+                items.append(item)
         elif isinstance(ch, dict) and isinstance(ch.get("file"), str) and ch["file"]:
             items.append(_file_item(ch["file"], inputs_dir))
         else:
@@ -68,7 +83,8 @@ def _entries(chapters, inputs_dir, warnings, in_section):
 
 def list_chapters(config_path):
     """`{"items": [...], "warnings": [...]}`を返す。`items`は、設定に書いた順序で、
-    `{"kind": "file", "name", "path"}`（`path`は絶対パス）または`{"kind": "section", "name", "children"}`。
+    `{"kind": "file", "name", "path"}`（`path`は絶対パス）、`{"kind": "section", "name", "children"}`、または
+    `{"kind": "aggregate", "name", "path"}`（フォルダを表にする章。`path`はフォルダ。#478）。
     設定ファイルを読めないときは、`ChapterListError`。"""
     config_path = os.path.abspath(config_path)
     loaded = _read_config(config_path)

@@ -18,6 +18,10 @@ function isProjectConfigFile(file) {
 // Windowsのパスは、大文字小文字を区別しない
 const keyOf = (file) => (process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file));
 
+/** 表の章（`aggregate`）の項目の、名前の末尾と、ツールチップ（#478）。 */
+const AGGREGATE_SUFFIX = '（表）';
+const AGGREGATE_HINT = 'フォルダのYAML・JSONを、表にする章です。Obunzuでは、表を出しません。PDFで確認してください。';
+
 /** 見出しの項目の、ツリー上の識別子（ファイルツリーでは、フォルダのパスの位置に入る）。 */
 const sectionKey = (index) => `section:${index}`;
 
@@ -25,8 +29,8 @@ const sectionKey = (index) => `section:${index}`;
  * ワーカーの`list_chapters`の結果から、サイドバーの材料を作る。
  * 出すのは、Obunzuで開けるファイルの章と、章を持つ見出しだけ（図表ファイルも、開けるなら出す。開けないものは出さない）。
  * @param {string} config 設定ファイルの絶対パス（ツリーのルートの識別子を兼ねる）
- * @param {{kind: 'file'|'section', name: string, path?: string, children?: object[]}[]} items
- * @returns {{config: string, entries: Map<string, {name: string, path: string, type: 'file'|'directory'}[]>, files: Set<string>}}
+ * @param {{kind: 'file'|'section'|'aggregate', name: string, path?: string, children?: object[]}[]} items
+ * @returns {{config: string, entries: Map<string, {name: string, path: string, type: 'file'|'directory'|'note', hint?: string}[]>, files: Set<string>}}
  */
 function buildProject(config, items) {
   const entries = new Map();
@@ -43,6 +47,10 @@ function buildProject(config, items) {
       } else if (item.kind === 'file' && typeof item.path === 'string' && isOpenableFile(item.name)) {
         result.push({ name: item.name, path: item.path, type: 'file' });
         files.add(keyOf(item.path));
+      } else if (item.kind === 'aggregate' && typeof item.name === 'string' && item.name !== '') {
+        // フォルダを1つの表にする章（#478）。Obunzuは、表を出さない（PDFで確認する）。章が、一覧から消えて、
+        // 抜けたように見えないよう、開けない項目（type: 'note'）として出す。プロジェクトのファイルには、数えない。
+        result.push({ name: `${item.name}${AGGREGATE_SUFFIX}`, path: typeof item.path === 'string' ? item.path : '', type: 'note', hint: AGGREGATE_HINT });
       }
     }
     return result;
@@ -62,4 +70,4 @@ function isInsideProject(project, file) {
   return Boolean(project) && typeof file === 'string' && path.isAbsolute(file) && project.files.has(keyOf(file));
 }
 
-module.exports = { PROJECT_CONFIG_NAMES, isProjectConfigFile, buildProject, projectEntries, isInsideProject };
+module.exports = { AGGREGATE_HINT, AGGREGATE_SUFFIX, PROJECT_CONFIG_NAMES, isProjectConfigFile, buildProject, projectEntries, isInsideProject };
