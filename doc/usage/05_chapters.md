@@ -124,6 +124,35 @@ runs:
 
 `sample/` に、仕様と結果の例があります（`testcases/`・`testresults/`）。
 
+### 集計を出す（`summary`）と、再実施の予定（`skip_missing`）
+
+`join` の中に `summary` を書くと、表の下に、OK・NG・未実施などの件数と合格率を出します。
+
+```yaml
+    join:
+      aggregate: "testresults"
+      skip_missing: true            # 「未実施」と書いた記録を、最新の判定から除く（省略時 false）
+      summary:                      # true だけでも書ける（全て既定値）。書かなければ集計は出ない
+        position: bottom            # top（表の上）/ bottom（表の下、既定）
+        title: "集計"                # 見出し。空文字にすると見出しなし
+        by: status                  # 集計に使う結果側のキー。省略時 status
+        order: [OK, NG, 保留]        # 列の並び順。省略時は出てきた順
+        missing_label: 未実施        # 結果が無いテストの表示名
+        rate: true                  # 合格率を出す（classes.pass が必要）
+        classes:
+          pass: [OK]
+          fail: [NG]
+          pending: [保留, ブロック]
+          excluded: [N/A]
+        group_by: priority          # 任意。仕様側のキーごとに、行を分ける
+```
+
+- **数え方**: 単位はテスト（`id`）の数です。テストごとに、最新の1件だけで数えます。再実施しても、合計は増えません。
+- **結果が無いテスト**: `missing_label`（既定「未実施」）に数えます。`status: 未実施` と書いた記録も、同じ列にまとまります。`by` の値が無い結果は「（未記入）」です。仕様が無い結果は、含めません。
+- **区分**: `pass`・`fail` は、合計と合格率の分母に含めます。`pending` と未実施は、合計に含め、分母には含めません。`excluded` は、合計に含めず、「対象外」の列に件数だけ出します。
+- **合格率**: pass ÷ （pass＋fail）です。`75%（12/16）` のように出し、分母が0なら「-」です。
+- **`skip_missing`**: 1回目が `OK`、2回目が「未実施」（再テストの予定）のとき、`false` では「未実施」になります。`true` では、2回目を除いて、`OK` のままです。表（`runs: latest`）と集計の両方に効きます。`runs: all` の表には効きません（履歴は消しません）。
+
 ## 4. section: （複数の章をまとめて、目次を2階層にする）
 
 3編構成のマニュアルのように、「編の見出し → その配下の章」という構造を作りたいときに使います。`section:` に見出しを書き、入れ子の `chapters:` に配下の章を並べます。

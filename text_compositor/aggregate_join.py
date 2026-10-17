@@ -19,8 +19,11 @@ _DEFAULT_AGGREGATE_COLUMNS = [
 ]
 _AGGREGATE_ALIGNS = ("left", "center", "right")
 _AGGREGATE_WIDTH_RE = re.compile(r"auto|\d+(\.\d+)?fr")
-_JOIN_KEYS = ("aggregate", "key", "runs", "missing", "columns")
+_JOIN_KEYS = ("aggregate", "key", "runs", "missing", "columns", "skip_missing", "summary")
 _JOIN_RUNS = ("latest", "all")
+_SUMMARY_KEYS = ("show", "position", "title", "by", "order", "missing_label", "rate", "classes", "group_by")
+_SUMMARY_CLASSES = ("pass", "fail", "pending", "excluded")
+_UNFILLED_LABEL = "（未記入）"   # 集計で、`by`のキーに値が無い結果を数える区分
 
 def _parse_aggregate_columns(value, where):
     """aggregateの`columns`（#65）を検証し、正規化した列のリストを返す。省略（None）は既定の5列。
@@ -94,8 +97,79 @@ def _parse_aggregate_join(value, where):
     if value.get("columns") is None:
         _error(f"{where}: 'columns' is required (the columns taken from the results).")
         sys.exit(1)
+    skip_missing = value.get("skip_missing", False)
+    if not isinstance(skip_missing, bool):
+        _error(f"{where}: skip_missing must be true or false (got {skip_missing!r}).")
+        sys.exit(1)
+    summary = _parse_summary(value.get("summary"), where)
     return {"aggregate": directory, "key": key, "runs": runs, "missing": missing,
-            "columns": _parse_aggregate_columns(value["columns"], where)}
+            "columns": _parse_aggregate_columns(value["columns"], where),
+            "skip_missing": skip_missing, "summary": summary}
+
+def _parse_summary(value, where):
+    """`join.summary`（集計の表示、#66）を検証し、正規化したdictを返す。省略・falseでも、`by`と
+    `missing_label`の既定値は必要（skip_missingが使う）ため、`show`だけがfalseのdictを返す。
+    rate: trueなのにclasses.passが無い、同じ値が複数の区分にある、などは、描画の前にFail-fastで止める。"""
+    where = f"{where}.summary"
+    if value is None or value is False:
+        value = {"show": False}
+    elif value is True:
+        value = {}
+    elif not isinstance(value, dict):
+        _error(f"{where} must be true, false or a mapping.")
+        sys.exit(1)
+    unknown = sorted(str(k) for k in value if k not in _SUMMARY_KEYS)
+    if unknown:
+        _error(f"{where}: unknown key(s): {', '.join(unknown)}. Allowed: {', '.join(_SUMMARY_KEYS)}.")
+        sys.exit(1)
+    cfg = {"show": value.get("show", True), "position": value.get("position", "bottom"),
+           "title": value.get("title", "集計"), "by": value.get("by", "status"),
+           "order": value.get("order", []), "missing_label": value.get("missing_label", "未実施"),
+           "rate": value.get("rate", False), "group_by": value.get("group_by")}
+    for name in ("show", "rate"):
+        if not isinstance(cfg[name], bool):
+            _error(f"{where}: {name} must be true or false (got {cfg[name]!r}).")
+            sys.exit(1)
+    if cfg["position"] not in ("top", "bottom"):
+        _error(f"{where}: position must be top or bottom (got {cfg['position']!r}).")
+        sys.exit(1)
+    for name in ("title", "by", "missing_label"):
+        if not isinstance(cfg[name], str):
+            _error(f"{where}: {name} must be a string (got {cfg[name]!r}).")
+            sys.exit(1)
+    if not cfg["by"] or not cfg["missing_label"]:
+        _error(f"{where}: by and missing_label must not be empty.")
+        sys.exit(1)
+    if cfg["group_by"] is not None and (not isinstance(cfg["group_by"], str) or not cfg["group_by"]):
+        _error(f"{where}: group_by must be a non-empty string (got {cfg['group_by']!r}).")
+        sys.exit(1)
+    cfg["order"] = _string_list(cfg["order"], f"{where}: order")
+    classes_raw = value.get("classes") or {}
+    if not isinstance(classes_raw, dict):
+        _error(f"{where}: classes must be a mapping.")
+        sys.exit(1)
+    unknown = sorted(str(k) for k in classes_raw if k not in _SUMMARY_CLASSES)
+    if unknown:
+        _error(f"{where}: unknown class(es): {', '.join(unknown)}. Allowed: {', '.join(_SUMMARY_CLASSES)}.")
+        sys.exit(1)
+    classes, owner = {}, {}
+    for name, values in classes_raw.items():
+        classes[name] = _string_list(values, f"{where}: classes.{name}")
+        for v in classes[name]:
+            if owner.setdefault(v, name) != name:
+                _error(f"{where}: the value {v!r} is in both classes.{owner[v]} and classes.{name}.")
+                sys.exit(1)
+    cfg["classes"] = classes
+    if cfg["rate"] and not classes.get("pass"):
+        _error(f"{where}: rate: true needs classes.pass (which values count as passed).")
+        sys.exit(1)
+    return cfg
+
+def _string_list(value, where):
+    if not isinstance(value, list) or not all(isinstance(v, (str, int, float)) and not isinstance(v, bool) for v in value):
+        _error(f"{where} must be a list of values.")
+        sys.exit(1)
+    return [str(v) for v in value]
 
 def _aggregate_cell(renderer, value, column, tc_path):
     """aggregateの1セル分のTypst断片を返す。キーが無い・nullは空欄。markdown: trueはMarkdownとして描画し、
@@ -164,6 +238,18 @@ def _result_runs(records, key):
                       f"{tested_at or '(none)'}; they may be duplicates of one run.")
     return by_id
 
+def _run_status(run, join):
+    value = run["data"].get(join["summary"]["by"])
+    return None if value is None else str(value)
+
+def _latest_run(runs, join):
+    """テストごとの「最新の1件」を返す（無ければNone）。`skip_missing: true`のときは、`by`の値が
+    `missing_label`と等しい記録（再実施の予定を先に「未実施」と書いたもの）を除いてから選ぶ。
+    `runs: latest`の表と集計が、この関数を共有するので、2つの数が食い違わない（#66）。"""
+    if join["skip_missing"]:
+        runs = [r for r in runs if _run_status(r, join) != join["summary"]["missing_label"]]
+    return runs[-1] if runs else None
+
 def _joined_rows(spec_records, results, join):
     """仕様と結果を結合した行を、[(仕様のdictまたはNone, 仕様のパス, 結果の記録またはNone), ...]で返す（#66）。
     `runs: all`は、実施の数だけ行を出し、仕様は最初の行にだけ付ける。結果が無いテストは、結果をNoneにして
@@ -180,7 +266,8 @@ def _joined_rows(spec_records, results, join):
             spec_ids.add(sid)
         runs = results.get(sid, [])
         if join["runs"] == "latest":
-            runs = runs[-1:]
+            latest = _latest_run(runs, join)
+            runs = [latest] if latest else []
         for i, run in enumerate(runs or [None]):
             rows.append((data if i == 0 else None, path if i == 0 else None, run))
     for rid, runs in results.items():
@@ -190,6 +277,94 @@ def _joined_rows(spec_records, results, join):
         for run in (runs[-1:] if join["runs"] == "latest" else runs):
             rows.append((None, None, run))
     return rows
+
+def _class_of(label, cfg):
+    """集計の区分（pass/fail/pending/excluded）を返す。書かれていない値はNone（区分なし）。
+    結果が無いテストの表示名（missing_label）は、classesに書かれていなければpending。"""
+    for name, values in cfg["classes"].items():
+        if label in values:
+            return name
+    return "pending" if label == cfg["missing_label"] else None
+
+def _summary_tally(rows, cfg):
+    """[(区分の表示名, 区分), ...]から、集計の1行分（合計・値ごとの件数・対象外・合格率の元）を作る。"""
+    counts = Counter(label for label, _ in rows)
+    classes = Counter(cls for _, cls in rows)
+    return {"counts": counts, "excluded": classes["excluded"], "pass": classes["pass"],
+            "fail": classes["fail"], "total": len(rows) - classes["excluded"]}
+
+def _summary_table(spec_records, results, join, renderer):
+    """集計の表（#table）と見出しのTypstコードを返す（#66）。単位はテスト（id）の数で、テストごとに「最新の
+    1件」だけで数える（再実施で合計が水増しされない）。結果が無いテストはmissing_label、`by`の値が無い結果は
+    （未記入）に数える。仕様が無い結果は含めない。excludedは合計に含めず、件数だけ別の列に出す。
+    合格率 ＝ pass ÷ （pass＋fail）で、分母が0なら「-」。"""
+    cfg, key = join["summary"], join["key"]
+    tests, seen = [], set()
+    for _, data in spec_records:
+        sid = None if data.get(key) is None else str(data[key])
+        if sid is not None:
+            if sid in seen:
+                continue   # 重複したidは1件に数える（警告は表の側で出している）
+            seen.add(sid)
+        run = _latest_run(results.get(sid, []), join) if sid is not None else None
+        if run is None:
+            label = cfg["missing_label"]
+        else:
+            label = _run_status(run, join)
+            if label is None or not label.strip():
+                label = _UNFILLED_LABEL
+        group = None
+        if cfg["group_by"]:
+            gv = data.get(cfg["group_by"])
+            group = _UNFILLED_LABEL if gv is None else str(gv)
+        tests.append((group, label, _class_of(label, cfg)))
+
+    # 列: orderに書いた値、続いて出てきた順（missing_labelは最後）。excludedの値は「対象外」の列にまとめる。
+    seen_labels = []
+    for _, label, _cls in tests:
+        if label not in seen_labels:
+            seen_labels.append(label)
+    extras = [v for v in seen_labels if v not in cfg["order"] and v != cfg["missing_label"]]
+    if cfg["missing_label"] in seen_labels and cfg["missing_label"] not in cfg["order"]:
+        extras.append(cfg["missing_label"])
+    labels = [v for v in cfg["order"] + extras if _class_of(v, cfg) != "excluded"]
+    has_excluded = bool(cfg["classes"].get("excluded"))
+
+    groups = []
+    if cfg["group_by"]:
+        for group, _l, _c in tests:
+            if group not in groups:
+                groups.append(group)
+    lines = [(g, [(l, c) for gg, l, c in tests if gg == g]) for g in groups]
+    lines.append(("全体" if cfg["group_by"] else None, [(l, c) for _g, l, c in tests]))
+
+    headers = ([cfg["group_by"]] if cfg["group_by"] else []) + ["合計"] + labels
+    if has_excluded:
+        headers.append("対象外")
+    if cfg["rate"]:
+        headers.append("合格率")
+    esc = renderer.escape_typst
+    code = ""
+    if cfg["title"]:
+        code += f'*{esc(cfg["title"])}*\n\n'
+    code += f'#table(\n  columns: ({", ".join(["auto"] * len(headers))}),\n'
+    aligns = ["center"] * len(headers)
+    if cfg["group_by"]:
+        aligns[0] = "left"
+    code += f'  align: ({", ".join(aligns)}),\n'
+    code += '  stroke: 0.5pt + luma(150),\n  fill: (col, row) => if row == 0 { luma(240) } else { none },\n'
+    code += '  ' + ', '.join(f'[*{esc(h)}*]' for h in headers) + ',\n'
+    for name, rows in lines:
+        t = _summary_tally(rows, cfg)
+        cells = ([esc(name)] if cfg["group_by"] else []) + [str(t["total"])]
+        cells += [str(t["counts"][v]) for v in labels]
+        if has_excluded:
+            cells.append(str(t["excluded"]))
+        if cfg["rate"]:
+            done = t["pass"] + t["fail"]
+            cells.append(f'{t["pass"] / done * 100:.0f}%（{t["pass"]}/{done}）' if done else "-")
+        code += '  ' + ', '.join(f'[{c}]' for c in cells) + ',\n'
+    return code + ')\n\n'
 
 def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
     """aggregateの表（#table(...)）のTypstコードを返す。agg_pathは、仕様のディレクトリ（存在確認済み）。"""
@@ -205,6 +380,7 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
     code += '  ' + ', '.join(f'[*{renderer.escape_typst(c["title"])}*]' for c in all_columns) + ',\n'
 
     spec_records = _load_records(agg_path)
+    summary_code = ""
     if join is None:
         rows = [(data, path, None) for path, data in spec_records]
     else:
@@ -212,7 +388,10 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
         if not os.path.isdir(results_path):
             _error(f"Aggregate directory not found: {results_path}")
             sys.exit(1)
-        rows = _joined_rows(spec_records, _result_runs(_load_records(results_path), join["key"]), join)
+        results = _result_runs(_load_records(results_path), join["key"])
+        rows = _joined_rows(spec_records, results, join)
+        if join["summary"]["show"]:
+            summary_code = _summary_table(spec_records, results, join, renderer)
 
     for spec, spec_path, run in rows:
         cells = [_aggregate_cell(renderer, spec.get(c["key"]), c, spec_path) if spec is not None else ""
@@ -224,4 +403,7 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
                 cells += [_aggregate_cell(renderer, run["data"].get(c["key"]), c, run["path"])
                           for c in join["columns"]]
         code += '  ' + ', '.join(f'[{cell}]' for cell in cells) + ',\n'
-    return code + ')\n\n#pagebreak(weak: true)\n'
+    code += ')\n\n'
+    if summary_code:
+        code = summary_code + code if join["summary"]["position"] == "top" else code + summary_code
+    return code + '#pagebreak(weak: true)\n'

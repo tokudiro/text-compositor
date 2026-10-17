@@ -161,7 +161,7 @@ def test_missing_results_directory_is_an_error(tmp_path, capsys):
     ({"aggregate": "res", "columns": RESULT_COLUMNS, "runs": "first"}, "runs must be one of"),
     ({"aggregate": "res", "columns": RESULT_COLUMNS, "missing": 1}, "missing must be a string"),
     ({"aggregate": "res", "columns": RESULT_COLUMNS, "key": ""}, "key must be"),
-    ({"aggregate": "res", "columns": RESULT_COLUMNS, "summary": True}, "unknown key"),
+    ({"aggregate": "res", "columns": RESULT_COLUMNS, "retired": {}}, "unknown key"),
     ({"aggregate": "res", "columns": [{"title": "x"}]}, "'key' is required"),
 ])
 def test_invalid_join_stops_when_chapters_are_expanded(join, message, capsys):
