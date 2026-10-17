@@ -1,6 +1,8 @@
 id: LM-01
 title: "line_mapping設定の解決（tests/test_line_mapping.py::TestResolveLineMapping）"
 priority: High
+rev: 1
+tests: [tests/test_line_mapping.py::TestResolveLineMapping]
 steps: |
   - `_resolve_line_mapping()`に、設定未指定・`off`明示・`block`明示・`diagnostics:`キーはあるが値がNone・非対応の値、の各configを渡す。
 expected: |

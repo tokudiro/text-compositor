@@ -1,6 +1,8 @@
 id: LB-02
 title: "layout-left（左右反転）の基本動作（tests/test_layout_blocks.py::TestLayoutLeft）"
 priority: High
+rev: 1
+tests: [tests/test_layout_blocks.py::TestLayoutLeft]
 steps: |
   - テキストと実際の図表フェンスを含む`::: layout-left ... :::`ブロックを`render()`に渡す。
 expected: |

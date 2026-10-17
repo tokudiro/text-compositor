@@ -1,6 +1,8 @@
 id: MD-04
 title: "blockquoteとGitHub形式alertの変換（tests/test_markdown_basics.py::TestBlockquoteAndAlert）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestBlockquoteAndAlert]
 steps: |
   - 通常のblockquote（1行・複数行）と、`> [!NOTE]`/`[!TIP]`/`[!IMPORTANT]`/`[!WARNING]`/`[!CAUTION]`で始まるGitHub形式alertを`render()`に渡す。
 expected: |

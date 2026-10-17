@@ -1,6 +1,8 @@
 id: LB-05
 title: "layout-columnsの基本動作（tests/test_layout_blocks.py::TestLayoutColumns）"
 priority: Medium
+rev: 1
+tests: [tests/test_layout_blocks.py::TestLayoutColumns]
 steps: |
   - 列数省略時と、`{n=3}`のように列数を明示した`::: layout-columns ... :::`ブロックを`render()`に渡す。
 expected: |

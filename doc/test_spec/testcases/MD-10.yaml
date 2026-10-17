@@ -1,6 +1,8 @@
 id: MD-10
 title: "Typst特殊文字のエスケープ（tests/test_markdown_basics.py::TestEscaping）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestEscaping]
 steps: |
   - Typst構文と衝突する記号（`# $ @ * _ \` ~ [ ] < >`）を含む地の文を`render()`に渡す。
 expected: |

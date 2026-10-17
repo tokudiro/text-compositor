@@ -1,6 +1,8 @@
 id: LM-02
 title: "srcmapマーカーの抽出（tests/test_line_mapping.py::TestBuildSrcmap）"
 priority: High
+rev: 1
+tests: [tests/test_line_mapping.py::TestBuildSrcmap]
 steps: |
   - 生成済みのTypstコード中に`// @srcmap ...`マーカーを複数埋め込んだ文字列を`_build_srcmap()`に渡す。
   - マーカーが1つも無いテキスト、Windowsの絶対パス（`C:\...`、パス自体に`:`を含む）をファイル名に使ったマーカーも試す。

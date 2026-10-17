@@ -1,6 +1,8 @@
 id: LM-03
 title: "srcmapの逆引き（tests/test_line_mapping.py::TestResolveSrcmap）"
 priority: High
+rev: 1
+tests: [tests/test_line_mapping.py::TestResolveSrcmap]
 steps: |
   - マーカー一覧`[(5, "a.md", 10), (20, "b.md", 3)]`に対し、`_resolve_srcmap()`をマーカーと完全一致する行・マーカー間の行・最後のマーカーより後ろの行・最初のマーカーより前の行・マーカーが1件も無い場合、それぞれで呼び出す。
 expected: |

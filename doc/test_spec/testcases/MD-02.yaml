@@ -1,6 +1,8 @@
 id: MD-02
 title: "リストの変換（tests/test_markdown_basics.py::TestLists）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestLists]
 steps: |
   - 箇条書き・番号付きリストと、それぞれのネスト（2階層）、GitHub形式のタスクリスト（`- [ ]`/`- [x]`）を含むMarkdownを`render()`に渡す。
 expected: |

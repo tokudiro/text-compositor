@@ -1,6 +1,8 @@
 id: LB-04
 title: "layout-featureの基本動作（tests/test_layout_blocks.py::TestLayoutFeature）"
 priority: Medium
+rev: 1
+tests: [tests/test_layout_blocks.py::TestLayoutFeature]
 steps: |
   - キャッチコピーとなるテキストと、図表フェンスを含む`::: layout-feature ... :::`ブロックを`render()`に渡す。
 expected: |

@@ -1,6 +1,8 @@
 id: LB-08
 title: "説明用サンプルの誤認識防止（tests/test_layout_blocks.py::TestFenceProtectionRegression）"
 priority: High
+rev: 1
+tests: [tests/test_layout_blocks.py::TestFenceProtectionRegression]
 steps: |
   - ドキュメントの説明用に外側フェンス（4バッククォート）で囲んだ`::: layout-right ... :::`のサンプルコードを`render()`に渡す。
   - あわせて、外側フェンスに囲まれていない、本物のlayout-rightブロック（中に実際の図表フェンスを含む）も`render()`に渡す。

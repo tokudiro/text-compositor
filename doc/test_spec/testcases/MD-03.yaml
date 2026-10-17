@@ -1,6 +1,8 @@
 id: MD-03
 title: "テーブルの変換（tests/test_markdown_basics.py::TestTable）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestTable]
 steps: |
   - `| a | b |`形式のGFMテーブル（ヘッダ行+データ行）を`render()`に渡す。
 expected: |

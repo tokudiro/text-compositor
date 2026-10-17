@@ -1,6 +1,8 @@
 id: FM-03
 title: "header/footer/paginateの優先順位（tests/test_front_matter.py::TestHeaderFooterPaginatePriority）"
 priority: High
+rev: 1
+tests: [tests/test_front_matter.py::TestHeaderFooterPaginatePriority]
 steps: |
   - `_render_markdown_chapter()`を、front-matterで`header`を指定した場合、`chapters[]`でも`header`を指定した場合、`chapters[]`で`header: null`を明示した場合、front-matterで`footer`/`paginate`を指定した場合、それぞれで呼び出す。
 expected: |

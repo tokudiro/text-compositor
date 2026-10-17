@@ -1,0 +1,6 @@
+id: FM-04
+tested_at: '2026-10-17'
+tested_by: pytest
+spec_rev: 1
+status: OK
+note: 成功 2・失敗 0・skip 0

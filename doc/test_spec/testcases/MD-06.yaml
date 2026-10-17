@@ -1,6 +1,8 @@
 id: MD-06
 title: "インライン装飾の変換（tests/test_markdown_basics.py::TestInlineDecoration）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestInlineDecoration]
 steps: |
   - 太字・斜体・取り消し線、`[text]{color=...}`/`{size=...}`属性（色名・hex・数値+単位・数値+色の同時指定・不正な値）、`<span style="color:...">`、リンクを`render()`に渡す。
 expected: |

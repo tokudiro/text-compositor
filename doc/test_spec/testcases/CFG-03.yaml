@@ -1,6 +1,8 @@
 id: CFG-03
 title: "chaptersエントリの解析（tests/test_config.py::TestParseChapterEntry）"
 priority: High
+rev: 1
+tests: [tests/test_config.py::TestParseChapterEntry]
 steps: |
   - `chapters:`の1エントリとして、文字列（ファイル名のみ）、`file`キーを持つ辞書、`aggregate`キーを持つ辞書、`file`/`aggregate`どちらも無い辞書、辞書でも文字列でもない値（数値）を`_parse_chapter_entry()`に渡す。
 expected: |

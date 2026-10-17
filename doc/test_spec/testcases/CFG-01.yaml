@@ -1,6 +1,8 @@
 id: CFG-01
 title: "設定値の再帰的マージ（tests/test_config.py::TestDeepUpdate）"
 priority: High
+rev: 1
+tests: [tests/test_config.py::TestDeepUpdate]
 steps: |
   - フラットなキーの上書き、ネストした辞書の一部キーだけの上書き、ネストした辞書を非辞書値で丸ごと置き換えるケース、戻り値が引数と同一オブジェクトであることを`deep_update()`で確認する。
 expected: |

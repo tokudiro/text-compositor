@@ -1,6 +1,8 @@
 id: FM-01
 title: "front-matterの解析（tests/test_front_matter.py::TestStripFrontMatter）"
 priority: High
+rev: 1
+tests: [tests/test_front_matter.py::TestStripFrontMatter]
 steps: |
   - YAML front-matterあり/なしのMarkdown、不正な`font_size`値を持つfront-matter、未知のキーを持つfront-matterを`strip_front_matter()`に渡す。
 expected: |

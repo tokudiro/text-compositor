@@ -1,6 +1,8 @@
 id: FM-04
 title: "front-matterのfont_sizeによるスコープ適用（tests/test_front_matter.py::TestFontSize）"
 priority: Medium
+rev: 1
+tests: [tests/test_front_matter.py::TestFontSize]
 steps: |
   - front-matterに`font_size: 12pt`を指定した章と、指定しない章を、それぞれ`_render_markdown_chapter()`に渡す。
 expected: |

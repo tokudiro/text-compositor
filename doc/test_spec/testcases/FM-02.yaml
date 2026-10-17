@@ -1,6 +1,8 @@
 id: FM-02
 title: "landscapeの優先順位（tests/test_front_matter.py::TestLandscapePriority）"
 priority: High
+rev: 1
+tests: [tests/test_front_matter.py::TestLandscapePriority]
 steps: |
   - `_render_markdown_chapter()`を、(1)何も指定しない、(2)front-matterで`landscape: true`、(3)front-matterと`chapters[]`の両方で異なる値、の3パターンで呼び出す。
   - あわせて、解決結果が現在値から変化した場合/しない場合それぞれで、`#set page(...)`が出力されるかを確認する。
