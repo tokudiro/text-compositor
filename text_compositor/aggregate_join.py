@@ -19,7 +19,7 @@ _DEFAULT_AGGREGATE_COLUMNS = [
 ]
 _AGGREGATE_ALIGNS = ("left", "center", "right")
 _AGGREGATE_WIDTH_RE = re.compile(r"auto|\d+(\.\d+)?fr")
-_JOIN_KEYS = ("aggregate", "key", "runs", "missing", "columns", "skip_missing", "summary")
+_JOIN_KEYS = ("aggregate", "key", "runs", "missing", "columns", "skip_missing", "summary", "retired", "rev")
 _JOIN_RUNS = ("latest", "all")
 _SUMMARY_KEYS = ("show", "position", "title", "by", "order", "missing_label", "rate", "classes", "group_by")
 _SUMMARY_CLASSES = ("pass", "fail", "pending", "excluded")
@@ -102,9 +102,60 @@ def _parse_aggregate_join(value, where):
         _error(f"{where}: skip_missing must be true or false (got {skip_missing!r}).")
         sys.exit(1)
     summary = _parse_summary(value.get("summary"), where)
+    retired = _parse_retired(value.get("retired"), where)
+    rev = _parse_rev(value.get("rev"), where)
+    summary["rev_label"] = rev["label"] if rev else None   # 「要再実施」は、classesに無ければpending扱い
     return {"aggregate": directory, "key": key, "runs": runs, "missing": missing,
             "columns": _parse_aggregate_columns(value["columns"], where),
-            "skip_missing": skip_missing, "summary": summary}
+            "skip_missing": skip_missing, "summary": summary, "retired": retired, "rev": rev}
+
+def _parse_retired(value, where):
+    """`join.retired`（廃止したテストの扱い、#66）を検証する。省略はNone（廃止の判定をしない）。"""
+    if value is None:
+        return None
+    where = f"{where}.retired"
+    if not isinstance(value, dict):
+        _error(f"{where} must be a mapping with 'key' and 'values'.")
+        sys.exit(1)
+    unknown = sorted(str(k) for k in value if k not in ("key", "values", "show"))
+    if unknown:
+        _error(f"{where}: unknown key(s): {', '.join(unknown)}. Allowed: key, values, show.")
+        sys.exit(1)
+    key = value.get("key")
+    if not isinstance(key, str) or not key:
+        _error(f"{where}: 'key' is required (the key of the spec that marks a retired test).")
+        sys.exit(1)
+    values = _string_list(value.get("values"), f"{where}: values")
+    if not values:
+        _error(f"{where}: 'values' must not be empty.")
+        sys.exit(1)
+    show = value.get("show", False)
+    if not isinstance(show, bool):
+        _error(f"{where}: show must be true or false (got {show!r}).")
+        sys.exit(1)
+    return {"key": key, "values": values, "show": show}
+
+def _parse_rev(value, where):
+    """`join.rev`（仕様の版の確認、#66）を検証する。省略・falseはNone。trueは、全て既定値。"""
+    if value is None or value is False:
+        return None
+    where = f"{where}.rev"
+    if value is True:
+        value = {}
+    if not isinstance(value, dict):
+        _error(f"{where} must be true or a mapping with 'spec', 'result' and 'label'.")
+        sys.exit(1)
+    unknown = sorted(str(k) for k in value if k not in ("spec", "result", "label"))
+    if unknown:
+        _error(f"{where}: unknown key(s): {', '.join(unknown)}. Allowed: spec, result, label.")
+        sys.exit(1)
+    rev = {"spec": value.get("spec", "rev"), "result": value.get("result", "spec_rev"),
+           "label": value.get("label", "要再実施")}
+    for name, v in rev.items():
+        if not isinstance(v, str) or not v:
+            _error(f"{where}: {name} must be a non-empty string (got {v!r}).")
+            sys.exit(1)
+    return rev
 
 def _parse_summary(value, where):
     """`join.summary`（集計の表示、#66）を検証し、正規化したdictを返す。省略・falseでも、`by`と
@@ -250,6 +301,35 @@ def _latest_run(runs, join):
         runs = [r for r in runs if _run_status(r, join) != join["summary"]["missing_label"]]
     return runs[-1] if runs else None
 
+def _is_retired(spec, join):
+    """仕様が、廃止したテスト（join.retired）かを返す。"""
+    retired = join["retired"]
+    if retired is None or spec.get(retired["key"]) is None:
+        return False
+    return str(spec[retired["key"]]) in retired["values"]
+
+def _is_stale(spec, run, join):
+    """最新の結果が、仕様の版（join.rev）と合わないかを返す。仕様に版が無いテスト・結果が無いテストは、
+    確認しない。結果に版（spec_rev）が無いときも、古い結果を見逃さないよう、合わない扱いにする。"""
+    rev = join["rev"]
+    if rev is None or spec is None or run is None or spec.get(rev["spec"]) is None:
+        return False
+    actual = run["data"].get(rev["result"])
+    return actual is None or str(actual) != str(spec[rev["spec"]])
+
+def _warn_runs_without_rev(spec_records, results, join):
+    """仕様に版があるのに、最新の結果にspec_revが無いテストを、まとめて警告する（古い結果の見逃し防止）。"""
+    rev, key = join["rev"], join["key"]
+    names = []
+    for _, data in spec_records:
+        if _is_retired(data, join) or data.get(key) is None or data.get(rev["spec"]) is None:
+            continue
+        run = _latest_run(results.get(str(data[key]), []), join)
+        if run is not None and run["data"].get(rev["result"]) is None:
+            names.append(str(data[key]))
+    if names:
+        _warn(f"The latest result has no '{rev['result']}', so it is shown as {rev['label']!r}: {', '.join(names)}.")
+
 def _joined_rows(spec_records, results, join):
     """仕様と結果を結合した行を、[(仕様のdictまたはNone, 仕様のパス, 結果の記録またはNone), ...]で返す（#66）。
     `runs: all`は、実施の数だけ行を出し、仕様は最初の行にだけ付ける。結果が無いテストは、結果をNoneにして
@@ -258,6 +338,10 @@ def _joined_rows(spec_records, results, join):
     rows, spec_ids = [], set()
     for path, data in spec_records:
         sid = None if data.get(key) is None else str(data[key])
+        if _is_retired(data, join) and not join["retired"]["show"]:
+            if sid is not None:
+                spec_ids.add(sid)   # 廃止したテストの結果が残っていても、警告も追記もしない
+            continue
         if sid is None:
             _warn(f"{os.path.basename(path)} has no '{key}', so it cannot be matched with results.")
         elif sid in spec_ids:
@@ -284,7 +368,7 @@ def _class_of(label, cfg):
     for name, values in cfg["classes"].items():
         if label in values:
             return name
-    return "pending" if label == cfg["missing_label"] else None
+    return "pending" if label in (cfg["missing_label"], cfg.get("rev_label")) else None
 
 def _summary_tally(rows, cfg):
     """[(区分の表示名, 区分), ...]から、集計の1行分（合計・値ごとの件数・対象外・合格率の元）を作る。"""
@@ -301,6 +385,8 @@ def _summary_table(spec_records, results, join, renderer):
     cfg, key = join["summary"], join["key"]
     tests, seen = [], set()
     for _, data in spec_records:
+        if _is_retired(data, join):
+            continue   # 廃止したテストは、show: trueでも、集計に含めない
         sid = None if data.get(key) is None else str(data[key])
         if sid is not None:
             if sid in seen:
@@ -311,7 +397,9 @@ def _summary_table(spec_records, results, join, renderer):
             label = cfg["missing_label"]
         else:
             label = _run_status(run, join)
-            if label is None or not label.strip():
+            if _is_stale(data, run, join):
+                label = join["rev"]["label"]
+            elif label is None or not label.strip():
                 label = _UNFILLED_LABEL
         group = None
         if cfg["group_by"]:
@@ -389,6 +477,8 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
             _error(f"Aggregate directory not found: {results_path}")
             sys.exit(1)
         results = _result_runs(_load_records(results_path), join["key"])
+        if join["rev"]:
+            _warn_runs_without_rev(spec_records, results, join)
         rows = _joined_rows(spec_records, results, join)
         if join["summary"]["show"]:
             summary_code = _summary_table(spec_records, results, join, renderer)
@@ -400,7 +490,10 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
             if run is None:
                 cells += [renderer.escape_typst(join["missing"]) if join["missing"] else ""] * len(join["columns"])
             else:
-                cells += [_aggregate_cell(renderer, run["data"].get(c["key"]), c, run["path"])
+                # 版が古い結果は、合否の欄を「要再実施」にする。runs: allの表は、履歴なので置き換えない。
+                stale = join["runs"] == "latest" and _is_stale(spec, run, join)
+                cells += [renderer.escape_typst(join["rev"]["label"]) if stale and c["key"] == join["summary"]["by"]
+                          else _aggregate_cell(renderer, run["data"].get(c["key"]), c, run["path"])
                           for c in join["columns"]]
         code += '  ' + ', '.join(f'[{cell}]' for cell in cells) + ',\n'
     code += ')\n\n'
