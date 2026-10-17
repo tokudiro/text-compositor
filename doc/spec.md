@@ -89,6 +89,7 @@ text-compositor/                         my-project/
     * `renderer_tables.py`（`TableMixin`）: Markdownの表と`.csv`。
     * `renderer_layout.py`（`LayoutMixin`）: `:::`のレイアウトブロック。
     * `renderer_diagrams.py`（`DiagramMixin`）: 図のフェンス（Mermaid・PlantUML・D2・Structurizr・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・Vega-Lite・Vega・WaveDrom・Bytefield・svg）の描画と、SVGのキャッシュ（`_diagram_cache_key`）。外部ツールの取得・検出を呼ぶ名前（`ensure_mermaid_js`・`find_system_d2`・`ensure_structurizr_cli`など）は、このモジュールにある。テストで差し替える（`monkeypatch`）ときは、`text_compositor.renderer_diagrams`を対象にする。
+    * `renderer_options.py`（[#488](https://github.com/tokudiro/text-compositor/issues/488)）: プラグインの有効・無効の表（`PLUGIN_FLAGS`: configのキー・`TypstRenderer`の引数名・既定値）と、configから読む`plugin_flags_from_config()`。PDFのビルド（`project.py`）と、Python API・HTML出力（`api.py`）が、同じ表を使う。プラグインを足すときは、表と`TypstRenderer.__init__`の引数に、同じ名前を足す（一致は、`tests/test_renderer_options.py`が調べる）。
     * `html_output.py`の`HtmlRenderer`は、`TypstRenderer`を継承する。
     * `typst_literal.py`は、Typstの文字列リテラルの補助関数。
   * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid・Vega・WaveDrom・Bytefield用ブラウザ）、`vega_render.py`（Vega・Vega-Liteの仕様の検査と、ブラウザで実行する描画スクリプト）、`wavedrom_render.py`（WaveDromの仕様の検査と、描画スクリプト）、`bytefield_render.py`（Bytefieldの入力の検査と、描画スクリプト）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
