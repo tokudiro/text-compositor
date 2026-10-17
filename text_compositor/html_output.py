@@ -877,11 +877,15 @@ class HtmlRenderer(TypstRenderer):
             return ''
         if self.DIRECTIVE_RE.match(content):
             return ''
+        if self.HTML_BR_RE.match(content):
+            return '<br />\n'   # `<br>`だけの行（#489）
         self._warn_html_ignored(t)
         return ''
 
     def _html_inline(self, t, env) -> str:
         content = t.content.strip()
+        if self.HTML_BR_RE.match(content):
+            return '<br />'   # 改行の`<br>`（#489）。警告は出さない
         stack = env["html_span_stack"]
         m = self.HTML_SPAN_COLOR_OPEN_RE.match(content)
         if m:

@@ -311,6 +311,8 @@ class TokenMixin:
             return '#pagebreak(weak: true)\n\n'
         if self.DIRECTIVE_RE.match(content):
             return ""
+        if self.HTML_BR_RE.match(content):
+            return '#linebreak()\n\n'   # `<br>`だけの行（#489）。GitHubでは、空行のように見える
         self._warn_html(t)
         return ""
 

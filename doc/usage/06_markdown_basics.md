@@ -79,6 +79,22 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 
 対応するスコープの詳しい経緯は[doc/spec.md](../spec.md)を参照してください。
 
+## 改行: `<br>`
+
+表のセルの中や、段落の中で改行したいときは、`<br>`を書きます。GitHubでの、事実上の標準の書き方です（表の1行は、1行に書く必要があり、セルの中に、改行を書けないため）。
+
+```markdown
+| 項目 | 手順 |
+| --- | --- |
+| ログイン | 画面を開く<br>IDを入れる<br>ボタンを押す |
+```
+
+- `<br>`・`<br/>`・`<br />`（大文字小文字は区別しません）が、改行になります。PDFもHTML出力（Obunzu）も、同じです。警告は出ません。
+- 表のセルのほか、段落・見出し・リスト項目でも使えます。`aggregate`の表の、`markdown: true`の列でも使えます。
+- 行に`<br>`だけを書き、前後を空行で区切ると、空行のような間になります（`<br>`の次の行に文を続けると、その塊全体が、HTMLブロックとして、警告つきで捨てられます）。
+- 属性つき（`<br class="x">`）は、対象外です。ほかのHTMLタグと同じく、警告して無視します。
+- コードの中（`` `<br>` ``・コードブロック）の`<br>`は、文字のまま出ます。
+
 ## 太字が効かないとき
 
 ![CommonMark](badges/commonmark.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)

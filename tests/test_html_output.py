@@ -186,7 +186,8 @@ class TestMarkdown:
         assert "<hr />" in html
 
     def test_raw_html_is_dropped_with_a_warning_and_its_line(self, tmp_path):
-        result, html = convert(tmp_path, "a\n\n<div>raw</div>\n\nx <br> y\n")
+        # `<br>`（属性なし）は、改行として扱う（#489）。属性つきの`<br class=...>`は、対象外で、警告する
+        result, html = convert(tmp_path, "a\n\n<div>raw</div>\n\nx <br class=\"a\"> y\n")
         assert "<div>raw</div>" not in body(html)
         warnings = [d for d in result.warnings if "HTML" in d.message]
         assert {d.line for d in warnings} >= {3}
