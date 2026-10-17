@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { describe, test } = require('node:test');
 
-const { MAX_HEADINGS, MAX_ID, MAX_TEXT, effectiveSidebarView, sanitizeOutline } = require('../src/outline');
+const { HEADING_MARGIN, MAX_HEADINGS, MAX_ID, MAX_TEXT, currentHeadingId, effectiveSidebarView, sanitizeOutline } = require('../src/outline');
 
 describe('sanitizeOutline (#329)', () => {
   test('keeps the order and gives each heading a depth relative to the shallowest one', () => {
@@ -83,5 +83,52 @@ describe('effectiveSidebarView (#329)', () => {
   test('an unknown choice is ignored', () => {
     assert.equal(view({ explicit: 'other', hasRoot: true }), 'files');
     assert.equal(view({ explicit: 5, hasRoot: false }), 'outline');
+  });
+});
+
+describe('sanitizeOutline: the position of a heading (#329)', () => {
+  test('top is kept as a rounded non-negative number, anything else becomes 0', () => {
+    const tops = [12.6, 0, -5, NaN, Infinity, '30', null, undefined].map((top, i) => ({ id: `h${i}`, level: 1, text: 'T', top }));
+    assert.deepEqual(sanitizeOutline(tops).map((i) => i.top), [13, 0, 0, 0, 0, 0, 0, 0]);
+  });
+});
+
+describe('currentHeadingId (#329)', () => {
+  const headings = [{ id: 'a', top: 100 }, { id: 'b', top: 900 }, { id: 'c', top: 1800 }];
+
+  test('nothing is current above the first heading', () => {
+    assert.equal(currentHeadingId(headings, 0), null);
+    assert.equal(currentHeadingId(headings, 100 - HEADING_MARGIN - 1), null);
+  });
+
+  test('a heading becomes current when it reaches the line a little below the top of the screen', () => {
+    assert.equal(currentHeadingId(headings, 100 - HEADING_MARGIN), 'a');
+    assert.equal(currentHeadingId(headings, 500), 'a');
+    assert.equal(currentHeadingId(headings, 900 - HEADING_MARGIN - 1), 'a');
+    assert.equal(currentHeadingId(headings, 900 - HEADING_MARGIN), 'b');
+    assert.equal(currentHeadingId(headings, 5000), 'c');
+  });
+
+  test('at the bottom of a document that was scrolled, the last heading is current even if it cannot reach the top', () => {
+    assert.equal(currentHeadingId(headings, 1500, true), 'c');
+    assert.equal(currentHeadingId(headings, 1500, false), 'b');
+  });
+
+  test('a short document that is not scrolled is not "at the bottom"', () => {
+    assert.equal(currentHeadingId(headings, 0, true), null);
+  });
+
+  test('no headings, or something that is not a list, gives null', () => {
+    for (const value of [[], null, undefined, 'x', 5, {}]) assert.equal(currentHeadingId(value, 100, true), null);
+  });
+
+  test('the margin can be changed, and the order of the document decides when positions are equal', () => {
+    assert.equal(currentHeadingId(headings, 80, false, 20), 'a');
+    assert.equal(currentHeadingId(headings, 79, false, 20), null);
+    assert.equal(currentHeadingId([{ id: 'x', top: 10 }, { id: 'y', top: 10 }], 10), 'y');
+  });
+
+  test('a heading that is out of order (a side-by-side layout) does not stop the search', () => {
+    assert.equal(currentHeadingId([{ id: 'a', top: 50 }, { id: 'b', top: 400 }, { id: 'c', top: 200 }], 300), 'c');
   });
 });

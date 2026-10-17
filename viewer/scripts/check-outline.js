@@ -120,6 +120,24 @@ async function waitFor(predicate, timeoutMs = 30000) {
     const h2Top = async () => { const v = await content(); const t = await v.eval("Math.round(document.querySelectorAll('main h2')[1].getBoundingClientRect().top) + 0"); v.close(); return t; };
     check('Enterで、その見出しへ移る', await waitFor(async () => Math.abs(await h2Top()) <= 4), `top=${await h2Top()}`);
 
+    // 2b. いま読んでいる見出しの強調（#329）
+    const currentLabels = () => chrome.eval("[...document.querySelectorAll('#outline [aria-current=location]')].map((i) => i.getAttribute('aria-label')).join('|')");
+    check('押した見出しが、いま読んでいる見出しとして、強調される（1つだけ）', await waitFor(async () => (await currentLabels()) === 'まとめ'), await currentLabels());
+    const scrollTo = async (expression) => { const v = await content(); await v.eval(`window.scrollTo(0, ${expression})`); v.close(); };
+    await scrollTo('0');
+    const h1Top = await (async () => { const v = await content(); const t = await v.eval("Math.round(document.querySelector('main h1').getBoundingClientRect().top) + 0"); v.close(); return t; })();
+    const expectedAtTop = h1Top <= 24 ? '全体の題' : '';   // 先頭の見出しが、上端の近くにあれば、それ。無ければ、強調なし
+    check('先頭へ戻ると、強調が、先頭の見出しへ戻る（先頭の見出しより上なら、強調なし）', await waitFor(async () => (await currentLabels()) === expectedAtTop), `h1Top=${h1Top} current=${await currentLabels()}`);
+    await scrollTo("Math.round(document.querySelectorAll('main h2')[0].getBoundingClientRect().top + window.scrollY) + 40");
+    check('見出し「概要」を過ぎた位置では、「概要」が強調される', await waitFor(async () => (await currentLabels()) === '概要'), await currentLabels());
+    await scrollTo('document.documentElement.scrollHeight');
+    check('文書の末尾までスクロールすると、最後の見出しが強調される', await waitFor(async () => (await currentLabels()) === 'まとめ'), await currentLabels());
+    // 強調した項目は、目次の一覧の中で、見える位置にある（目次が長いときのため、強調が変わるたびに、一覧をスクロールする）
+    const visible = await chrome.eval("(() => { const item = document.querySelector('#outline [aria-current=location]'); const box = item.getBoundingClientRect(); const side = document.getElementById('sidebar').getBoundingClientRect(); return box.top >= side.top && box.bottom <= side.bottom; })()");
+    check('強調した項目は、サイドバーの中で、見える', visible === true);
+    const same = await chrome.eval("document.querySelectorAll('#outline [role=treeitem]').length");
+    check('強調しても、目次の項目は、作り直されない（数が、そのまま）', same === 4, String(same));
+
     // 3. タブ
     await chrome.eval("document.getElementById('sidebar-tab-files').click()");
     await waitFor(async () => (await chrome.eval("document.getElementById('outline-panel').hidden")) === true);

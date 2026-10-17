@@ -150,8 +150,32 @@ function renderSidebarViews(state, open) {
   $('outline-hint').hidden = outline.length > 0;
   $('outline').hidden = outline.length === 0;
   const signature = JSON.stringify(outline);
-  if (signature === renderedOutline) return;
-  renderedOutline = signature;
+  if (signature !== renderedOutline) {
+    renderedOutline = signature;
+    revealedHeading = null;
+    buildOutlineItems(outline);
+  }
+  markCurrentHeading(state.currentHeading ?? null);
+}
+
+/**
+ * いま読んでいる見出しを、目次で強調する（aria-current="location"。#329）。強調が変わったときだけ、その項目が見えるように、
+ * 目次の一覧をスクロールする（`nearest`。フォーカスは動かさない）。項目は、作り直さない（作り直すと、矢印キーで移っている最中のフォーカスが外れる）。
+ */
+let revealedHeading = null;
+function markCurrentHeading(id) {
+  let current = null;
+  for (const item of outlineItems()) {
+    if (id !== null && item.dataset.id === id) { current = item; if (item.getAttribute('aria-current') !== 'location') item.setAttribute('aria-current', 'location'); }
+    else if (item.hasAttribute('aria-current')) item.removeAttribute('aria-current');
+  }
+  if (id !== revealedHeading) {
+    revealedHeading = id;
+    current?.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function buildOutlineItems(outline) {
   const container = $('outline');
   container.textContent = '';
   outline.forEach((heading, index) => {

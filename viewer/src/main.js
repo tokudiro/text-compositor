@@ -16,7 +16,7 @@ const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-sav
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { isInsideDirectory, listDirectory } = require('./directory-list');
-const { effectiveSidebarView, sanitizeOutline } = require('./outline');
+const { currentHeadingId, effectiveSidebarView, sanitizeOutline } = require('./outline');
 const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
@@ -276,7 +276,13 @@ function createTab() {
   // 別のページへ移るとき、前の文書の目次を捨てる（変換に失敗して、新しいページが無いときに、古い目次が残らないように。#329）。
   // 同じページの中の移動（見出しへのジャンプ）は、対象外。新しい目次は、プリロードが、読み込み後に送ってくる
   contents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
-    if (isMainFrame && !isInPlace && created.outline.length > 0) { created.outline = []; if (created === tab) push(); }
+    if (isMainFrame && !isInPlace && (created.outline.length > 0 || created.currentHeading !== null)) {
+      created.outline = [];
+      created.headingTops = [];
+      created.currentHeading = null;
+      created.scrollState = { y: 0, atBottom: false };
+      if (created === tab) push();
+    }
   });
   contents.on('did-finish-load', () => {
     contents.setZoomLevel(zoomLevel);
@@ -1318,10 +1324,13 @@ ipcMain.on('copy-code', (event, text) => {
 ipcMain.on('link-hover', (event, href) => {
   event.sender.send('link-hover-text', describeLink(href, tabFromSender(event.sender)?.file ?? null));
 });
-ipcMain.on('content-scroll', (event, scrollY) => {
+ipcMain.on('content-scroll', (event, scrollY, atBottom) => {
   const origin = tabFromSender(event.sender);
   if (origin && typeof scrollY === 'number' && Number.isFinite(scrollY)) {
     origin.history.updateCurrentScroll(Math.max(0, Math.round(scrollY)));
+    // 目次の強調（#329）。スクロールのたびに届くため、強調する見出しが変わったときだけ、画面へ送る
+    origin.scrollState = { y: Math.max(0, scrollY), atBottom: atBottom === true };
+    if (updateCurrentHeading(origin) && origin === tab) push();
   }
 });
 ipcMain.on('go-back', () => goBack());
@@ -1338,9 +1347,23 @@ ipcMain.on('sidebar-view', (event, view) => { if (event.sender === win?.webConte
 ipcMain.on('content-outline', (event, headings) => {
   const origin = tabFromSender(event.sender);
   if (!origin) return;
-  origin.outline = sanitizeOutline(headings);
-  if (origin === tab) push();
+  const items = sanitizeOutline(headings);
+  // 見出しの位置（top）は、画像の読み込み・大きさの変化で、何度も届く。目次（画面へ送るもの）は、位置を含めず、変わったときだけ更新する
+  const outline = items.map(({ top, ...rest }) => rest);
+  const outlineChanged = JSON.stringify(outline) !== JSON.stringify(origin.outline);
+  if (outlineChanged) origin.outline = outline;
+  origin.headingTops = items.map(({ id, top }) => ({ id, top }));
+  const currentChanged = updateCurrentHeading(origin);
+  if ((outlineChanged || currentChanged) && origin === tab) push();
 });
+
+/** いま読んでいる見出しを求め直す（#329）。変わったかを返す。 */
+function updateCurrentHeading(target) {
+  const id = currentHeadingId(target.headingTops, target.scrollState.y, target.scrollState.atBottom);
+  if (id === target.currentHeading) return false;
+  target.currentHeading = id;
+  return true;
+}
 // 目次の見出しを押した。目次にある見出しのidだけを、内容のビューへ渡す（画面からの入力を、そのまま通さない）
 ipcMain.on('outline-jump', (event, id) => {
   if (event.sender !== win?.webContents || !state.settings.showOutline || typeof id !== 'string') return;

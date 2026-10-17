@@ -41,9 +41,14 @@ window.addEventListener('scroll', () => {
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = null;
-    ipcRenderer.send('content-scroll', window.scrollY);
+    ipcRenderer.send('content-scroll', window.scrollY, atBottom());
   });
 }, { passive: true });
+
+// 文書の末尾までスクロールしたか（目次の強調で、最後の見出しにする。#329）。端数（拡大率）のため、2pxまで許す
+function atBottom() {
+  return window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+}
 
 window.addEventListener('pagehide', () => {
   if (scrollRaf) {
@@ -364,11 +369,20 @@ function collectOutline() {
   for (const heading of document.querySelectorAll('main :is(h1, h2, h3, h4, h5, h6)[id]')) {
     const copy = heading.cloneNode(true);
     for (const ui of copy.querySelectorAll(`.${UI_CLASS}`)) ui.remove();
-    headings.push({ id: heading.id, level: Number(heading.tagName.slice(1)), text: copy.textContent });
+    // top: 文書の先頭から、見出しの上端まで（いま読んでいる見出しの強調に使う）。ズームしても、CSSのpxのまま
+    headings.push({ id: heading.id, level: Number(heading.tagName.slice(1)), text: copy.textContent, top: heading.getBoundingClientRect().top + window.scrollY });
   }
   return headings;
 }
 window.addEventListener('DOMContentLoaded', () => ipcRenderer.send('content-outline', collectOutline()));
+// 見出しの位置は、画像の読み込み・ウィンドウの大きさの変化・ズームで、動く。測り直して、送る（間引く。メインプロセスは、変化がなければ、何もしない）
+let outlineTimer = null;
+function scheduleOutline() {
+  clearTimeout(outlineTimer);
+  outlineTimer = setTimeout(() => ipcRenderer.send('content-outline', collectOutline()), 120);
+}
+window.addEventListener('load', scheduleOutline);
+window.addEventListener('DOMContentLoaded', () => { if (document.body && typeof ResizeObserver === 'function') new ResizeObserver(scheduleOutline).observe(document.body); });
 
 // 目次で選ばれた見出しへ、スクロールする。idは、メインプロセスが、目次にあるものだけを渡す。
 ipcRenderer.on('scroll-to-heading', (_event, id) => {
