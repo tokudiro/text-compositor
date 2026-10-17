@@ -46,3 +46,20 @@ chapters:
     title: "システムテスト仕様書 (マトリクス)"
     landscape: true   # テーブルは横長になりやすいのでA4横を指定
     background: null  # 章ごとに背景を解除する例（#55）。表はDRAFT透かしより見やすさを優先
+  - aggregate: "testcases"        # 仕様（1テスト＝1ファイル）と、結果（1回の実施＝1ファイル）を1つの表にする例（#65・#66）
+    title: "テスト結果 (仕様と結果の結合表)"
+    landscape: true
+    background: null
+    columns:                      # 仕様の列
+      - { key: id, title: ID, width: auto, align: center }
+      - { key: title, title: 項目 }
+      - { key: priority, title: 優先度, width: auto, align: center }
+    join:
+      aggregate: "testresults"    # 結果のディレクトリ。idで突き合わせる
+      runs: latest                # 最新の1件だけ出す（all なら、実施の数だけ行を出す）
+      missing: "未実施"            # 結果が無いテストに入れる文字列
+      columns:                    # 結果の列
+        - { key: tested_at, title: 実施日, width: auto }
+        - { key: tested_by, title: 実施者, width: auto }
+        - { key: status, title: 合否, width: auto, align: center }
+        - { key: note, title: 備考, width: 2fr }
