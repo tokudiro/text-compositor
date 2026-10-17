@@ -23,6 +23,21 @@ describe('buildPathContextMenuTemplate', () => {
       ['パスをコピー', 'エクスプローラーで表示']);
   });
 
+  test('the file name of the toolbar (#497): Copy path and Reveal, and no Open in new tab even with tabs on', () => {
+    const calls = [];
+    const template = buildPathContextMenuTemplate({
+      filePath: '/a/b.md', isDirectory: false, canOpenInNewTab: false,
+      onCopy: (p) => calls.push(['copy', p]), onReveal: (p, d) => calls.push(['reveal', p, d]), onOpenInNewTab: (p) => calls.push(['tab', p]),
+    });
+    assert.deepEqual(labels(template), ['パスをコピー', 'エクスプローラーで表示']);
+    for (const item of template) item.click();
+    assert.deepEqual(calls, [['copy', '/a/b.md'], ['reveal', '/a/b.md', false]]);   // 開いているファイルを、エクスプローラーで選んで表示する（フォルダではない）
+  });
+
+  test('no file (the welcome screen) gets no toolbar menu (#497)', () => {
+    for (const filePath of [null, undefined, '']) assert.deepEqual(buildPathContextMenuTemplate({ filePath, isDirectory: false, canOpenInNewTab: false }), []);
+  });
+
   test('an item without a path (a heading of the chapter list) gets no menu', () => {
     for (const filePath of [undefined, null, '']) assert.deepEqual(buildPathContextMenuTemplate({ filePath }), []);
   });

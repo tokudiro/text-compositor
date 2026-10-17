@@ -1421,6 +1421,16 @@ ipcMain.on('sidebar-context-menu', (event, filePath, type) => {
   });
   if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: win });
 });
+// ツールバーのファイル名の右クリック（#497）。パスは、画面から受け取らず、いま見ているタブのファイルを使う（画面の値を、信用しない）。
+// 「新しいタブで開く」は、すでに開いているファイルのため、出さない。ファイルが無いとき（案内の画面）は、メニューを出さない
+ipcMain.on('file-context-menu', (event) => {
+  if (event.sender !== win?.webContents) return;
+  const template = buildPathContextMenuTemplate({
+    filePath: tab.file, isDirectory: false, canOpenInNewTab: false,
+    onCopy: (text) => clipboard.writeText(text), onReveal: revealInFileManager,
+  });
+  if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: win });
+});
 ipcMain.on('tab-context-menu', (event, id) => {
   const target = tabs.find((each) => each.id === id);
   if (event.sender !== win?.webContents || !state.settings.enableTabs || !target) return;
