@@ -105,7 +105,7 @@ class HtmlResult:
 # Sessionのbuild()が受け取れる、文書の設定の上書き。config全体（deep_updateで重ねる）も渡せる。
 def _single_markdown_config(markdown_path: str, template: str, plugins: Optional[Mapping[str, Any]],
                             document: Optional[Mapping[str, Any]], variables: Optional[Mapping[str, Any]],
-                            overrides: Optional[Mapping[str, Any]]) -> dict:
+                            overrides: Optional[Mapping[str, Any]], lint: Optional[Mapping[str, Any]] = None) -> dict:
     """単一のMarkdownを1章とする、configを組み立てる。
 
     既定の`document.cover`は`markdown`（テンプレートの表紙を出さず、Markdownの先頭をそのまま出す）。
@@ -126,6 +126,8 @@ def _single_markdown_config(markdown_path: str, template: str, plugins: Optional
         config["plugins"] = dict(plugins)
     if variables:
         config["variables"] = dict(variables)
+    if lint is not None:
+        config["lint"] = dict(lint)
     if document:
         deep_update(config["document"], copy.deepcopy(dict(document)))
     if overrides:
@@ -157,6 +159,7 @@ class Session:
               document: Optional[Mapping[str, Any]] = None,
               variables: Optional[Mapping[str, Any]] = None,
               config: Optional[Mapping[str, Any]] = None,
+              lint: Optional[Mapping[str, Any]] = None,
               keep_temp: bool = False) -> BuildResult:
         """Markdownファイルを、PDFにする。失敗しても例外は出さず、`ok=False`の結果を返す。
 
@@ -167,13 +170,16 @@ class Session:
         document: `document:`の上書き。例: `{"toc": True, "title": "仕様書"}`。
         variables: `{{KEY}}`の置換表（config.yamlの`variables:`と同じ形式）。
         config: config全体への上書き（上の引数より後に重ねる）。上級者向け。
+        lint: 原稿の警告（lint）のON/OFF。例: `{"bold": False}`。書かなかったlintは、既定（ON）。名前は、
+            `text_compositor.lints.LINTS`（#271）。未知の名前・真偽値でない値は、エラーの診断になる。
         keep_temp: 成功時も、中間ファイル（`temp_build.typ`等）を残す（デバッグ用）。
         """
         started = time.perf_counter()
         timings: Dict[str, float] = {}
         with self._lock, diagnostics.collect() as collected:
             ok, pdf_path = self._build_locked(
-                markdown_path, output_pdf, template, plugins, document, variables, config, keep_temp, timings)
+                markdown_path, output_pdf, template, plugins, document, variables, config, keep_temp, timings,
+                lint=lint)
         timings["total"] = (time.perf_counter() - started) * 1000.0
         return BuildResult(ok=ok, pdf_path=pdf_path if ok else None, diagnostics=list(collected.items),
                            timings_ms=timings)
@@ -184,7 +190,8 @@ class Session:
                     config: Optional[Mapping[str, Any]] = None,
                     csv_header: bool = True,
                     allow_external_images: bool = False,
-                    cache_dir: Optional[str] = None) -> HtmlResult:
+                    cache_dir: Optional[str] = None,
+                    lint: Optional[Mapping[str, Any]] = None) -> HtmlResult:
         """Markdownファイル（または、図の単体ファイル`.mmd`・`.puml`・`.d2`）を、HTMLにする（#161、実験的）。
         失敗しても例外は出さず、`ok=False`の結果を返す。
 
@@ -203,13 +210,14 @@ class Session:
             プレースホルダとして示す。`data:`のURIは、ローカルで完結するため、この設定によらず常に読み込む（#238）。
         cache_dir: 図のSVGのキャッシュのフォルダ。省略時は、原稿の隣の`.text-compositor/cache/`。`output_html`と
             ともに指定すると、原稿のフォルダには、何も書かない（Viewerが使う。#258）。
+        lint: 原稿の警告（lint）のON/OFF。`build`と同じ（例: `{"bold": False}`。#271）。
         """
         started = time.perf_counter()
         timings: Dict[str, float] = {}
         with self._lock, diagnostics.collect() as collected:
             ok, html_path, dependencies = self._render_html_locked(
                 markdown_path, output_html, plugins, variables, config, timings, csv_header=bool(csv_header),
-                allow_external_images=bool(allow_external_images), cache_dir=cache_dir)
+                allow_external_images=bool(allow_external_images), cache_dir=cache_dir, lint=lint)
         timings["total"] = (time.perf_counter() - started) * 1000.0
         return HtmlResult(ok=ok, html_path=html_path if ok else None, diagnostics=list(collected.items),
                           timings_ms=timings, dependencies=dependencies if ok else [])
@@ -231,7 +239,7 @@ class Session:
     # -- 内部 ------------------------------------------------------------
 
     def _build_locked(self, markdown_path, output_pdf, template, plugins, document, variables, overrides,
-                      keep_temp, timings):
+                      keep_temp, timings, lint=None):
         from text_compositor.deps import ensure_fonts
         from text_compositor.mermaid import MermaidBrowser
         from text_compositor.project import _build_project
@@ -254,7 +262,7 @@ class Session:
             # ビルド中の標準出力への書き込み（ライブラリや外部プロセスの出力）は、標準エラーへ回す。
             # 標準入出力で通信する常駐ワーカーの、通信路を壊さないため。
             with contextlib.redirect_stdout(sys.stderr):
-                config = _single_markdown_config(md_path, template, plugins, document, variables, overrides)
+                config = _single_markdown_config(md_path, template, plugins, document, variables, overrides, lint)
                 if self._font_dir is None:
                     self._font_dir = ensure_fonts()
                 if self._mermaid is None:
@@ -279,9 +287,10 @@ class Session:
 
 
     def _render_html_locked(self, markdown_path, output_html, plugins, variables, overrides, timings, csv_header=True,
-                            allow_external_images=False, cache_dir=None):
+                            allow_external_images=False, cache_dir=None, lint=None):
         from text_compositor.config import _resolve_variables
         from text_compositor.html_output import HtmlRenderer
+        from text_compositor.lints import resolve_lints
         from text_compositor.mermaid import MermaidBrowser
 
         if self._closed:
@@ -299,7 +308,7 @@ class Session:
         renderer = None
         try:
             with contextlib.redirect_stdout(sys.stderr):
-                config = _single_markdown_config(md_path, "template", plugins, None, variables, overrides)
+                config = _single_markdown_config(md_path, "template", plugins, None, variables, overrides, lint)
                 plugins_config = config.get("plugins") or {}
                 if self._mermaid is None:
                     self._mermaid = MermaidBrowser()
@@ -328,6 +337,7 @@ class Session:
                     variables=_resolve_variables(config),
                     mermaid_browser=self._mermaid, csv_header=csv_header,
                     allow_external_images=allow_external_images, cache_dir=cache_dir)
+                renderer.lints = resolve_lints(config.get("lint"))
                 document = renderer.render_file(md_path, out_html)
             _write_text_atomically(out_html, document)
             timings["render"] = (time.perf_counter() - started) * 1000.0

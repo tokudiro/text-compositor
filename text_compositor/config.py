@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import json
+from text_compositor.lints import LINTS
 from text_compositor.log import _error, _warn
 
 try:
@@ -16,7 +17,7 @@ except ImportError:
 # しまう（Quartoの「設定がどこに効くか分からない」失敗と同じ、#308）。ここに定義する許可キー一覧は、
 # 各モジュールが実際に`config.get(...)`で読んでいるキーと一致させること（新しいキーを追加したら、
 # ここにも追加する）。
-_ALLOWED_TOP_LEVEL_KEYS = {"document", "output", "template", "inputs", "chapters", "plugins", "variables", "fonts"}
+_ALLOWED_TOP_LEVEL_KEYS = {"document", "output", "template", "inputs", "chapters", "plugins", "variables", "fonts", "lint"}
 _ALLOWED_DOCUMENT_KEYS = {
     "title", "subtitle", "author", "date", "diagnostics", "landscape", "paper_size",
     "table_header", "header", "footer", "paginate", "background", "logo", "cover",
@@ -62,6 +63,7 @@ def _validate_config_keys(loaded):
     _collect_unknown_keys(loaded.get("inputs"), _ALLOWED_INPUTS_KEYS, "inputs", errors)
     _collect_unknown_keys(loaded.get("plugins"), _ALLOWED_PLUGINS_KEYS, "plugins", errors)
     _collect_unknown_keys(loaded.get("fonts"), _ALLOWED_FONTS_KEYS, "fonts", errors)
+    _collect_unknown_keys(loaded.get("lint"), set(LINTS), "lint", errors)   # lintの名前は、lints.pyの一覧と同じ（#271）
     fonts_dir = (loaded.get("fonts") or {}).get("dir") if isinstance(loaded.get("fonts"), dict) else None
     if fonts_dir is not None and not (isinstance(fonts_dir, str) or (isinstance(fonts_dir, list) and all(isinstance(d, str) for d in fonts_dir))):
         errors.append("fonts.dir: must be a folder name, or a list of folder names.")
