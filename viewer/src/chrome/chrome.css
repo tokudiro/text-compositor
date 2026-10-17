@@ -112,6 +112,7 @@ button.icon.text { font-weight: 700; font-size: 12px; }
 /* 目次（#329）。見出しのレベルに応じて字下げする（chrome.jsが、padding-leftを入れる） */
 .outline-item { min-height: 24px; padding-top: 3px; padding-bottom: 3px; padding-right: 4px; border-radius: 4px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline-item:hover { background: var(--button); }
+.outline-item[aria-current="location"] { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }   /* いま読んでいる見出し（#329） */
 .outline-item:focus { outline: none; }
 .outline-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* ファイルツリー（#339） */

@@ -58,7 +58,7 @@ test('snapshot carries what the toolbar needs and nothing about the window', () 
   tab.status = 'ok';
   const snapshot = tab.snapshot();
   assert.deepEqual(Object.keys(snapshot).sort(), [
-    'busy', 'canGoBack', 'canGoForward', 'diagnostics', 'file', 'hasDocument', 'isCsv', 'line', 'outline', 'search', 'status',
+    'busy', 'canGoBack', 'canGoForward', 'currentHeading', 'diagnostics', 'file', 'hasDocument', 'isCsv', 'line', 'outline', 'search', 'status',
   ]);
   assert.equal(snapshot.file, 'note.csv');
   assert.equal(snapshot.isCsv, true);
@@ -72,6 +72,12 @@ test('the outline starts empty and is not shared between tabs (#329)', () => {
   a.outline = [{ id: 'x', level: 1, text: 'X', depth: 0 }];
   assert.deepEqual(b.snapshot().outline, []);
   assert.equal(a.snapshot().outline.length, 1);
+  // 見出しの位置（headingTops）は、画面へ送らない。いま読んでいる見出しは、タブごと
+  a.headingTops = [{ id: 'x', top: 10 }];
+  a.currentHeading = 'x';
+  assert.equal('headingTops' in a.snapshot(), false);
+  assert.equal(a.snapshot().currentHeading, 'x');
+  assert.equal(b.snapshot().currentHeading, null);
 });
 
 test('two tabs do not share state', () => {
