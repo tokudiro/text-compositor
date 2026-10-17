@@ -14,7 +14,7 @@ const { summarize } = require('./diagnostics');
 const { DocumentTab, tabsAffectedBy } = require('./document-tab');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
-const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, saveSettings } = require('./settings');
+const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { isInsideDirectory, listDirectory } = require('./directory-list');
 const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
@@ -84,6 +84,7 @@ const state = {
   // kind: 'project'（設定ファイルの章。「ファイルを開く」で設定ファイルを選ぶ。#373）のとき、root は設定ファイルのパス。
   tree: { root: TREE_ROOT_FROM_ENV, kind: TREE_ROOT_FROM_ENV ? 'folder' : null },
   features: FEATURES.map(({ key, label, description, on, off }) => ({ key, label, description, on, off })),   // 設定画面の「表示する機能」の行を作る材料（#326）
+  lints: LINTS.map(({ name, label, description, on, off }) => ({ name, label, description, on, off })),   // 設定画面の「原稿の警告」の行を作る材料（#271）
   speech: { supported: process.platform === 'win32', voices: [] },   // 読み上げ（#430）。設定画面の、声の選択肢の材料
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
 };
@@ -543,7 +544,10 @@ function resetLine(target) {
 function changeSetting(key, value) {
   if (!EDITABLE.includes(key)) return;   // ウィンドウの状態などは、画面から変えさせない
   const next = normalizeSettings({ ...state.settings, [key]: value });
-  if (next[key] !== value) return;
+  // 正規化で値が変わった（想定外の値だった）ときは、受け付けない。lintは、オブジェクトで、正規化のたびに新しくなるため、
+  // 「オブジェクトであること」だけを確かめる（名前・値の検証は、正規化がする）
+  const accepted = key === 'lint' ? (value !== null && typeof value === 'object' && !Array.isArray(value)) : next[key] === value;
+  if (!accepted) return;
   state.settings = next;
   if (key === 'theme') applyTheme();
   if (key === 'autoReload') state.autoReload = next.autoReload;
@@ -728,6 +732,7 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
     // ワーカーは、全タブで1つ。変換は、1件ずつ順に処理される（#332）。
     result = await client.renderHtml({
       path: file, csv_header: state.settings.csvHeader, allow_external_images: state.settings.allowExternalImages,
+      lint: state.settings.lint,   // 原稿の警告のON/OFF（{名前: 真偽値}。#271）。変換のたびに渡すので、変えたら、次の変換から効く
       plugins: { structurizr: true }, ...location.params,
     });
   } catch (error) {

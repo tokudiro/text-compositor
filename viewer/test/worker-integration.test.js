@@ -126,6 +126,25 @@ describe('real worker + WorkerClient (#172)', { skip: prepared.reason ? `${prepa
     assert.deepEqual(allowed.diagnostics, []);
   });
 
+  test('lint decides whether a bold that did not apply is warned about (the option the viewer sends, #271)', async () => {
+    const file = path.join(dir, 'bold.md');
+    fs.writeFileSync(file, 'これは**「重要」**です。\n', 'utf8');
+    const boldWarnings = (result) => result.diagnostics.filter((d) => d.severity === 'warning' && d.message.includes('Bold markup'));
+
+    assert.equal(boldWarnings(await client.renderHtml({ path: file, plugins: PLAIN })).length, 1);   // 既定は、出す
+    assert.equal(boldWarnings(await client.renderHtml({ path: file, plugins: PLAIN, lint: { bold: true } })).length, 1);
+    const off = await client.renderHtml({ path: file, plugins: PLAIN, lint: { bold: false } });
+    assert.equal(off.ok, true);
+    assert.deepEqual(boldWarnings(off), []);
+    assert.match(htmlOf(off), /\*\*「重要」\*\*/);   // 本文は、変わらない（**が、そのまま出る）
+  });
+
+  test('a lint the worker does not know is a protocol error, and the worker keeps working (#271)', async () => {
+    const file = path.join(dir, 'bold.md');
+    await assert.rejects(client.renderHtml({ path: file, plugins: PLAIN, lint: { nope: false } }), /lint/);
+    assert.equal(await client.ping(), true);
+  });
+
   test('a file that does not exist fails as a result, not as a crash, and the worker keeps working', async () => {
     const result = await client.renderHtml({ path: path.join(dir, 'missing.md'), plugins: PLAIN });
 
