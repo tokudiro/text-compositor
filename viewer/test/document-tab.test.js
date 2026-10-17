@@ -58,11 +58,20 @@ test('snapshot carries what the toolbar needs and nothing about the window', () 
   tab.status = 'ok';
   const snapshot = tab.snapshot();
   assert.deepEqual(Object.keys(snapshot).sort(), [
-    'busy', 'canGoBack', 'canGoForward', 'diagnostics', 'file', 'hasDocument', 'isCsv', 'line', 'search', 'status',
+    'busy', 'canGoBack', 'canGoForward', 'diagnostics', 'file', 'hasDocument', 'isCsv', 'line', 'outline', 'search', 'status',
   ]);
   assert.equal(snapshot.file, 'note.csv');
   assert.equal(snapshot.isCsv, true);
   assert.equal(snapshot.status, 'ok');
+});
+
+test('the outline starts empty and is not shared between tabs (#329)', () => {
+  const a = new DocumentTab();
+  const b = new DocumentTab();
+  assert.deepEqual(a.snapshot().outline, []);
+  a.outline = [{ id: 'x', level: 1, text: 'X', depth: 0 }];
+  assert.deepEqual(b.snapshot().outline, []);
+  assert.equal(a.snapshot().outline.length, 1);
 });
 
 test('two tabs do not share state', () => {

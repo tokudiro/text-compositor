@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('viewer', {
   zoomReset: () => ipcRenderer.send('zoom-reset'),
   toggleSettings: () => ipcRenderer.send('settings-toggle'),
   toggleSidebar: () => ipcRenderer.send('sidebar-toggle'),
+  setSidebarView: (view) => ipcRenderer.send('sidebar-view', view),
+  jumpToHeading: (id) => ipcRenderer.send('outline-jump', id),
   openFolder: () => ipcRenderer.send('open-folder'),
   listDirectory: (directory) => ipcRenderer.invoke('list-directory', directory),
   setSetting: (key, value) => ipcRenderer.send('settings-set', key, value),

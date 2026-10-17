@@ -17,6 +17,7 @@ class DocumentTab {
     this.status = '';
     this.hasDocument = false;    // 内容を表示しているか
     this.diagnostics = summarize([]);
+    this.outline = [];           // 見出しの一覧（目次。#329）。内容のビューが読み込まれるたびに、プリロードが送ってくる（outline.jsで整形済み）
     // 文書内検索（#325）。ハイライトそのものは、内容のビューのプリロードが持つ（DOMを持っているのは、そちら）。
     // ここは、検索欄の入力と、その結果（件数・現在位置・正規表現エラー）だけを覚える。
     this.search = { open: false, query: '', regex: false, caseSensitive: false, count: 0, current: 0, error: null };
@@ -80,6 +81,7 @@ class DocumentTab {
       hasDocument: this.hasDocument,
       isCsv: this.isCsv,
       diagnostics: this.diagnostics,
+      outline: this.outline,
       canGoBack: this.canGoBack,
       canGoForward: this.canGoForward,
       search: this.search,

@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, lint: { bold: true }, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, showOutline: true, enableTabs: false, lint: { bold: true }, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, lint: { bold: true }, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, showOutline: true, enableTabs: false, lint: { bold: true }, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, enableTabs: true, lint: { bold: false }, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', speechVoice: 'Microsoft Ayumi', speechRate: 'fast', lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, showOutline: false, enableTabs: true, lint: { bold: false }, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', speechVoice: 'Microsoft Ayumi', speechRate: 'fast', lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
