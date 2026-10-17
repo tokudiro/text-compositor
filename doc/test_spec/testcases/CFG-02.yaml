@@ -1,6 +1,8 @@
 id: CFG-02
 title: "既定設定値の構造（tests/test_config.py::TestDefaultConfig）"
 priority: Medium
+rev: 1
+tests: [tests/test_config.py::TestDefaultConfig]
 steps: |
   - `default_config()`を複数回呼び出し、返された辞書の構造と、呼び出しごとの独立性（一方を書き換えても他方に影響しないこと）を確認する。
 expected: |

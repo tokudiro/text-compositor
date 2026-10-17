@@ -27,3 +27,22 @@ chapters:
   - aggregate: "testcases"
     title: "テストケース一覧"
     landscape: true
+    columns:                      # 仕様の列（#65）
+      - { key: id, title: ID, width: auto, align: center }
+      - { key: title, title: 項目, width: 1fr }
+      - { key: priority, title: 優先度, width: auto, align: center }
+      - { key: steps, title: 手順, width: 2fr, markdown: true }
+      - { key: expected, title: 期待結果, width: 2fr, markdown: true }
+    join:                         # 仕様と結果を、idで突き合わせて1つの表にする（#66）
+      aggregate: "testresults"    # make_results.py が、pytestの結果から作る
+      missing: "未実施"
+      rev: true                   # 仕様のrevと結果のspec_revが違うケースは「要再実施」
+      columns:
+        - { key: status, title: 結果, width: auto, align: center }
+        - { key: tested_at, title: 実施日, width: auto }
+        - { key: note, title: 備考, width: 1fr }
+      summary:                    # 表の下に、件数と合格率を出す
+        order: [OK, NG]
+        rate: true
+        classes: { pass: [OK], fail: [NG] }
+        group_by: priority

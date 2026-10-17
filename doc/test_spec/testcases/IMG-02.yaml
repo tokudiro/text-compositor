@@ -1,6 +1,8 @@
 id: IMG-02
 title: "背景・ロゴ画像パスの解決（tests/test_asset_resolution.py::TestResolveProjectImagePath）"
 priority: Medium
+rev: 1
+tests: [tests/test_asset_resolution.py::TestResolveProjectImagePath]
 steps: |
   - `document.background`/`document.logo`相当のパスとして、`None`、project_dir基準の相対パス（存在するファイル/存在しないファイル）を`_resolve_project_image_path()`に渡す。
   - `base_dir`（project_dir）と`typst_root`が異なる場合も試す。

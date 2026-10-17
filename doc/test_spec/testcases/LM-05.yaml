@@ -1,6 +1,8 @@
 id: LM-05
 title: "srcmapマーカーの実際の埋め込み（tests/test_line_mapping.py::TestEmitSrcmapIntegration）"
 priority: High
+rev: 1
+tests: [tests/test_line_mapping.py::TestEmitSrcmapIntegration]
 steps: |
   - 見出し・段落・リスト・テーブル・hr・コードフェンスを含むMarkdownを、`line_mapping="block"`の`TypstRenderer.render()`に渡す。
   - `line_mapping="off"`の場合、front-matter除去後の場合、リスト項目が複数ある場合も試す。

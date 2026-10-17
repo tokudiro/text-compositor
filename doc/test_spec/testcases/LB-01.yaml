@@ -1,6 +1,8 @@
 id: LB-01
 title: "layout-rightの基本動作（tests/test_layout_blocks.py::TestLayoutRight）"
 priority: High
+rev: 1
+tests: [tests/test_layout_blocks.py::TestLayoutRight]
 steps: |
   - テキストと実際の図表フェンス（`dot`）を含む`::: layout-right ... :::`ブロック、比率省略時/`{left=... right=...}`指定時、図表フェンスを含まないブロック、単独行のMarkdown画像を含むブロックを`render()`に渡す。
 expected: |

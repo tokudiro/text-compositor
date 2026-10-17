@@ -1,6 +1,8 @@
 id: LB-07
 title: "alignブロックの基本動作（tests/test_layout_blocks.py::TestAlignBlock）"
 priority: Low
+rev: 1
+tests: [tests/test_layout_blocks.py::TestAlignBlock]
 steps: |
   - `align`属性省略時と、`{align=right}`のように寄せを明示した`::: align ... :::`ブロックを`render()`に渡す。
 expected: |

@@ -1,6 +1,8 @@
 id: MD-09
 title: "非対応HTMLの扱い（tests/test_markdown_basics.py::TestHtmlHandling）"
 priority: Medium
+rev: 1
+tests: [tests/test_markdown_basics.py::TestHtmlHandling]
 steps: |
   - `<div>hi</div>`のような、特別扱い対象（タスクリストのチェックボックス、`<span style="color:...">`）以外のHTMLタグを含むMarkdownを`render()`に渡す。
 expected: |

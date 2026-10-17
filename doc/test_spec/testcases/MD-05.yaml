@@ -1,6 +1,8 @@
 id: MD-05
 title: "コードフェンス・インラインコードの変換（tests/test_markdown_basics.py::TestCodeFence）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestCodeFence]
 steps: |
   - 言語指定あり/なしのコードフェンス（```` ``` ````）と、インラインコード（`` ` ``）を`render()`に渡す。
 expected: |

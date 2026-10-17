@@ -1,6 +1,8 @@
 id: LB-03
 title: "layout-compareの基本動作（tests/test_layout_blocks.py::TestLayoutCompare）"
 priority: High
+rev: 1
+tests: [tests/test_layout_blocks.py::TestLayoutCompare]
 steps: |
   - 2つの図表フェンスを含む`::: layout-compare ... :::`ブロック、図が1つしかないブロックを`render()`に渡す。
 expected: |

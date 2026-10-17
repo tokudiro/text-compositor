@@ -1,6 +1,8 @@
 id: MD-07
 title: "巻末用語索引（glossary）の登録（tests/test_markdown_basics.py::TestGlossary）"
 priority: Medium
+rev: 1
+tests: [tests/test_markdown_basics.py::TestGlossary]
 steps: |
   - `[[用語]]`記法を含むMarkdownを、`glossary_enabled=True`/`False`それぞれの`TypstRenderer`で`render()`する。
 expected: |

@@ -1,6 +1,8 @@
 id: LM-04
 title: "Typstエラーへのヒント付与（tests/test_line_mapping.py::TestAnnotateTypstError）"
 priority: High
+rev: 1
+tests: [tests/test_line_mapping.py::TestAnnotateTypstError]
 steps: |
   - Typstのコンパイルエラーメッセージ（`temp_build.typ:20:5`のような位置情報を含む）と、srcmapを`_annotate_typst_error()`に渡す。
   - 同じ行番号への言及がエラーメッセージ中に複数回出るケース、srcmapが空のケース、参照位置が最初のマーカーより前のケースも試す。

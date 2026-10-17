@@ -15,6 +15,20 @@ pip install -r requirements-dev.txt
 pytest tests/
 ```
 
+# 実施結果の作り方
+
+テストケース一覧の表は、仕様（`testcases/`）と、実施結果（`testresults/`）を、`id`で突き合わせた1つの表である（`aggregate`の`join`、[#66](https://github.com/tokudiro/text-compositor/issues/66)）。表の下に、結果ごとの件数と、優先度別の合格率を出す。
+
+結果ファイルは、次のスクリプトが、pytestの実行結果から作る。ケースごとに1ファイルを上書きし、履歴はGitに任せる。
+
+```bash
+python doc/test_spec/make_results.py
+```
+
+各ケースの`tests`に書いたpytestのクラスを集計して、全て成功なら`OK`、1つでも失敗なら`NG`、対応するテストが無い（全てskipを含む）なら`未実施`とする。実行済みのJUnit XMLから作るときは、`--junit`を使う。
+
+ケースの手順や期待結果を変えたときは、そのケースの`rev`を1つ上げる。結果の`spec_rev`が仕様の`rev`と違うと、表の「結果」が「要再実施」になる。`make_results.py`を実行し直せば、結果の`spec_rev`が更新される。
+
 # 対象外の範囲
 
 以下は実機・外部プロセスへの依存が強く、モック化のコストが見合わないため、意図的にテスト対象外としている。

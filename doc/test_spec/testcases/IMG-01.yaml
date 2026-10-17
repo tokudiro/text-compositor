@@ -1,6 +1,8 @@
 id: IMG-01
 title: "Markdown内画像パスの解決（tests/test_asset_resolution.py::TestResolveAsset）"
 priority: High
+rev: 1
+tests: [tests/test_asset_resolution.py::TestResolveAsset]
 steps: |
   - Markdownファイルからの相対パス（存在するファイル/存在しないファイル）、ルート絶対パス（`/...`）、URL（`https://...`）を`_resolve_asset()`に渡す。
   - `base_dir`（原稿側）と`typst_root`（`--root`相当）が異なる場合も試す。

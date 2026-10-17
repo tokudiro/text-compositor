@@ -1,6 +1,8 @@
 id: MD-08
 title: "Markdown画像の変換（tests/test_markdown_basics.py::TestImages）"
 priority: High
+rev: 1
+tests: [tests/test_markdown_basics.py::TestImages]
 steps: |
   - `![alt](path)`の基本形と、`![alt|width=...|align=...]`のサイズ・配置指定付き画像、存在しない画像パスを`render()`に渡す。
 expected: |
