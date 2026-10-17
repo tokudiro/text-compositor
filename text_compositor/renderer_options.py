@@ -39,6 +39,30 @@ PLUGIN_FLAGS = (
 )
 
 
+# 属性ではなく、`renderer.figure_enabled[名前]`（辞書）に入れるフラグ（#236・#294・#292）。falseなら、そのフェンスを、素のコード表示にする。
+_FIGURE_FLAGS = {"cetz_enabled": "cetz", "fletcher_enabled": "fletcher", "timeliney_enabled": "timeliney", "finite_enabled": "finite"}
+
+# 「無効のため、素のコード表示にした」警告を、1回だけ出すための印（`_<名前>_disabled_warned`）を持つプラグイン。
+_WARN_ONCE = ("mermaid", "plantuml", "d2", "structurizr", "vega", "wavedrom", "bytefield")
+
+
+def apply_plugin_flags(renderer, flags):
+    """プラグインのフラグ（{引数名: 真偽値}。書かれていないものは、表の既定値）を、レンダラーの属性にする（#488）。
+    属性名は、引数名と同じ（`renderer.graphviz_enabled`など。図のミックスインが読む）。ただし、cetz・fletcher・timeliney・
+    finiteは、`renderer.figure_enabled`の辞書。表にない引数名は、`TypeError`（綴りの誤りを、黙って無視しない）。"""
+    known = {flag.kwarg for flag in PLUGIN_FLAGS}
+    unknown = sorted(set(flags) - known)
+    if unknown:
+        raise TypeError(f"unexpected keyword argument(s): {', '.join(unknown)}")
+    values = {flag.kwarg: flags.get(flag.kwarg, flag.default) for flag in PLUGIN_FLAGS}
+    renderer.figure_enabled = {name: values[kwarg] for kwarg, name in _FIGURE_FLAGS.items()}
+    for kwarg, value in values.items():
+        if kwarg not in _FIGURE_FLAGS:
+            setattr(renderer, kwarg, value)
+    for name in _WARN_ONCE:
+        setattr(renderer, f"_{name}_disabled_warned", False)
+
+
 def plugin_flags_from_config(config):
     """configの`plugins:`から、`TypstRenderer`の引数（{引数名: 真偽値}）を作る。書かれていないものは、既定値。"""
     plugins = config.get("plugins") or {}

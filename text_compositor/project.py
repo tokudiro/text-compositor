@@ -76,8 +76,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     renderer = TypstRenderer(project_dir, typst_root=typst_root, **plugin_flags,
                               glossary_enabled=glossary_enabled, line_mapping=line_mapping,
                               marp_compat=marp_compat, variables=variables,
-                              mermaid_browser=mermaid_browser, csv_header=csv_header)
-    renderer.lints = lints
+                              mermaid_browser=mermaid_browser, csv_header=csv_header, lint=lints)
     current_landscape, current_paper = global_landscape, global_paper
     current_header, current_footer, current_paginate = effective_global_header, global_footer, global_paginate
     current_background = global_background
