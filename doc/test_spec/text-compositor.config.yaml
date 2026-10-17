@@ -27,6 +27,7 @@ chapters:
   - aggregate: "testcases"
     title: "テストケース一覧"
     landscape: true
+    font_size: 8pt                # 表と集計の文字を小さくして、ページ数を減らす（#484）
     columns:                      # 仕様の列（#65）
       - { key: id, title: ID, width: auto, align: center }
       - { key: title, title: 項目, width: 1fr }
