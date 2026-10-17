@@ -1,14 +1,12 @@
 """`chapters`の展開と、章ごと（Markdown・集約・見出し）のTypstコード生成。"""
 import os
-import re
 import sys
-import json
 from collections import namedtuple
+from text_compositor.aggregate_join import _parse_aggregate_columns, _parse_aggregate_join, render_aggregate_table
 from text_compositor.fonts import warn_missing_glyphs
-from text_compositor.config import _resolve_project_image_path, yaml
+from text_compositor.config import _resolve_project_image_path
 from text_compositor.document import _page_set_fragment
-from text_compositor.log import _error, _warn
-from text_compositor.typst_literal import insert_soft_break_hints
+from text_compositor.log import _error
 
 def extract_md_string(data, key):
     """YAMLからテキストを抽出。リスト形式の場合は改行で結合して単一文字列にする"""
@@ -113,78 +111,14 @@ def _check_chapter_options(ch):
     where = f"chapter {ch.get('file') or ch.get('aggregate')!r}"
     if "heading_offset" in ch:
         _parse_heading_offset(ch["heading_offset"], where)
+    for option in ("columns", "join"):
+        if option in ch and "aggregate" not in ch:
+            _error(f"{where}: '{option}' can only be used with 'aggregate'.")
+            sys.exit(1)
     if "columns" in ch:
-        if "aggregate" not in ch:
-            _error(f"{where}: 'columns' can only be used with 'aggregate'.")
-            sys.exit(1)
         _parse_aggregate_columns(ch["columns"], where)
-
-# columns省略時の列。#65以前の固定の5列と、見出し・幅・揃え・描画を同じにする（後方互換）。
-_DEFAULT_AGGREGATE_COLUMNS = [
-    {"key": "id", "title": "ID", "width": "auto", "align": "center", "markdown": False},
-    {"key": "title", "title": "Title", "width": "1fr", "align": "left", "markdown": False},
-    {"key": "priority", "title": "Priority", "width": "auto", "align": "center", "markdown": False},
-    {"key": "steps", "title": "Steps", "width": "2fr", "align": "left", "markdown": True},
-    {"key": "expected", "title": "Expected", "width": "2fr", "align": "left", "markdown": True},
-]
-_AGGREGATE_ALIGNS = ("left", "center", "right")
-_AGGREGATE_WIDTH_RE = re.compile(r"auto|\d+(\.\d+)?fr")
-
-def _parse_aggregate_columns(value, where):
-    """aggregateの`columns`（#65）を検証し、正規化した列のリストを返す。省略（None）は既定の5列。
-    誤りは描画の前にFail-fastで報告する（keyなし・width/alignの不正・keyの重複・空のリスト）。"""
-    if value is None:
-        return [dict(c) for c in _DEFAULT_AGGREGATE_COLUMNS]
-    if not isinstance(value, list) or not value:
-        _error(f"{where}: columns must be a non-empty list.")
-        sys.exit(1)
-    columns, seen = [], set()
-    for i, col in enumerate(value, 1):
-        label = f"{where}: columns[{i}]"
-        if not isinstance(col, dict):
-            _error(f"{label} must be a mapping with a 'key'.")
-            sys.exit(1)
-        unknown = sorted(str(k) for k in col if k not in ("key", "title", "width", "align", "markdown"))
-        if unknown:
-            _error(f"{label}: unknown key(s): {', '.join(unknown)}. Allowed: key, title, width, align, markdown.")
-            sys.exit(1)
-        key = col.get("key")
-        if not isinstance(key, str) or not key:
-            _error(f"{label}: 'key' is required (a non-empty string).")
-            sys.exit(1)
-        if key in seen:
-            _error(f"{label}: duplicate key {key!r}.")
-            sys.exit(1)
-        seen.add(key)
-        width = col.get("width", "1fr")
-        if not isinstance(width, str) or not _AGGREGATE_WIDTH_RE.fullmatch(width):
-            _error(f"{label}: width must be 'auto' or a fraction such as '1fr' or '2fr' (got {width!r}).")
-            sys.exit(1)
-        align = col.get("align", "left")
-        if align not in _AGGREGATE_ALIGNS:
-            _error(f"{label}: align must be one of {', '.join(_AGGREGATE_ALIGNS)} (got {align!r}).")
-            sys.exit(1)
-        markdown = col.get("markdown", False)
-        if not isinstance(markdown, bool):
-            _error(f"{label}: markdown must be true or false (got {markdown!r}).")
-            sys.exit(1)
-        columns.append({"key": key, "title": str(col.get("title", key)), "width": width,
-                        "align": align, "markdown": markdown})
-    return columns
-
-def _aggregate_cell(renderer, value, column, tc_path):
-    """aggregateの1セル分のTypst断片を返す。キーが無い・nullは空欄。markdown: trueはMarkdownとして描画し、
-    リストは各要素を改行で連結する（#65以前のsteps/expectedと同じ）。それ以外は文字をそのまま出し、
-    リストは読点で連結する。幅がautoでない列には、長い識別子の折り返し用ソフト改行点を入れる（#269）。"""
-    if value is None:
-        return ""
-    if column["markdown"]:
-        text = "\n".join(str(v) for v in value) if isinstance(value, list) else str(value)
-        return renderer.render(text, filepath=tc_path).strip()
-    text = "、".join(str(v) for v in value) if isinstance(value, list) else str(value)
-    if column["width"] != "auto":
-        text = insert_soft_break_hints(text)
-    return renderer.escape_typst(text)
+    if "join" in ch:
+        _parse_aggregate_join(ch["join"], where)
 
 def _render_section_heading(title, renderer, defaults, current_landscape, current_paper,
                              current_header, current_footer, current_paginate, current_background, current_logo):
@@ -234,36 +168,7 @@ def _render_aggregate_chapter(ch_dict, ch_file, inputs_dir, renderer, current_la
     typst_code += f'{"=" * agg_level} {renderer.escape_typst(ch_dict.get("title", "Test Cases"))}\n\n'
 
     if os.path.exists(agg_path) and os.path.isdir(agg_path):
-        # 【修正】YAMLだけでなくJSONファイルも読み込み対象に含める
-        tc_files = sorted([f for f in os.listdir(agg_path) if f.endswith(('.yaml', '.yml', '.json'))])
-
-        columns = _parse_aggregate_columns(ch_dict.get("columns"), f"chapter {ch_file!r}")
-        typst_code += f'#table(\n  columns: ({", ".join(c["width"] for c in columns)}),\n'
-        typst_code += f'  align: ({", ".join(c["align"] for c in columns)}),\n'
-        typst_code += '  stroke: 0.5pt + luma(150),\n'
-        typst_code += '  fill: (col, row) => if row == 0 { luma(240) } else { none },\n'
-        typst_code += '  ' + ', '.join(f'[*{renderer.escape_typst(c["title"])}*]' for c in columns) + ',\n'
-
-        for tc_file in tc_files:
-            tc_path = os.path.join(agg_path, tc_file)
-            with open(tc_path, "r", encoding="utf-8") as f:
-                try:
-                    if tc_file.endswith('.json'):
-                        tc_data = json.load(f) or {}
-                    else:
-                        tc_data = yaml.safe_load(f) or {}
-                except Exception as e:
-                    _warn(f"Failed to parse {tc_file}: {e}")
-                    continue
-
-            if not isinstance(tc_data, dict):
-                _warn(f"Skipped {tc_file}: the top level must be a mapping.")
-                continue
-
-            cells = [_aggregate_cell(renderer, tc_data.get(c["key"]), c, tc_path) for c in columns]
-            typst_code += '  ' + ', '.join(f'[{cell}]' for cell in cells) + ',\n'
-
-        typst_code += ')\n\n#pagebreak(weak: true)\n'
+        typst_code += render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer)
     else:
         # 仕様9章: 入力欠損は黙って飛ばさず即エラー (Fail-fast)
         _error(f"Aggregate directory not found: {agg_path}")

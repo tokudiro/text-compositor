@@ -71,6 +71,59 @@ chapters:
 - **`markdown: true`**: Markdown として描画します。値がリストなら、各要素を改行で連結します。
 - **エラー**: `key` が無い、`width`・`align` が不正、`key` が重複、未知のキーがある場合は、ビルドの最初にエラーで止まります。`columns` は `aggregate:` の章だけに書けます。
 
+### テスト仕様と結果を、1つの表にする（`join`）
+
+仕様（1テスト＝1ファイル）と結果（1回の実施＝1ファイル）を、`id` で突き合わせて、1つの表にできます。結果を実施者ごとのファイルに分ければ、並行して実施しても、Git でコンフリクトしません。
+
+```yaml
+chapters:
+  - aggregate: "testcases"
+    title: "テスト結果"
+    columns:                       # 仕様の列
+      - { key: id, title: ID, width: auto, align: center }
+      - { key: title, title: 項目 }
+    join:
+      aggregate: "testresults"     # 結果のディレクトリ（inputs.dir 基準）
+      key: id                      # 突き合わせるキー。省略時は id
+      runs: latest                 # latest（既定）/ all
+      missing: "未実施"             # 結果が無いテストに入れる文字列。省略時は空欄
+      columns:                     # 結果の列（必須）
+        - { key: tested_at, title: 実施日, width: auto }
+        - { key: tested_by, title: 実施者, width: auto }
+        - { key: status, title: 合否, width: auto, align: center }
+```
+
+結果のファイルは、2通りの書き方を、どちらも使えます。同じディレクトリに混ぜてもかまいません。
+
+```yaml
+# 書き方1: 1回の実施 = 1ファイル
+id: T-01
+tested_at: 2026-10-20
+tested_by: 田中
+status: NG
+```
+
+```yaml
+# 書き方2: 1テスト = 1ファイル（runs に実施を並べる）
+id: T-01
+tested_by: 田中            # runs の外側のキーは、全回の共通値
+runs:
+  - { tested_at: 2026-10-20, status: NG }
+  - { tested_at: 2026-10-25, status: OK }
+```
+
+書き方2は、2人が同時に追記するとコンフリクトし得ます。複数人で実施するときは、書き方1を勧めます。
+
+- **並び順と最新**: 同じ `id` の記録は、`tested_at` の昇順に並びます。`tested_at` が無い、または同じときは、ファイル名順、`runs` 内の並び順です。最後の1件が「最新」です。
+- **`runs: latest`（既定）**: テストごとに、最新の1件だけを1行で出します。
+- **`runs: all`**: 実施の数だけ行を出します。仕様の列は最初の行にだけ出し、残りの行は空欄です。実施の回を区別する列（`tested_at` など）を、結果の列に入れてください。
+- **結果が無いテスト**: エラーにせず、結果の列を `missing` で埋めて出します。
+- **仕様が無い結果**: 警告を出し、仕様の列を空欄にして、表の最後に足します。
+- **警告になるもの**: `id` が無い結果ファイル（飛ばします）、`id` と `tested_at` が同じ結果記録（重複記録の疑い）、`id` が重複する仕様。
+- **エラー**: `join` に `aggregate` か `columns` が無い、`runs` が不正、未知のキーがある、結果のディレクトリが無い場合は、止まります。`join` は `aggregate:` の章だけに書けます。
+
+`sample/` に、仕様と結果の例があります（`testcases/`・`testresults/`）。
+
 ## 4. section: （複数の章をまとめて、目次を2階層にする）
 
 3編構成のマニュアルのように、「編の見出し → その配下の章」という構造を作りたいときに使います。`section:` に見出しを書き、入れ子の `chapters:` に配下の章を並べます。
