@@ -2,7 +2,8 @@
 import os
 import sys
 from collections import namedtuple
-from text_compositor.aggregate_join import _parse_aggregate_columns, _parse_aggregate_join, render_aggregate_table
+from text_compositor.aggregate_join import (
+    _parse_aggregate_columns, _parse_aggregate_font_size, _parse_aggregate_join, render_aggregate_table)
 from text_compositor.fonts import warn_missing_glyphs
 from text_compositor.config import _resolve_project_image_path
 from text_compositor.document import _page_set_fragment
@@ -115,6 +116,8 @@ def _check_chapter_options(ch):
         if option in ch and "aggregate" not in ch:
             _error(f"{where}: '{option}' can only be used with 'aggregate'.")
             sys.exit(1)
+    if "aggregate" in ch and "font_size" in ch:
+        _parse_aggregate_font_size(ch["font_size"], where)
     if "columns" in ch:
         _parse_aggregate_columns(ch["columns"], where)
     if "join" in ch:
