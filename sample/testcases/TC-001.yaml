@@ -1,4 +1,5 @@
 id: TC-001
+rev: 2   # 仕様の版。結果のspec_revがこれと違うと、結合表で「要再実施」になる（join.rev）
 title: ログイン成功の確認
 priority: High
 steps: "1. ログイン画面を開く\n2. 有効なユーザーID admin とパスワードを入力する\n3. 「ログイン」ボタンをクリックする"

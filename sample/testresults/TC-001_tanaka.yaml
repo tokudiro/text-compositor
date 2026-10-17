@@ -2,5 +2,6 @@
 id: TC-001
 tested_at: 2026-10-20
 tested_by: 田中
+spec_rev: 1
 status: NG
 note: ログイン後、ダッシュボードが表示されなかった

@@ -2,4 +2,5 @@
 id: TC-001
 tested_at: 2026-10-25
 tested_by: 鈴木
+spec_rev: 2   # 実施したときの、仕様の版
 status: OK
