@@ -16,6 +16,7 @@ const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-sav
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { isInsideDirectory, listDirectory } = require('./directory-list');
+const { effectiveSidebarView, sanitizeOutline } = require('./outline');
 const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
 const { FileWatcher } = require('./watcher');
@@ -79,6 +80,9 @@ const state = {
   // サイドバーを開いているか。覚えない（#373）。ルートを決めたら、開く。手動で閉じたら、そのルートの間は、閉じたまま。
   // 起動直後は、ルートが無い（単一ファイルモード）ため、閉じている。
   sidebarOpen: TREE_ROOT_FROM_ENV !== null,
+  // サイドバーで、利用者が選んだ表示（'files'・'outline'。#329）。null＝自動（フォルダ・設定ファイルを開いていれば「ファイル」、
+  // 単一のファイルなら「目次」）。覚えない。ルートを決める・手放すと、自動に戻す。実際に出す表示は、`push()`が決めて、画面へ送る。
+  sidebarView: null,
   // サイドバーのモード（#373）。root: ルートのフォルダ。kind: null（単一ファイル。ルートなし）| 'folder'（フォルダ。
   // 「フォルダを開く」）。モードは、「いま開いているファイル」ではなく、ルートの開き方で決める。覚えない（起動のたびに、単一ファイルから）。
   // kind: 'project'（設定ファイルの章。「ファイルを開く」で設定ファイルを選ぶ。#373）のとき、root は設定ファイルのパス。
@@ -269,6 +273,11 @@ function createTab() {
   // ドロップ・リンクで、アプリの表示が、他のページへ遷移してしまわないようにする
   contents.on('will-navigate', (event, url) => { event.preventDefault(); handleNavigation(url, created); });
   contents.on('zoom-changed', (_event, direction) => zoomBy(direction === 'in' ? 1 : -1));
+  // 別のページへ移るとき、前の文書の目次を捨てる（変換に失敗して、新しいページが無いときに、古い目次が残らないように。#329）。
+  // 同じページの中の移動（見出しへのジャンプ）は、対象外。新しい目次は、プリロードが、読み込み後に送ってくる
+  contents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace && created.outline.length > 0) { created.outline = []; if (created === tab) push(); }
+  });
   contents.on('did-finish-load', () => {
     contents.setZoomLevel(zoomLevel);
     resetLine(created);
@@ -344,16 +353,45 @@ function applyBackground() {
   for (const each of tabs) each.contentView?.setBackgroundColor(background);
 }
 
-/** サイドバーが、いま画面に出ているか。設定「ファイルツリー」がオンで、開いているとき。 */
+/** サイドバーを使えるか。設定「ファイルツリー」か「目次」の、どちらかがオンのとき（#329）。 */
+function sidebarAvailable() {
+  return state.settings.showFileTree || state.settings.showOutline;
+}
+
+/** サイドバーが、いま画面に出ているか。使えて、開いているとき。 */
 function sidebarShown() {
-  return state.settings.showFileTree && state.sidebarOpen;
+  return sidebarAvailable() && state.sidebarOpen;
+}
+
+/** サイドバーが、いま出す表示（'files'・'outline'・null）。選ばれた表示と、設定・ルートの有無から決める（outline.js）。 */
+function currentSidebarView() {
+  return effectiveSidebarView({
+    explicit: state.sidebarView, showFileTree: state.settings.showFileTree, showOutline: state.settings.showOutline, hasRoot: state.tree.root !== null,
+  });
 }
 
 /** サイドバーを開閉する（#339）。開閉は、覚えない（#373）。設定画面を開いている間は、サイドバーも隠れるが、開閉の状態は変えない。 */
 function setSidebarOpen(open) {
-  if (!state.settings.showFileTree) return;   // 設定「ファイルツリー」が「出さない」のとき、サイドバーは使えない
+  if (!sidebarAvailable()) return;   // 設定「ファイルツリー」「目次」の、どちらも「出さない」のとき、サイドバーは使えない
   if (state.sidebarOpen === Boolean(open)) return;
   state.sidebarOpen = Boolean(open);
+  layout();
+  push();
+}
+
+/** サイドバーの表示（ファイル・目次）を、選ぶ（#329）。使えない表示は、選べない。 */
+function setSidebarView(view) {
+  if ((view !== 'files' || !state.settings.showFileTree) && (view !== 'outline' || !state.settings.showOutline)) return;
+  state.sidebarView = view;
+  push();
+}
+
+/** 目次を、サイドバーに出す（メニュー・ショートカット）。目次を出しているときに、もう一度押すと、サイドバーを閉じる。 */
+function toggleOutline() {
+  if (!state.settings.showOutline) return;
+  if (sidebarShown() && currentSidebarView() === 'outline') { setSidebarOpen(false); return; }
+  state.sidebarView = 'outline';
+  state.sidebarOpen = true;
   layout();
   push();
 }
@@ -363,6 +401,7 @@ function enterRoot(root, kind) {
   // version: 同じ設定ファイルを開き直したとき、画面が、一覧を読み直すための印（章を書き換えた後でも、古い一覧が残らない）
   state.tree = { root, kind, version: (state.tree.version ?? 0) + 1 };
   state.sidebarOpen = true;
+  state.sidebarView = null;   // 自動に戻す（ルートを開いたら「ファイル」を出す。#329）
   layout();
   push();
 }
@@ -379,6 +418,7 @@ function leaveRoot() {
   project = null;
   state.tree = { root: null, kind: null };
   state.sidebarOpen = false;
+  state.sidebarView = null;
   updateWatch();   // プロジェクトの設定ファイルの監視を、やめる
   layout();
   push();
@@ -553,7 +593,8 @@ function changeSetting(key, value) {
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
   if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
-  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = false; updateWatch(); }   // 「出さない」にしたら、開いていたフォルダも、手放す
+  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = state.sidebarOpen && next.showOutline; updateWatch(); }   // 「出さない」にしたら、開いていたフォルダも、手放す（目次が使えれば、サイドバーは、そのまま）
+  if (key === 'showOutline' && !next.showOutline && !next.showFileTree) state.sidebarOpen = false;   // 使える表示が、なくなる
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
   layout();
@@ -573,9 +614,9 @@ function push() {
   const printItem = menu?.getMenuItemById('print');
   if (printItem) printItem.enabled = Boolean(tab.hasDocument && !state.settingsOpen);
   // ファイルツリーの入口は、設定「ファイルツリー」がオンのときだけ出す（#339）
-  for (const id of ['open-folder', 'toggle-sidebar']) {
+  for (const [id, visible] of [['open-folder', state.settings.showFileTree], ['toggle-sidebar', sidebarAvailable()], ['toggle-outline', state.settings.showOutline]]) {
     const item = menu?.getMenuItemById(id);
-    if (item) item.visible = state.settings.showFileTree;
+    if (item) item.visible = visible;
   }
   // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332）
   for (const [id, enabled] of [['new-tab', true], ['close-tab', tabs.length > 1], ['next-tab', tabs.length > 1], ['previous-tab', tabs.length > 1]]) {
@@ -584,7 +625,8 @@ function push() {
   }
   if (win && !win.isDestroyed()) {
     const tabList = tabs.map((each) => ({ ...each.summary(), active: each === tab }));
-    win.webContents.send('state', { ...state, ...tab.snapshot(), tabs: tabList });
+    // sidebarView（実際に出す表示。#329）は、選ばれた表示を、設定・ルートの有無で補正した値で、上書きして送る
+    win.webContents.send('state', { ...state, ...tab.snapshot(), tabs: tabList, sidebarView: currentSidebarView() });
   }
 }
 
@@ -1243,6 +1285,7 @@ function buildMenu() {
         { label: '実寸', accelerator: 'CommandOrControl+0', click: zoomReset },
         { type: 'separator' },
         { id: 'toggle-sidebar', label: 'サイドバー', accelerator: 'CommandOrControl+B', click: () => setSidebarOpen(!state.sidebarOpen) },
+        { id: 'toggle-outline', label: '目次', accelerator: 'CommandOrControl+Shift+B', click: toggleOutline },
         { label: '検索…', accelerator: 'CommandOrControl+F', click: () => setSearchOpen(!tab.search.open) },
         { label: 'ツールバーと文書を行き来', accelerator: 'F6', click: toggleFocusArea },
         { type: 'separator' },
@@ -1290,6 +1333,20 @@ ipcMain.on('zoom', (_event, direction) => zoomBy(direction));
 ipcMain.on('zoom-reset', zoomReset);
 ipcMain.on('settings-toggle', () => setSettingsOpen(!state.settingsOpen));
 ipcMain.on('sidebar-toggle', () => setSidebarOpen(!state.sidebarOpen));
+ipcMain.on('sidebar-view', (event, view) => { if (event.sender === win?.webContents) setSidebarView(view); });
+// 目次（#329）。内容のビューのプリロードが、読み込みのたびに、見出しの一覧を送ってくる。形は、信用せず、整える
+ipcMain.on('content-outline', (event, headings) => {
+  const origin = tabFromSender(event.sender);
+  if (!origin) return;
+  origin.outline = sanitizeOutline(headings);
+  if (origin === tab) push();
+});
+// 目次の見出しを押した。目次にある見出しのidだけを、内容のビューへ渡す（画面からの入力を、そのまま通さない）
+ipcMain.on('outline-jump', (event, id) => {
+  if (event.sender !== win?.webContents || !state.settings.showOutline || typeof id !== 'string') return;
+  if (!tab.outline.some((heading) => heading.id === id) || tab.contentView.webContents.isDestroyed()) return;
+  tab.contentView.webContents.send('scroll-to-heading', id);
+});
 ipcMain.on('open-folder', () => void openFolder());
 // ファイルツリーの一覧。ワーカー（変換の直列キュー）を通さず、ここで直接読む（変換中でも、展開が待たされない）
 ipcMain.handle('list-directory', (event, directory) => {

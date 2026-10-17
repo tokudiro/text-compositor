@@ -50,6 +50,15 @@ const FEATURES = Object.freeze([
     off: '出さない',
   }),
   Object.freeze({
+    key: 'showOutline',
+    default: true,   // サイドバーの中の表示で、画面の領域を、新しく占有しない（サイドバーは、開くまで閉じている）ため、既定は「出す」（#329。ファイルツリーと同じ理屈）
+    label: '目次',
+    description: '見出しの一覧（目次）を、サイドバー（Ctrl+B）に出します。見出しを押すと、その位置へ移ります。'
+      + '「出さない」にすると、サイドバーの「目次」の切り替えが消えます（ファイルツリーだけになります）。',
+    on: '出す',
+    off: '出さない',
+  }),
+  Object.freeze({
     key: 'enableTabs',
     default: false,   // 画面の構造を変える（タブ列が増える）ため、既定は「使わない」（#326のD。#332）
     label: '複数のタブ',

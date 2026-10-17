@@ -159,6 +159,8 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     check('ルートを捨てたあとは、元のルートの中のフォルダも、一覧できない', inside === false);
 
     // -- 設定「ファイルツリー」を「出さない」にする ----------------------------------------------
+    // 目次（#329）も使えると、サイドバーは使える。この確認は、ファイルツリーと目次を、どちらも「出さない」にしたときの動き
+    await chrome.eval("window.viewer.setSetting('showOutline', false)");
     await chrome.eval("window.viewer.setSetting('showFileTree', false)");
     await waitFor(() => chrome.eval("document.getElementById('sidebar').hidden"), (v) => v === true);
     const offState = await chrome.eval(`JSON.stringify({
@@ -173,6 +175,7 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     const refused = await chrome.eval(`window.viewer.listDirectory(${JSON.stringify(path.join(root, 'sub'))}).then((r) => r.ok)`);
     check('「出さない」の間は、フォルダの一覧も、頼めない', refused === false);
     await chrome.eval("window.viewer.setSetting('showFileTree', true)");
+    await chrome.eval("window.viewer.setSetting('showOutline', true)");
     await waitFor(() => chrome.eval("document.getElementById('sidebar-button').hidden"), (v) => v === false);
     check('「出す」に戻すと、ボタンが戻り、開いていたフォルダは、手放されている（案内だけが出る）',
       (await chrome.eval("document.getElementById('tree').hidden")) === true && (await chrome.eval("!document.getElementById('tree-hint').hidden || document.getElementById('sidebar').hidden")) === true);

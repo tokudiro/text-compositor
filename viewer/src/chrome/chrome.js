@@ -129,13 +129,89 @@ function renderTabs(state) {
 }
 
 /**
+ * サイドバーの表示の切り替え（ファイル・目次）と、目次の一覧（#329）。実際に出す表示は、メインプロセスが決めて、
+ * state.sidebarViewで送ってくる（null＝どちらも使えない）。タブは、両方が使えるときだけ出す。
+ * 目次の項目は、textContentで入れる（見出しの文字を、HTMLとして解釈しない）。一覧が変わらない間は、作り直さない
+ * （作り直すと、矢印キーで移っている最中の、フォーカスが外れる）。
+ */
+let renderedOutline = '';
+function renderSidebarViews(state, open) {
+  const view = state.sidebarView;
+  const both = Boolean(state.settings.showFileTree && state.settings.showOutline);
+  $('sidebar-tabs').hidden = !both;
+  for (const [id, name] of [['sidebar-tab-files', 'files'], ['sidebar-tab-outline', 'outline']]) {
+    $(id).setAttribute('aria-selected', String(view === name));
+    $(id).tabIndex = view === name ? 0 : -1;
+  }
+  $('sidebar-files').hidden = view !== 'files';
+  $('outline-panel').hidden = view !== 'outline';
+  if (!open || view !== 'outline') return;
+  const outline = state.outline ?? [];
+  $('outline-hint').hidden = outline.length > 0;
+  $('outline').hidden = outline.length === 0;
+  const signature = JSON.stringify(outline);
+  if (signature === renderedOutline) return;
+  renderedOutline = signature;
+  const container = $('outline');
+  container.textContent = '';
+  outline.forEach((heading, index) => {
+    const item = document.createElement('div');
+    item.className = 'outline-item';
+    item.setAttribute('role', 'treeitem');
+    item.setAttribute('aria-level', String(heading.depth + 1));
+    item.setAttribute('aria-label', heading.text);
+    item.tabIndex = index === 0 ? 0 : -1;
+    item.dataset.id = heading.id;
+    item.style.paddingLeft = `${heading.depth * 14 + 6}px`;
+    item.textContent = heading.text;
+    item.title = heading.text;
+    container.append(item);
+  });
+}
+
+/** 目次の項目を押す・Enter・Spaceで、その見出しへ移る。矢印・Home・Endで、項目の間を移る（Tabストップは、1つ）。 */
+function outlineItems() { return [...$('outline').querySelectorAll('[role="treeitem"]')]; }
+function focusOutlineItem(item) {
+  for (const each of outlineItems()) each.tabIndex = -1;
+  item.tabIndex = 0;
+  item.focus();
+}
+$('outline').addEventListener('click', (event) => {
+  const item = event.target.closest?.('[role="treeitem"]');
+  if (!item) return;
+  focusOutlineItem(item);
+  api.jumpToHeading(item.dataset.id);
+});
+$('outline').addEventListener('keydown', (event) => {
+  const item = event.target.closest?.('[role="treeitem"]');
+  if (!item || event.altKey || event.ctrlKey || event.metaKey) return;
+  const items = outlineItems();
+  const index = items.indexOf(item);
+  const target = { ArrowDown: items[index + 1], ArrowUp: items[index - 1], Home: items[0], End: items[items.length - 1] }[event.key];
+  if (target) { event.preventDefault(); focusOutlineItem(target); }
+  else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); api.jumpToHeading(item.dataset.id); }
+});
+// 「ファイル」「目次」のタブ。左右の矢印で、もう一方へ移る（ARIAのタブの操作）
+for (const [id, name] of [['sidebar-tab-files', 'files'], ['sidebar-tab-outline', 'outline']]) {
+  $(id).addEventListener('click', () => api.setSidebarView(name));
+}
+$('sidebar-tabs').addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  event.preventDefault();
+  const next = event.target.id === 'sidebar-tab-files' ? 'sidebar-tab-outline' : 'sidebar-tab-files';
+  api.setSidebarView(next === 'sidebar-tab-files' ? 'files' : 'outline');
+  $(next).focus();
+});
+
+/**
  * サイドバー（#339）。開閉は、state.sidebarOpen（覚えない。#373）。設定画面は全面を覆うため、開いている間は隠す（開閉の状態は、変えない）。
  * 文書の無い案内（#empty）も、サイドバーの右に寄せる（--sidebar-inset）。
  */
 function renderSidebar(state) {
-  // 設定「ファイルツリー」が「出さない」のときは、ボタンも出さず、開いていても、閉じたものとして扱う
-  const enabled = Boolean(state.settings.showFileTree);
+  // 設定「ファイルツリー」「目次」が、どちらも「出さない」のときは、ボタンも出さず、開いていても、閉じたものとして扱う（#329）
+  const enabled = Boolean(state.settings.showFileTree || state.settings.showOutline);
   const open = enabled && Boolean(state.sidebarOpen);
+  renderSidebarViews(state, open);
   $('sidebar-button').hidden = !enabled;
   $('sidebar').hidden = !open || state.settingsOpen;
   $('sidebar-button').setAttribute('aria-pressed', String(open));

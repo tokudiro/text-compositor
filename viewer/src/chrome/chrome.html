@@ -92,14 +92,26 @@
   </header>
   <!-- サイドバー（#339）。内容のビューの左に並ぶ（幅は、メインプロセスが決め、--sidebar-widthで受ける）。ファイルツリーは、ここに出す -->
   <aside id="sidebar" aria-label="サイドバー" hidden>
-    <div id="sidebar-head">
-      <span id="tree-root-name"></span>
-      <button id="open-folder" class="icon" title="フォルダを開く…" aria-label="フォルダを開く">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
-      </button>
+    <!-- 「ファイル」と「目次」の切り替え（#329）。両方が使えるときだけ出す。ARIAのタブ（Tabで入れるのは、選ばれたタブ1つ。左右の矢印で移る） -->
+    <div id="sidebar-tabs" role="tablist" aria-label="サイドバーの表示" hidden>
+      <button id="sidebar-tab-files" role="tab" type="button" aria-controls="sidebar-files" aria-selected="false" tabindex="-1">ファイル</button>
+      <button id="sidebar-tab-outline" role="tab" type="button" aria-controls="outline-panel" aria-selected="false" tabindex="-1">目次</button>
     </div>
-    <p id="tree-hint" class="hint">フォルダを開くと、ここにファイルの一覧が出ます。設定ファイル（text-compositor.config.yaml）を開くと、章の一覧が出ます。</p>
-    <div id="tree" role="tree" aria-label="ファイルツリー" hidden></div>
+    <div id="sidebar-files">
+      <div id="sidebar-head">
+        <span id="tree-root-name"></span>
+        <button id="open-folder" class="icon" title="フォルダを開く…" aria-label="フォルダを開く">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
+        </button>
+      </div>
+      <p id="tree-hint" class="hint">フォルダを開くと、ここにファイルの一覧が出ます。設定ファイル（text-compositor.config.yaml）を開くと、章の一覧が出ます。</p>
+      <div id="tree" role="tree" aria-label="ファイルツリー" hidden></div>
+    </div>
+    <!-- 目次（#329）。見出しの一覧を、chrome.jsが作る。項目は、1つのTabストップ（矢印キーで移る）。Enter・Spaceか、クリックで、その見出しへ移る -->
+    <div id="outline-panel" hidden>
+      <p id="outline-hint" class="hint" hidden>この文書には、見出しがありません。</p>
+      <div id="outline" role="tree" aria-label="目次" tabindex="-1"></div>
+    </div>
   </aside>
   <section id="settings" hidden aria-labelledby="settings-title">
     <!-- 見出しは左、閉じるボタンは右端（ダイアログと同じ配置）。項目は、「名前と説明」と「選択肢」を左右に並べた行にして、増えても縦に積める。 -->

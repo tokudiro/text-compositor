@@ -356,6 +356,26 @@ ipcRenderer.on('content-features', (_event, features) => {
   buildUi();
 });
 
+// -- 目次（#329） ---------------------------------------------------------------------------------------------------
+// 見出し（本文の<h1>〜<h6>のうち、idを持つもの。#361）の一覧を、メインプロセスへ送り、サイドバーの目次になる。
+// 文字は、「#」リンク（#337。tc-uiの部品）を除いたもの。形の検証・整形は、メインプロセス側（src/outline.js）。
+function collectOutline() {
+  const headings = [];
+  for (const heading of document.querySelectorAll('main :is(h1, h2, h3, h4, h5, h6)[id]')) {
+    const copy = heading.cloneNode(true);
+    for (const ui of copy.querySelectorAll(`.${UI_CLASS}`)) ui.remove();
+    headings.push({ id: heading.id, level: Number(heading.tagName.slice(1)), text: copy.textContent });
+  }
+  return headings;
+}
+window.addEventListener('DOMContentLoaded', () => ipcRenderer.send('content-outline', collectOutline()));
+
+// 目次で選ばれた見出しへ、スクロールする。idは、メインプロセスが、目次にあるものだけを渡す。
+ipcRenderer.on('scroll-to-heading', (_event, id) => {
+  if (typeof id !== 'string') return;
+  document.getElementById(id)?.scrollIntoView({ block: 'start' });
+});
+
 // -- 図の拡大表示（#338） -------------------------------------------------------------------------------------------
 // 本文の図（.diagram img）をクリックすると、同じページの上に、全面のオーバーレイを重ねて、図だけを大きく見せる。
 // ホイールで拡大・縮小（カーソルの位置を中心に）、ドラッグでパン、ダブルクリックと0キーで「画面に収める」に戻す。Escか背景のクリックで閉じる。

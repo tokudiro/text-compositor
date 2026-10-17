@@ -102,6 +102,18 @@ button.icon.text { font-weight: 700; font-size: 12px; }
 #sidebar .hint[hidden] { display: none; }
 #sidebar-head { display: flex; align-items: center; gap: 4px; margin: -4px -4px 4px 4px; }
 #tree-root-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+/* サイドバーの「ファイル」「目次」の切り替え（#329） */
+#sidebar-tabs { display: flex; gap: 2px; margin: -4px -4px 6px; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
+#sidebar-tabs[hidden], #sidebar-files[hidden], #outline-panel[hidden], #outline[hidden] { display: none; }
+#sidebar-tabs button { flex: 1; height: 26px; padding: 0 8px; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; font: inherit; }
+#sidebar-tabs button:hover { background: var(--button); }
+#sidebar-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+#sidebar-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* 目次（#329）。見出しのレベルに応じて字下げする（chrome.jsが、padding-leftを入れる） */
+.outline-item { min-height: 24px; padding-top: 3px; padding-bottom: 3px; padding-right: 4px; border-radius: 4px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline-item:hover { background: var(--button); }
+.outline-item:focus { outline: none; }
+.outline-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* ファイルツリー（#339） */
 #tree[hidden] { display: none; }
 #tree ul { list-style: none; margin: 0; padding: 0; }
