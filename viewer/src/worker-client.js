@@ -66,7 +66,7 @@ class WorkerClient {
   /**
    * Markdown（または図の単体ファイル）をHTMLにする。ビルドの失敗は、結果（ok: false）で返す。
    * ワーカー自体の異常は、例外で返す。
-   * @param {{path: string, output?: string, plugins?: object, variables?: object, config?: object}} params
+   * @param {{path: string, output?: string, plugins?: object, variables?: object, config?: object, lint?: object}} params
    * @returns {Promise<{ok: boolean, html: string|null, diagnostics: object[], timings_ms: object, dependencies: string[]}>}
    */
   async renderHtml(params) {

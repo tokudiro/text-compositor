@@ -63,7 +63,10 @@ $('choose-directory').addEventListener('click', () => api.chooseOpenDirectory())
 $('clear-cache').addEventListener('click', () => api.clearCache());
 // 設定の変更は、ラジオボタンを選んだ時点で、すぐに反映する（保存も、メインプロセスが行う）
 $('settings').addEventListener('change', (event) => {
-  if (event.target.matches('input[type="radio"]')) {
+  if (event.target.matches('input[type="radio"]') && event.target.name.startsWith('lint:')) {
+    // lintは、{名前: 真偽値}を、まとめて1つの設定（lint）として送る（他のlintの値は、いまの設定のまま）
+    api.setSetting('lint', { ...lastState.settings.lint, [event.target.name.slice('lint:'.length)]: event.target.value === 'true' });
+  } else if (event.target.matches('input[type="radio"]')) {
     // 真偽値の設定（allowExternalImages）は、ラジオの値が"true"/"false"の文字列のため、送る前に戻す
     const value = event.target.value === 'true' ? true : event.target.value === 'false' ? false : event.target.value;
     api.setSetting(event.target.name, value);
@@ -214,6 +217,55 @@ function renderFeatures(features) {
   }
 }
 
+/**
+ * 「原稿の警告」（lint）の行を、lintの一覧（state.lints。settings.jsのLINTS）から作る（#271）。ラジオの名前は`lint:<名前>`
+ * （設定のキーは`lint`で、値は{名前: 真偽値}のため、変更のときに、まとめて送る）。一覧が変わらない間は、作り直さない。
+ */
+let renderedLints = '';
+function renderLints(state) {
+  const lints = state.lints ?? [];
+  const signature = JSON.stringify(lints);
+  if (signature !== renderedLints) {
+    renderedLints = signature;
+    const container = $('lint-rows');
+    container.textContent = '';
+    for (const lint of lints) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const text = document.createElement('div');
+      text.className = 'text';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.id = `lint-${lint.name}-name`;
+      name.textContent = lint.label;
+      const desc = document.createElement('div');
+      desc.className = 'desc';
+      desc.textContent = lint.description;
+      text.append(name, desc);
+      const group = document.createElement('div');
+      group.className = 'segmented';
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-labelledby', name.id);
+      for (const [value, caption] of [['true', lint.on], ['false', lint.off]]) {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = `lint:${lint.name}`;
+        input.value = value;
+        const span = document.createElement('span');
+        span.textContent = caption;
+        label.append(input, span);
+        group.append(label);
+      }
+      row.append(text, group);
+      container.append(row);
+    }
+  }
+  for (const [lintName, enabled] of Object.entries(state.settings.lint ?? {})) {
+    for (const radio of document.querySelectorAll(`#lint-rows input[name="lint:${lintName}"]`)) radio.checked = radio.value === String(enabled);
+  }
+}
+
 function render(state) {
   if (!state) return;
   const previousErrors = lastState?.diagnostics.hasError;
@@ -227,6 +279,7 @@ function render(state) {
   renderSidebar(state);
   moveFocusForSettings(state, previousSettingsOpen);
   renderFeatures(state.features ?? []);
+  renderLints(state);
   renderTabs(state);
   $('settings-button').setAttribute('aria-pressed', String(state.settingsOpen));
   for (const [name, value] of Object.entries(state.settings)) {

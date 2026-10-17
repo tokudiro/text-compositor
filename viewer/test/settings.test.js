@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
+const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, normalizeWindow, saveSettings } = require('../src/settings');
 
 function temporaryFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-settings-'));
@@ -31,17 +31,17 @@ test('a broken file gives the defaults and does not throw', () => {
 test('only the unexpected values fall back; valid ones are kept', () => {
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'bottom', theme: 'purple', autoReload: 'yes', unknown: 1 }),
-    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
+    { toolbarPosition: 'bottom', theme: 'system', autoReload: true, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, lint: { bold: true }, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
   );
   assert.deepEqual(
     normalizeSettings({ toolbarPosition: 'left', theme: 'dark', autoReload: false }),
-    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
+    { toolbarPosition: 'top', theme: 'dark', autoReload: false, csvHeader: true, allowExternalImages: false, showLineNumber: true, showHeadingAnchor: true, showCodeCopy: true, showFileTree: true, enableTabs: false, lint: { bold: true }, window: null, openDirectoryMode: 'last', fixedDirectory: null, workLocation: 'app', speechVoice: '', speechRate: 'normal', lastDirectory: null },
   );
 });
 
 test('saved settings are read back, and no temporary file is left', () => {
   const { dir, file } = temporaryFile();
-  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, enableTabs: true, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', speechVoice: 'Microsoft Ayumi', speechRate: 'fast', lastDirectory: path.resolve(path.sep, 'docs') };
+  const settings = { toolbarPosition: 'bottom', theme: 'dark', autoReload: false, csvHeader: false, allowExternalImages: true, showLineNumber: false, showHeadingAnchor: false, showCodeCopy: false, showFileTree: false, enableTabs: true, lint: { bold: false }, window: { width: 900, height: 700, maximized: false, x: 10, y: 20 }, openDirectoryMode: 'fixed', fixedDirectory: path.resolve(path.sep, 'notes'), workLocation: 'beside', speechVoice: 'Microsoft Ayumi', speechRate: 'fast', lastDirectory: path.resolve(path.sep, 'docs') };
   assert.equal(saveSettings(file, settings), true);
   assert.deepEqual(loadSettings(file), settings);
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
@@ -183,4 +183,32 @@ test('speechVoice is any short string (the OS decides which exist), speechRate i
   for (const ok of ['slowest', 'slow', 'normal', 'fast', 'fastest']) assert.equal(normalizeSettings({ speechRate: ok }).speechRate, ok);
   for (const bad of ['turbo', 3, null]) assert.equal(normalizeSettings({ speechRate: bad }).speechRate, 'normal', String(bad));
   assert.ok(EDITABLE.includes('speechVoice') && EDITABLE.includes('speechRate'));
+});
+
+test('lint settings: defaults, valid values are kept, and anything else falls back (#271)', () => {
+  assert.deepEqual(DEFAULTS.lint, { bold: true });
+  assert.deepEqual(normalizeSettings({}).lint, { bold: true });
+  assert.deepEqual(normalizeSettings({ lint: { bold: false } }).lint, { bold: false });
+  // 知らない名前は捨て、真偽値でない値は既定値に戻す。オブジェクトでない値は、すべて既定値にする
+  assert.deepEqual(normalizeSettings({ lint: { bold: 'no', nope: false } }).lint, { bold: true });
+  for (const value of [null, [], 'bold', 42, true]) {
+    assert.deepEqual(normalizeSettings({ lint: value }).lint, { bold: true }, JSON.stringify(value));
+  }
+});
+
+test('lint is editable from the settings screen, and every listed lint has a screen row (#271)', () => {
+  assert.ok(EDITABLE.includes('lint'));
+  for (const lint of LINTS) {
+    assert.match(lint.name, /^[a-z]+$/, 'the name is used in a radio name (lint:<name>)');
+    assert.ok(lint.label && lint.description && lint.on && lint.off, lint.name);
+    assert.equal(typeof lint.default, 'boolean');
+    assert.equal(DEFAULTS.lint[lint.name], lint.default);
+  }
+});
+
+test('normalizing does not share the frozen default object, so a change cannot leak into the defaults (#271)', () => {
+  const settings = normalizeSettings({});
+  settings.lint.bold = false;
+  assert.equal(DEFAULTS.lint.bold, true);
+  assert.equal(normalizeSettings({}).lint.bold, true);
 });

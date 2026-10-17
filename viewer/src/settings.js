@@ -60,8 +60,28 @@ const FEATURES = Object.freeze([
   }),
 ]);
 
+/**
+ * lint（原稿の警告）の一覧（#271）。名前は、text-compositor本体の`text_compositor/lints.py`の`LINTS`と、同じにする
+ * （ワーカーの`params.lint`へ、そのまま渡すため）。ずれは、`test/lints-contract.test.js`が、検出する。
+ * lintを足すときは、`lints.py`と、ここに、1行ずつ足す（設定画面の行は、ここから作られる）。
+ *   name: lintの名前。 default: 既定値（真偽値。`lints.py`の既定値と同じ）。 label・description: 設定画面の名前と説明。
+ *   on・off: 選択肢の文字。
+ */
+const LINTS = Object.freeze([
+  Object.freeze({
+    name: 'bold',
+    default: true,   // 警告は、原稿を直す手がかりで、無害のため、既定は「出す」（#215）
+    label: '太字のチェック',
+    description: '太字（**…**）が効かず、**がそのまま出た箇所を、警告します（括弧や句読点の隣で、外側に空白がないときなど）。'
+      + '**をそのまま見せたい原稿では、「出さない」にします。変更は、次に文書を開く（更新する）ときから効きます。',
+    on: '出す',
+    off: '出さない',
+  }),
+]);
+
 const DEFAULTS = Object.freeze({
   ...Object.fromEntries(FEATURES.map((feature) => [feature.key, feature.default])),
+  lint: Object.freeze(Object.fromEntries(LINTS.map((lint) => [lint.name, lint.default]))),   // {lintの名前: 出す(true)・出さない(false)}
   toolbarPosition: 'top',   // 'top' | 'bottom'
   theme: 'system',          // 'system' | 'light' | 'dark'
   autoReload: true,         // 保存したら、自動で更新する（#170）
@@ -77,7 +97,7 @@ const DEFAULTS = Object.freeze({
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'openDirectoryMode', 'workLocation', 'speechVoice', 'speechRate']);
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'lint', 'openDirectoryMode', 'workLocation', 'speechVoice', 'speechRate']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -123,6 +143,13 @@ function normalizeSettings(value) {
   for (const feature of FEATURES) {
     if (typeof source[feature.key] === 'boolean') result[feature.key] = source[feature.key];
   }
+  // lintは、一覧にある名前の、真偽値だけを採る（知らない名前・真偽値でない値は、捨てて、既定値に戻す）
+  result.lint = { ...DEFAULTS.lint };
+  if (source.lint !== null && typeof source.lint === 'object' && !Array.isArray(source.lint)) {
+    for (const { name } of LINTS) {
+      if (typeof source.lint[name] === 'boolean') result.lint[name] = source.lint[name];
+    }
+  }
   // 声の名前は、環境で違うため、候補を固定しない。長すぎる・文字でない値だけ、自動に戻す
   if (typeof source.speechVoice === 'string' && source.speechVoice.length <= 200) result.speechVoice = source.speechVoice;
   result.window = normalizeWindow(source.window);
@@ -154,4 +181,4 @@ function saveSettings(file, settings) {
   }
 }
 
-module.exports = { CHOICES, DEFAULTS, EDITABLE, FEATURES, loadSettings, normalizeSettings, normalizeWindow, saveSettings };
+module.exports = { CHOICES, DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, normalizeWindow, saveSettings };
