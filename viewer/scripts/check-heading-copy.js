@@ -111,10 +111,16 @@ function check(name, ok, detail = '') {
 
     // 「#」のクリック（2つ目の「使い方」。idは「使い方-1」）
     setClipboard('before');
+    const anchorText = () => content.eval("document.querySelectorAll('h2')[0].querySelector('.tc-anchor').textContent");
     await content.eval("document.querySelectorAll('h2')[0].querySelector('.tc-anchor').click()");
-    await sleep(500);
-    check('「#」で、ファイル名#見出しのidがコピーされる', clipboard() === 'sample.md#使い方-1', `clipboard=${JSON.stringify(clipboard())}`);
-    check('コピー直後に「✓」になる', (await content.eval("document.querySelectorAll('h2')[0].querySelector('.tc-anchor').textContent")) === '✓');
+    await sleep(150);
+    // 「✓」は、押してから1.2秒で「#」へ戻る（content-preload.jsのflash）。クリップボードの読み取り（PowerShellの起動で、約1秒かかる）の前に、確かめる。
+    // 後に確かめると、戻ったあとを見てしまい、毎回、失敗する（#501）
+    check('コピー直後に「✓」になる', (await anchorText()) === '✓');
+    const copied = clipboard();
+    check('「#」で、ファイル名#見出しのidがコピーされる', copied === 'sample.md#使い方-1', `clipboard=${JSON.stringify(copied)}`);
+    await sleep(1300);   // 押してから、1.2秒を超える
+    check('しばらくすると、「#」へ戻る', (await anchorText()) === '#');
 
     // 「コピー」のクリック（1つ目のコード）
     setClipboard('before');
