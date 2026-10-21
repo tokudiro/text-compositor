@@ -98,3 +98,6 @@ def test_every_font_in_a_real_pdf_is_embedded_and_subset(tmp_path, monkeypatch):
     assert not not_subset, f"fonts that are not subset (no ABCDEF+ tag): {not_subset} (all: {names})"
     # 日本語の本文・見出しは、同梱のNoto Sans JPで出る（システムのフォントに、置き換わらない）
     assert any(b"NotoSansJP" in name for name, _ in fonts), names
+    # コードは、同梱の等幅フォント（Noto Sans Mono CJK JP、#511）で出る（Typst内蔵のDejaVu Sans Monoではなく）
+    assert any(b"NotoSansMonoCJKjp" in name for name, _ in fonts), names
+    assert not any(b"DejaVuSansMono" in name for name, _ in fonts), names
