@@ -4,6 +4,25 @@
 
 ## System Context図
 
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        user = person "利用者"
+        ecSite = softwareSystem "ECサイト"
+        payment = softwareSystem "決済代行サービス"
+        user -> ecSite "注文する"
+        ecSite -> payment "決済を依頼する"
+    }
+    views {
+        systemContext ecSite "SystemContext" {
+            include *
+            autoLayout
+        }
+    }
+}
+````
+
 ```structurizr
 workspace {
     model {
@@ -21,8 +40,32 @@ workspace {
     }
 }
 ```
+:::
 
 ## コンテナ図
+
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        user = person "利用者"
+        ecSite = softwareSystem "ECサイト" {
+            webApp = container "Webアプリ"
+            api = container "API"
+            db = container "データベース"
+            webApp -> api "呼び出す"
+            api -> db "読み書きする"
+        }
+        user -> webApp "利用する"
+    }
+    views {
+        container ecSite "Containers" {
+            include *
+            autoLayout
+        }
+    }
+}
+````
 
 ```structurizr
 workspace {
@@ -45,8 +88,32 @@ workspace {
     }
 }
 ```
+:::
 
 ## コンポーネント図
+
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        ecSite = softwareSystem "ECサイト" {
+            api = container "API" {
+                orderController = component "注文コントローラー"
+                orderService = component "注文サービス"
+                orderRepository = component "注文リポジトリ"
+                orderController -> orderService "呼び出す"
+                orderService -> orderRepository "呼び出す"
+            }
+        }
+    }
+    views {
+        component api "Components" {
+            include *
+            autoLayout
+        }
+    }
+}
+````
 
 ```structurizr
 workspace {
@@ -69,8 +136,30 @@ workspace {
     }
 }
 ```
+:::
 
 ## コンポーネント図／配置図
+
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        ecSite = softwareSystem "ECサイト" {
+            api = container "API" {
+                paymentComponent = component "決済連携コンポーネント"
+            }
+        }
+        payment = softwareSystem "決済代行サービス"
+        paymentComponent -> payment "決済APIを呼び出す"
+    }
+    views {
+        component api "ComponentAndDeployment" {
+            include *
+            autoLayout
+        }
+    }
+}
+````
 
 ```structurizr
 workspace {
@@ -91,8 +180,30 @@ workspace {
     }
 }
 ```
+:::
 
 ## システムランドスケープ図
+
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        user = person "利用者"
+        ecSite = softwareSystem "ECサイト"
+        inventory = softwareSystem "在庫管理システム"
+        payment = softwareSystem "決済代行サービス"
+        user -> ecSite "注文する"
+        ecSite -> inventory "在庫を照会する"
+        ecSite -> payment "決済する"
+    }
+    views {
+        systemLandscape "Landscape" {
+            include *
+            autoLayout
+        }
+    }
+}
+````
 
 ```structurizr
 workspace {
@@ -113,8 +224,35 @@ workspace {
     }
 }
 ```
+:::
 
 ## デプロイメント図
+
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        ecSite = softwareSystem "ECサイト" {
+            webApp = container "Webアプリ"
+            db = container "データベース"
+        }
+        prod = deploymentEnvironment "本番" {
+            deploymentNode "Webサーバー" {
+                containerInstance webApp
+            }
+            deploymentNode "DBサーバー" {
+                containerInstance db
+            }
+        }
+    }
+    views {
+        deployment ecSite "本番" "Deployment" {
+            include *
+            autoLayout
+        }
+    }
+}
+````
 
 ```structurizr
 workspace {
@@ -140,8 +278,34 @@ workspace {
     }
 }
 ```
+:::
 
 ## コミュニケーション図
+
+::: layout-left {left=55 right=45}
+````text
+workspace {
+    model {
+        user = person "利用者"
+        ecSite = softwareSystem "ECサイト" {
+            webApp = container "Webアプリ"
+            api = container "API"
+            db = container "データベース"
+        }
+        user -> webApp "注文操作"
+        webApp -> api "注文リクエスト"
+        api -> db "注文を保存"
+    }
+    views {
+        dynamic ecSite "Dynamic" {
+            user -> webApp "注文操作"
+            webApp -> api "注文リクエスト"
+            api -> db "注文を保存"
+            autoLayout
+        }
+    }
+}
+````
 
 ```structurizr
 workspace {
@@ -166,3 +330,4 @@ workspace {
     }
 }
 ```
+:::

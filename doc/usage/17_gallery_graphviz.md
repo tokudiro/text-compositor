@@ -4,6 +4,18 @@
 
 ## フローチャート
 
+::: layout-left {left=55 right=45}
+````text
+digraph {
+  rankdir=TB
+  受付 -> 審査
+  審査 -> 承認 [label="OK"]
+  審査 -> 差し戻し [label="NG"]
+  差し戻し -> 受付
+  承認 -> 発送
+}
+````
+
 ```dot
 digraph {
   rankdir=TB
@@ -14,8 +26,18 @@ digraph {
   承認 -> 発送
 }
 ```
+:::
 
 ## ノードとエッジ図
+
+::: layout-left {left=55 right=45}
+````text
+digraph {
+  サーバー -> データベース
+  サーバー -> キャッシュ
+  クライアント -> サーバー
+}
+````
 
 ```dot
 digraph {
@@ -24,3 +46,4 @@ digraph {
   クライアント -> サーバー
 }
 ```
+:::

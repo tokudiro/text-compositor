@@ -4,6 +4,17 @@
 
 ## シーケンス図
 
+::: layout-left {left=55 right=45}
+````text
+shape: sequence_diagram
+利用者 -> 画面: ログイン操作
+画面 -> API: 認証リクエスト
+API -> DB: ユーザー照会
+DB -> API: ユーザー情報
+API -> 画面: トークン発行
+画面 -> 利用者: ログイン完了
+````
+
 ```d2
 shape: sequence_diagram
 利用者 -> 画面: ログイン操作
@@ -13,8 +24,25 @@ DB -> API: ユーザー情報
 API -> 画面: トークン発行
 画面 -> 利用者: ログイン完了
 ```
+:::
 
 ## クラス図
+
+::: layout-left {left=55 right=45}
+````text
+注文: {
+  shape: class
+  id: int
+  注文日: date
+  合計金額(): int
+}
+明細: {
+  shape: class
+  数量: int
+  単価: int
+}
+注文 -> 明細: 1..*
+````
 
 ```d2
 注文: {
@@ -30,8 +58,18 @@ API -> 画面: トークン発行
 }
 注文 -> 明細: 1..*
 ```
+:::
 
 ## フローチャート
+
+::: layout-left {left=55 right=45}
+````text
+受付 -> 審査
+審査 -> 承認: OK
+審査 -> 差し戻し: NG
+差し戻し -> 受付
+承認 -> 発送
+````
 
 ```d2
 受付 -> 審査
@@ -40,16 +78,41 @@ API -> 画面: トークン発行
 差し戻し -> 受付
 承認 -> 発送
 ```
+:::
 
 ## ノードとエッジ図
+
+::: layout-left {left=55 right=45}
+````text
+利用者 -> サーバー
+サーバー -> データベース
+サーバー -> キャッシュ
+````
 
 ```d2
 利用者 -> サーバー
 サーバー -> データベース
 サーバー -> キャッシュ
 ```
+:::
 
 ## ER図
+
+::: layout-left {left=55 right=45}
+````text
+利用者: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  氏名: text
+}
+注文: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  利用者id: int {constraint: foreign_key}
+  合計金額: int
+}
+利用者.id <-> 注文.利用者id
+````
 
 ```d2
 利用者: {
@@ -65,8 +128,18 @@ API -> 画面: トークン発行
 }
 利用者.id <-> 注文.利用者id
 ```
+:::
 
 ## ネットワーク構成図
+
+::: layout-left {left=55 right=45}
+````text
+インターネット -> ロードバランサー
+ロードバランサー -> Webサーバー1
+ロードバランサー -> Webサーバー2
+Webサーバー1 -> DBサーバー
+Webサーバー2 -> DBサーバー
+````
 
 ```d2
 インターネット -> ロードバランサー
@@ -75,3 +148,4 @@ API -> 画面: トークン発行
 Webサーバー1 -> DBサーバー
 Webサーバー2 -> DBサーバー
 ```
+:::

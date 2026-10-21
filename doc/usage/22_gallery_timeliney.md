@@ -4,6 +4,29 @@
 
 ## ガントチャート
 
+::: layout-left {left=55 right=45}
+````text
+headerline(group(([*4月*], 2), ([*5月*], 2), ([*6月*], 2)))
+headerline(
+  group(..range(6).map(n => strong("第" + str(n + 1) + "週")))
+)
+
+taskgroup(title: [設計], {
+  task("要件整理", (0, 1))
+  task("画面設計", (1, 3))
+})
+taskgroup(title: [実装], {
+  task("バックエンド", (2, 5))
+  task("フロントエンド", (3, 6))
+})
+
+milestone(
+  at: 5.9,
+  style: (stroke: (dash: "dashed")),
+  align(center, [*リリース*])
+)
+````
+
 ```timeliney
 headerline(group(([*4月*], 2), ([*5月*], 2), ([*6月*], 2)))
 headerline(
@@ -25,3 +48,4 @@ milestone(
   align(center, [*リリース*])
 )
 ```
+:::
