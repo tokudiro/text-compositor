@@ -41,6 +41,15 @@ const FEATURES = Object.freeze([
     off: '出さない',
   }),
   Object.freeze({
+    key: 'showCodeBorder',
+    default: false,   // PDFの`code_block.border`と同じく、枠線は、既定では付けない（#511）。背景は、今も付いており、枠線だけを足す
+    label: 'コードブロックの枠線',
+    description: 'コードブロックに、細い枠線を付けます。背景（薄いグレー）は、この設定によらず付きます。'
+      + 'PDFの、コードブロックの枠線（config.yamlの code_block の border）とは、別の設定です（この画面の設定は、読む人の表示用です）。',
+    on: '付ける',
+    off: '付けない',
+  }),
+  Object.freeze({
     key: 'showFileTree',
     default: true,   // フォルダを開くまで、画面は何も変わらない（サイドバーは閉じている）ため、既定は「出す」（#339。#326のDの例外）
     label: 'サイドバー',
