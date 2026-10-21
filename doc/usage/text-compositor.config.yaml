@@ -30,6 +30,8 @@ chapters:
   - "06_markdown_basics.md"
   - "07_marp_directives.md"
   - "08_diagrams.md"
+  - file: "29_diagram_matrix.md"
+    landscape: true   # 13列の表が縦では詰まるため、この章だけA4横にする
   - "09_raw_typst.md"
   - "10_custom_template.md"
   - "11_troubleshooting.md"
