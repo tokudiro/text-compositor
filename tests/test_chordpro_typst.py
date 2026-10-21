@@ -41,7 +41,8 @@ def test_a_chordpro_file_chapter_becomes_boxes(tmp_path):
 def test_the_plugin_off_shows_the_source_as_code(tmp_path):
     r = renderer(tmp_path, chordpro_enabled=False)
     assert "#box(stack" not in r.render("# T\n\n```chordpro\n[C]x\n```\n")
-    assert r.render_chapter("[C]x\n", filepath=str(tmp_path / "s.pro")).startswith('#raw("[C]x')
+    shown = r.render_chapter("[C]x\n", filepath=str(tmp_path / "s.pro"))
+    assert shown.startswith('#[') and '#raw("[C]x' in shown   # 装飾（#511）で包まれたコードブロック
 
 
 def test_a_warning_points_at_the_line_in_the_document(tmp_path):

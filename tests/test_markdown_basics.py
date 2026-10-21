@@ -4,6 +4,7 @@
 import os
 import pytest
 
+from text_compositor.code_block_style import wrap_code_block
 from text_compositor.renderer import TypstRenderer
 
 
@@ -69,11 +70,11 @@ class TestBlockquoteAndAlert:
 class TestCodeFence:
     def test_fence_with_lang(self):
         out = render("```text\ncode here\n```\n")
-        assert out == '#raw("code here\\n", lang: "text", block: true)\n\n'
+        assert out == wrap_code_block('#raw("code here\\n", lang: "text", block: true)')
 
     def test_fence_without_lang(self):
         out = render("```\ncode here\n```\n")
-        assert out == '#raw("code here\\n", block: true)\n\n'
+        assert out == wrap_code_block('#raw("code here\\n", block: true)')
 
     def test_inline_code(self):
         assert render("`code`\n") == '#raw("code")\n\n'

@@ -133,7 +133,7 @@ class TestFenceProtectionRegression:
         )
         out = render(wrapped)
         assert "#grid(" not in out
-        assert out.startswith('#raw("')
+        assert out.startswith('#[') and '#raw("' in out   # 装飾（#511）で包まれたコードブロック
 
     def test_real_fence_inside_layout_block_is_detected(self):
         """layout-rightの中に実際の図表フェンスを置いた場合は検出できる（#127）。"""

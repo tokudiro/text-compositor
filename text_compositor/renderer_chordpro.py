@@ -55,7 +55,7 @@ class ChordproMixin:
             parts.append(f'#block(spacing: 0.3em, text(size: 0.8em, weight: "bold", fill: luma(110), {_s(section.label)}))\n')
         if section.kind == 'tab':
             tab = "\n".join(i.text for i in section.items if isinstance(i, chordpro_render.Line))
-            parts.append(self._render_raw_text(tab))
+            parts.append(self._render_raw_text(tab, decorate=False))   # 歌詞の譜面の一部。コードブロックの装飾（#511）は、付けない
         else:
             parts.extend(self._chordpro_item_typst(i) for i in section.items)
         body = ''.join(parts)

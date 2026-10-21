@@ -13,6 +13,7 @@ from mdit_py_plugins.attrs import attrs_plugin
 # 数式（LaTeX記法、#183）。GitHub標準の$...$/$$...$$をパースする。
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from text_compositor import chordpro_render
+from text_compositor.code_block_style import wrap_code_block
 from text_compositor.config import yaml
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
@@ -279,16 +280,22 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             sys.exit(1)
         return result
 
-    def _render_raw_text(self, text, lang=None):
+    def _render_raw_text(self, text, lang=None, decorate=True):
         """Markdown以外のテキスト（プレーンテキスト・コード・YAML/JSON等）を、markdown-itを一切
         通さずTypstのraw()で等幅表示する。通常の段落として流し込むとTypstのテキストモードが
         連続する空白を折りたたみ、コードのインデント等が失われるため、raw()で改行・空白とも
         そのまま保持する。lang未指定時（プレーンテキスト・未知拡張子）はシンタックスハイライトなし。
-        ```` ``` ````フェンス構文だと本文中に```が含まれた場合に壊れるため、文字列リテラルとして渡す。"""
+        ```` ``` ````フェンス構文だと本文中に```が含まれた場合に壊れるため、文字列リテラルとして渡す。
+        decorate: コードブロックの装飾（背景・フォント。#511）で包むか。Graphviz（`dot`・`graphviz`で、
+        プラグインが有効なとき）は、テンプレートのshowルールが図に置き換えるため、包まない（図が枠に入ってしまう）。"""
         escaped = (text.replace('\\', '\\\\').replace('"', '\\"')
                        .replace('\r\n', '\n').replace('\n', '\\n'))
         lang_arg = f'lang: "{lang}", ' if lang else ''
-        return f'#raw("{escaped}", {lang_arg}block: true)\n\n'
+        raw = f'#raw("{escaped}", {lang_arg}block: true)'
+        is_graph = lang in ('dot', 'graphviz') and getattr(self, 'graphviz_enabled', False)
+        if decorate and not is_graph:
+            return wrap_code_block(raw)
+        return raw + '\n\n'
 
     def render(self, text, filepath="", drop_leading_title=False):
         self.current_file = filepath

@@ -5,6 +5,7 @@
 出たりしないこと。値を実際の脚注・参考文献として反映する（footnoteの組版、citationの文献解決等）
 ことは対象外で、Marpのディレクティブと同様「認識するが反映しない」レベルに留める。
 """
+from text_compositor.code_block_style import wrap_code_block
 from text_compositor.renderer import TypstRenderer
 
 
@@ -39,7 +40,7 @@ class TestFencedDivs:
 class TestAttributedFencedCode:
     def test_class_and_extra_attr_extracts_first_class_as_lang(self, capsys):
         out = render("```{.python .numberLines}\nprint('hi')\n```\n")
-        assert out == "#raw(\"print('hi')\\n\", lang: \"python\", block: true)\n\n"
+        assert out == wrap_code_block("#raw(\"print('hi')\\n\", lang: \"python\", block: true)")
         assert capsys.readouterr().out == ""
 
     def test_single_class_extracts_as_lang(self, capsys):
@@ -51,20 +52,20 @@ class TestAttributedFencedCode:
         # だけに留める（値の反映はしない方針）。Typstは未知の言語として無装飾表示するだけで、
         # 壊れた文字列（旧: `lang: "{.numberLines"`）のような実害はない。
         out = render("```{.numberLines}\ncode\n```\n")
-        assert out == '#raw("code\\n", lang: "numberLines", block: true)\n\n'
+        assert out == wrap_code_block('#raw("code\\n", lang: "numberLines", block: true)')
 
     def test_no_dot_class_at_all_omits_lang(self, capsys):
         """クラス（`.foo`）を1つも持たない属性だけの指定（`{data-line="1"}`）は、言語名が
         無いのと同じ扱いにする（`lang`引数自体を渡さない）。"""
         out = render('```{data-line="1"}\ncode\n```\n')
-        assert out == '#raw("code\\n", block: true)\n\n'
+        assert out == wrap_code_block('#raw("code\\n", block: true)')
         assert capsys.readouterr().out == ""
 
     def test_dot_inside_quoted_attribute_value_does_not_leak_as_lang(self, capsys):
         """属性値に引用符付きでピリオドを含む文字列（バージョン番号等）があると、先頭クラスより
         先に見つかって誤った言語名を拾ってしまっていた（#84で発見）。引用符内は探索対象から除く。"""
         out = render('```{key="a.b" .python}\ncode\n```\n')
-        assert out == '#raw("code\\n", lang: "python", block: true)\n\n'
+        assert out == wrap_code_block('#raw("code\\n", lang: "python", block: true)')
         assert capsys.readouterr().out == ""
 
 
@@ -96,7 +97,7 @@ class TestFootnotes:
     def test_example_inside_fence_is_left_untouched(self):
         """使い方説明のサンプルコード（```内）まで無害化の対象にしないこと（#85と同じ保護）。"""
         out = render("```\n[^1]: shorttext\n```\n")
-        assert out == '#raw("[^1]: shorttext\\n", block: true)\n\n'
+        assert out == wrap_code_block('#raw("[^1]: shorttext\\n", block: true)')
 
     def test_multiple_footnotes_coexist_without_leaking(self, capsys):
         """1語だけの本文と、空白を含む本文のfootnoteが同じ原稿に混在しても、それぞれ独立して
