@@ -79,9 +79,9 @@ async function setScheme(view, scheme) {
   await sleep(300);
 }
 
-function sendKeys(keys) {
+function sendKeys(pid, keys) {
   const script = 'Add-Type -AssemblyName System.Windows.Forms; '
-    + '(New-Object -ComObject WScript.Shell).AppActivate((Get-Process electron | ? MainWindowTitle | select -First 1).Id) | Out-Null; '
+    + `(New-Object -ComObject WScript.Shell).AppActivate(${pid}) | Out-Null; `
     + `Start-Sleep -Milliseconds 400; [Windows.Forms.SendKeys]::SendWait("${keys}")`;
   execFileSync('powershell', ['-NoProfile', '-Command', script]);
 }
@@ -95,7 +95,7 @@ async function session(file, body, { settings = null, env = {} } = {}) {
   try {
     await sleep(7000);
     const chrome = await connectChrome(port);
-    await body({ chrome });
+    await body({ chrome, proc });
     chrome.close();
   } finally {
     proc.kill();
@@ -139,7 +139,7 @@ async function main() {
   checkAxe('文書の表示（ライト）', auditContent(html, 'light'));
   checkAxe('文書の表示（ダーク）', auditContent(html, 'dark'));
 
-  await session(good, async ({ chrome }) => {
+  await session(good, async ({ chrome, proc }) => {
     // 文書の表示を待つ（初回は、Typstの図の描画に、時間がかかる）
     let shown = false;
     for (let i = 0; i < 60 && !shown; i += 1) {
@@ -191,11 +191,11 @@ async function main() {
     await sleep(500);
 
     // F6: ツールバーと文書の間を、行き来する（実際のキー操作）
-    sendKeys('{F6}');
+    sendKeys(proc.pid, '{F6}');
     await sleep(700);
     const afterFirst = await chrome.evaluate("document.hasFocus() && document.activeElement?.closest('#toolbar') ? document.activeElement.id : ''");
     check('F6で、文書から、ツールバーのボタンへ、フォーカスが移る', afterFirst !== '', afterFirst);
-    sendKeys('{F6}');
+    sendKeys(proc.pid, '{F6}');
     await sleep(700);
     const afterSecond = await chrome.evaluate("document.hasFocus() && document.activeElement?.closest('#toolbar') ? document.activeElement.id : ''");
     check('もう一度F6で、文書へ戻る（ツールバーのフォーカスが外れる）', afterSecond === '', afterSecond);

@@ -8,7 +8,6 @@
 //   - 文書を更新（自動更新）しても、枠線が保たれる
 //   - オフに戻すと、枠線が消える
 //   - 設定が、設定ファイルに保存される
-// 起動したViewerだけを、終了する（`Get-Process electron`で、すべてのElectronを終了しない。ClaudeもElectronのため）。
 
 const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
