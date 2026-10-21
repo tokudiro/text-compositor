@@ -67,7 +67,9 @@ class TestCmapReading:
         assert fonts.font_codepoints(str(path)) == frozenset()
         assert fonts.font_codepoints(str(tmp_path / "missing.ttf")) == frozenset()
 
-    def test_the_bundled_font_has_japanese_but_not_hangul(self):
+    def test_the_bundled_fonts_have_japanese_hangul_and_simplified_but_not_emoji(self):
+        """コードブロック用の等幅フォント（Noto Sans Mono CJK JP、#511）は、日本語だけでなく、ハングル・簡体字も持つ。
+        そのため、Typstの自動の代替（本文のフォントに無い字を、他のフォントから探す）で、これらは、空の四角にならない。"""
         from text_compositor.deps import ensure_fonts
         try:
             directory = ensure_fonts()
@@ -75,7 +77,8 @@ class TestCmapReading:
             pytest.skip("fonts are not available")
         covered = fonts.covered_codepoints(directory)
         assert ord("あ") in covered and ord("漢") in covered
-        assert ord("한") not in covered and 0x1F600 not in covered
+        assert ord("한") in covered and ord("们") in covered
+        assert 0x1F600 not in covered
 
 
 class TestFontPaths:

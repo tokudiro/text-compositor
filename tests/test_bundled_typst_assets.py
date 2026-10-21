@@ -9,7 +9,7 @@ import pytest
 import text_compositor.deps as deps_mod
 from text_compositor import cetz_render, pikchr_render
 from text_compositor.compiler import TYPST_PACKAGES_ENV, typst_package_options
-from text_compositor.deps import FONT_DIR_ENV, NOTO_SANS_JP_FILES, ensure_fonts
+from text_compositor.deps import FONT_DIR_ENV, NOTO_SANS_JP_FILES, NOTO_SANS_MONO_JP_FILES, ensure_fonts, font_file_names
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,7 +25,7 @@ class TestBundledFonts:
     def test_a_complete_bundled_folder_is_used_without_downloading(self, tmp_path, monkeypatch, no_download):
         bundled = tmp_path / "fonts"
         bundled.mkdir()
-        for name in NOTO_SANS_JP_FILES:
+        for name in font_file_names():   # Noto Sans JPと、コードブロック用の等幅フォント（#511）の、すべて
             (bundled / name).write_bytes(b"font")
         monkeypatch.setenv(FONT_DIR_ENV, str(bundled))
         assert ensure_fonts() == str(bundled)
@@ -34,7 +34,7 @@ class TestBundledFonts:
     def test_an_incomplete_folder_warns_and_falls_back_to_the_download(self, tmp_path, monkeypatch, no_download, capsys):
         bundled = tmp_path / "fonts"
         bundled.mkdir()
-        (bundled / "NotoSansJP-Regular.otf").write_bytes(b"font")   # Boldが無い
+        (bundled / "NotoSansJP-Regular.otf").write_bytes(b"font")   # Bold・等幅フォントが無い
         monkeypatch.setenv(FONT_DIR_ENV, str(bundled))
         with pytest.raises(BaseException, match="downloaded"):
             ensure_fonts()   # 通常の取得へ進む（このテストでは、取得を失敗させてある）
@@ -81,6 +81,9 @@ def test_build_dist_pins_the_same_fonts_and_packages_as_the_tool():
     for name, sha256 in NOTO_SANS_JP_FILES.items():
         assert f"'{name}': '{sha256}'" in script, name
     assert deps_mod.NOTO_SANS_JP_RELEASE_URL in script
+    for name, sha256 in NOTO_SANS_MONO_JP_FILES.items():   # コードブロック用の等幅フォント（#511）
+        assert f"'{name}': '{sha256}'" in script, name
+    assert deps_mod.NOTO_SANS_MONO_JP_RELEASE_URL in script
     common = (ROOT / "text_compositor" / "templates" / "_common.typ").read_text(encoding="utf-8")
     used = set(re.findall(r"@preview/([a-z0-9-]+):([\d.]+)", common))
     used.add(("kip", pikchr_render.KIP_VERSION))   # Pikchr（#213）は、テンプレートではなく、生成コードが読み込む

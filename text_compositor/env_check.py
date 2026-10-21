@@ -5,7 +5,7 @@ import sys
 import importlib.metadata
 from collections import namedtuple
 from text_compositor.config import _load_project_config, yaml
-from text_compositor.deps import D2_ASSETS, NOTO_SANS_JP_FILES, TEMURIN_JRE_ASSETS, TEMURIN_JRE_TOP_DIR, _d2_bin_path, _d2_cache_root, _jre_cache_root, _structurizr_cli_cache_root, _structurizr_cli_lib_dir, _temurin_platform_key, _user_cache_dir, find_system_browser, find_system_d2, find_system_java
+from text_compositor.deps import D2_ASSETS, font_file_names, TEMURIN_JRE_ASSETS, TEMURIN_JRE_TOP_DIR, _d2_bin_path, _d2_cache_root, _jre_cache_root, _structurizr_cli_cache_root, _structurizr_cli_lib_dir, _temurin_platform_key, _user_cache_dir, find_system_browser, find_system_d2, find_system_java
 from text_compositor.log import _warn
 
 def _typst_version_info(repo_root):
@@ -103,7 +103,7 @@ def _check_typst_env(repo_root):
 
 def _check_font_cache():
     font_dir = os.path.join(_user_cache_dir(), "fonts", "NotoSansJP")
-    missing = [name for name in NOTO_SANS_JP_FILES if not os.path.exists(os.path.join(font_dir, name))]
+    missing = [name for name in font_file_names() if not os.path.exists(os.path.join(font_dir, name))]
     if not missing:
         return CheckResult("Noto Sans JP font", "OK", f"cached under {font_dir}")
     return CheckResult("Noto Sans JP font", "WARN", "not cached yet; will be downloaded (one-time) on first build")

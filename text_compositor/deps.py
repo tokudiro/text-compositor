@@ -174,39 +174,45 @@ NOTO_SANS_JP_FILES = {
     "NotoSansJP-Bold.otf": "1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f",
 }
 
+# コードブロック用の等幅フォント（Noto Sans Mono CJK JP。#511）。取得元は、Noto Sans JPと同じリリース（Sans2.004）。
+# ライセンスも同じ（OFL-1.1）。コードの中の日本語も、半角の2倍の幅に揃う。Regular・Boldの両方を使う
+# （コード内の太字を、合成ではなく本物のBoldで出すため）。
+NOTO_SANS_MONO_JP_RELEASE_URL = "https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/11_NotoSansMonoCJKjp.zip"
+NOTO_SANS_MONO_JP_FILES = {
+    "NotoSansMonoCJKjp-Regular.otf": "4d01725be822d144cf9a56ade981e6fb920cd7a610b8fc24cc601a920beea5b9",
+    "NotoSansMonoCJKjp-Bold.otf": "dfdffe149bc6cbf52860dabd8b8dadbca40ae87a4fbe143b55c0258db2dadfb8",
+}
+
 # 呼び出し元が、同梱したフォントのフォルダを教える環境変数（#263）。ViewerのZIPは、Noto Sans JPを`fonts/`に同梱しており、
 # Electronが、この変数で、ワーカーに教える。フォルダに、必要なフォントが揃っていれば、ダウンロードしない。
 FONT_DIR_ENV = "TEXT_COMPOSITOR_FONT_DIR"
 
 
-def ensure_fonts():
-    """Noto Sans JP（Regular/Bold）がユーザーキャッシュディレクトリの fonts/NotoSansJP/ に
-    なければダウンロードする。2回目以降のビルドはキャッシュを使い、ネットワークアクセスなしで
-    完結する（#110）。環境変数`TEXT_COMPOSITOR_FONT_DIR`のフォルダに、フォントが揃っていれば、
-    それを使う（ダウンロードしない。ViewerのZIPに同梱したフォント。#263）。"""
-    bundled = os.environ.get(FONT_DIR_ENV)
-    if bundled:
-        if all(os.path.exists(os.path.join(bundled, name)) for name in NOTO_SANS_JP_FILES):
-            return bundled
-        # 同梱のフォルダが不完全なとき（配布物の不具合）は、黙って続けず、知らせてから、通常の取得へ進む
-        _warn(f"{FONT_DIR_ENV} is set but {bundled} does not contain {', '.join(NOTO_SANS_JP_FILES)}; falling back to the download.")
-    font_dir = os.path.join(_user_cache_dir(), "fonts", "NotoSansJP")
-    os.makedirs(font_dir, exist_ok=True)
+def _font_sets():
+    """取得するフォントの組（表示名・zipのURL・ファイル名→SHA256）。テストが、定数を差し替えられるように、呼ぶたびに読む。"""
+    return (
+        ("Noto Sans JP", NOTO_SANS_JP_RELEASE_URL, NOTO_SANS_JP_FILES),
+        ("Noto Sans Mono CJK JP", NOTO_SANS_MONO_JP_RELEASE_URL, NOTO_SANS_MONO_JP_FILES),
+    )
 
-    missing = [name for name in NOTO_SANS_JP_FILES if not os.path.exists(os.path.join(font_dir, name))]
-    if not missing:
-        return font_dir
 
-    _log_info(f"Downloading Noto Sans JP font (one-time; cached under {font_dir})...")
+def font_file_names():
+    """PDFが使うフォントのファイル名すべて（取得・同梱の確認に使う）。"""
+    return [name for _, _, files in _font_sets() for name in files]
+
+
+def _fetch_font_set(label, url, files, missing, font_dir):
+    """zipを取得して、`missing`のフォントだけを、SHA256を確かめて、`font_dir`に置く。"""
+    _log_info(f"Downloading {label} font (one-time; cached under {font_dir})...")
     zip_path = os.path.join(font_dir, "_download.zip")
     try:
-        _download(NOTO_SANS_JP_RELEASE_URL, zip_path)
+        _download(url, zip_path)
         with zipfile.ZipFile(zip_path) as zf:
             for name in missing:
                 data = zf.read(name)
                 digest = hashlib.sha256(data).hexdigest()
-                if digest != NOTO_SANS_JP_FILES[name]:
-                    _error(f"Checksum mismatch for {name}: expected {NOTO_SANS_JP_FILES[name]}, got {digest}")
+                if digest != files[name]:
+                    _error(f"Checksum mismatch for {name}: expected {files[name]}, got {digest}")
                     sys.exit(1)
                 with open(os.path.join(font_dir, name), "wb") as f:
                     f.write(data)
@@ -219,6 +225,28 @@ def ensure_fonts():
     finally:
         if os.path.exists(zip_path):
             os.remove(zip_path)
+
+
+def ensure_fonts():
+    """Noto Sans JP（Regular/Bold）と、Noto Sans Mono CJK JP（Regular/Bold。#511）が、ユーザーキャッシュディレクトリの
+    fonts/NotoSansJP/ になければダウンロードする。2回目以降のビルドはキャッシュを使い、ネットワークアクセスなしで
+    完結する（#110）。フォルダの名前は、Noto Sans JPだけだった頃のまま（変えると、取得済みのフォントを、取り直すことになる）。
+    環境変数`TEXT_COMPOSITOR_FONT_DIR`のフォルダに、フォントが揃っていれば、
+    それを使う（ダウンロードしない。ViewerのZIPに同梱したフォント。#263）。"""
+    names = font_file_names()
+    bundled = os.environ.get(FONT_DIR_ENV)
+    if bundled:
+        if all(os.path.exists(os.path.join(bundled, name)) for name in names):
+            return bundled
+        # 同梱のフォルダが不完全なとき（配布物の不具合）は、黙って続けず、知らせてから、通常の取得へ進む
+        _warn(f"{FONT_DIR_ENV} is set but {bundled} does not contain {', '.join(names)}; falling back to the download.")
+    font_dir = os.path.join(_user_cache_dir(), "fonts", "NotoSansJP")
+    os.makedirs(font_dir, exist_ok=True)
+
+    for label, url, files in _font_sets():
+        missing = [name for name in files if not os.path.exists(os.path.join(font_dir, name))]
+        if missing:
+            _fetch_font_set(label, url, files, missing, font_dir)
 
     return font_dir
 

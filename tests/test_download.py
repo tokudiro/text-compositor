@@ -4,6 +4,7 @@ import hashlib
 import http.client
 import io
 import os
+import re
 import urllib.error
 import zipfile
 
@@ -117,6 +118,8 @@ class TestEnsureFonts:
     def cache(self, tmp_path, monkeypatch):
         files = {"NotoSansJP-Regular.otf": b"regular", "NotoSansJP-Bold.otf": b"bold"}
         monkeypatch.setattr(deps_mod, "NOTO_SANS_JP_FILES", {n: hashlib.sha256(d).hexdigest() for n, d in files.items()})
+        # コードブロック用の等幅フォント（#511）は、別のzipから取る。この組では、取得の対象から外し、下のTestEnsureMonoFontsで確かめる
+        monkeypatch.setattr(deps_mod, "NOTO_SANS_MONO_JP_FILES", {})
         monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
         monkeypatch.setattr(time, "sleep", lambda seconds: None)
         archive = tmp_path / "fonts.zip"
@@ -162,6 +165,65 @@ class TestEnsureFonts:
         with pytest.raises(SystemExit):
             ensure_fonts()
         assert retrieve.calls == 3
+
+
+class TestEnsureMonoFonts:
+    """コードブロック用の等幅フォント（Noto Sans Mono CJK JP、#511）が、別のzipから、同じフォルダへ取得されること。"""
+
+    SANS = {"NotoSansJP-Regular.otf": b"regular", "NotoSansJP-Bold.otf": b"bold"}
+    MONO = {"NotoSansMonoCJKjp-Regular.otf": b"mono-regular", "NotoSansMonoCJKjp-Bold.otf": b"mono-bold"}
+
+    @staticmethod
+    def make_zip(path, files):
+        with zipfile.ZipFile(path, "w") as zf:
+            for name, data in files.items():
+                zf.writestr(name, data)
+        return path.read_bytes()
+
+    @pytest.fixture
+    def env(self, tmp_path, monkeypatch):
+        digests = lambda files: {n: hashlib.sha256(d).hexdigest() for n, d in files.items()}
+        monkeypatch.setattr(deps_mod, "NOTO_SANS_JP_FILES", digests(self.SANS))
+        monkeypatch.setattr(deps_mod, "NOTO_SANS_MONO_JP_FILES", digests(self.MONO))
+        monkeypatch.setattr(deps_mod, "_user_cache_dir", lambda: str(tmp_path / "cache"))
+        monkeypatch.setattr(time, "sleep", lambda seconds: None)
+        return self.make_zip(tmp_path / "sans.zip", self.SANS), self.make_zip(tmp_path / "mono.zip", self.MONO)
+
+    def test_both_zips_are_downloaded_into_one_folder(self, env, monkeypatch):
+        sans, mono = env
+        retrieve = FakeRetrieve(sans, mono)
+        monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
+        font_dir = ensure_fonts()
+        assert retrieve.calls == 2
+        assert sorted(os.listdir(font_dir)) == sorted(list(self.SANS) + list(self.MONO))
+
+    def test_only_the_missing_set_is_downloaded(self, env, monkeypatch):
+        sans, mono = env
+        monkeypatch.setattr(urllib.request, "urlretrieve", FakeRetrieve(sans, mono))
+        font_dir = ensure_fonts()
+        for name in self.MONO:   # 等幅フォントだけが無い状態（等幅フォントが入る前に取得した人のキャッシュ）
+            os.remove(os.path.join(font_dir, name))
+        retrieve = FakeRetrieve(mono)
+        monkeypatch.setattr(urllib.request, "urlretrieve", retrieve)
+        ensure_fonts()
+        assert retrieve.calls == 1
+        assert sorted(os.listdir(font_dir)) == sorted(list(self.SANS) + list(self.MONO))
+
+    def test_a_checksum_mismatch_of_the_mono_font_is_an_error(self, env, monkeypatch, tmp_path):
+        sans, _ = env
+        bad = self.make_zip(tmp_path / "bad.zip", {"NotoSansMonoCJKjp-Regular.otf": b"tampered", "NotoSansMonoCJKjp-Bold.otf": b"mono-bold"})
+        monkeypatch.setattr(urllib.request, "urlretrieve", FakeRetrieve(sans, bad))
+        with pytest.raises(SystemExit):
+            ensure_fonts()
+
+    def test_the_pinned_mono_font_hashes_are_sha256(self):
+        for digest in deps_mod.NOTO_SANS_MONO_JP_FILES.values():
+            assert re.fullmatch(r"[0-9a-f]{64}", digest)
+
+    def test_both_font_zips_come_from_the_same_release(self):
+        """Noto Sans JPと等幅フォントは、同じリリースから取る（check-pins.pyが、1つの版として追うため）。"""
+        release = lambda url: re.search(r"releases/download/(Sans[\d.]+)/", url).group(1)
+        assert release(deps_mod.NOTO_SANS_JP_RELEASE_URL) == release(deps_mod.NOTO_SANS_MONO_JP_RELEASE_URL)
 
 
 class TestBundledMermaidJs:
