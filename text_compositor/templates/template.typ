@@ -40,8 +40,8 @@
   // showルール自体は常時登録する（ifブロックの中で宣言すると、ブロックを抜けた
   // doc側には効かなくなる。show/setはブロックスコープで閉じるため）。
   // render-graph()自体はモジュールのトップレベルで定義済み（#82でwidth/height対応のため移動）。
-  // インラインのコードの等幅フォント（#511）。コードブロックの背景・フォントは、Python側（code_block_style.py）が付ける。
-  show raw: set text(font: code-font)
+  // インラインのコードの等幅フォント（#511）。コードブロックの背景・フォントは、Python側（code_block_style.py）が付ける（`code_block: false`のとき、コードブロックは、このルールの対象にしない）。
+  show raw.where(block: false): set text(font: code-font)
   show raw.where(lang: "dot"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
   show raw.where(lang: "graphviz"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
 

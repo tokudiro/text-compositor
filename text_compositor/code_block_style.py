@@ -131,18 +131,31 @@ def resolve_code_block(spec):
     )
 
 
-def wrap_code_block(raw_typst):
+def _typst_color(value):
+    """設定の色（`#rgb`などの16進、またはTypstの色の名前）を、Typstの色の式にする。"""
+    return f'rgb("{value}")' if value.startswith("#") else value
+
+
+def wrap_code_block(raw_typst, style=None):
     """`#raw(..., block: true)`のTypstコードを、背景つきの枠と、等幅フォントで包んだコードにする。
+    style: その章のコードブロックの実効値（`CodeBlockStyle`。省略時は、既定）。`enabled`が偽なら、包まない。
     `raw`の既定のフォントは、要素の組み込みの指定のため、外側の`text(font: ...)`では上書きできない。
-    そのため、`show raw: set text(font: ...)`を置く（`set`は、重ねがけの問題がない）。
+    そのため、`show raw: set text(font: ..., size: ...)`を置く（`set`は、重ねがけの問題がない）。
     枠は、`block(...)`でrawを包むのではなく、内容のブロックの中の、局所のshowルールで付ける。`block`で包むと、
     枠の高さが2.5 pt大きくなる（実測）ため。局所のshowルールは、同梱テンプレートに、同じルールがないため、重ならない
     （独自テンプレートが、`raw`のブロックにshowルールを持つときは、重なる。その場合は、`code_block: false`で無効にする）。"""
+    style = style or CodeBlockStyle()
+    if not style.enabled:
+        return raw_typst + '\n\n'
     fonts = ", ".join(f'"{name}"' for name in CODE_FONTS)
+    text_args = f'font: ({fonts})' + (f', size: {style.font_size}' if style.font_size else '')
+    block_args = f'width: 100%, fill: rgb("{BACKGROUND}"), inset: {INSET}, radius: {RADIUS}'
+    if style.border_color:
+        block_args += f', stroke: {style.border_width} + {_typst_color(style.border_color)}'
     return (
         f'#[\n'
-        f'#show raw: set text(font: ({fonts}))\n'
-        f'#show raw.where(block: true): it => block(width: 100%, fill: rgb("{BACKGROUND}"), inset: {INSET}, radius: {RADIUS}, it)\n'
+        f'#show raw: set text({text_args})\n'
+        f'#show raw.where(block: true): it => block({block_args}, it)\n'
         f'{raw_typst}\n'
         f']\n\n'
     )
