@@ -59,6 +59,16 @@ const FONTS = {
     'NotoSansJP-Bold.otf': '1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f',
   },
 };
+// コードブロック用の等幅フォント（#511）。Noto Sans JPと同じリリース・同じライセンス（OFL-1.1）。同じ`fonts/`に入れる。
+const MONO_FONTS = {
+  version: '2.004',
+  url: 'https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/11_NotoSansMonoCJKjp.zip',
+  sha256: '6c8faf475ce78fa37486dd5d8920e4bb4450b1b0f3c497edf3ba2d25cf52ab78',   // zip全体
+  files: {   // ファイルごとのSHA256（deps.pyのNOTO_SANS_MONO_JP_FILESと同じ）
+    'NotoSansMonoCJKjp-Regular.otf': '4d01725be822d144cf9a56ade981e6fb920cd7a610b8fc24cc601a920beea5b9',
+    'NotoSansMonoCJKjp-Bold.otf': 'dfdffe149bc6cbf52860dabd8b8dadbca40ae87a4fbe143b55c0258db2dadfb8',
+  },
+};
 // 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と、kip（Pikchr。#213）・cetz・fletcher（#236）・
 // timeliney（#294）・finite（#292）はtext_compositor/のpikchr_render.py・cetz_render.pyの版の定数と、同じ版）。fletcher 0.5.8は、cetz 0.3.4と
 // oxifmtに依存する（cetz 0.5.2は、cetz自身がoxifmtに依存する）。timeliney 0.4.0は、cetz 0.4.1に依存する（3本目のcetzの版）。
@@ -385,6 +395,16 @@ async function bundleTypstAssets(appDir) {
     if (actual !== expected) throw new Error(`${name}のSHA256が一致しません: 期待 ${expected}、実際 ${actual}`);
   }
   rows.push({ name: 'Noto Sans JP (fonts/)', version: FONTS.version, license: 'OFL-1.1', url: 'https://github.com/notofonts/noto-cjk', file: '../fonts/LICENSE' });
+
+  // コードブロック用の等幅フォント（#511）。2つのzipの`LICENSE`は、同じ名前のため、等幅フォントのほうは、別の名前で置く
+  const monoZip = await fetchVerified({ url: MONO_FONTS.url, sha256: MONO_FONTS.sha256 }, 'Noto Sans Mono CJK JP');
+  run(TAR, ['-xf', monoZip, '-C', fontsDir, ...Object.keys(MONO_FONTS.files)]);
+  for (const [name, expected] of Object.entries(MONO_FONTS.files)) {
+    const actual = sha256(path.join(fontsDir, name));
+    if (actual !== expected) throw new Error(`${name}のSHA256が一致しません: 期待 ${expected}、実際 ${actual}`);
+  }
+  fs.writeFileSync(path.join(fontsDir, 'LICENSE-NotoSansMonoCJKjp'), execFileSync(TAR, ['-xOf', monoZip, 'LICENSE']));
+  rows.push({ name: 'Noto Sans Mono CJK JP (fonts/)', version: MONO_FONTS.version, license: 'OFL-1.1', url: 'https://github.com/notofonts/noto-cjk', file: '../fonts/LICENSE-NotoSansMonoCJKjp' });
 
   for (const p of TYPST_PACKAGES) {
     const url = `https://packages.typst.org/preview/${p.name}-${p.version}.tar.gz`;

@@ -37,6 +37,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 | 対象 | 現状 | 方針との差 |
 |---|---|---|
 | 日本語フォント（Noto Sans JP、約9.2 MB。PDF） | 初回のビルドで取得する（9章） | 例外（pip版は、取得してよい） |
+| コードブロック用の等幅フォント（Noto Sans Mono CJK JP。RegularとBold、約32 MB。PDF。[#511](https://github.com/tokudiro/text-compositor/issues/511)） | 初回のビルドで取得する（Noto Sans JPと同じ仕組み・同じ置き場所） | 例外（pip版は、取得してよい） |
 | Typstのパッケージ（`@preview/...`。`diagraph`など） | 初回のコンパイルで、Typstが取得する | 例外（pip版・CI） |
 | PlantUML（JRE 約50 MB＋jar 約17.6 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行のとおり同梱済み |
 | D2（バイナリ 約13 MB） | 初回の描画で取得する（11章） | 例外（pip版・CI）。Obunzuは、下の行のとおり同梱済み |
@@ -51,7 +52,7 @@ text-compositor（PDF）とObunzu（Viewer）は、営利目的ではなく、�
 * **Python中心・最小限のダウンロード（現状の実装）**: コアはPython（`text_compositor/`）のみで完結する。追加が必要なものは、その場でのダウンロードで賄い、常駐サーバーやコンテナは要求しない。上の方針（3）に向けて、この取得を減らしていく（現状と方針の差は、上の表）。
   * Typstコンパイラ: バイナリを同梱せず、PyPIのホイール経由で取得する（3章）。
   * オプトインの図表プラグイン: Mermaidは`pip install playwright`とシステムにインストール済みのChrome/Edge（新規ダウンロードはしない）、PlantUMLはJREを、D2はD2公式CLIバイナリをその場取得する（11章、[#35](https://github.com/tokudiro/text-compositor/issues/35)、[#90](https://github.com/tokudiro/text-compositor/issues/90)）。
-  * 日本語CJKフォント: リポジトリに同梱せず取得（ダウンロード）する方式とする。Noto Sans JP（Regular/Bold）を初回ビルド時にOS標準のユーザーキャッシュ領域（`platformdirs`経由。Windows: `%LOCALAPPDATA%\text-compositor\Cache`、Linux: `~/.cache/text-compositor`、macOS: `~/Library/Caches/text-compositor`）へダウンロード・キャッシュし、以降はキャッシュを使う（9章）。`tool_dir`（ツール本体のインストール場所）を使わないのは、「クローンして直接叩く」「pipインストール」いずれの実行方式でも同じ場所にキャッシュを置くため（[#50](https://github.com/tokudiro/text-compositor/issues/50)、[#110](https://github.com/tokudiro/text-compositor/issues/110)）。
+  * 日本語CJKフォント: リポジトリに同梱せず取得（ダウンロード）する方式とする。コードブロック用の等幅フォント Noto Sans Mono CJK JP（Regular/Bold。#511）も、同じ仕組み・同じ場所に取得する（SHA256は、ファイルごとに固定）。Noto Sans JP（Regular/Bold）を初回ビルド時にOS標準のユーザーキャッシュ領域（`platformdirs`経由。Windows: `%LOCALAPPDATA%\text-compositor\Cache`、Linux: `~/.cache/text-compositor`、macOS: `~/Library/Caches/text-compositor`）へダウンロード・キャッシュし、以降はキャッシュを使う（9章）。`tool_dir`（ツール本体のインストール場所）を使わないのは、「クローンして直接叩く」「pipインストール」いずれの実行方式でも同じ場所にキャッシュを置くため（[#50](https://github.com/tokudiro/text-compositor/issues/50)、[#110](https://github.com/tokudiro/text-compositor/issues/110)）。
 * **取得の再試行**（[#189](https://github.com/tokudiro/text-compositor/issues/189)）: フォント・Mermaid用のJS・JRE・PlantUML・D2のダウンロードは、一時的な失敗（HTTPの5xx・408・429、接続エラー、時間切れ、途中で切れた転送）を、間隔を空けて（1秒、3秒）、合計3回まで再試行する。404などの恒久的な失敗、ディスクへの書き込みの失敗、チェックサムの不一致は、再試行せず、従来どおりエラー終了する。取得中は`.part`ファイルへ書き、成功したときだけ置き換える（途中で切れた書きかけが、取得済みとして使われない）。CIでは、取得物（`~/.cache/text-compositor`）とTypstのパッケージ（`~/.cache/typst`）を`actions/cache`で保存し、2回目以降は、ネットワーク取得をしない。Typstのパッケージ（`@preview/...`）の取得は、Typstコンパイラの内部で行われ、再試行はできないため、キャッシュで軽減する。
 * **外部サーバー・SaaS非依存**（上の方針（2））: どこかの外部サーバーやSaaSに依存しない。図表描画を含め、外部APIへの通信によるコンテンツ生成は一切行わず、常に完全ローカルで完結させる。これは絶対要件であり、11章のプラグインにも適用される。
 * **GitHub Actions上での完結**: 「Python中心・最小限のダウンロード」と「外部サーバー・SaaS非依存」の帰結として、GitHub Actions（`ubuntu-latest` などのGitHub-hosted runner）上だけで、セルフホストサーバーなしに完結してビルドできる。
@@ -167,7 +168,7 @@ python build.py --config <path/to/text-compositor.config.yaml>
   * **構文**: `{{KEY}}`（KEYは上記の形）。`{{ message }}`のように空白を含む形（Vue/Jinja等の記法）は対象外で、そのまま書ける。先頭に`\`を付けた`\{{KEY}}`は、置換せず`{{KEY}}`をそのまま出力するエスケープ。置換は1回だけで、値の中の`{{...}}`は展開しない。
   * **未定義のキー**: 9章のFail-fast方針に従い、綴りミスのまま出力されないよう、ファイル名と行番号を報告して即エラー終了する。同じファイル内の未定義キーはまとめて報告する。
   * **既定**: `variables:`キー自体が無ければ機構を無効にし、`{{...}}`に一切触れない。既存のプロジェクトの出力は変わらない。
-* **`fonts.dir:`（追加のフォント、[#376](https://github.com/tokudiro/text-compositor/issues/376)）**: PDFは、Noto Sans JP（初回のビルドで取得。2章）と、Typst内蔵のフォントだけを使う（システムのフォントは使わない。環境で見た目を変えないため）。そのため、ハングル・絵文字・簡体字にだけある字などは、どのフォントにも無く、警告なしに空の四角で出ていた。`config.yaml`の`fonts.dir`（文字列、または、文字列のリスト。`config.yaml`の場所が基準）のフォルダの`.ttf`・`.otf`・`.ttc`・`.otc`を、Typstの`font_paths`に足す。テンプレートは変えない（Typstが、指定フォントに無い文字を、使えるフォント全体から自動で探すため）。
+* **`fonts.dir:`（追加のフォント、[#376](https://github.com/tokudiro/text-compositor/issues/376)）**: PDFは、Noto Sans JPと、コードブロック用の等幅フォント（Noto Sans Mono CJK JP。[#511](https://github.com/tokudiro/text-compositor/issues/511)。ともに初回のビルドで取得。2章）と、Typst内蔵のフォントだけを使う（システムのフォントは使わない。環境で見た目を変えないため）。絵文字などは、どのフォントにも無く、警告なしに空の四角で出ていた。等幅フォントは、日本語だけでなく、ハングル・簡体字も持つ（字数は、Noto Sans JPの16,732に対して、44,810。実測）ため、本文中のハングル・簡体字は、Typstの自動の代替で、等幅の字形で出る（#511で、空の四角ではなくなった）。`config.yaml`の`fonts.dir`（文字列、または、文字列のリスト。`config.yaml`の場所が基準）のフォルダの`.ttf`・`.otf`・`.ttc`・`.otc`を、Typstの`font_paths`に足す。テンプレートは変えない（Typstが、指定フォントに無い文字を、使えるフォント全体から自動で探すため）。
   * **警告**: 原稿のうち、どのフォントにも無い文字を、ハングル・CJKの漢字・絵文字に限り、種類ごとに1つの警告にする（最初の行と例つき）。Typst内蔵のフォントが持つ記号（`☐`など）は、誤警告を避けるため、対象にしない。フォントのcmapは、標準ライブラリだけで読む（`text_compositor/fonts.py`）。
   * **キャッシュ**: 図のSVGのキャッシュキーに、追加のフォントの目印を入れる（フォントを変えると、描き直す）。
   * **範囲**: PDF出力だけ。HTML出力は、ブラウザのフォントを使う。ダウンロードを伴う`fonts.packs`は、需要を見て、あとで判断する。

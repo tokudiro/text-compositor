@@ -146,7 +146,9 @@ function checkOfflineTypst(work) {
     HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9', https_proxy: 'http://127.0.0.1:9', http_proxy: 'http://127.0.0.1:9' };
   const fonts = path.join(appDir, 'fonts');
   const packages = path.join(appDir, 'typst-packages');
-  check('fonts/ に、Noto Sans JPのRegularとBoldがある', ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf'].every((name) => fs.existsSync(path.join(fonts, name))));
+  check('fonts/ に、Noto Sans JPと、コードブロック用の等幅フォント（Noto Sans Mono CJK JP）の、RegularとBoldと、ライセンスがある',
+    ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf', 'NotoSansMonoCJKjp-Regular.otf', 'NotoSansMonoCJKjp-Bold.otf', 'LICENSE', 'LICENSE-NotoSansMonoCJKjp']
+      .every((name) => fs.existsSync(path.join(fonts, name))));
   check('typst-packages/ に、diagraph・kip・note-me・cetz（4つの版）・fletcher・timeliney・finite（diagraph-layout・t4tを含む）・oxifmt（2つの版）がある',
     ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0', 'cetz/0.5.2', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4', 'fletcher/0.5.8', 'timeliney/0.4.0',
       'finite/0.5.1', 'diagraph-layout/0.0.1', 't4t/0.4.3', 'oxifmt/0.2.1', 'oxifmt/1.0.0']
