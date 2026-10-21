@@ -13,7 +13,7 @@ from mdit_py_plugins.attrs import attrs_plugin
 # 数式（LaTeX記法、#183）。GitHub標準の$...$/$$...$$をパースする。
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from text_compositor import chordpro_render
-from text_compositor.code_block_style import wrap_code_block
+from text_compositor.code_block_style import CodeBlockStyle, wrap_code_block
 from text_compositor.config import yaml
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
@@ -167,6 +167,9 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         # _render_markdown_chapterが章ごとに設定する。bold/background/colorいずれも
         # 未指定なら従来どおり無装飾（キーが無ければ何もしない）。
         self.table_header_style = {}
+        # document.code_block / section / chapters[].code_blockの実効値（#511）。project.pyが、章ごとに設定する。
+        # 描画への反映は、次の段階（今は、読み込み・検証・合成だけ）。
+        self.code_block_style = CodeBlockStyle()
         # document.glossary: false（既定。#47）。falseなら[[用語]]は素の文字列としてそのまま通す
         # （trueの場合のみWIKILINK_REで検出・登録する）。用語ごとの出現ラベルID一覧を、全チャプター
         # を跨いで蓄積する（dict、Python 3.7+で挿入順を保持。ビルド末尾で巻末索引の生成に使う）。
