@@ -566,12 +566,13 @@ function leaveSettings() {
 }
 
 /** 行番号の表示（#328）の、オン・オフを、内容のビューへ伝える。オンのときだけ、プリロードが、乗せたブロックの行を送ってくる。 */
-/** 見出しのリンク（#337）・コードのコピーボタン（#336）の、オン・オフを、内容のビューへ伝える。表示・操作は、プリロードが行う。 */
+/** 見出しのリンク（#337）・コードのコピーボタン（#336）・コードブロックの枠線（#511）の、オン・オフを、内容のビューへ伝える。表示・操作は、プリロードが行う。 */
 function sendContentFeatures(target) {
   if (!target.contentView || target.contentView.webContents.isDestroyed()) return;
   target.contentView.webContents.send('content-features', {
     headingAnchor: state.settings.showHeadingAnchor,
     codeCopy: state.settings.showCodeCopy,
+    codeBorder: state.settings.showCodeBorder,   // コードブロックの枠線（#511）
   });
 }
 
@@ -598,7 +599,7 @@ function changeSetting(key, value) {
   if (key === 'theme') applyTheme();
   if (key === 'autoReload') state.autoReload = next.autoReload;
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
-  if (key === 'showHeadingAnchor' || key === 'showCodeCopy') for (const each of tabs) sendContentFeatures(each);
+  if (key === 'showHeadingAnchor' || key === 'showCodeCopy' || key === 'showCodeBorder') for (const each of tabs) sendContentFeatures(each);
   if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = state.sidebarOpen && next.showOutline; updateWatch(); }   // 「出さない」にしたら、開いていたフォルダも、手放す（目次が使えれば、サイドバーは、そのまま）
   if (key === 'showOutline' && !next.showOutline && !next.showFileTree) state.sidebarOpen = false;   // 使える表示が、なくなる
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す

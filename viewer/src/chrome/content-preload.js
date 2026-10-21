@@ -277,7 +277,7 @@ ipcRenderer.on('link-hover-text', (_event, text) => {
 // 表示中のDOMへ足す。足した要素は`tc-ui`クラスで印を付け、検索の対象から外す（「#」「コピー」が、一致しないように）。
 // クリップボードへの書き込みは、メインプロセスが行う（ここは、何をコピーするかを伝えるだけ）。
 const UI_CLASS = 'tc-ui';
-let contentFeatures = { headingAnchor: false, codeCopy: false };
+let contentFeatures = { headingAnchor: false, codeCopy: false, codeBorder: false };
 const flashTimers = new WeakMap();
 
 function ensureUiStyle() {
@@ -356,9 +356,23 @@ function buildUi() {
   }
 }
 
+// コードブロックの枠線（#511）。文書のCSSの罫線の色（`--line`。ライト・ダークで切り替わる）を、そのまま使う。太さ1pxは、
+// PDFの`code_block.border`の既定（0.75pt）に当たる。背景（`--code-bg`）は、文書のCSSが、いつも付けている。
+function applyCodeBorder() {
+  if (!document.documentElement) return;
+  if (!document.getElementById('tc-code-border-style')) {
+    const style = document.createElement('style');
+    style.id = 'tc-code-border-style';
+    style.textContent = 'html.tc-code-border pre { border: 1px solid var(--line, #d1d9e0); }';
+    document.head.appendChild(style);
+  }
+  document.documentElement.classList.toggle('tc-code-border', contentFeatures.codeBorder);
+}
+
 ipcRenderer.on('content-features', (_event, features) => {
-  contentFeatures = { headingAnchor: features?.headingAnchor === true, codeCopy: features?.codeCopy === true };
+  contentFeatures = { headingAnchor: features?.headingAnchor === true, codeCopy: features?.codeCopy === true, codeBorder: features?.codeBorder === true };
   buildUi();
+  applyCodeBorder();
 });
 
 // -- 目次（#329） ---------------------------------------------------------------------------------------------------
