@@ -336,4 +336,4 @@ landscape: true
 
 ## コードブロックの色分け（HTML出力・Obunzu）
 
-PDF出力は、Typstが、コードブロックを色分けします。HTML出力とObunzuは、Pygmentsで色分けします（`.yaml`・`.json`・`.py`などのファイルを、そのまま開いたときも、同じです）。Obunzuの配布物には、Pygmentsを同梱しています。pipで入れたときは、`pip install text-compositor[highlight]`で、Pygmentsを足します。Pygmentsが無いときは、色なしの等幅で表示します。約128 KBを超える内容は、色を付けません。
+PDF出力は、Typstが、コードブロックを色分けします（背景・枠線・大きさは、`document.code_block`で決まります。「document: 文書全体の設定」の章の「code_block」を参照）。HTML出力とObunzuは、Pygmentsで色分けします（`.yaml`・`.json`・`.py`などのファイルを、そのまま開いたときも、同じです）。Obunzuの配布物には、Pygmentsを同梱しています。pipで入れたときは、`pip install text-compositor[highlight]`で、Pygmentsを足します。Pygmentsが無いときは、色なしの等幅で表示します。約128 KBを超える内容は、色を付けません。
