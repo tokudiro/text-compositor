@@ -2,10 +2,10 @@ typst==0.15.0
 markdown-it-py==4.2.0
 mdit-py-plugins==0.6.1
 PyYAML==6.0.3
-platformdirs==4.12.4
+platformdirs==4.13.3
 
 # plugins.mermaid: true（既定）を使う場合のみ必要（11章）。Mermaidを使わないプロジェクトは
-# 不要なので requirements.txt には含めない: pip install playwright==1.63.0
+# 不要なので requirements.txt には含めない: pip install playwright==1.64.0
 
 # plugins.diagram_trim: true（既定false、#315）を使う場合のみ必要。使わないプロジェクトは
 # 不要なので requirements.txt には含めない: pip install resvg_py Pillow
