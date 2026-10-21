@@ -1,7 +1,7 @@
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // _common.typへ切り出した（#63）。build.pyが生成するコードはこのモジュールからも
 // 同じ名前でimportするため、ここで読み込むだけで（再エクスポートされて）そのまま使える。
-#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background, meta-date
+#import "_common.typ": fit-image, render-graph, style-code-block, callout, render-header, render-footer, render-background, meta-date
 
 #let conf(
   title: none,
@@ -40,6 +40,8 @@
   // showルール自体は常時登録する（ifブロックの中で宣言すると、ブロックを抜けた
   // doc側には効かなくなる。show/setはブロックスコープで閉じるため）。
   // render-graph()自体はモジュールのトップレベルで定義済み（#82でwidth/height対応のため移動）。
+  // コードブロックの装飾（#511）。dot/graphvizのルールより先に宣言する（理由は_common.typ）。
+  show raw.where(block: true): style-code-block
   show raw.where(lang: "dot"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
   show raw.where(lang: "graphviz"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
 

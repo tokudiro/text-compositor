@@ -5,7 +5,7 @@
 //
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // template.typと同一実装のため_common.typから読み込む（#63）。
-#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background, meta-date
+#import "_common.typ": fit-image, render-graph, style-code-block, callout, render-header, render-footer, render-background, meta-date
 
 #let conf(
   title: none,
@@ -41,6 +41,8 @@
   )
   set text(font: "Noto Sans JP", size: 10pt)
 
+  // コードブロックの装飾（#511）。dot/graphvizのルールより先に宣言する（理由は_common.typ）。
+  show raw.where(block: true): style-code-block
   show raw.where(lang: "dot"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
   show raw.where(lang: "graphviz"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
 

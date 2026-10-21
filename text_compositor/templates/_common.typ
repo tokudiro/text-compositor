@@ -49,6 +49,19 @@
   })
 }
 
+// コードブロック（raw、block: true）の装飾（#511）。薄いグレーの背景と細い枠線で、コードの範囲を示す。
+// 全テンプレートが、conf()内で`show raw.where(block: true): style-code-block`として使う。
+// dot/graphvizのshowルールより「先に」宣言する（showルールは、後から宣言したものが先に効く）。
+// 後に宣言すると、図に置き換わる前のrawを、この枠が包んでしまう。
+#let style-code-block(it) = block(
+  width: 100%,
+  fill: luma(246),
+  stroke: 0.5pt + luma(200),
+  inset: 0.6em,
+  radius: 3pt,
+  it,
+)
+
 // GitHub形式のalert記法（`> [!NOTE]`等、#61）。build.py側がblockquoteの先頭行から種別を検出し、
 // callout(kind: "note")[...]のようなコードを生成する。実体はnote-me（MIT、@preview/note-me:0.6.0。
 // #63でライセンス確認済み）にそのまま委譲する。全テンプレートが同じ関数名を持つ必要があるため
