@@ -5,7 +5,7 @@
 //
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // template.typと同一実装のため_common.typから読み込む（#63）。
-#import "_common.typ": fit-image, render-graph, callout, render-header, render-footer, render-background, meta-date
+#import "_common.typ": fit-image, render-graph, code-font, style-code-block, callout, render-header, render-footer, render-background, meta-date
 
 #let conf(
   title: none,
@@ -41,6 +41,10 @@
   )
   set text(font: "Noto Sans JP", size: 10pt)
 
+  // コードの見た目（#511）。等幅フォントは、コードブロックとインラインのコードの、どちらにも使う（同じ文書で、字形が揃うように）。
+  // 背景は、コードブロックだけ。dot/graphvizのルールより先に宣言する（理由は_common.typ）。
+  show raw: set text(font: code-font)
+  show raw.where(block: true): style-code-block
   show raw.where(lang: "dot"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
   show raw.where(lang: "graphviz"): it => if graphviz { align(center)[#render-graph(it.text)] } else { it }
 
