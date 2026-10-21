@@ -51,9 +51,9 @@ async function connect(target) {
   };
 }
 
-function sendKeys(keys) {
+function sendKeys(pid, keys) {
   const script = 'Add-Type -AssemblyName System.Windows.Forms; '
-    + '(New-Object -ComObject WScript.Shell).AppActivate((Get-Process electron | ? MainWindowTitle | select -First 1).Id) | Out-Null; '
+    + `(New-Object -ComObject WScript.Shell).AppActivate(${pid}) | Out-Null; `
     + `Start-Sleep -Milliseconds 400; [Windows.Forms.SendKeys]::SendWait("${keys}")`;
   execFileSync('powershell', ['-NoProfile', '-Command', script]);
 }
@@ -152,11 +152,11 @@ function sendKeys(keys) {
 
     // -- Ctrl+F・Esc（実際のキー操作。Windowsのみ） --------------------------------
     if (process.platform === 'win32') {
-      sendKeys('^f');
+      sendKeys(proc.pid, '^f');
       await sleep(300);
       check('Ctrl+Fで、検索欄が開き、フォーカスが当たる', (await chrome.eval("document.getElementById('search').hidden")) === false
         && (await chrome.eval("document.activeElement?.id")) === 'search-input');
-      sendKeys('{ESC}');
+      sendKeys(proc.pid, '{ESC}');
       await sleep(300);
       check('文書側にフォーカスがあっても、Escで検索欄が閉じる', (await chrome.eval("document.getElementById('search').hidden")) === true);
     } else {

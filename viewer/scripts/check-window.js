@@ -22,9 +22,9 @@ const sample = path.join(viewerDir, '..', 'benchmarks', 'html-view', 'fixture', 
 const port = 9400 + Math.floor(Math.random() * 100);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function sendKeys(keys) {
+function sendKeys(pid, keys) {
   const script = 'Add-Type -AssemblyName System.Windows.Forms; '
-    + '(New-Object -ComObject WScript.Shell).AppActivate((Get-Process electron | ? MainWindowTitle | select -First 1).Id) | Out-Null; '
+    + `(New-Object -ComObject WScript.Shell).AppActivate(${pid}) | Out-Null; `
     + `Start-Sleep -Milliseconds 400; [Windows.Forms.SendKeys]::SendWait("${keys}")`;
   execFileSync('powershell', ['-NoProfile', '-Command', script]);
 }
@@ -53,7 +53,7 @@ async function main() {
     const evaluate = await connect();
     const wait = 1000;
     const settings = async (label, action, expectedOpen) => {
-      if (action.startsWith('{') || action.startsWith('^')) sendKeys(action);
+      if (action.startsWith('{') || action.startsWith('^')) sendKeys(proc.pid, action);
       else await evaluate(action);
       await sleep(wait);
       const open = await evaluate("!document.getElementById('settings').hidden");
@@ -71,7 +71,7 @@ async function main() {
     await settings('F5（再読み込み）で閉じる', '{F5}', false);
     await settings('歯車で開く', click('settings-button'), true);
     await settings('「開く」で閉じる', click('open'), false);
-    sendKeys('{ESC}');   // 「開く」で出たダイアログを閉じる
+    sendKeys(proc.pid, '{ESC}');   // 「開く」で出たダイアログを閉じる
   } finally {
     proc.kill();
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });

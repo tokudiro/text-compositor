@@ -24,7 +24,7 @@ const electron = require('electron');
 const sample = path.join(viewerDir, '..', 'benchmarks', 'html-view', 'fixture', 'fixture.md');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const USER32 = `
+const user32 = (pid) => `
 Add-Type -Namespace W -Name U -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);
 [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool MoveWindow(System.IntPtr h, int x, int y, int w, int hh, bool r);
@@ -32,25 +32,25 @@ Add-Type -Namespace W -Name U -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool IsZoomed(System.IntPtr h);
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 '@
-$p = Get-Process electron | Where-Object MainWindowTitle | Select-Object -First 1
+$p = Get-Process -Id ${pid}
 $h = $p.MainWindowHandle
 `;
 
-function powershell(body) {
-  return execFileSync('powershell', ['-NoProfile', '-Command', USER32 + body], { encoding: 'utf8' }).trim();
+function powershell(proc, body) {
+  return execFileSync('powershell', ['-NoProfile', '-Command', user32(proc.pid) + body], { encoding: 'utf8' }).trim();
 }
 
 /** ウィンドウの外枠（x, y, 幅, 高さ）と、最大化かどうか。 */
-function windowState() {
-  const out = powershell('$r = New-Object W.U+RECT; [W.U]::GetWindowRect($h, [ref]$r) | Out-Null; '
+function windowState(proc) {
+  const out = powershell(proc, '$r = New-Object W.U+RECT; [W.U]::GetWindowRect($h, [ref]$r) | Out-Null; '
     + '"$($r.L) $($r.T) $($r.R - $r.L) $($r.B - $r.T) $([W.U]::IsZoomed($h))"');
   const [x, y, width, height, zoomed] = out.split(' ');
   return { x: Number(x), y: Number(y), width: Number(width), height: Number(height), maximized: zoomed === 'True' };
 }
 
-const move = (x, y, width, height) => powershell(`[W.U]::MoveWindow($h, ${x}, ${y}, ${width}, ${height}, $true) | Out-Null`);
-const showMaximized = () => powershell('[W.U]::ShowWindow($h, 3) | Out-Null');
-const restore = () => powershell('[W.U]::ShowWindow($h, 9) | Out-Null');
+const move = (proc, x, y, width, height) => powershell(proc, `[W.U]::MoveWindow($h, ${x}, ${y}, ${width}, ${height}, $true) | Out-Null`);
+const showMaximized = (proc) => powershell(proc, '[W.U]::ShowWindow($h, 3) | Out-Null');
+const restore = (proc) => powershell(proc, '[W.U]::ShowWindow($h, 9) | Out-Null');
 
 function launch(userData) {
   return spawn(electron, [`--user-data-dir=${userData}`, viewerDir, sample], { env: { ...process.env }, stdio: 'ignore' });
@@ -76,25 +76,25 @@ async function main() {
     // 1. 動かして、大きさを変える → 再起動
     proc = launch(userData);
     await sleep(5000);
-    move(140, 90, 900, 650);
+    move(proc, 140, 90, 900, 650);
     await sleep(1500);   // 保存は、変更が落ち着いてから（400 ms後）
-    const moved = windowState();
+    const moved = windowState(proc);
     await stop(proc);
     proc = launch(userData);
     await sleep(5000);
-    const reopened = windowState();
+    const reopened = windowState(proc);
     check('動かした位置と大きさで、再起動後も開く', same(moved, reopened), `${JSON.stringify(moved)} → ${JSON.stringify(reopened)}`);
 
     // 2. 最大化したまま終了 → 再起動後も最大化。戻すと、最大化前の大きさ
-    showMaximized();
+    showMaximized(proc);
     await sleep(1500);
     await stop(proc);
     proc = launch(userData);
     await sleep(5000);
-    check('最大化のまま終了すると、再起動後も最大化で開く', windowState().maximized);
-    restore();
+    check('最大化のまま終了すると、再起動後も最大化で開く', windowState(proc).maximized);
+    restore(proc);
     await sleep(800);
-    check('最大化を戻すと、最大化する前の大きさになる', same(windowState(), moved), JSON.stringify(windowState()));
+    check('最大化を戻すと、最大化する前の大きさになる', same(windowState(proc), moved), JSON.stringify(windowState(proc)));
     await stop(proc);
 
     // 3. 保存された位置が、どの画面にも収まらない
@@ -103,7 +103,7 @@ async function main() {
     fs.writeFileSync(settingsFile, JSON.stringify(saved));
     proc = launch(userData);
     await sleep(5000);
-    const offscreen = windowState();
+    const offscreen = windowState(proc);
     check('画面の外の位置は使わず、大きさだけ戻す', offscreen.x < 15000 && near(offscreen.width, 800) && near(offscreen.height, 600), JSON.stringify(offscreen));
     await stop(proc);
 
@@ -111,7 +111,7 @@ async function main() {
     fs.writeFileSync(settingsFile, '{ broken');
     proc = launch(userData);
     await sleep(5000);
-    const fallback = windowState();
+    const fallback = windowState(proc);
     check('壊れた設定でも、既定の大きさ（1000×800）で開く', near(fallback.width, 1000) && near(fallback.height, 800), JSON.stringify(fallback));
   } finally {
     if (proc) await stop(proc);

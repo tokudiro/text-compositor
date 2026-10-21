@@ -135,7 +135,7 @@ function check(name, ok, detail = '') {
     content.close();
   } finally {
     proc.kill();
-    try { execFileSync('powershell', ['-NoProfile', '-Command', 'Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force']); } catch { /* 起動していない */ }
+    try { execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* すでに終了している */ }
   }
   console.log(failures ? `\n${failures} 件、NG` : '\nすべて、OK');
   process.exit(failures ? 1 : 0);
