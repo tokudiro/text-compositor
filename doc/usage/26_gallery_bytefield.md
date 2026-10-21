@@ -6,6 +6,33 @@
 
 32ビット幅の行を重ねます。`draw-column-headers`が列の番号、`draw-gap`が可変長の部分、`draw-bottom`が下の線です。
 
+::: layout-left {left=55 right=45}
+````text
+(def boxes-per-row 32)
+(def column-labels (mapv str (range 32)))
+(defattrs :bg-yellow {:fill "#ffffa0"})
+(draw-column-headers)
+(draw-box "Source Port" {:span 16})
+(draw-box "Destination Port" {:span 16})
+(draw-box "Sequence Number" {:span 32})
+(draw-box "Acknowledgment Number" {:span 32})
+(draw-box "Offset" {:span 4})
+(draw-box "Reserved" {:span 6})
+(draw-box "U" [{:span 1} :bg-yellow])
+(draw-box "A" [{:span 1} :bg-yellow])
+(draw-box "P" [{:span 1} :bg-yellow])
+(draw-box "R" [{:span 1} :bg-yellow])
+(draw-box "S" [{:span 1} :bg-yellow])
+(draw-box "F" [{:span 1} :bg-yellow])
+(draw-box "Window" {:span 16})
+(draw-box "Checksum" {:span 16})
+(draw-box "Urgent Pointer" {:span 16})
+(draw-box "Options" {:span 24})
+(draw-box "Padding" {:span 8})
+(draw-gap "Data")
+(draw-bottom)
+````
+
 ```bytefield
 (def boxes-per-row 32)
 (def column-labels (mapv str (range 32)))
@@ -31,10 +58,20 @@
 (draw-gap "Data")
 (draw-bottom)
 ```
+:::
 
 ## パケット構造図（バイト単位の小さなヘッダ）
 
 幅を8ビットにして、1バイトずつのフィールドを並べます。
+
+::: layout-left {left=55 right=45}
+````text
+(def boxes-per-row 8)
+(draw-box "Type" {:span 4})
+(draw-box "Flags" {:span 4})
+(draw-box "Length" {:span 8})
+(draw-box "Payload" {:span 8})
+````
 
 ```bytefield
 (def boxes-per-row 8)
@@ -43,3 +80,4 @@
 (draw-box "Length" {:span 8})
 (draw-box "Payload" {:span 8})
 ```
+:::

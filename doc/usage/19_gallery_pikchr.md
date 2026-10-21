@@ -4,6 +4,17 @@
 
 ## フローチャート
 
+::: layout-left {left=55 right=45}
+````text
+box "受付" fit
+arrow
+D1: diamond "承認?" fit
+arrow "はい" right from D1.e
+box "発送" fit
+arrow "いいえ" down from D1.s
+box "差し戻し" fit
+````
+
 ```pikchr
 box "受付" fit
 arrow
@@ -13,8 +24,18 @@ box "発送" fit
 arrow "いいえ" down from D1.s
 box "差し戻し" fit
 ```
+:::
 
 ## ノードとエッジ図
+
+::: layout-left {left=55 right=45}
+````text
+A: circle "サーバー" fit
+arrow right 150% from A.e "問い合わせ" aligned above
+B: circle "DB" fit
+arrow right 150% from B.e "取得" aligned above
+C: circle "キャッシュ" fit
+````
 
 ```pikchr
 A: circle "サーバー" fit
@@ -23,11 +44,20 @@ B: circle "DB" fit
 arrow right 150% from B.e "取得" aligned above
 C: circle "キャッシュ" fit
 ```
+:::
 
 ## 幾何図形・自由描画
+
+::: layout-left {left=55 right=45}
+````text
+box wid 200% ht 100% "外枠" fit
+circle at 0.6in right of last box.e rad 40% "丸"
+ellipse at 0.6in right of last circle.e wid 150% "楕円" fit
+````
 
 ```pikchr
 box wid 200% ht 100% "外枠" fit
 circle at 0.6in right of last box.e rad 40% "丸"
 ellipse at 0.6in right of last circle.e wid 150% "楕円" fit
 ```
+:::

@@ -37,18 +37,31 @@ chapters:
   - "11_troubleshooting.md"
   - "12_github_actions.md"
   - "13_python_api.md"
-  - "14_gallery_mermaid.md"
-  - "15_gallery_plantuml.md"
-  - "16_gallery_d2.md"
-  - "17_gallery_graphviz.md"
-  - "18_gallery_structurizr.md"
-  - "19_gallery_pikchr.md"
-  - "20_gallery_cetz.md"
-  - "21_gallery_fletcher.md"
-  - "22_gallery_timeliney.md"
-  - "23_gallery_vega.md"
-  - "24_gallery_finite.md"
-  - "25_gallery_wavedrom.md"
-  - "26_gallery_bytefield.md"
+  - file: "14_gallery_mermaid.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "15_gallery_plantuml.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "16_gallery_d2.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "17_gallery_graphviz.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "18_gallery_structurizr.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "19_gallery_pikchr.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "20_gallery_cetz.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "21_gallery_fletcher.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "22_gallery_timeliney.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "23_gallery_vega.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "24_gallery_finite.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "25_gallery_wavedrom.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
+  - file: "26_gallery_bytefield.md"
+    landscape: true   # 左に図、右にコードを並べるため、A4横にする
   - "27_chordpro.md"
   - "28_bizmodel.md"
