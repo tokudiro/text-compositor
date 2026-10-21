@@ -25,6 +25,8 @@ chapters:
 
 `paper_size`/`landscape`/`header`/`footer`/`paginate` を省略すると、そのMarkdownファイルのfront-matter（次章）の値、それも無ければ `document:` のグローバル設定が使われます。`table_header` はキー単位（`bold`/`background`/`color`）で `document.table_header` を上書きします。指定しなかったキーはグローバル設定を引き継ぎます（front-matterでの上書きは非対応。「document: 文書全体の設定」の章を参照）。
 
+`code_block`（コードブロックの背景・枠線・大きさ）も、章ごとに上書きできます。`document.code_block`に対して、キー単位で重ねます（`table_header`と同じ。書き方は、「document: 文書全体の設定」の章の「code_block」を参照）。`code_block: false`で、その章だけ、装飾をやめます。
+
 `.csv`の章では、`csv_header: false`で、1行目をヘッダー行にせず、すべての行をデータ行にできます（`document.csv_header`を、この章だけ上書きします。「Markdownファイルの書き方」の章の「CSVファイル」を参照）。
 
 `header`/`footer`/`paginate`は**その章だけ**に効き、`landscape`/`paper_size`と同様に次の章には持続しません。章を並べ替えても、設定は`chapters:`のエントリごとついてくるため、意図しないヘッダーが別の章に混入することはありません（Marpディレクティブのような「以降のページに持続する」仕組みは採用していません。[#41](https://github.com/tokudiro/text-compositor/issues/41)/[#42](https://github.com/tokudiro/text-compositor/issues/42)を参照）。
@@ -208,7 +210,7 @@ chapters:
 ```
 
 - **見出し**: section の見出しはH1、配下の章の見出しは既定で1段下がります（Markdown内のH1がH2、H2がH3）。`heading_offset` で段数を変えられます（0〜5の整数）。目次（`document.toc: true`）は、見出しレベルに応じて「section → 章 → 節」と階層化されます。
-- **設定の継承**: section には `header`/`footer`/`paginate`/`landscape`/`paper_size`/`background`/`logo`/`table_header` を指定でき、配下の全章に適用されます。優先順位は「章（`file:`）の指定 ＞ front-matter ＞ section ＞ `document:`」です。section の設定はその section の中だけに効き、次の section や、section の外の章には引き継がれません。
+- **設定の継承**: section には `header`/`footer`/`paginate`/`landscape`/`paper_size`/`background`/`logo`/`table_header`/`code_block` を指定でき、配下の全章に適用されます。優先順位は「章（`file:`）の指定 ＞ front-matter ＞ section ＞ `document:`」です。section の設定はその section の中だけに効き、次の section や、section の外の章には引き継がれません。
 - **`heading_offset` は章にも指定できます**: `- file: "a.md"` に `heading_offset: 1` を書くと、section なしでも、その章の見出しだけを下げられます。section 配下の章に書くと、section の値より優先されます。
 - **制約**: section の入れ子はできません（目次は2階層までです）。`section:` と `file:`/`aggregate:` を同じ要素には書けません。設定に誤りがあると、ビルドの最初にエラーで止まります。
 - **`document.cover: replace`/`none` との関係**: 先頭の章のタイトルを表紙に置き換える（または落とす）動作は、先頭の要素が section の場合は行いません。section の見出しが先頭に出力され、配下の最初の章のタイトルもそのまま残ります。

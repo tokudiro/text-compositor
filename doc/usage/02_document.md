@@ -19,6 +19,7 @@
 | `paginate` | 本文ページにページ番号を表示するか（下記） | `true` |
 | `background` | 本文ページの背景画像（下記） | なし |
 | `table_header` | 通常のMarkdownテーブルのヘッダ行スタイル（下記） | 無装飾 |
+| `code_block` | PDFのコードブロックの見た目（背景・枠線・大きさ。下記） | 薄いグレーの背景・等幅フォント・枠線なし |
 | `glossary` | `[[用語]]`による巻末用語索引を生成するか（「Markdownファイルの書き方」の章を参照） | `false` |
 | `marp_compat` | `---`/`***`/`___`をMarp互換で改ページとして扱うか（「Markdownファイルの書き方」の章を参照） | `false` |
 | `csv_header` | `.csv`の章の1行目を、ヘッダー行にするか。`false`なら、すべての行がデータ行（「Markdownファイルの書き方」の章の「CSVファイル」を参照）。`chapters[]`ごとに上書きできます | `true` |
@@ -127,6 +128,52 @@ document:
 ```
 
 なお、aggregate（YAML/JSONテストケース集約）テーブルのヘッダは対象外です（別途固定スタイルが適用されます）。
+
+## code_block: コードブロックの見た目
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
+PDFのコードブロック（` ``` `で囲んだコード、`.yaml`・`.txt`などの章）には、既定で、薄いグレーの背景（`#f6f8fa`。Obunzuと同じ色）が付き、等幅フォント（Noto Sans Mono CJK JP）で出ます。枠線は、既定では付きません。`code_block`で、枠線と大きさを足したり、装飾をやめたりできます（[#511](https://github.com/tokudiro/text-compositor/issues/511)）。
+
+```yaml
+document:
+  code_block:
+    font_size: 8pt          # コードの大きさ。省略時は、Typstの既定（本文の0.8倍）
+    border: true            # 枠線を付ける（色・太さは、既定値）
+    # または、色・太さを指定する
+    border:
+      color: "#d1d9e0"      # 既定。`#rrggbb`などと、Typstの色の名前（`red`・`gray`など）
+      width: 0.75pt         # 既定。数値＋pt
+```
+
+- `border`は、`true`（既定の色と太さ）、`false`（枠線なし。既定）、または、`color`・`width`のマッピングです。片方だけを書くと、もう片方は既定値（`#d1d9e0`・`0.75pt`）になります。
+- `font_size`・`width`は、`8pt`・`0.75pt`のように、数値の後ろに`pt`を付けます。
+- `code_block: false`を書くと、その範囲では、背景も等幅フォントも付きません（コードは、使うテンプレートの見た目のままです）。
+- **章ごと・sectionごとに上書きできます。** `chapters[]`の章（`file:`）にも、`section:`にも書け、優先順位は「章 ＞ section ＞ `document:`」です（`table_header`と同じ。キー単位で重ねます。「chapters: 章の並び」の章を参照）。front-matterでの上書きは、できません。
+- `code_block`を書いた章・sectionは、上の階層が`false`でも、装飾が戻ります。`border: true`は、上の階層の色・太さを、そのまま残します。
+- 誤り（型・知らないキー・色・単位）は、ビルドの最初に、エラーで止まります。
+
+```yaml
+document:
+  code_block: {font_size: 8pt}          # 全体は、8pt
+chapters:
+  - "overview.md"
+  - file: "api.md"
+    code_block: {border: true}          # この章だけ、枠線を付ける
+  - file: "appendix.md"
+    code_block: false                   # この章は、装飾しない
+```
+
+**対象と、対象外**
+
+- 独自テンプレート（`template.path`の`.typ`）でも、同じに効きます。独自テンプレートが、コードブロックを自分で装飾している場合は、二重になることがあります。その場合は、`code_block: false`で、ツールの装飾をやめてください。
+- Graphviz（`dot`・`graphviz`。プラグインが有効なとき）は、図になるため、枠に包みません。ChordProの譜面と、`typst-exec`の生のTypstも、対象外です。
+- インラインのコード（`` `code` ``）の等幅フォントは、同梱のテンプレート（`template`・`slide`・`paper`）の設定です。背景・枠線・大きさは、付きません。
+- Noto Sans Mono CJK JPは、日本語だけでなく、ハングルや簡体字も持ちます。そのため、本文中のそれらの字も、等幅の字形で表示されます（今までは、空の四角でした）。
+
+**Obunzuでの枠線**
+
+`config.yaml`の`code_block`は、PDFだけに効きます。Obunzuのコードブロックには、いつも背景が付きます。枠線は、読む人の表示設定です。設定画面の「コードブロックの枠線」で、「付ける」「付けない」を選べます（既定は「付けない」。選んだ状態は、覚えます）。
 
 ## toc: 目次の表示/非表示
 
