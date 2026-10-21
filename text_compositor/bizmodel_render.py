@@ -5,14 +5,14 @@
 - `layout(ast)`: ASTから、座標（`Layout`）を決める。
 - `to_svg(layout)` / `render_svg(text)`: SVGの文字列にする。
 
-仕様は、doc/bizmodel-notation-spec.md。最初の実装は、2者間（売り手1つ、買い手1つ以上）の取引だけを描く。
+仕様は、doc/bizmodel-notation-spec.md。一列・プラットフォーム型の3者以上の取引まで描く（列を飛ばす取引と循環は、E09）。
 """
 import re
 from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "4"
+CACHE_VERSION = "5"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -283,89 +283,156 @@ def _text_width(s, size):
     return sum(size if ord(ch) > 0x2E80 else size * 0.55 for ch in s)
 
 
+def _group_pairs(ast):
+    """売り手と買い手の組ごとに、取引をまとめる。同じ組の単独の取引は1つにまとめ、bundle/timelineは他の組と混ぜない。"""
+    pairs = {}
+    for g in ast["groups"]:
+        first = g["trades"][0]
+        key = (first["seller"], first["buyer"])
+        if key not in pairs:
+            pairs[key] = {"seller": first["seller"], "buyer": first["buyer"], "kind": g["kind"],
+                          "trades": list(g["trades"]), "line": first["line"]}
+        else:
+            p = pairs[key]
+            if g["kind"] != "single" or p["kind"] != "single":
+                raise BizModelError("E09", f"the trades from {key[0]!r} to {key[1]!r} appear in several groups with "
+                                           "bundle/timeline (not supported yet)", g["line"])
+            p["trades"].extend(g["trades"])
+    return list(pairs.values())
+
+
+def _assign_columns(pairs):
+    """取引の向き（売り手 → 買い手）に沿って、左から右へ列を決める。隣り合わない列をつなぐ取引と、循環は、描けない。"""
+    ids = []
+    for p in pairs:
+        for a in (p["seller"], p["buyer"]):
+            if a not in ids:
+                ids.append(a)
+    col = {}
+
+    def depth(a, path):
+        if a in col:
+            return col[a]
+        if a in path:
+            raise BizModelError("E09", f"the trades go around in a circle through {a!r} (not supported yet)",
+                                next(p["line"] for p in pairs if p["buyer"] == a))
+        sellers = [p["seller"] for p in pairs if p["buyer"] == a]
+        col[a] = 0 if not sellers else 1 + max(depth(s, path | {a}) for s in sellers)
+        return col[a]
+
+    for a in ids:
+        depth(a, frozenset())
+    # 仕入れのない企業は、最初に売る相手のすぐ左の列に寄せる（右の方だけで使う仕入先が、遠くに置かれないように）
+    for a in ids:
+        if not any(p["buyer"] == a for p in pairs):
+            col[a] = min(col[p["buyer"]] for p in pairs if p["seller"] == a) - 1
+    base = min(col.values())
+    col = {a: c - base for a, c in col.items()}
+    for p in pairs:
+        if col[p["buyer"]] != col[p["seller"]] + 1:
+            raise BizModelError("E09", f"the trade from {p['seller']!r} to {p['buyer']!r} skips a column "
+                                       "(not supported yet)", p["line"])
+    return ids, col
+
+
+def _order_columns(pairs, ids, col):
+    """各列の上下の順と、列の間（隙間）ごとの取引の組の順を決める。"""
+    ncols = max(col.values()) + 1
+    columns = []
+    gaps = []
+    for g in range(ncols):
+        placed = columns[g] if g < len(columns) else []
+        column = placed + [a for a in ids if col[a] == g and a not in placed]
+        if g == 0:
+            columns.append(column)
+        else:
+            columns[g] = column
+        if g == ncols - 1:
+            break
+        ps = [p for p in pairs if col[p["seller"]] == g]
+        ps.sort(key=lambda p: column.index(p["seller"]))   # 安定ソート: 同じ売り手の中は、書いた順
+        done = set()
+        last = None
+        for p in ps:
+            if p["buyer"] != last:
+                if p["buyer"] in done:
+                    raise BizModelError("E09", f"the arrows to {p['buyer']!r} would cross (not supported yet)", p["line"])
+                done.add(last)
+                last = p["buyer"]
+        gaps.append(ps)
+        columns.append(list(dict.fromkeys(p["buyer"] for p in ps)))
+    return columns, gaps
+
+
 def layout(ast):
-    """ASTから、座標を決める。最初の実装は、売り手が1つの2者間の取引（買い手は複数可）だけを扱う。"""
+    """ASTから、座標を決める。列は取引の向き（売り手 → 買い手）に沿って左から右へ並べ、隣り合う列の間にだけ取引を引く。"""
     if ast.get("type") == "canvas":
         from text_compositor import bizmodel_canvas
         return bizmodel_canvas.layout(ast)
     actors = {a["id"]: a for a in ast["actors"]}
-    trades = [t for g in ast["groups"] for t in g["trades"]]
-    sellers = []
-    for t in trades:
-        if t["seller"] not in sellers:
-            sellers.append(t["seller"])
-    if len(sellers) != 1:
-        raise BizModelError("E09", "only one seller is supported for now (three or more parties come later)",
-                            trades[0]["line"])
-    seller_id = sellers[0]
-    buyers = []   # 初出の順
-    blocks = {}   # 買い手のid -> {'kind','trades'}
-    for g in ast["groups"]:
-        buyer = g["trades"][0]["buyer"]
-        if buyer == seller_id or any(t["seller"] == buyer for t in trades):
-            raise BizModelError("E09", f"{buyer!r} is both a seller and a buyer (three or more parties come later)",
-                                g["trades"][0]["line"])
-        if buyer not in blocks:
-            buyers.append(buyer)
-            blocks[buyer] = {"kind": g["kind"], "trades": list(g["trades"]), "groups": 1}
-        else:
-            b = blocks[buyer]
-            if g["kind"] != "single" or b["kind"] != "single":
-                raise BizModelError("E09", f"buyer {buyer!r} appears in several groups with bundle/timeline "
-                                           "(not supported yet)", g["line"])
-            b["trades"].extend(g["trades"])
-            b["groups"] += 1
+    pairs = _group_pairs(ast)
+    for p in pairs:
+        if p["kind"] == "timeline" and (any(q["seller"] == p["buyer"] for q in pairs)
+                                        or sum(1 for q in pairs if q["buyer"] == p["buyer"]) > 1):
+            raise BizModelError("E09", f"{p['buyer']!r} receives a timeline but also sells or buys elsewhere "
+                                       "(not supported yet)", p["line"])
+    ids, col = _assign_columns(pairs)
+    columns, gaps = _order_columns(pairs, ids, col)
 
     lay = Layout(title=ast.get("title"))
     top = MARGIN + (TITLE_H if lay.title else 0)
-    total_rows = sum(len(blocks[b]["trades"]) for b in buyers)
 
-    gap = MIN_GAP
-    for t in trades:
-        gap = max(gap, _text_width(t["goods"], LABEL_SIZE) + 16, _text_width(t["money"], MONEY_SIZE) + 16)
+    def half(a):
+        return max(PERSON_HALF, _text_width(a["label"], MONEY_SIZE) / 2) if a["kind"] == "person" else RECT_W / 2
 
-    seller = actors[seller_id]
-    seller_half = max(PERSON_HALF, _text_width(seller["label"], MONEY_SIZE) / 2) if seller["kind"] == "person" else RECT_W / 2
-    seller_cx = MARGIN + seller_half
-    x1 = seller_cx + RECT_W / 2 + ARROW_LEAD
-    x2 = x1 + gap
+    # 横: 列の中心と、隙間ごとの矢印の両端
+    colx = [MARGIN + max(half(actors[a]) for a in columns[0])]
+    spans = []   # 隙間ごとの (x1, x2, brace_x)
+    for ps in gaps:
+        x1 = colx[-1] + RECT_W / 2 + ARROW_LEAD
+        gap = MIN_GAP
+        for p in ps:
+            for t in p["trades"]:
+                gap = max(gap, _text_width(t["goods"], LABEL_SIZE) + 16, _text_width(t["money"], MONEY_SIZE) + 16)
+        x2 = x1 + gap
+        brace_x = x2 + BRACE_LEAD
+        spans.append((x1, x2, brace_x))
+        colx.append(brace_x + BRACE_W + 40 if any(p["kind"] == "bundle" for p in ps) else x2 + BUYER_LEAD)
 
-    has_bundle = any(blocks[b]["kind"] == "bundle" for b in buyers)
-    has_timeline = any(blocks[b]["kind"] == "timeline" for b in buyers)
-    buyer_cx = x2 + BUYER_LEAD
-    brace_x = x2 + BRACE_LEAD
-    if has_bundle:
-        buyer_cx = brace_x + BRACE_W + 40
+    # 縦: 隙間ごとに組を積み、一番高い隙間に合わせて中央にそろえる
+    total_rows = max(sum(len(p["trades"]) for p in ps) for ps in gaps)
+    for ps in gaps:
+        row = (total_rows - sum(len(p["trades"]) for p in ps)) / 2
+        for p in ps:
+            p["top"] = top + row * PAIR_H
+            row += len(p["trades"])
+            p["bottom"] = p["top"] + len(p["trades"]) * PAIR_H
 
-    # 売り手の記号は、全体の高さに合わせる
-    _add_actor(lay, seller, seller_cx, top, total_rows * PAIR_H, single_row=False)
+    for g, ps in enumerate(gaps):
+        x1, x2, brace_x = spans[g]
+        for p in ps:
+            for i, t in enumerate(p["trades"]):
+                lay.pairs.append({"x1": x1, "x2": x2, "y": p["top"] + i * PAIR_H, "goods": t["goods"], "money": t["money"]})
+            if p["kind"] == "bundle":
+                lay.braces.append({"x": brace_x, "top": p["top"] + 62, "bottom": p["bottom"] - 40})
 
-    right = buyer_cx + RECT_W / 2
-    row = 0
-    for buyer_id in buyers:
-        b = blocks[buyer_id]
-        n = len(b["trades"])
-        b_top = top + row * PAIR_H
-        b_bottom = b_top + n * PAIR_H
-        for i, t in enumerate(b["trades"]):
-            lay.pairs.append({"x1": x1, "x2": x2, "y": b_top + i * PAIR_H, "goods": t["goods"], "money": t["money"]})
-        buyer = actors[buyer_id]
-        if b["kind"] == "bundle":
-            bt, bb = b_top + 62, b_bottom - 40
-            lay.braces.append({"x": brace_x, "top": bt, "bottom": bb})
-            _add_actor(lay, buyer, buyer_cx, b_top, n * PAIR_H, single_row=False, center_y=(bt + bb) / 2)
-        elif b["kind"] == "timeline":
-            sym = _add_actor(lay, buyer, buyer_cx, b_top, PAIR_H, single_row=True)
-            lay.timelines.append({"x": buyer_cx, "y_from": sym["bottom"] + 8, "y_to": b_bottom + 10})
-        elif n == 1:
-            _add_actor(lay, buyer, buyer_cx, b_top, PAIR_H, single_row=True)
-        else:
-            _add_actor(lay, buyer, buyer_cx, b_top, n * PAIR_H, single_row=False)
-        right = max(right, buyer_cx + max(PERSON_HALF, _text_width(buyer["label"], MONEY_SIZE) / 2))
-        row += n
+    right = colx[-1] + RECT_W / 2
+    for c, column in enumerate(columns):
+        for aid in column:
+            incoming = [p for p in pairs if p["buyer"] == aid]
+            outgoing = [p for p in pairs if p["seller"] == aid]
+            # 法人の高さは、左右の取引の範囲を合わせたもの。timelineを受ける買い手は、最初の組の高さだけ
+            ys = [(p["top"], p["top"] + PAIR_H if p["kind"] == "timeline" else p["bottom"]) for p in incoming]
+            ys += [(p["top"], p["bottom"]) for p in outgoing]
+            sym = _add_actor(lay, actors[aid], colx[c], min(y for y, _ in ys), max(y for _, y in ys),
+                             incoming, outgoing)
+            for p in incoming:
+                if p["kind"] == "timeline":
+                    lay.timelines.append({"x": colx[c], "y_from": sym["bottom"] + 8, "y_to": p["bottom"] + 10})
+                    right = max(right, colx[c] + 34)
+            if c == len(columns) - 1:
+                right = max(right, colx[c] + max(PERSON_HALF, _text_width(actors[aid]["label"], MONEY_SIZE) / 2))
 
-    if has_timeline:
-        right = max(right, buyer_cx + 34)
     lay.width = right + MARGIN
     lay.height = top + total_rows * PAIR_H + MARGIN - 10
     if lay.title:
@@ -374,20 +441,21 @@ def layout(ast):
     return lay
 
 
-def _add_actor(lay, actor, cx, block_top, block_h, single_row, center_y=None):
-    """法人は縦長の長方形（高さは、取引の行に合わせる）、個人は人型。bottomは、記号と名前の下端。"""
+def _add_actor(lay, actor, cx, span_top, span_bottom, incoming, outgoing):
+    """法人は縦長の長方形（高さは、取引の行の範囲に合わせる）、個人は人型。bottomは、記号と名前の下端。"""
+    span_h = span_bottom - span_top
     if actor["kind"] == "company":
-        h = (PAIR_H if single_row else block_h) - 20
+        h = span_h - 20
         item = {"id": actor["id"], "kind": "company", "label": actor["label"],
-                "x": cx - RECT_W / 2, "y": block_top + 10, "w": RECT_W, "h": h, "cx": cx, "cy": block_top + 10 + h / 2}
+                "x": cx - RECT_W / 2, "y": span_top + 10, "w": RECT_W, "h": h, "cx": cx, "cy": span_top + 10 + h / 2}
         item["bottom"] = item["y"] + h
     else:
-        if center_y is not None:
-            cy = center_y
-        elif single_row:
-            cy = block_top + 62
+        if not outgoing and len(incoming) == 1 and incoming[0]["kind"] == "bundle":
+            cy = (incoming[0]["top"] + 62 + incoming[0]["bottom"] - 40) / 2   # 波括弧の中央
+        elif not outgoing and span_h == PAIR_H:
+            cy = span_top + 62
         else:
-            cy = block_top + block_h / 2 - 10
+            cy = span_top + span_h / 2 - 10
         item = {"id": actor["id"], "kind": "person", "label": actor["label"],
                 "x": cx - 22, "y": cy - 39, "w": 44, "h": 71, "cx": cx, "cy": cy, "bottom": cy + 60}
     lay.actors.append(item)

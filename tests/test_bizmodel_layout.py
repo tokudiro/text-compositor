@@ -95,18 +95,113 @@ class TestLabelsAndTitle:
         assert actor(l, "P")["kind"] == "person" and actor(l, "C")["kind"] == "company"
 
 
-class TestUnsupported:
-    def test_two_sellers_are_not_supported_yet(self):
-        head = 'company A "A"\ncompany B "B"\nperson X "X"\n'
-        with pytest.raises(BizModelError) as info:
-            lay('A -> X : goods "a" / money "1円"\nB -> X : goods "b" / money "1円"\n', head=head)
-        assert info.value.code == "E09"
+CHAIN_HEAD = 'company A "メーカー"\ncompany B "卸"\ncompany C "小売"\nperson X "顧客"\n'
+CHAIN = ('A -> B : goods "商品" / money "100円"\nB -> C : goods "商品" / money "150円"\n'
+         'C -> X : goods "商品" / money "200円"\n')
 
-    def test_a_chain_is_not_supported_yet(self):
+
+class TestChain:
+    """一列（A → B → C → X）。列は取引の向きに沿って、左から右へ増える。"""
+
+    def test_columns_increase_from_left_to_right(self):
+        l = lay(CHAIN, head=CHAIN_HEAD)
+        xs = [actor(l, i)["cx"] for i in "ABCX"]
+        assert xs == sorted(xs) and len(set(xs)) == 4
+
+    def test_each_arrow_pair_sits_between_its_two_companies(self):
+        l = lay(CHAIN, head=CHAIN_HEAD)
+        for p, (s, b) in zip(l.pairs, [("A", "B"), ("B", "C"), ("C", "X")]):
+            assert actor(l, s)["cx"] < p["x1"] < p["x2"] < actor(l, b)["cx"]
+
+    def test_a_middle_company_is_both_a_buyer_and_a_seller(self):
+        l = lay(CHAIN, head=CHAIN_HEAD)
+        b = actor(l, "B")
+        assert b["kind"] == "company" and b["h"] == bm.PAIR_H - 20
+        assert l.pairs[0]["y"] == l.pairs[1]["y"]   # 同じ高さに並ぶ
+
+    def test_everything_is_inside_the_canvas(self):
+        l = lay(CHAIN, head=CHAIN_HEAD)
+        for a in l.actors:
+            assert 0 <= a["x"] and a["x"] + a["w"] <= l.width
+        assert max(p["x2"] for p in l.pairs) <= l.width
+
+    def test_the_order_of_the_statements_does_not_matter(self):
+        lines = CHAIN.splitlines(keepends=True)
+        a = lay("".join(lines), head=CHAIN_HEAD)
+        b = lay("".join(reversed(lines)), head=CHAIN_HEAD)
+        assert [actor(a, i)["cx"] for i in "ABCX"] == [actor(b, i)["cx"] for i in "ABCX"]
+
+
+class TestPlatform:
+    """複数の供給者 → 企業 → 複数の顧客。企業の高さは、取引の多いほうに合わせる。"""
+
+    HEAD = 'person S1 "供給者1"\nperson S2 "供給者2"\ncompany P "基盤"\nperson X "顧客X"\nperson Y "顧客Y"\nperson Z "顧客Z"\n'
+    BODY = ('S1 -> P : goods "a" / money "1円"\nS2 -> P : goods "b" / money "2円"\n'
+            'P -> X : goods "c" / money "3円"\nP -> Y : goods "d" / money "4円"\nP -> Z : goods "e" / money "5円"\n')
+
+    def test_the_platform_spans_the_taller_side(self):
+        l = lay(self.BODY, head=self.HEAD)
+        assert actor(l, "P")["h"] == 3 * bm.PAIR_H - 20
+
+    def test_the_shorter_side_is_centered(self):
+        l = lay(self.BODY, head=self.HEAD)
+        left, right = l.pairs[:2], l.pairs[2:]
+        mid_left = (left[0]["y"] + left[1]["y"] + bm.PAIR_H) / 2
+        mid_right = (right[0]["y"] + right[2]["y"] + bm.PAIR_H) / 2
+        assert mid_left == pytest.approx(mid_right)
+
+    def test_suppliers_share_a_column_and_customers_share_a_column(self):
+        l = lay(self.BODY, head=self.HEAD)
+        assert actor(l, "S1")["cx"] == actor(l, "S2")["cx"] < actor(l, "P")["cx"]
+        assert actor(l, "P")["cx"] < actor(l, "X")["cx"] == actor(l, "Y")["cx"] == actor(l, "Z")["cx"]
+
+    def test_a_supplier_used_only_on_the_right_is_placed_next_to_its_buyer(self):
+        head = 'company A "A"\ncompany B "B"\ncompany C "C"\ncompany D "D"\nperson X "X"\n'
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "b" / money "2円"\n'
+                'D -> C : goods "d" / money "3円"\nC -> X : goods "c" / money "4円"\n')
+        l = lay(body, head=head)
+        assert actor(l, "D")["cx"] == actor(l, "B")["cx"]
+
+    def test_a_bundle_into_a_middle_company(self):
         head = 'company A "A"\ncompany B "B"\nperson X "X"\n'
+        body = ('bundle {\n  A -> B : goods "a" / money "1円"\n  A -> B : goods "b" / money "2円"\n}\n'
+                'B -> X : goods "c" / money "3円"\n')
+        l = lay(body, head=head)
+        (brace,) = l.braces
+        assert l.pairs[0]["x2"] < brace["x"] < actor(l, "B")["cx"]
+        assert actor(l, "B")["h"] == 2 * bm.PAIR_H - 20
+
+
+class TestUnsupported:
+    def head(self):
+        return 'company A "A"\ncompany B "B"\ncompany C "C"\nperson X "X"\n'
+
+    def test_a_trade_that_skips_a_column_is_not_supported_yet(self):
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "a" / money "2円"\n'
+                'A -> C : goods "a" / money "3円"\n')
         with pytest.raises(BizModelError) as info:
-            lay('A -> B : goods "a" / money "1円"\nB -> X : goods "a" / money "2円"\n', head=head)
-        assert info.value.code == "E09"
+            lay(body, head=self.head())
+        assert info.value.code == "E09" and "skips" in info.value.message
+
+    def test_a_circle_is_not_supported_yet(self):
+        body = 'A -> B : goods "a" / money "1円"\nB -> A : goods "a" / money "2円"\n'
+        with pytest.raises(BizModelError) as info:
+            lay(body, head=self.head())
+        assert info.value.code == "E09" and "circle" in info.value.message
+
+    def test_crossing_arrows_are_not_supported_yet(self):
+        body = ('A -> B : goods "a" / money "1円"\nA -> C : goods "a" / money "2円"\n'
+                'X -> B : goods "a" / money "3円"\n')
+        with pytest.raises(BizModelError) as info:
+            lay(body, head=self.head())
+        assert info.value.code == "E09" and "cross" in info.value.message
+
+    def test_a_timeline_buyer_that_also_sells_is_not_supported_yet(self):
+        body = ('timeline {\n  A -> B : goods "a" / money "1円"\n  A -> B : goods "b" / money "2円"\n}\n'
+                'B -> X : goods "c" / money "3円"\n')
+        with pytest.raises(BizModelError) as info:
+            lay(body, head=self.head())
+        assert info.value.code == "E09" and "timeline" in info.value.message
 
     def test_a_buyer_in_a_bundle_and_another_group_is_not_supported(self):
         body = ('bundle {\n  S -> X : goods "A" / money "1円"\n  S -> X : goods "B" / money "2円"\n}\n'

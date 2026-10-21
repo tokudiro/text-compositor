@@ -105,6 +105,41 @@ Service -> Free : goods "基本機能" / money "0円"
 Service -> Paid : goods "高度な機能" / money "月額980円"
 ```
 
+## 3者以上の取引（一列・プラットフォーム）
+
+売り手が複数の図も描けます。列は、取引の向き（売り手 → 買い手）に沿って、左から右へ増えます。同じ企業が、左側で仕入れ（買い手）、右側で販売（売り手）の取引を持てます。企業の記号の高さは、左右の取引の数が多いほうに合わせます。
+
+メーカー → 卸 → 小売 → 顧客のような一列の図です。
+
+```bizmodel
+title "仕入れと小売"
+company Maker "メーカー"
+company Wholesale "卸"
+company Shop "小売店"
+person Customer "顧客"
+Maker -> Wholesale : goods "商品" / money "100円"
+Wholesale -> Shop : goods "商品" / money "150円"
+Shop -> Customer : goods "商品" / money "200円"
+```
+
+複数の供給者・中央の企業・複数の顧客を描く、プラットフォーム型の図です。広告主への取引は、`bundle`でまとめています。`bundle`・`timeline`も、3者以上の図で使えます。
+
+```bizmodel
+title "広告つきのプラットフォーム"
+person Seller1 "供給者A"
+person Seller2 "供給者B"
+company Platform "基盤企業"
+person User "利用者"
+person Advertiser "広告主"
+Seller1 -> Platform : goods "出品" / money "手数料10%"
+Seller2 -> Platform : goods "出品" / money "手数料10%"
+Platform -> User : goods "サービス" / money "0円"
+bundle {
+  Platform -> Advertiser : goods "広告枠" / money "10万円"
+  Platform -> Advertiser : goods "分析" / money "2万円"
+}
+```
+
 ## ビジネスモデルキャンバス
 
 1行目に`type canvas`と書くと、ビジネスモデルキャンバスを描きます。9つの枠に、箇条書きの文字を入れた図です。
@@ -223,11 +258,19 @@ revenue "月額の利用料"
 | E06 | 構文エラー（未知のキーワード、閉じていない`"`や`{`、`type`の誤りなど） |
 | E07 | 識別子を、二重に宣言している |
 | E08 | 取引が1つもない |
-| E09 | 今の実装で、扱えない図（下の「制限」を参照） |
+| E09 | 扱えない図（下の「制限」を参照） |
 
 ## 制限
 
-今は、**売り手が1つで、買い手が1つ以上の図**だけを描けます。売り手が複数の図（仕入れと販売を連ねる図など）は、E09になります。対応は、今後の拡張で行います。
+次の図は、描けません（E09）。
+
+- 列を飛ばす取引（メーカー → 卸 → 小売に、メーカー → 小売の直接取引を足すなど）。
+- 同じ2者の間の、逆向きの取引（循環）。
+- 矢印が交差する図（同じ買い手への取引が、離れて並ぶ場合）。
+- `timeline`を受ける買い手が、別の取引にも加わる図。
+- 同じ売り手・買い手の組が、`bundle`・`timeline`と、別の取引の両方に現れる図。
+
+E09のメッセージに、理由が出ます。
 
 ## 設定
 

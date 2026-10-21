@@ -67,3 +67,18 @@ class TestSvg:
         r = root(BASIC.replace("配信事業者", name))
         (el,) = [t for t in r.iter("{http://www.w3.org/2000/svg}text") if t.text == name]
         assert float(el.attrib["font-size"]) < 14
+
+
+class TestThreeOrMoreParties:
+    CHAIN = ('company A "A"\ncompany B "B"\nperson X "X"\n'
+             'A -> B : goods "g1" / money "m1"\nB -> X : goods "g2" / money "m2"\n')
+
+    def test_a_chain_is_drawn_with_every_label_once(self):
+        r = root(self.CHAIN)
+        t = texts(r)
+        for label in ("A", "B", "X", "g1", "m1", "g2", "m2"):
+            assert t.count(label) == 1
+        assert t.count("\u00a5") == 2   # yen mark per pair
+
+    def test_the_cache_version_is_bumped(self):
+        assert int(bm.CACHE_VERSION) >= 5
