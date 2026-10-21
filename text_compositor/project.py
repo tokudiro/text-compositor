@@ -2,7 +2,8 @@
 import os
 import time
 from text_compositor.changes import _is_up_to_date
-from text_compositor.chapters import ChapterDefaults, _expand_chapters, _parse_chapter_entry, _parse_csv_header, _render_aggregate_chapter, _render_markdown_chapter, _render_section_heading
+from text_compositor.chapters import ChapterDefaults, _chapter_code_block_style, _expand_chapters, _parse_chapter_entry, _parse_csv_header, _render_aggregate_chapter, _render_markdown_chapter, _render_section_heading
+from text_compositor.code_block_style import parse_code_block
 from text_compositor.compiler import _compile_and_cleanup
 from text_compositor.config import _load_project_config, _resolve_line_mapping, _resolve_project_dirs, _resolve_variables, find_config_in_cwd
 from text_compositor.fonts import resolve_extra_font_dirs, set_extra_font_dirs
@@ -87,7 +88,8 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
     root_defaults = ChapterDefaults(
         landscape=global_landscape, paper=global_paper, header=effective_global_header, footer=global_footer,
         paginate=global_paginate, background=global_background, logo=global_logo,
-        table_header=global_table_header, heading_offset=0)
+        table_header=global_table_header, heading_offset=0,
+        code_block=parse_code_block(config.get("document", {}).get("code_block"), "document"))
     entries = _expand_chapters(chapters, root_defaults, project_dir, typst_root)
 
     # PlantUML/Structurizrの図を、通常の描画ループより前にまとめて1回のJVM起動で描画しておく
@@ -123,6 +125,7 @@ def _build_project(tool_dir, repo_root, font_dir, project_dir, config, chapters,
                 continue
             ch_file, ch_dict, ch_type = _parse_chapter_entry(ch)
             _log_verbose(f"Processing chapter ({ch_type}): {ch_file}")
+            renderer.code_block_style = _chapter_code_block_style(d, ch_dict, ch_file)   # 章ごと（#511）
             # 章の既定値（d）は、section配下ならsectionの指定で上書き済みの値。最上位の章では
             # 従来どおりdocument.*の実効値そのもの。
             if ch_type == "aggregate":

@@ -4,6 +4,7 @@ import sys
 from collections import namedtuple
 from text_compositor.aggregate_join import (
     _parse_aggregate_columns, _parse_aggregate_font_size, _parse_aggregate_join, render_aggregate_table)
+from text_compositor.code_block_style import merge_code_block, parse_code_block, resolve_code_block
 from text_compositor.fonts import warn_missing_glyphs
 from text_compositor.config import _resolve_project_image_path
 from text_compositor.document import _page_set_fragment
@@ -37,8 +38,10 @@ def _parse_chapter_entry(ch):
 
 # 章に効くページ設定・スタイルの「既定値」一式（#68）。最上位ではdocument.*の実効値、section配下では
 # sectionの指定でそれを上書きしたもの。各章の解決は「章の指定 ＞ front-matter ＞ この既定値」の順。
+# code_block（#511）は、`parse_code_block`・`merge_code_block`で重ねた、書かれた項目だけの辞書（実効値にするのは、章ごと）。
 ChapterDefaults = namedtuple("ChapterDefaults", [
-    "landscape", "paper", "header", "footer", "paginate", "background", "logo", "table_header", "heading_offset"])
+    "landscape", "paper", "header", "footer", "paginate", "background", "logo", "table_header", "heading_offset",
+    "code_block"], defaults=[{}])
 
 def _parse_csv_header(value, where):
     """.csvの1行目をヘッダー行にするか（csv_header、#220）を検証して返す。true/falseのみ。"""
@@ -81,6 +84,8 @@ def _expand_chapters(chapters, root_defaults, project_dir, typst_root):
             offset = _parse_heading_offset(ch.get("heading_offset", 1), f"section {title!r}")
             table_header = dict(root_defaults.table_header)
             table_header.update(ch.get("table_header") or {})
+            code_block = merge_code_block(root_defaults.code_block,
+                                          parse_code_block(ch.get("code_block"), f"section {title!r}"))
             defaults = ChapterDefaults(
                 landscape=str(ch.get("landscape", root_defaults.landscape)).lower() == 'true',
                 paper=ch.get("paper_size", root_defaults.paper),
@@ -92,7 +97,8 @@ def _expand_chapters(chapters, root_defaults, project_dir, typst_root):
                 logo=(_resolve_project_image_path(ch["logo"], project_dir, typst_root, "Logo")
                       if "logo" in ch else root_defaults.logo),
                 table_header=table_header,
-                heading_offset=offset)
+                heading_offset=offset,
+                code_block=code_block)
             entries.append(("section", title, defaults))
             for child in children:
                 if isinstance(child, dict) and "section" in child:
@@ -106,12 +112,19 @@ def _expand_chapters(chapters, root_defaults, project_dir, typst_root):
             entries.append(("chapter", ch, root_defaults))
     return entries
 
+def _chapter_code_block_style(defaults, ch_dict, ch_file):
+    """ある章のコードブロックの装飾の実効値（#511）。章の指定 ＞ section ＞ `document:`の順（`defaults.code_block`は、
+    section・`document:`を重ね済み）。"""
+    chapter = parse_code_block(ch_dict.get("code_block"), f"chapter {ch_file!r}")
+    return resolve_code_block(merge_code_block(defaults.code_block, chapter))
+
 def _check_chapter_options(ch):
     if not isinstance(ch, dict):
         return
     where = f"chapter {ch.get('file') or ch.get('aggregate')!r}"
     if "heading_offset" in ch:
         _parse_heading_offset(ch["heading_offset"], where)
+    parse_code_block(ch.get("code_block"), where)   # 誤りは、描画の前に、Fail-fastで報告する（#511）
     for option in ("columns", "join"):
         if option in ch and "aggregate" not in ch:
             _error(f"{where}: '{option}' can only be used with 'aggregate'.")
