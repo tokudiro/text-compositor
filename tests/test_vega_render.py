@@ -336,6 +336,28 @@ class TestRealBrowser:
         result = render_html(str(md), plugins={"mermaid": False, "plantuml": False, "d2": False})
         assert result.ok, result.diagnostics
 
+    def test_a_wordcloud_is_laid_out_the_same_way_every_time(self):
+        """wordcloudはMath.randomで配置を決める。種を固定して、描き直しても同じSVGにする（#522）。"""
+        from text_compositor.mermaid import MermaidBrowser
+        spec = {
+            "width": 300, "height": 200,
+            "data": [{"name": "table", "values": [{"text": w, "size": 10 + i * 7}
+                                                  for i, w in enumerate("alpha beta gamma delta epsilon zeta eta theta".split())],
+                      "transform": [{"type": "wordcloud", "text": {"field": "text"}, "fontSize": {"field": "size"},
+                                     "rotate": {"expr": "random() < 0.5 ? 0 : 90"}}]}],
+            "marks": [{"type": "text", "from": {"data": "table"},
+                       "encode": {"enter": {"text": {"field": "text"}, "fontSize": {"field": "fontSize"}},
+                                  "update": {"x": {"field": "x"}, "y": {"field": "y"}, "angle": {"field": "angle"}}}}],
+        }
+        browser = MermaidBrowser()
+        try:
+            page = browser.ensure_vega_page(True, False)
+            first = page.evaluate(vega_render.RENDER_SCRIPT, ["vega", spec])
+            second = page.evaluate(vega_render.RENDER_SCRIPT, ["vega", spec])
+        finally:
+            browser.close()
+        assert "<text" in first and first == second
+
     def test_a_spec_that_bypasses_the_check_still_cannot_reach_the_network(self, tmp_path):
         """検査（parse_spec）をすり抜けた経路があっても、描画側のloaderが止めて、エラーにする。"""
         from text_compositor.mermaid import MermaidBrowser
