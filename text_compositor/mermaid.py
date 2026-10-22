@@ -209,6 +209,8 @@ class MermaidBrowser:
             shutil.rmtree(self.profile_dir, ignore_errors=True)
         self.page = self.vega_page = self.wavedrom_page = self.bytefield_page = self.browser = self.playwright = self.chrome_proc = self.profile_dir = None
 
+_LAUNCH_TIMEOUT_SECONDS = 60
+
 def _launch_headless_chrome(browser_path, user_data_dir):
     """browser_pathをリモートデバッグ有効・ヘッドレスで起動し、(Popen, ポート番号)を返す。
     ポートは0（OSに自動割当させる）を指定し、Chromeがuser_data_dir/DevToolsActivePortに
@@ -223,15 +225,24 @@ def _launch_headless_chrome(browser_path, user_data_dir):
          "--no-first-run", f"--user-data-dir={user_data_dir}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    for _ in range(80):
+    # 待ち時間の上限は、CIのランナーでのChromeの初回起動が20秒を超えることがあったため、60秒にしている（#529）
+    start = time.monotonic()
+    while time.monotonic() - start < _LAUNCH_TIMEOUT_SECONDS:
         if os.path.exists(port_file):
             with open(port_file, "r", encoding="utf-8") as f:
-                port = int(f.readline().strip())
-            return proc, port
+                first_line = f.readline().strip()
+            # Chromeが書き込み途中のとき、1行目が空のことがある。次の周回で読み直す
+            if first_line.isdigit():
+                return proc, int(first_line)
         if proc.poll() is not None:
             break
         time.sleep(0.25)
 
+    # 終了していたのか、遅いだけなのかを、メッセージで切り分けられるようにする（#529）
+    exit_code = proc.poll()
+    waited = time.monotonic() - start
     proc.terminate()
-    _error("Headless browser did not become ready in time (needed for mermaid rendering).")
+    state = f"the browser exited with code {exit_code}" if exit_code is not None else "the browser was still starting"
+    _error(f"Headless browser did not become ready in time (needed for mermaid rendering): "
+           f"{state} after {waited:.0f} seconds.")
     sys.exit(1)
