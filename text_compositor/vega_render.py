@@ -128,6 +128,15 @@ RENDER_SCRIPT = """async ([lang, spec]) => {
     throw new Error('External resources are blocked.');
   };
   const loader = { load: blocked, sanitize: blocked, http: blocked, file: blocked };
+  // 乱数は、描画ごとに同じ種（seed）で作り直す。wordcloud・force・sampleなどが、Math.randomを使うため、
+  // 固定しないと、同じコードでも、描き直すたびに配置が変わる（#522）。種は、仕様から指定させない（出力の決定性を守る）。
+  let seed = 0x9E3779B9;
+  vega.setRandom(() => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  });
   const vgSpec = lang === 'vega-lite' ? vegaLite.compile(spec).spec : spec;
   const view = new vega.View(vega.parse(vgSpec), { renderer: 'none', loader, logger });
   try {

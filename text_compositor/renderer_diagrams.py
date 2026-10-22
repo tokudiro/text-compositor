@@ -373,7 +373,7 @@ class DiagramMixin:
             sys.exit(1)
 
         # 固定済みJS（vega・vega-lite）のSHA256を、バージョンとして使う（どちらかが変われば、別キーになる）。
-        version = f"{VEGA_JS_SHA256}:{VEGA_LITE_JS_SHA256}:v1"
+        version = f"{VEGA_JS_SHA256}:{VEGA_LITE_JS_SHA256}:v2"   # v2: 乱数を固定（#522）。v1の、乱数任せのキャッシュは使わない
         # データファイルを読んだときは、その内容のハッシュも、キーに含める（データを変えたら、描き直す。#350）。
         # 読まなかったときは、キーを変えない（`url`を使わない図の、既存のキャッシュを、無効にしない）。
         key_code = code + "".join(f"\0{digest}" for _, digest in used_files)
