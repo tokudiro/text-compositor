@@ -14,6 +14,8 @@ from text_compositor import bizmodel_render, cetz_render, graphviz_render, host_
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, BYTEFIELD_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, ensure_bytefield_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
+from text_compositor.plugins import registry as plugin_registry
+from text_compositor.plugins.registry import OUTPUT_SVG, BackendSelectionError
 from text_compositor.typst_literal import _typst_multiline_literal, escape_string_literal
 
 def _diagram_cache_key(kind, tool_version, code):
@@ -94,6 +96,10 @@ class DiagramMixin:
             self._pending_alt = None
 
     def _render_diagram_fence_inner(self, lang, code, width, height, trim):
+        # 登録簿（plugins/）に載せ替えた図種は、ここから先の振り分けを通さない（#474）
+        plugin = plugin_registry.by_lang(lang)
+        if plugin is not None:
+            return self._render_registered(plugin, code, width, height)
         if lang == 'mermaid':
             return self._render_mermaid(code, width, height, trim)
         elif lang == 'plantuml':
@@ -104,8 +110,6 @@ class DiagramMixin:
             return self._render_d2(code, width, height, trim)
         elif lang == 'structurizr':
             return self._render_structurizr(code, width, height, trim)
-        elif lang == 'pikchr':
-            return self._render_pikchr(code, width, height)
         elif lang == 'bizmodel':
             return self._render_bizmodel(code, width, height)
         elif lang in cetz_render.KINDS:
@@ -129,29 +133,22 @@ class DiagramMixin:
                                               self._parse_alt_attr(m.group('attrs')))
         return self._render_markdown_segment(m.group('image'), False).strip()
 
+    def _render_registered(self, plugin, code, width=None, height=None):
+        """登録簿（plugins/）の図種のフェンスを、SVGにして、Typstのimage呼び出しに変換する（#474）。
+        SVGは、PDFとHTMLで共通のキャッシュを通す。`plugins.<名前>: false`なら、素のコード表示にする。
+        有効・無効は、これまでどおり、レンダラーの属性（`<名前>_enabled`。renderer_options.PLUGIN_FLAGS）から読む
+        （登録簿から導く形への切り替えは、周辺の統合のステップ）。"""
+        if not getattr(self, f'{plugin.name}_enabled'):
+            return self._render_raw_text(code, plugin.name)
+        # 図の中の行を、原稿の行にするため、いまのフェンスの行と、その次の行（コードの1行目）を渡す
+        fence_line = self._block_line
+        svg_path = self._plugin_svg_path(plugin, code, fence_line, fence_line + 1 if fence_line else None)
+        root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
+        return self._render_sized_image(root_rel_path, width, height)
+
     def _render_pikchr(self, code, width=None, height=None):
-        """```pikchrフェンスの内容を、Typstのkip（PikchrのWASMプラグイン）で描くコードへ変換する（#213）。
-        自動縮小と、width/heightの扱いは、Graphvizの`render-graph()`と同じ。plugins.pikchr: falseなら、素のコード表示にする。
-        テンプレートの補助関数にしない（`render-graph`と違い、生成コードが、kipを直接importする）: 生成コードが読み込むテンプレートの
-        公開名を増やすと、既存のカスタムテンプレートが、`unknown variable`で壊れるため。
-        kip()関数は、構文エラーのPikchrで、原因の分からない`failed to parse SVG`になる。そこで、kipが公開するプラグインを直接呼び、
-        SVGでない返り値（Pikchr自身のエラー: 行・位置・原因）を、panicでそのまま出す（HTML出力のpikchr_render.pyと同じ処理）。"""
-        if not self.pikchr_enabled:
-            return self._render_raw_text(code, 'pikchr')
-        if width or height:
-            image_args = (f'width: {width if width else "auto"}, height: {height if height else "auto"}')
-            body = f'image(bytes(out), format: "svg", {image_args})'
-        else:
-            body = ('layout(size => context {\n'
-                    '    let figure = image(bytes(out), format: "svg")\n'
-                    '    if measure(figure).width > size.width { image(bytes(out), format: "svg", width: 100%) } else { figure }\n'
-                    '  })')
-        return ('#align(center)[#{\n'
-                f'  import "@preview/kip:{pikchr_render.KIP_VERSION}": pikchr-plugin\n'
-                f'  let out = str(pikchr-plugin.typst_pikchr(bytes({_typst_multiline_literal(code)})))\n'
-                '  if not out.trim().starts-with("<svg") { panic("Pikchr error: " + out) }\n'
-                f'  {body}\n'
-                '}]\n\n')
+        """Pikchrの図1つ分のファイル（`.pikchr`の章）を描く。登録簿の`pikchr`へ渡すだけ。"""
+        return self._render_registered(plugin_registry.get('pikchr'), code, width, height)
 
     def _render_bizmodel(self, code, width=None, height=None):
         """```bizmodelフェンス（モノ・カネの流れの図）を、SVGにして、Typstのimage呼び出しに変換する（#447）。
@@ -637,31 +634,40 @@ class DiagramMixin:
         return svg_path
 
     def _pikchr_svg_path(self, code, line=None, code_line=None):
-        """Pikchrの図のSVG（キャッシュ）のパスを返す。無ければ、Typstのパッケージ`kip`で作る（#213）。PDFと同じ経路。
+        """Pikchrの図のSVG（キャッシュ）のパスを返す（HTML出力が使う）。登録簿の`pikchr`の、`_plugin_svg_path`。"""
+        return self._plugin_svg_path(plugin_registry.get('pikchr'), code, line, code_line)
+
+    def _plugin_svg_path(self, plugin, code, line=None, code_line=None):
+        """登録簿の図種の、図のSVG（キャッシュ）のパスを返す。無ければ、選んだバックエンドで作る（#474）。PDFとHTMLで共通。
         line: 失敗したときの診断に付ける、原稿でのフェンスの行。code_line: コードの1行目の、原稿での行。"""
         try:
-            version = pikchr_render.cache_version()
-        except ImportError as e:   # typstが入っていない（HTML出力のPikchrは、Typstを通す）
-            self._diagram_error("Pikchr", str(e), line)
+            backend = plugin_registry.resolve_backend(plugin, code, OUTPUT_SVG, {})
+            version = backend.version()
+        except BackendSelectionError as e:
+            self._diagram_error(plugin.label, str(e), line)
             sys.exit(1)
-        svg_path, _ = self._diagram_cache_path("pikchr", version, code)
+        except ImportError as e:   # typstが入っていない（Pikchrは、Typstを通す）
+            self._diagram_error(plugin.label, str(e), line)
+            sys.exit(1)
+        svg_path, _ = self._diagram_cache_path(plugin.name, version, code)
 
         if not os.path.exists(svg_path):
-            _log_info(f"Rendering Pikchr diagram via kip (Typst) -> {os.path.basename(svg_path)}")
+            _log_info(f"Rendering {plugin.label} diagram via {backend.name} (Typst) -> {os.path.basename(svg_path)}")
             try:
-                svg = pikchr_render.render_svg(code)
-            except pikchr_render.PikchrRenderError as e:
-                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー。Pikchrが返す行を、原稿の行にする
-                at = code_line + e.code_line - 1 if (code_line and e.code_line) else line
-                self._diagram_error("Pikchr", str(e), at)
-                sys.exit(1)
-            except Exception as e:   # typstの読み込みの失敗など
-                self._diagram_error("Pikchr", f"{type(e).__name__}: {e}", line)
+                svg = backend.render(code, None, OUTPUT_SVG).svg
+            except Exception as e:
+                # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー。バックエンドが返す行を、原稿の行にする
+                inner_line = getattr(e, 'code_line', None)
+                if isinstance(e, pikchr_render.PikchrRenderError):
+                    at = code_line + inner_line - 1 if (code_line and inner_line) else line
+                    self._diagram_error(plugin.label, str(e), at)
+                else:   # typstの読み込みの失敗など
+                    self._diagram_error(plugin.label, f"{type(e).__name__}: {e}", line)
                 sys.exit(1)
             with open(svg_path, "w", encoding="utf-8") as f:
                 f.write(svg)
         else:
-            _log_verbose(f"Reusing cached Pikchr diagram: {os.path.basename(svg_path)}")
+            _log_verbose(f"Reusing cached {plugin.label} diagram: {os.path.basename(svg_path)}")
         return svg_path
 
     def _figure_svg_path(self, kind, code, line=None, code_line=None):

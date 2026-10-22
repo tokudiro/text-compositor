@@ -1,4 +1,4 @@
-"""HTML出力のPikchrを、Typstのパッケージ`kip`（PikchrのWASM）で、SVGにする（#213）。
+"""PikchrのコードをSVGにする。Typstのパッケージ`kip`（PikchrのWASM）を使う（#213）。PDF・HTML出力が、同じSVGを使う（#474）。
 
 PDFと同じ経路（`kip`のプラグイン）のため、Obunzu・PDF・CLI（Python API）で、同じ図になる。Graphviz（graphviz_render.py）と
 同じ仕組みで、Typstのコンパイラを使い回す。コードは、`sys.inputs`で渡す（Typstのコードとして解釈されない）。
@@ -7,6 +7,7 @@ PDFと同じ経路（`kip`のプラグイン）のため、Obunzu・PDF・CLI（
 エラーになる。そこで、`kip`が公開するプラグイン（`pikchr-plugin`）を直接呼び、返り値がSVGでなければ、その内容（Pikchr自身の
 エラー: 行・位置・原因）を、`panic`で、そのまま出す（templates/_common.typの`render-pikchr`と同じ処理）。
 """
+import base64
 import html
 import re
 from typing import Optional
@@ -36,9 +37,14 @@ class PikchrRenderError(Exception):
         self.code_line = code_line
 
 
+# SVGの形の版。v2: Typstが書き出した「入れ物」のSVG（Pikchrの図を、画像として入れ子にしたもの）ではなく、中のPikchrのSVGそのものを返す（#474）。
+# 入れ子のSVGの文字は、TypstがPDFへ埋め込むときに描かれない（箱だけが残る）ため。
+_SVG_FORM = "v2"
+
+
 def cache_version() -> str:
-    """図のSVGのキャッシュキーに入れる、描画環境の版。kip・Typst・上のTypstコードのどれかが変われば、別のキーになる。"""
-    return f"kip{KIP_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}{fonts_signature()}"
+    """図のSVGのキャッシュキーに入れる、描画環境の版。kip・Typst・上のTypstコード・SVGの形のどれかが変われば、別のキーになる。"""
+    return f"kip{KIP_VERSION}+typst{typst_lib.__version__}+w{wrapper_digest(_WRAPPER)}+{_SVG_FORM}{fonts_signature()}"
 
 
 _PANIC_RE = re.compile(r'Pikchr error:\s*(.*)', re.DOTALL)
@@ -59,6 +65,24 @@ def _parse_error(text: str) -> PikchrRenderError:
     return PikchrRenderError(message, int(lines[-1]) if lines else None)
 
 
+_WRAPPER_TAG_RE = re.compile(r'<svg ([^>]*)>')
+_IMAGE_RE = re.compile(r'<image [^>]*xlink:href="data:image/svg\+xml;base64,([^"]+)"')
+
+
+def _pikchr_svg(wrapped: str) -> str:
+    """Typstが書き出したSVG（Pikchrの図を、base64の画像として入れ子にしたもの）から、中のPikchrのSVGを取り出す。
+    中のSVGは、viewBoxだけで、幅・高さを持たない。入れ物のSVGが持つ幅・高さ（pt）を、そのまま付ける（図の大きさを変えないため）。"""
+    tag = _WRAPPER_TAG_RE.match(wrapped)
+    image = _IMAGE_RE.search(wrapped)
+    size = tag and (re.search(r'\swidth="([^"]+)"', tag.group(1)), re.search(r'\sheight="([^"]+)"', tag.group(1)))
+    if not (image and size and size[0] and size[1]):
+        raise PikchrRenderError("Unexpected SVG from kip: the Pikchr drawing could not be found in it.")
+    inner = base64.b64decode(image.group(1)).decode('utf-8')
+    if not inner.lstrip().startswith('<svg'):
+        raise PikchrRenderError("Unexpected SVG from kip: the embedded drawing is not an SVG.")
+    return inner.replace('<svg', f'<svg width="{size[0].group(1)}" height="{size[1].group(1)}"', 1)
+
+
 def render_svg(code: str) -> str:
     """Pikchrのコードを、SVGの文字列にする。失敗は、`PikchrRenderError`（構文エラーは、Pikchrのコードの行つき）。"""
     try:
@@ -67,4 +91,4 @@ def render_svg(code: str) -> str:
         raise _parse_error(str(e)) from e
     if isinstance(svg, (list, tuple)):
         svg = svg[0]
-    return svg.decode('utf-8') if isinstance(svg, (bytes, bytearray)) else str(svg)
+    return _pikchr_svg(svg.decode('utf-8') if isinstance(svg, (bytes, bytearray)) else str(svg))

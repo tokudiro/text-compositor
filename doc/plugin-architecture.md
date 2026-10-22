@@ -59,6 +59,7 @@ PDFとHTMLに、図をどの形で渡しているかは、図種ごとにコー�
 | **C. Typstが図形として直接描く** | Graphviz（`diagraph`）・CeTZ・Fletcher・timeliney・finite | Typstのコードとして本文に描く（図形・文字はベクター） | Typstでコンパイルして得たSVG |
 | **D. 中間表現から、出力ごとに別々に描く** | ChordPro（**本書の対象外**。下記） | 解析結果をTypstのコードに描く | 同じ解析結果をHTMLに描く |
 
+* **Pikchrは、載せ替えで、Aになった**（[#474](https://github.com/tokudiro/text-compositor/issues/474)の最初の載せ替え）。PDFも、HTMLと同じSVG（キャッシュを共有）を、画像として埋め込む。載せ替えの前は、Typstの中で`kip`を動かし、その場で画像にしていた。ただし、キャッシュしていたSVGは、Typstが書き出した「入れ物」のSVG（Pikchrの図を、base64の画像として入れ子にしたもの）で、そのままPDFへ埋め込むと、入れ子の中の文字が描かれなかった（箱だけが残る）。そのため、バックエンドは、入れ物から、中のPikchrのSVGを取り出し、入れ物が持つ幅・高さ（pt）を付けて返す（`pikchr_render._pikchr_svg`）。ギャラリーのPDFは、載せ替えの前後で、画素まで一致した。縦に長い図は、`fit-image`の高さの上限（12cm）で縮み、これまで、はみ出して作っていた空白のページが、なくなった。
 * **BとCは、見た目が似ていても別物である。** Pikchrは、Typstが実行するだけで、PDFに入るのは画像である。Cは、PDFに入るのがTypstの図形そのものである。
 * **Graphvizは、Cである。** `diagraph`は、WASMのGraphvizでレイアウトを求め、図形をTypstで描く。これは、リポジトリの記述から確かめた。`diagraph`が`shape=record`・`Mrecord`・図全体の`label`を描けない（spec 11章。「`diagraph`の制限」として警告する）のは、図形の描画を`diagraph`自身が持つためである。また、`finite`は`diagraph-layout`に依存する（spec 11章）。`diagraph`のソース（`packages.typst.org`）そのものは、この環境から取得できず、読んでいない。
 * **Dは、ネイティブ変換器の手本になる。** 解析して中間表現を作り、出力ごとに別の描画器で描く構造は、3.2.1の「同じ中間表現から`svg`と`typst`を描く」と同じである。

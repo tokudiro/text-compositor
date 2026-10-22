@@ -209,6 +209,7 @@ class TestBackendSelection:
         assert Registry().resolve_backend(p, "a", OUTPUT_SVG, {}).name == "java"
 
 
-def test_the_package_registry_starts_empty_and_nothing_else_uses_it_yet():
+def test_the_package_registry_holds_the_plugins_moved_over_so_far():
+    """載せ替えが済んだ図種だけが、登録簿にある。足すたびに、この一覧を更新する（#474）。"""
     from text_compositor.plugins import registry
-    assert registry.plugins() == ()
+    assert [p.name for p in registry.plugins()] == ["pikchr"]
