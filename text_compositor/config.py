@@ -23,6 +23,7 @@ _ALLOWED_DOCUMENT_KEYS = {
     "table_header", "header", "footer", "paginate", "background", "logo", "cover",
     "cover_page_number", "toc", "revision_history", "abstract", "glossary",
     "marp_compat", "csv_header", "code_block",
+    "binding_margin", "binding_side",
 }
 _ALLOWED_OUTPUT_KEYS = {"filename", "dir"}
 _ALLOWED_TEMPLATE_KEYS = {"path"}

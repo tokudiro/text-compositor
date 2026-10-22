@@ -1,5 +1,6 @@
 """文書全体のTypstコード（プリアンブル・改訂履歴・概要・用語集・テンプレート）の組み立て。"""
 import os
+import re
 import sys
 import shutil
 from datetime import datetime
@@ -149,6 +150,28 @@ def _revision_history_typst_arg(entries):
     # 要素が1つのときも配列になるよう、末尾のカンマを必ず付ける
     return f'  revision_history: ({rows},),\n'
 
+_BINDING_LENGTH = re.compile(r"^\d+(\.\d+)?(mm|cm|pt|in)$")
+
+def _binding_typst_args(doc_config):
+    """document.binding_margin・binding_side（#321）を検証し、conf()へ渡す引数行を返す。
+    綴じ代は、見開きで綴じる側（内側）の余白だけを広げる。未指定なら引数自体を渡さず、
+    binding_marginを知らない既存のテンプレートとの互換を保つ（binding_sideだけの指定は、効果が無いのでエラー）。"""
+    margin = doc_config.get("binding_margin")
+    side = doc_config.get("binding_side")
+    if margin is None:
+        if side is not None:
+            _error("document.binding_side needs document.binding_margin (for example \"1cm\").")
+            sys.exit(1)
+        return ''
+    if not isinstance(margin, str) or not _BINDING_LENGTH.match(margin.strip()):
+        _error(f"Invalid document.binding_margin: {margin!r} (expected a length with a unit, such as \"1cm\" or \"8mm\").")
+        sys.exit(1)
+    side = "left" if side is None else str(side).lower()
+    if side not in ("left", "right"):
+        _error(f"Invalid document.binding_side: {side!r} (expected left / right).")
+        sys.exit(1)
+    return f'  binding_margin: {margin.strip()},\n  binding_side: {side},\n'
+
 def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, project_dir, typst_root):
     """document:設定からtypst_codeの冒頭（テンプレートのimportとconf()呼び出し）を組み立てる。
     戻り値は (preamble文字列, global_landscape, global_paper, cover_mode, global_table_header,
@@ -197,6 +220,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
     revision_history_arg = _revision_history_typst_arg(_resolve_revision_history(doc_config))
     # 概要（#64）。論文形式のテンプレート（paper）がタイトルブロックの下に出す。未指定なら引数自体を渡さない。
     abstract_arg = _abstract_typst_arg(_resolve_abstract(doc_config))
+    binding_arg = _binding_typst_args(doc_config)
 
     date_str = doc_config.get("date", "")
     if date_str == "auto":
@@ -217,7 +241,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
   date: "{safe_date}",
   paper_size: "{global_paper}",
   landscape: {str(global_landscape).lower()},
-{cover_arg}{cover_page_number_arg}{toc_arg}{revision_history_arg}{abstract_arg}  graphviz: {str(graphviz_enabled).lower()},
+{cover_arg}{cover_page_number_arg}{toc_arg}{revision_history_arg}{abstract_arg}{binding_arg}  graphviz: {str(graphviz_enabled).lower()},
   header: {_typst_str_or_none(global_header)},
   footer: {_typst_str_or_none(global_footer)},
   paginate: {str(global_paginate).lower()},

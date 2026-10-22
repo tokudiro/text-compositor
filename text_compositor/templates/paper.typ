@@ -5,7 +5,7 @@
 //
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // template.typと同一実装のため_common.typから読み込む（#63）。
-#import "_common.typ": fit-image, render-graph, code-font, callout, render-header, render-footer, render-background, meta-date
+#import "_common.typ": fit-image, render-graph, code-font, callout, render-header, render-footer, render-background, meta-date, page-margin
 
 #let conf(
   title: none,
@@ -29,6 +29,8 @@
   paginate: true,
   background: none,
   logo: none,
+  binding_margin: none, // 綴じ代（#321）。template.typと同じ
+  binding_side: left,
   doc,
 ) = {
   // PDFのメタデータ（プロパティ）。document:のtitle・subtitle・author・dateを、Title・Subject・Author・作成日に入れる（#317）。
@@ -49,7 +51,8 @@
   set page(
     paper: paper_size,
     flipped: landscape,
-    margin: (x: 1.8cm, y: 2.2cm),
+    margin: page-margin(1.8cm, 2.2cm, binding_margin),
+    binding: binding_side,
     columns: 2,
     header: render-header(if header != none { header } else { title }, logo),
     footer: render-footer(footer, paginate),
