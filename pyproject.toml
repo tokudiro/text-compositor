@@ -34,7 +34,7 @@ Repository = "https://github.com/tokudiro/text-compositor"
 text-compositor = "text_compositor.build:build"
 
 [tool.setuptools]
-packages = ["text_compositor", "text_compositor.templates"]
+packages = ["text_compositor", "text_compositor.templates", "text_compositor.plugins"]
 
 [tool.setuptools.package-data]
 text_compositor = ["templates/*.typ"]
