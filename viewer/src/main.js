@@ -15,6 +15,7 @@ const { DocumentTab, tabsAffectedBy } = require('./document-tab');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
+const { addRecentFile, recentLabel, removeRecentFile } = require('./recent-files');
 const { isInsideDirectory, listDirectory } = require('./directory-list');
 const { currentHeadingId, effectiveSidebarView, sanitizeOutline } = require('./outline');
 const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
@@ -695,7 +696,10 @@ function openFile(file, { targetScrollY = null, historyNav = null, fragment = nu
   // クリック・相対リンク）。開けない対象（上のcheck）では、モードを変えない。
   if (state.tree.root !== null && !isInsideRoot(full)) leaveRoot();
   // 履歴の戻る・進む移動では、ファイルを開くダイアログの初期フォルダ（lastDirectory）を書き換えない（#342レビュー指摘）
-  if (!historyNav) rememberDirectory(path.dirname(full));
+  if (!historyNav) {
+    rememberDirectory(path.dirname(full));
+    rememberRecentFile(full);
+  }
   target.queued = { file: full, targetScrollY, historyNav, fragment, notices };
   if (!target.inFlight) void drain(target);
 }
@@ -705,6 +709,53 @@ function rememberDirectory(directory) {
   if (state.settings.lastDirectory === directory) return;
   state.settings = normalizeSettings({ ...state.settings, lastDirectory: directory });
   saveSettings(settingsFile, state.settings);
+}
+
+/** 一覧（settings.recentFiles）を替えて保存し、「最近開いたファイル」のメニューを作り直す（#331）。 */
+function updateRecentFiles(list) {
+  state.settings = normalizeSettings({ ...state.settings, recentFiles: list });
+  saveSettings(settingsFile, state.settings);
+  Menu.setApplicationMenu(buildMenu());
+  push();   // 作り直したメニューの、有効・無効の状態を戻す
+}
+
+/** 開いたファイルを、「最近開いたファイル」の先頭に覚える。先頭のままなら、何もしない。 */
+function rememberRecentFile(file) {
+  const current = state.settings.recentFiles;
+  const next = addRecentFile(current, file);
+  if (next.length === current.length && next.every((each, i) => each === current[i])) return;
+  updateRecentFiles(next);
+}
+
+/**
+ * 「最近開いたファイル」から開く。ファイルが無くなっていたら、案内を出して、一覧から除く。
+ * メニューを作るときには存在を確認しない（ネットワーク上のパスで、メニューの表示が止まるのを避ける）。
+ */
+function openRecentFile(file) {
+  if (fs.existsSync(file)) {
+    openTarget(file);
+    return;
+  }
+  updateRecentFiles(removeRecentFile(state.settings.recentFiles, file));
+  void dialog.showMessageBox(win, {
+    type: 'warning',
+    message: 'ファイルが見つかりません。',
+    detail: `${file}\n\n移動または削除された可能性があります。「最近開いたファイル」から除きました。`,
+    buttons: ['OK'],
+  });
+}
+
+/** 「ファイル」メニューの、「最近開いたファイル」の項目（#331）。一覧が空のときは、押せない「（なし）」だけを出す。 */
+function recentFilesMenuItem() {
+  const files = state.settings.recentFiles;
+  const submenu = files.length === 0
+    ? [{ label: '（なし）', enabled: false }]
+    : [
+      ...files.map((file) => ({ label: recentLabel(file), click: () => openRecentFile(file) })),
+      { type: 'separator' },
+      { label: '一覧を消去', click: () => updateRecentFiles([]) },
+    ];
+  return { id: 'recent-files', label: '最近開いたファイル', submenu };
 }
 
 /**
@@ -1262,6 +1313,7 @@ function buildMenu() {
       label: 'ファイル',
       submenu: [
         { label: '開く…', accelerator: 'CommandOrControl+O', click: () => openWithDialog() },
+        recentFilesMenuItem(),
         { id: 'open-folder', label: 'フォルダを開く…', click: () => void openFolder() },
         // タブの操作は、設定「複数のタブ」がオンのときだけ使える（#332。pushが、有効・無効を切り替える）
         { id: 'new-tab', label: '新しいタブで開く…', accelerator: 'CommandOrControl+Shift+O', enabled: false, click: () => void openInNewTab() },

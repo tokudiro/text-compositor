@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { normalizeRecentFiles } = require('./recent-files');
 
 /**
  * 「表示する機能」の一覧（#326）。画面に、常時、要素を足す機能（行番号・目次パネルなど）は、ここに1行足すだけで、
@@ -112,6 +113,7 @@ const DEFAULTS = Object.freeze({
   speechVoice: '',          // 読み上げの声の名前（#430）。''は、自動（OSの日本語の声の先頭）。OSから消えた声は、自動と同じに扱う
   speechRate: 'normal',     // 読み上げの速さ（#430）。'slowest' | 'slow' | 'normal' | 'fast' | 'fastest'
   lastDirectory: null,      // 前回開いたファイルのフォルダ。アプリが自動で保存する。設定画面では変えない
+  recentFiles: Object.freeze([]), // 最近開いたファイル（#331）。新しい順の絶対パス。アプリが自動で保存する。設定画面では変えない
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
@@ -171,6 +173,7 @@ function normalizeSettings(value) {
   // 声の名前は、環境で違うため、候補を固定しない。長すぎる・文字でない値だけ、自動に戻す
   if (typeof source.speechVoice === 'string' && source.speechVoice.length <= 200) result.speechVoice = source.speechVoice;
   result.window = normalizeWindow(source.window);
+  result.recentFiles = normalizeRecentFiles(source.recentFiles);
   for (const key of ['lastDirectory', 'fixedDirectory']) {
     if (typeof source[key] === 'string' && path.isAbsolute(source[key])) result[key] = source[key];
   }
