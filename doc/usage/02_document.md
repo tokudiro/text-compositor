@@ -8,6 +8,8 @@
 | `date` | 日付。`"auto"`（既定）だと、ビルドした日（`YYYY-MM-DD`）が入る。`YYYY-MM-DD`の形なら、PDFの作成日（プロパティ）にもなる | `"auto"` |
 | `paper_size` | 用紙サイズ（`a4`, `a3`, `presentation-16-9` 等、Typstが認識する値） | `"a4"` |
 | `landscape` | 横向きにするか | `false` |
+| `binding_margin` | 綴じ代の幅（`"1cm"`・`"8mm"`など、単位つき。下記） | なし（左右とも同じ余白） |
+| `binding_side` | 綴じる側（`left`・`right`）。`binding_margin`と一緒に使う | `left` |
 | `cover` | 表紙の扱い（下記） | `"none"` |
 | `cover_page_number` | 表紙にページ番号を出すか | `false` |
 | `toc` | 目次を出すか | `false` |
@@ -24,6 +26,21 @@
 | `marp_compat` | `---`/`***`/`___`をMarp互換で改ページとして扱うか（「Markdownファイルの書き方」の章を参照） | `false` |
 | `csv_header` | `.csv`の章の1行目を、ヘッダー行にするか。`false`なら、すべての行がデータ行（「Markdownファイルの書き方」の章の「CSVファイル」を参照）。`chapters[]`ごとに上書きできます | `true` |
 | `diagnostics.line_mapping` | Typstコンパイルエラーの行番号をMarkdownの行番号へ対応付ける精度（下記） | `"block"` |
+
+## 綴じ代（`binding_margin`・`binding_side`）
+
+見開きで綴じる印刷（製本・パンチ穴あけ）向けに、綴じる側（内側）の余白だけを広げます（[#321](https://github.com/tokudiro/text-compositor/issues/321)）。
+
+```yaml
+document:
+  binding_margin: "1cm"   # 内側の余白を、1cm広げる
+  binding_side: left      # 左綴じ（既定）。右綴じは right
+```
+
+- 左綴じでは、奇数ページ（右ページ）は左側、偶数ページ（左ページ）は右側の余白が広がります。右綴じは、その逆です。
+- 本文・目次・改版履歴のページに効きます。表紙は1枚ものなので、変わりません。章ごとの向きや用紙の上書き（`landscape`・`paper_size`）をしても、綴じ代は続きます。
+- 指定したときの本文の余白は、`template`で左右 2.5cm、`paper`で 1.8cm です（`template`の指定なしの余白は、用紙サイズに比例するTypstの既定値で、A4では 2.5cm です）。`slide`は綴じないため、指定しても何も起きません。
+- 裁ち落とし（塗り足し）とトンボは、対応しません（理由は、仕様書の「綴じ代」の項を参照）。
 
 ## PDFのプロパティ
 

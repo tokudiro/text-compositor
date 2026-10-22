@@ -1,7 +1,7 @@
 // 補助関数（fit-image・render-graph・callout・render-header・render-footer・render-background）は
 // _common.typへ切り出した（#63）。build.pyが生成するコードはこのモジュールからも
 // 同じ名前でimportするため、ここで読み込むだけで（再エクスポートされて）そのまま使える。
-#import "_common.typ": fit-image, render-graph, code-font, callout, render-header, render-footer, render-background, meta-date
+#import "_common.typ": fit-image, render-graph, code-font, callout, render-header, render-footer, render-background, meta-date, page-margin
 
 #let conf(
   title: none,
@@ -21,6 +21,8 @@
   paginate: true,
   background: none,
   logo: none,
+  binding_margin: none, // 綴じ代（#321）。見開きで綴じる側の余白を広げる幅（例: 1cm）。noneなら無し
+  binding_side: left,
   doc,
 ) = {
   // PDFのメタデータ（プロパティ）。document:のtitle・subtitle・author・dateを、Title・Subject・Author・作成日に入れる（#317）。
@@ -78,7 +80,8 @@
     set page(
       paper: paper_size,
       flipped: landscape,
-      margin: (x: 2cm, y: 2.5cm),
+      margin: page-margin(2cm, 2.5cm, binding_margin),
+      binding: binding_side,
       header: none,
       footer: align(center)[#text(10pt)[- #context counter(page).display("i") -]]
     )
@@ -120,7 +123,8 @@
     set page(
       paper: paper_size,
       flipped: landscape,
-      margin: (x: 2cm, y: 2.5cm),
+      margin: page-margin(2cm, 2.5cm, binding_margin),
+      binding: binding_side,
       header: none,
       footer: align(center)[#text(10pt)[- #context counter(page).display("i") -]]
     )
@@ -141,6 +145,8 @@
   set page(
     paper: paper_size,
     flipped: landscape,
+    // 綴じ代があるときだけ、余白を明示する（2.5cmは、A4でのTypstの既定の余白）。ないときは従来どおりTypstの既定
+    ..if binding_margin != none { (margin: page-margin(2.5cm, 2.5cm, binding_margin), binding: binding_side) },
     header: render-header(if header != none { header } else { title }, logo),
     footer: render-footer(footer, paginate),
     background: render-background(background),

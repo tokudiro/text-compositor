@@ -87,8 +87,10 @@ conf(title:, subtitle:, author:, date:, paper_size:, landscape:,
 以下は`config.yaml`側で明示指定したときだけ`conf()`へ渡される。未指定なら引数自体を渡さないため、テンプレートが持たなくても即座には壊れない（そのテンプレートを使う人が該当のconfig.yamlキーを使わない限り安全）。
 
 ```
-conf(cover:, cover_page_number:, toc:, revision_history:, abstract:, ...)
+conf(cover:, cover_page_number:, toc:, revision_history:, abstract:, binding_margin:, binding_side:, ...)
 ```
+
+`binding_margin`・`binding_side`（綴じ代、[#321](https://github.com/tokudiro/text-compositor/issues/321)）は、`document.binding_margin`を書いたときだけ渡されます。`binding_margin`はTypstの長さ（例: `1cm`）、`binding_side`は`left`か`right`です。同梱のテンプレートは、`_common.typ`の`page-margin(x, y, binding_margin)`で余白を作り、`set page(margin: ..., binding: binding_side)`に渡しています。
 
 `revision_history`（改版履歴、[#56](https://github.com/tokudiro/text-compositor/issues/56)）は、`(version:, date:, description:, author:)`という辞書の配列で渡される。値はいずれも文字列で、省略された項目は空文字である。`description`内の改行は、文字列中の`\n`として渡されるため、表示するテンプレートが`split("\n")`等で改行に変換する。`config.yaml`に書かれなければ引数自体が渡されないので、この引数を持たない既存の独自テンプレートは影響を受けない。
 

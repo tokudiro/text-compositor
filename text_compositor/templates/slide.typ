@@ -54,6 +54,9 @@
   paginate: true,
   background: none,
   logo: none,
+  // 綴じ代（#321）。スライドは綴じないため、受け取るだけで何もしない（no-op）。
+  binding_margin: none,
+  binding_side: left,
   doc,
 ) = {
   // PDFのメタデータ（プロパティ）。document:のtitle・subtitle・author・dateを、Title・Subject・Author・作成日に入れる（#317）。

@@ -115,6 +115,14 @@
   none
 }
 
+// 綴じ代（#321）。binding_marginがnoneなら従来どおり左右同じ余白(x)。指定があれば、見開きで綴じる側（内側）の
+// 余白だけをその分だけ広げる（外側はxのまま）。綴じる側（binding_side）は、page(binding:)で別に渡す。
+#let page-margin(x, y, binding_margin) = if binding_margin == none {
+  (x: x, y: y)
+} else {
+  (inside: x + binding_margin, outside: x, y: y)
+}
+
 // PDFのメタデータ（#317）用: 日付（document.date）の文字列を、datetimeにする。YYYY-MM-DD（例: 2026-08-14）だけを解釈し、
 // それ以外（自由な文字列・未指定）は、autoにする（Typstが、ビルドの日時を入れる。従来どおり）。
 #let meta-date(d) = if type(d) == str {
