@@ -63,7 +63,7 @@ box "開始" fit; arrow; circle "終了"
 ```
 ````
 
-`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`bytefield`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
+`plugins:` で無効化していない限り自動でレンダリングされます（`graphviz`/`mermaid`/`plantuml`/`d2`/`pikchr`/`flowchart`/`cetz`/`fletcher`/`timeliney`/`finite`/`vega`/`wavedrom`/`bytefield`とも既定`true`）。**`structurizr`だけは既定`false`です。** 使うには`plugins: { structurizr: true }`と明示する必要があります（内部で使う`structurizr-cli`一式が約99MBあるため）。図をテキストと横並びにしたい場合や、2つの図を比較したい場合は独自のレイアウト記法が使えます。
 
 ### 記法ごとの対応
 
@@ -76,6 +76,7 @@ box "開始" fit; arrow; circle "終了"
 | `svg` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | そのまま画像として表示します |
 | `dot` / `graphviz` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`diagraph`）で、SVGにします。PDF出力と、同じ図になります。使えない記法があります（下の「Graphvizで使えない記法」） |
 | `pikchr` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`kip`。PikchrのWASM版）で、SVGにします。PDF出力と、同じ図になります。構文エラーは、Pikchr自身の説明（行・位置・原因）つきで示します |
+| `flowchart` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | JIS X 0121に準じたフローチャートの記法です。自作の変換器で、SVGにします。PDF出力と、同じ図になります。構文エラーは、原稿の行つきで示します（30章「フローチャート」）。Mermaidのフローチャートではありません |
 | `cetz` / `fletcher` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | PDF出力と同じ仕組み（Typstの`cetz`・`fletcher`）で、SVGにします。PDF出力と、同じ図になります。`import`・ファイルを読む関数は、使えません（下の「CeTZ・Fletcherについて」） |
 | `vega-lite` / `vega` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`vega.min.js`・`vega-lite.min.js`を使います。[#351](https://github.com/tokudiro/text-compositor/issues/351)） |
 | `wavedrom` | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | ElectronのChromiumで描画します（同梱の`wavedrom.min.js`・スキンを使います。[#392](https://github.com/tokudiro/text-compositor/issues/392)） |
@@ -117,6 +118,22 @@ circle "PDF"
 - `.pikchr`ファイルも、`chapters`に指定できます（1ファイル＝1章）。Obunzuでも、単体のファイルとして開けます。
 - PDF出力もObunzuも、同梱のPikchrのWASM版（Typstの`kip`）で描くため、同じ図になります。`plugins.pikchr: false`で、無効にできます。
 - Pikchrの記法は、[公式のドキュメント](https://pikchr.org/home/doc/trunk/doc/userman.md)を参照してください。
+
+### フローチャート（`flowchart`）について
+
+`flowchart`は、JIS X 0121（ISO 5807と対応）の図記号に準じたフローチャートを、字下げの短いテキストから描きます。ループ端（始端と終端の対）や書類など、Mermaidの記法では書けない図記号を使えます。
+
+```flowchart
+start
+judge 在庫がある?
+  はい: 出荷する
+  いいえ: 取り寄せる
+end
+```
+
+- 記法・図記号・誤りの出方は、30章「フローチャート」にまとめています。
+- `.flow`ファイルも、`chapters`に指定できます。Obunzuでも、単体のファイルとして開けます。`plugins.flowchart: false`で、無効にできます。
+- Mermaidのフローチャート（` ```mermaid `に`flowchart TD`と書く図）とは、別です。
 
 ### CeTZ・Fletcherについて
 

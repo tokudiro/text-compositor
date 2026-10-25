@@ -65,3 +65,4 @@ chapters:
     landscape: true   # 左に図、右にコードを並べるため、A4横にする
   - "27_chordpro.md"
   - "28_bizmodel.md"
+  - "30_flowchart.md"
