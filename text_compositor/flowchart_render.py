@@ -38,6 +38,8 @@ DIAMOND_TEXT_WIDTH = 100.0  # ひし形の中の文字の、折り返す幅（pt
 SLANT = 0.3                # 平行四辺形・台形・六角形の、傾き（箱の高さに対する割合）
 SUBROUTINE_BAR = 8.0       # 定義済み処理の、左右の縦線の位置（辺からの距離）
 CYLINDER_CAP = 6.0         # データベースの、上下の楕円の、縦の半径
+LOOP_CORNER = 8.0          # ループ端の、落とす角の大きさ（辺からの距離）。規格に寸法の規定はなく、図の見た目に合わせた
+DOCUMENT_WAVE = 5.0        # 書類の、下の辺の波の高さ（山と谷の差の、半分ほど）
 PAD_X, PAD_Y = 12.0, 8.0   # 箱の内側の余白
 MARGIN = 8.0               # 図の外側の余白
 ARROW_LENGTH, ARROW_HALF_WIDTH = 8.0, 3.2
@@ -458,6 +460,8 @@ class _NodeBox:
 def _node_box(node: Node) -> _NodeBox:
     # ひし形は、文字の四角の2倍の大きさになるため、中の文字は、狭く折り返す
     lines = wrap(node.label or node.id, NODE_FONT_SIZE, DIAMOND_TEXT_WIDTH if node.shape == 'diamond' else MAX_TEXT_WIDTH)
+    if node.condition:      # ループ端は、名前の下に、終了条件を書く
+        lines += wrap(node.condition, NODE_FONT_SIZE, MAX_TEXT_WIDTH)
     tw, th = _text_size(lines, NODE_FONT_SIZE)
     h = th + 2 * PAD_Y
     if node.shape == 'diamond':
@@ -472,6 +476,11 @@ def _node_box(node: Node) -> _NodeBox:
         w = tw + 2 * PAD_X + 2 * SUBROUTINE_BAR
     elif node.shape == 'cylinder':
         w, h = tw + 2 * PAD_X, h + 2 * CYLINDER_CAP
+    elif node.shape in ('loop_start', 'loop_end'):
+        w = tw + 2 * PAD_X + 2 * LOOP_CORNER
+    elif node.shape == 'document':
+        h += DOCUMENT_WAVE      # 波の分だけ、下に広げる
+        w = tw + 2 * PAD_X
     else:
         w = tw + 2 * PAD_X
     return _NodeBox(node, lines, max(w, 28.0), max(h, 28.0))
@@ -491,6 +500,11 @@ def _outline(box: '_NodeBox') -> Optional[List[Tuple[float, float]]]:
     if shape == 'hexagon':
         s = SLANT * h
         return [(left, y), (left + s, top), (right - s, top), (right, y), (right - s, bottom), (left + s, bottom)]
+    c = LOOP_CORNER
+    if shape == 'loop_start':          # 上の2つの角を落とす（短辺が上。JIS X 0121 8.2.2(6)）
+        return [(left + c, top), (right - c, top), (right, top + c), (right, bottom), (left, bottom), (left, top + c)]
+    if shape == 'loop_end':            # 下の2つの角を落とす（短辺が下）
+        return [(left, top), (right, top), (right, bottom - c), (right - c, bottom), (left + c, bottom), (left, bottom - c)]
     if shape == 'parallelogram':       # 右へ傾く（上の辺が、右にずれる）
         return [(left + 2 * s, top), (right, top), (right - 2 * s, bottom), (left, bottom)]
     if shape == 'parallelogram_alt':
@@ -553,7 +567,8 @@ def _snap_to_shape(point: Tuple[float, float], direction: Tuple[float, float], b
 
 def layout(chart: Flowchart) -> dict:
     """配置を求める。戻りは、描画に要るもの（箱・矢印・全体の大きさ）。座標は、左上を原点にした、下向きがプラスのpt。"""
-    _measure([n.label or n.id for n in chart.nodes.values()] + [e.label for e in chart.edges if e.label])
+    _measure([n.label or n.id for n in chart.nodes.values()] + [n.condition for n in chart.nodes.values() if n.condition]
+             + [e.label for e in chart.edges if e.label])
     boxes = {i: _node_box(n) for i, n in chart.nodes.items()}
     edge_labels = []
     for e in chart.edges:
@@ -646,6 +661,13 @@ def _shape(box: _NodeBox) -> str:
         return (f'<rect x="{_f(x - w / 2)}" y="{_f(y - h / 2)}" width="{_f(w)}" height="{_f(h)}" {common}/>'
                 f'<path d="M{_f(x - w / 2 + bar)},{_f(y - h / 2)} V{_f(y + h / 2)} M{_f(x + w / 2 - bar)},{_f(y - h / 2)} V{_f(y + h / 2)}" '
                 f'fill="none" stroke="{STROKE}" stroke-width="1"/>')
+    if shape == 'document':
+        # 下の辺は、1周期の波（右が谷、左が山）。箱の下端は、波の谷の分だけ内側にある
+        left, right, top, wave_y = x - w / 2, x + w / 2, y - h / 2, y + h / 2 - DOCUMENT_WAVE
+        a = DOCUMENT_WAVE
+        d = (f'M{_f(left)},{_f(top)} H{_f(right)} V{_f(wave_y)} '
+             f'C{_f(right - w / 4)},{_f(wave_y + 2 * a)} {_f(left + w / 4)},{_f(wave_y - 2 * a)} {_f(left)},{_f(wave_y)} Z')
+        return f'<path d="{d}" {common}/>'
     if shape == 'cylinder':
         ry, rx, left, right = CYLINDER_CAP, w / 2, x - w / 2, x + w / 2
         top, bottom = y - h / 2 + ry, y + h / 2 - ry
@@ -688,7 +710,11 @@ def _route(points: List[Tuple[float, float]], arrow: bool) -> Tuple[str, str]:
 
 def render_svg(code: str) -> str:
     """Mermaidのフローチャートを、SVGの文字列にする。対応しない書き方は`FlowchartUnsupported`、誤りは`FlowchartError`。"""
-    chart = parse(code)
+    return draw_svg(parse(code))
+
+
+def draw_svg(chart: Flowchart) -> str:
+    """解析済みの図（`Flowchart`）を、SVGの文字列にする。記法（Mermaid・独自記法）に関わらず、同じ配置・描画を使う。"""
     placed = layout(chart)
     width, height = placed["width"] + 2 * MARGIN, placed["height"] + 2 * MARGIN
     body = []

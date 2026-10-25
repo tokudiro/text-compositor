@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from text_compositor.flowchart_render import Edge, Flowchart, FlowchartError, Node
+from text_compositor.flowchart_render import Edge, Flowchart, FlowchartError, Node, draw_svg
 
 # キーワード → 図記号の形。キーワードのない行は、処理（rect）。
 _SHAPES = {
@@ -218,6 +218,11 @@ class _Parser:
         else:
             name, condition = rest, ''
         return name, (_text(condition, line) if condition.strip() else '')
+
+
+def render_svg(code: str) -> str:
+    """`flowchart`フェンスの中身を、SVGの文字列にする。誤りは`FlowchartError`（行つき）。"""
+    return draw_svg(parse(code))
 
 
 def parse(code: str) -> Flowchart:
