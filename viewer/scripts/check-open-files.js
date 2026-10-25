@@ -236,6 +236,7 @@ async function main() {
     '```dot', 'digraph { rankdir=LR; 長い日本語のラベルを持つノード -> b }', '```', '',
     '```graphviz', 'graph { a -- b }', '```', '',
     '```pikchr', 'box "開始" fit; arrow; circle "終了"', '```', '',
+    '```flowchart', 'start', 'judge 在庫がある?', '  はい: 出荷する', '  いいえ: 取り寄せる', 'end', '```', '',
     '```bizmodel', 'company A "売り手"', 'person B "買い手"', 'A -> B : goods "商品" / money "100円"', '```', '',
     '```bizmodel', 'type canvas', 'title "題"', 'value "価値"', 'segments "顧客"', '```', '',
     '```svg', '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#3f9be0"/></svg>', '```', '',
@@ -245,13 +246,14 @@ async function main() {
   for (const d of r.page?.diagrams ?? []) (kinds[d.kind] ??= []).push(d.ok);
   const loaded = (kind, count) => kinds[kind]?.length === count && kinds[kind].every(Boolean);
   const kindsNote = `${r.state.status} ${r.state.banner} ${JSON.stringify(kinds)} ${r.state.detail.slice(0, 120)}`;
-  check('図の種類を並べた文書が、エラーの帯なしで、9つの図として表示される', r.state.banner === '' && r.page?.diagrams.length === 9, kindsNote);
+  check('図の種類を並べた文書が、エラーの帯なしで、10の図として表示される', r.state.banner === '' && r.page?.diagrams.length === 10, kindsNote);
   check('```mermaid（Mermaid）が、図として表示される', loaded('mermaid', 1), kindsNote);
   check('```plantuml（PlantUML）が、図として表示される', loaded('plantuml', 1), kindsNote);
   check('```d2（D2）が、図として表示される', loaded('d2', 1), kindsNote);
   check('```dot（Graphviz）が、図として表示される', loaded('dot', 1), kindsNote);
   check('```graphviz（Graphviz）が、図として表示される', loaded('graphviz', 1), kindsNote);
   check('```pikchr（Pikchr）が、図として表示される', loaded('pikchr', 1), kindsNote);
+  check('```flowchart（フローチャートの記法）が、図として表示される', loaded('flowchart', 1), kindsNote);
   check('```bizmodel（モノ・カネの流れの図と、キャンバス）が、2つの図として表示される', loaded('bizmodel', 2), kindsNote);
   check('```svgが、図として表示される', loaded('svg', 1), kindsNote);
   // 図の単体ファイルは、拡張子ごとの扱い（Python側の表と、Viewerの対象）を、代表で確かめる。Graphviz（#264）は、
@@ -265,6 +267,11 @@ async function main() {
   check('.pikchr（Pikchr）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
   r = await open(write('bad.pikchr', 'box "unterminated\n'), 9000);
   check('Pikchrの構文エラーは、変換エラーとして、Pikchr自身の原因が示される', r.state.banner.includes('変換エラー') && /unrecognized token/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
+  // フローチャートの記法（#536）。自作の変換器で描画する（配置は、同梱のtypstとdiagraph-layout）。
+  r = await open(write('f.flow', 'start\nloop 注文処理: 注文がなくなるまで\n  data 注文を入力\n  judge 在庫がある?\n    はい: 出荷する\n    いいえ: 取り寄せる\nendloop\nend\n'), 9000);
+  check('.flow（フローチャートの記法）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
+  r = await open(write('bad.flow', 'start\nloop L\n'), 9000);
+  check('フローチャートの構文エラーは、変換エラーとして、原因と行が示される', r.state.banner.includes('変換エラー') && /no matching endloop/.test(r.state.detail), `${r.state.banner} / ${r.state.detail.slice(0, 120)}`);
   // bizmodel（#447）。Pythonだけで描画する（外部ツールは、使わない）。
   r = await open(write('t.bizmodel', 'company A "売り手"\nperson B "買い手"\nA -> B : goods "商品" / money "100円"\n'), 9000);
   check('.bizmodel（モノ・カネの流れの図）が、図として表示される', r.page?.images.length === 1 && r.page.images[0] === true && r.state.banner === '', `${r.state.status} ${r.state.banner}`);
