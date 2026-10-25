@@ -10,7 +10,7 @@ import sys
 import subprocess
 import hashlib
 import tempfile
-from text_compositor import bizmodel_render, cetz_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render, bytefield_render
+from text_compositor import bizmodel_render, cetz_render, flowchart_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render, bytefield_render
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, BYTEFIELD_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, ensure_bytefield_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
@@ -149,6 +149,10 @@ class DiagramMixin:
     def _render_pikchr(self, code, width=None, height=None):
         """Pikchrの図1つ分のファイル（`.pikchr`の章）を描く。登録簿の`pikchr`へ渡すだけ。"""
         return self._render_registered(plugin_registry.get('pikchr'), code, width, height)
+
+    def _render_flowchart(self, code, width=None, height=None):
+        """フローチャートの図1つ分のファイル（`.flow`の章）を描く。登録簿の`flowchart`へ渡すだけ（#536）。"""
+        return self._render_registered(plugin_registry.get('flowchart'), code, width, height)
 
     def _render_bizmodel(self, code, width=None, height=None):
         """```bizmodelフェンス（モノ・カネの流れの図）を、SVGにして、Typstのimage呼び出しに変換する（#447）。
@@ -657,8 +661,8 @@ class DiagramMixin:
                 svg = backend.render(code, None, OUTPUT_SVG).svg
             except Exception as e:
                 # 仕様9章のFail-fast方針: 描画失敗時はテキストへフォールバックせず即エラー。バックエンドが返す行を、原稿の行にする
-                inner_line = getattr(e, 'code_line', None)
-                if isinstance(e, pikchr_render.PikchrRenderError):
+                if isinstance(e, (pikchr_render.PikchrRenderError, flowchart_render.FlowchartError)):
+                    inner_line = e.code_line if isinstance(e, pikchr_render.PikchrRenderError) else e.line
                     at = code_line + inner_line - 1 if (code_line and inner_line) else line
                     self._diagram_error(plugin.label, str(e), at)
                 else:   # typstの読み込みの失敗など

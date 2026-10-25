@@ -18,6 +18,7 @@ PluginFlag = namedtuple("PluginFlag", ["config_key", "kwarg", "default"])
 PLUGIN_FLAGS = (
     PluginFlag("graphviz", "graphviz_enabled", True),
     PluginFlag("pikchr", "pikchr_enabled", True),                       # #213
+    PluginFlag("flowchart", "flowchart_enabled", True),                 # #536
     PluginFlag("cetz", "cetz_enabled", True),                           # #236
     PluginFlag("fletcher", "fletcher_enabled", True),
     PluginFlag("timeliney", "timeliney_enabled", True),                 # #294
