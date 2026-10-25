@@ -1,4 +1,6 @@
 """JIS X 0121に準じたフローチャートの独自記法（flowchart_notation.py。#536）の解析のテスト。"""
+import xml.dom.minidom
+
 import pytest
 
 from text_compositor import flowchart_notation as fn
@@ -233,6 +235,60 @@ class TestIndentationAndErrors:
         for code in ("", "\n  \n// 注釈だけ"):
             with pytest.raises(FlowchartError, match="empty"):
                 fn.parse(code)
+
+
+def _polygons(svg):
+    """SVGの多角形を、頂点の並び[(x, y), ...]にして返す。"""
+    doc = xml.dom.minidom.parseString(svg)
+    return [[tuple(map(float, p.split(","))) for p in e.getAttribute("points").split()]
+            for e in doc.getElementsByTagName("polygon")]
+
+
+def _texts(svg):
+    doc = xml.dom.minidom.parseString(svg)
+    return [e.firstChild.data for e in doc.getElementsByTagName("text")]
+
+
+class TestRender:
+    def test_loop_limits_have_two_cut_corners_on_the_inner_side(self):
+        """始端は上の2つの角、終端は下の2つの角を落とす（JIS X 0121 8.2.2(6)）。"""
+        svg = fn.render_svg("loop L\n  処理\nendloop")
+        hexes = [p for p in _polygons(svg) if len(p) == 6]
+        start, end = sorted(hexes, key=lambda p: min(y for _, y in p))     # 上にある方が、始端
+        top, bottom = min(y for _, y in start), max(y for _, y in start)
+        top_edge = [x for x, y in start if y == top]
+        bottom_edge = [x for x, y in start if y == bottom]
+        assert max(top_edge) - min(top_edge) < max(bottom_edge) - min(bottom_edge)      # 始端: 上の辺が短い
+        top, bottom = min(y for _, y in end), max(y for _, y in end)
+        top_edge = [x for x, y in end if y == top]
+        bottom_edge = [x for x, y in end if y == bottom]
+        assert max(top_edge) - min(top_edge) > max(bottom_edge) - min(bottom_edge)      # 終端: 下の辺が短い
+
+    def test_the_loop_name_is_drawn_at_both_ends_and_the_condition_at_one(self):
+        texts = _texts(fn.render_svg("loop 注文処理: 注文がなくなるまで\n  処理\nendloop"))
+        assert texts.count("注文処理") == 2 and texts.count("注文がなくなるまで") == 1
+
+    def test_the_condition_at_the_end_is_drawn_in_the_end_symbol(self):
+        svg = fn.render_svg("loop 入力待ち\n  処理\nendloop: 正しいまで")
+        texts = _texts(svg)
+        assert texts.count("入力待ち") == 2 and texts.index("正しいまで") > texts.index("処理")
+
+    def test_a_document_has_a_wavy_bottom(self):
+        svg = fn.render_svg("doc 帳票を出力")
+        doc = xml.dom.minidom.parseString(svg)
+        paths = [e.getAttribute("d") for e in doc.getElementsByTagName("path")]
+        assert any(d.startswith("M") and " C" in d and d.endswith("Z") for d in paths)
+
+    def test_every_symbol_renders_as_valid_svg(self):
+        svg = fn.render_svg(
+            "start\nprep 準備\ndata 入力\nsub 呼ぶ\ndoc 帳票\njudge 続ける?\n  はい: 処理\n  いいえ: terminal 中断\nend")
+        xml.dom.minidom.parseString(svg)
+        assert "<svg" in svg and "続ける?" in _texts(svg)
+
+    def test_errors_are_reported_with_the_line_when_rendering(self):
+        with pytest.raises(FlowchartError) as e:
+            fn.render_svg("start\nloop L")
+        assert e.value.line == 2
 
 
 def test_the_example_in_the_design_doc():
