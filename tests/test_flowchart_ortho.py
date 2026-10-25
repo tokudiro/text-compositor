@@ -7,7 +7,7 @@ import pytest
 
 from text_compositor import flowchart_notation as fn
 from text_compositor import flowchart_render as fr
-from text_compositor.flowchart_ortho import MERGE_GAP, SNAP, route_edges
+from text_compositor.flowchart_ortho import CLEARANCE, MERGE_GAP, SNAP, route_edges, straighten_chains
 
 
 def box(x, y, width=80.0, height=30.0, shape="rect"):
@@ -100,6 +100,43 @@ class TestLines:
         assert route.arrow is False
 
 
+class TestStraightenChains:
+    """一本道の記号の中心を、横にそろえる（`dot`は、幅の違いなどで、少しずらす）。"""
+
+    def test_the_symbols_of_a_chain_line_up_on_the_widest_one(self):
+        boxes = {"a": box(140, 50, 150), "b": box(140, 150, 80), "c": box(168, 250, 100)}
+        straighten_chains(boxes, [edge("a", "b"), edge("b", "c")], 400)
+        assert [boxes[i].x for i in "abc"] == [140.0, 140.0, 140.0]
+
+    def test_the_widest_symbol_is_the_one_that_stays(self):
+        boxes = {"a": box(100, 50, 60), "b": box(130, 150, 120)}
+        straighten_chains(boxes, [edge("a", "b")], 400)
+        assert boxes["a"].x == boxes["b"].x == 130.0
+
+    def test_a_symbol_that_would_hit_its_neighbor_stays_where_it_is(self):
+        boxes = {"a": box(140, 50, 150), "b": box(200, 150, 80), "side": box(70, 150, 80)}
+        straighten_chains(boxes, [edge("a", "b")], 400)
+        # bをaの中心（140）へ動かすと、同じ段の記号（side）との間隔が、(80+80)/2+CLEARANCE=90を下回る（140-70=70）
+        assert boxes["b"].x == 200.0 and abs(140 - boxes["side"].x) < (80 + 80) / 2 + CLEARANCE
+
+    def test_a_symbol_that_would_leave_the_figure_stays(self):
+        boxes = {"a": box(40, 50, 100), "b": box(150, 150, 120)}      # bが広い。aをbの中心（150）に動かすと、右端が200になる
+        straighten_chains(boxes, [edge("a", "b")], 190)             # 図の幅は190なので、はみ出す。動かさない
+        assert boxes["a"].x == 40.0
+
+    def test_branches_are_not_a_chain(self):
+        """判断（出口が2本）から出る線は、一本道ではない。分岐の行き先は、そろえない。"""
+        boxes = {"d": box(200, 100, 160, 50, "diamond"), "l": box(100, 250), "r": box(300, 250)}
+        straighten_chains(boxes, [edge("d", "l"), edge("d", "r")], 500)
+        assert (boxes["l"].x, boxes["r"].x) == (100.0, 300.0)
+
+    def test_a_merging_symbol_is_not_pulled_into_a_chain(self):
+        boxes = {"a": box(100, 50), "b": box(300, 50), "m": box(200, 150), "n": box(210, 250, 60)}
+        straighten_chains(boxes, [edge("a", "m"), edge("b", "m"), edge("m", "n")], 500)
+        assert boxes["a"].x == 100.0 and boxes["b"].x == 300.0          # 合流の記号（m）の前は、一本道ではない
+        assert boxes["m"].x == boxes["n"].x                              # 後ろの、一本道だけ、そろう
+
+
 class TestLabels:
     def test_branch_labels_sit_above_the_horizontal_part_on_their_own_side(self):
         boxes, edges = diamond_with([("L", 60, 80), ("R", 340, 80)])
@@ -142,6 +179,17 @@ class TestRender:
         svg = fn.render_svg(self.CODE)
         paths = _edge_paths(svg)
         assert len(paths) == 6 and all(axis_aligned(p) for p in paths)
+
+    def test_the_symbols_of_a_loop_body_share_one_vertical_axis(self):
+        """ループ端と中の処理は、中心が1本の縦線に乗る（線は、まっすぐ）。"""
+        chart = fn.parse("judge 再処理する?\n  はい:\n    loop 再試行: 成功するまで\n      処理する\n    endloop\n  いいえ: 何もしない\n終わり\n")
+        placed = fr.layout(chart)
+        names = {n.label: i for i, n in chart.nodes.items() if n.label in ("再試行", "処理する")}
+        xs = {round(placed["boxes"][i].x, 2) for i in chart.nodes if chart.nodes[i].label in ("再試行", "処理する")}
+        assert len(xs) == 1 and names
+        by_edge = {(e.source, e.target): r for e, r in zip(chart.edges, placed["routes"])}
+        inner = [r for (s, t), r in by_edge.items() if chart.nodes[s].label in ("再試行", "処理する") and chart.nodes[t].label in ("再試行", "処理する")]
+        assert inner and all(len(r["points"]) == 2 and r["points"][0][0] == r["points"][1][0] for r in inner)
 
     def test_the_merge_has_one_arrow_head_per_symbol(self):
         svg = fn.render_svg(self.CODE)

@@ -20,12 +20,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from text_compositor.deps import ensure_fonts
-from text_compositor.flowchart_ortho import route_edges
+from text_compositor.flowchart_ortho import route_edges, straighten_chains
 from text_compositor.fonts import font_paths, fonts_signature
 from text_compositor.typst_runtime import typst_lib, typst_package_options
 
 DIAGRAPH_LAYOUT_VERSION = "0.0.1"
-FLOWCHART_VERSION = "2"   # 2: 独自記法の線を、水平・垂直だけにした（#540）。図のSVGのキャッシュキーに入る
+FLOWCHART_VERSION = "3"   # 2: 独自記法の線を、水平・垂直だけにした（#540）。3: 一本道の記号の中心をそろえた。図のSVGのキャッシュキーに入る
 
 # --- 見た目（文書の白黒に合わせる。ブラウザ・Typstのどちらでも、同じに描けるよう、固定の色にする） ---
 FONT_FAMILY = "'Noto Sans JP', sans-serif"
@@ -594,7 +594,8 @@ def layout(chart: Flowchart) -> dict:
         box = boxes[item["name"]]
         box.x, box.y = _length(item["x"]), height - _length(item["y"])
     if chart.orthogonal:
-        # 位置だけを`dot`に任せ、線は、水平と垂直だけで引き直す（#540）
+        # 位置だけを`dot`に任せ（一本道の記号は、中心をそろえる）、線は、水平と垂直だけで引き直す（#540）
+        straighten_chains(boxes, chart.edges, _length(result["width"]))
         sizes = {i: (lab[1], lab[2]) for i, lab in enumerate(edge_labels) if lab}
         ortho = route_edges(boxes, chart.edges, sizes)
         routes = [{"edge": e, "points": r.points, "label": lab, "label_pos": r.label_pos, "polyline": True, "arrow": r.arrow}

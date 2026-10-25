@@ -1,6 +1,6 @@
 """フローチャートの線を、水平と垂直だけで引く（#540。独自記法の図だけ。Mermaidの試作は、`dot`の曲線のまま）。
 
-位置は、`dot`が決めた箱の位置を、そのまま使う。ここでは、線の通り道だけを決める。
+位置は、`dot`が決めた箱の位置を使う。ただし、一本道の記号の中心は、横にそろえる（`straighten_chains`）。ここでは、線の通り道を決める。
 
 * 判断のひし形は、出口を、行き先の左右の位置で割り当てる。左にある行き先は左の頂点、右にある行き先は右の頂点、真下は下の頂点から出す。
 * 次の記号に入る線が2本以上のときは、記号の少し上の高さで水平にまとめ、1本にして入れる。矢じりは、入るところに1つだけ付ける。
@@ -18,7 +18,50 @@ SNAP = 12.0         # 頂点と行き先の中心が、これ以内のずれな�
 MERGE_GAP = 14.0    # 合流の水平線を、次の記号の上辺から離す距離（pt）
 LABEL_PAD = 3.0     # 分岐の文字と、線の間の余白（pt）
 
+CLEARANCE = 10.0    # 記号をそろえるとき、横に隣り合う記号との間に、最低限あける距離（pt）
+
 Point = Tuple[float, float]
+
+
+def straighten_chains(boxes: Dict[str, object], edges: Sequence, width: float) -> None:
+    """一本道（前後が1本ずつの線だけでつながる記号の並び）の、中心の横の位置をそろえて、線をまっすぐにする。
+
+    `dot`は、一本道でも、記号の幅の違いなどで、中心を、少しずらすことがある。ずれた線は、規格の「延長線が記号の中心を通る」
+    にも合わず、見た目も悪い。並びの中で、いちばん幅の広い記号の中心に合わせる（広い記号は、動かさない）。
+    動かした先で、横の記号にぶつかる、または、図の外にはみ出すときは、その並びは、そのままにする。
+    """
+    outdeg: Dict[str, int] = defaultdict(int)
+    indeg: Dict[str, int] = defaultdict(int)
+    for e in edges:
+        outdeg[e.source] += 1
+        indeg[e.target] += 1
+    following = {e.source: e.target for e in edges if outdeg[e.source] == 1 and indeg[e.target] == 1 and e.source != e.target}
+    continued = set(following.values())
+    for head in boxes:
+        if head in continued or head not in following:
+            continue
+        chain = [head]
+        while chain[-1] in following and following[chain[-1]] not in chain:
+            chain.append(following[chain[-1]])
+        anchor = max(chain, key=lambda i: boxes[i].width)
+        x = boxes[anchor].x
+        movers = [i for i in chain if abs(boxes[i].x - x) > 0.01]
+        if movers and all(_can_move(boxes, i, x, chain, width) for i in movers):
+            for i in movers:
+                boxes[i].x = x
+
+
+def _can_move(boxes: Dict[str, object], name: str, x: float, chain: List[str], width: float) -> bool:
+    box = boxes[name]
+    if x - box.width / 2 < 0 or x + box.width / 2 > width:
+        return False
+    for other_name, other in boxes.items():
+        if other_name in chain:
+            continue
+        overlaps_rows = abs(other.y - box.y) < (other.height + box.height) / 2
+        if overlaps_rows and abs(other.x - x) < (other.width + box.width) / 2 + CLEARANCE:
+            return False
+    return True
 
 
 @dataclass
