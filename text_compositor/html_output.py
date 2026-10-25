@@ -31,6 +31,7 @@ from text_compositor import vega_render
 from text_compositor import wavedrom_render
 from text_compositor import bytefield_render
 from text_compositor import chordpro_render
+from text_compositor.plugins import registry as plugin_registry
 from text_compositor.renderer import TypstRenderer
 
 # CSSに、そのまま書いてよい値だけを通す（原稿の値が、CSSの構文を壊したり、別の宣言を足したりしないように）。
@@ -44,7 +45,7 @@ PAGE_ONLY_KEYS = ('paper_size', 'landscape', 'header', 'footer', 'paginate', 'fo
 ALERT_TITLES = {'note': 'Note', 'tip': 'Tip', 'important': 'Important', 'warning': 'Warning', 'caution': 'Caution'}
 
 # 図として表示するフェンスの言語。dot・graphvizは、Typstのdiagraphで描く（#264。PDFと同じ経路）。
-_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'structurizr', 'svg', 'dot', 'graphviz', 'pikchr', 'cetz', 'fletcher', 'timeliney', 'finite', 'vega-lite', 'vega', 'wavedrom', 'bytefield', 'bizmodel')
+_DIAGRAM_LANGS = ('mermaid', 'plantuml', 'd2', 'structurizr', 'svg', 'dot', 'graphviz', 'pikchr', 'flowchart', 'cetz', 'fletcher', 'timeliney', 'finite', 'vega-lite', 'vega', 'wavedrom', 'bytefield', 'bizmodel')
 _UNSUPPORTED_FENCES = {
     'typst-exec': "'typst-exec' is not supported in HTML output yet (#182)",
 }
@@ -659,10 +660,11 @@ class HtmlRenderer(TypstRenderer):
             return self._d2_svg_path(code, line, trim)
         if lang == 'structurizr':
             return self._structurizr_svg_path(code, line, trim)
-        if lang == 'pikchr':
-            if not self.pikchr_enabled:
+        plugin = plugin_registry.by_lang(lang)      # 登録簿（plugins/）に載せ替えた図種（#474）
+        if plugin is not None:
+            if not getattr(self, f'{plugin.name}_enabled'):
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）
-            return self._pikchr_svg_path(code, line, code_line)
+            return self._plugin_svg_path(plugin, code, line, code_line)
         if lang == 'bizmodel':
             if not self.bizmodel_enabled:
                 return None   # 無効なプラグイン: 警告なしで、コード表示（他の図と同じ）

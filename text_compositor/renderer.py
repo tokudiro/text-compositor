@@ -214,6 +214,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         '.puml': 'plantuml', '.plantuml': 'plantuml', '.pu': 'plantuml',
         '.d2': 'd2',
         '.pikchr': 'pikchr',
+        '.flow': 'flowchart',
         '.bizmodel': 'bizmodel', '.bmv': 'bizmodel',   # .bmvは、短い別名（#463）
         '.dsl': 'structurizr',
     }
@@ -244,7 +245,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             return self._render_plantuml(text)
         elif diagram_kind == 'd2':
             return self._render_d2(text)
-        elif diagram_kind in ('pikchr', 'bizmodel', 'structurizr'):   # `_render_<種類>(text)`の形で、そろっている
+        elif diagram_kind in ('pikchr', 'flowchart', 'bizmodel', 'structurizr'):   # `_render_<種類>(text)`の形で、そろっている
             return getattr(self, f'_render_{diagram_kind}')(text)
         elif ext == '.csv':
             return self._render_csv_table(text)
