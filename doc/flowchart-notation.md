@@ -145,7 +145,7 @@ endloop
 
 ## 4. 登録と接続
 
-* フェンスは、`flowchart`。章ファイルの拡張子は、`.flow`（案）。
+* フェンスは、`flowchart`。章ファイルの拡張子は、`.flow`。
 * 登録簿（[#533](https://github.com/tokudiro/text-compositor/issues/533)。`doc/plugin-architecture.md`）の、1つのプラグイン`flowchart`として載せる。バックエンドは、自作の変換器（`native`）1つで、出力は`svg`。**従来のブラウザ版へ戻す分岐（フォールバック）は、ない**（独自の記法のため、ほかの描き手がない）。
 * `plugins.flowchart`（既定`true`）で、無効にできる。無効なら、素のコード表示にする。
 * キャッシュは、他のSVGの図と同じ（`flowchart`・版・コードのハッシュ）。版は、変換器・`diagraph-layout`・Typst・フォントの版を含める。
@@ -184,10 +184,10 @@ JIS X 0121:1986の本文と図で、次のとおり確かめた。
 
 ## 7. 実装の順序
 
-1. 解析（字下げ・キーワード・分岐・繰り返し・誤りの行）と、そのテスト。
-2. 描画に、ループ端・書類の形を足す。
-3. 登録簿に載せる（フェンス・章ファイル・`plugins.flowchart`・キャッシュ）。
-4. 使い方ガイドに、フローチャート専用のガイドを書く（記法の説明と、処理・入力・判断・繰り返しの例）。Mermaidのギャラリー（`14_gallery_mermaid.md`）には、足さない（Mermaidの記法ではないため）。
-5. 仕様書に、書く。
+1. 解析（字下げ・キーワード・分岐・繰り返し・誤りの行）と、そのテスト。**（済。[#537](https://github.com/tokudiro/text-compositor/pull/537)）**
+2. 描画に、ループ端・書類の形を足す。**（済。[#538](https://github.com/tokudiro/text-compositor/pull/538)）**
+3. 登録簿に載せる（フェンス・章ファイル・`plugins.flowchart`・キャッシュ）。**（済。[#539](https://github.com/tokudiro/text-compositor/pull/539)）**
+4. 使い方ガイドに、フローチャート専用のガイドを書く（記法の説明と、処理・入力・判断・繰り返しの例）。Mermaidのギャラリー（`14_gallery_mermaid.md`）には、足さない（Mermaidの記法ではないため）。**（済。[#544](https://github.com/tokudiro/text-compositor/pull/544)）**
+5. 仕様書に、書く。**（済。`doc/spec.md`の11章14）**
 
-各ステップは、独立したPRにする。
+各ステップは、独立したPRにした。このほかに、線を水平・垂直だけで引く改善（[#540](https://github.com/tokudiro/text-compositor/issues/540)。3.1）と、Viewerでの`.flow`対応（[#543](https://github.com/tokudiro/text-compositor/pull/543)）を行った。
