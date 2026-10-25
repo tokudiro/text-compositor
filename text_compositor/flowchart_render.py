@@ -20,11 +20,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from text_compositor.deps import ensure_fonts
+from text_compositor.flowchart_ortho import route_edges
 from text_compositor.fonts import font_paths, fonts_signature
 from text_compositor.typst_runtime import typst_lib, typst_package_options
 
 DIAGRAPH_LAYOUT_VERSION = "0.0.1"
-FLOWCHART_VERSION = "1"
+FLOWCHART_VERSION = "2"   # 2: 独自記法の線を、水平・垂直だけにした（#540）。図のSVGのキャッシュキーに入る
 
 # --- 見た目（文書の白黒に合わせる。ブラウザ・Typstのどちらでも、同じに描けるよう、固定の色にする） ---
 FONT_FAMILY = "'Noto Sans JP', sans-serif"
@@ -79,6 +80,7 @@ class Flowchart:
     direction: str = "TB"    # TB | BT | LR | RL
     nodes: Dict[str, Node] = field(default_factory=dict)
     edges: List[Edge] = field(default_factory=list)
+    orthogonal: bool = False   # 線を、水平と垂直だけで引く（独自記法の図。#540）。Falseなら、`dot`の曲線
 
 
 # ---------------------------------------------------------------------------------------------
@@ -591,6 +593,13 @@ def layout(chart: Flowchart) -> dict:
     for item in result["nodes"]:
         box = boxes[item["name"]]
         box.x, box.y = _length(item["x"]), height - _length(item["y"])
+    if chart.orthogonal:
+        # 位置だけを`dot`に任せ、線は、水平と垂直だけで引き直す（#540）
+        sizes = {i: (lab[1], lab[2]) for i, lab in enumerate(edge_labels) if lab}
+        ortho = route_edges(boxes, chart.edges, sizes)
+        routes = [{"edge": e, "points": r.points, "label": lab, "label_pos": r.label_pos, "polyline": True, "arrow": r.arrow}
+                  for e, lab, r in zip(chart.edges, edge_labels, ortho)]
+        return {"width": _length(result["width"]), "height": height, "boxes": boxes, "routes": routes}
     # 矢印は、(始点, 終点)の組で引き当てる（出力の順序は、入力の順序と同じとは限らない）。同じ組が複数あれば、順に使う
     pending: Dict[Tuple[str, str], List[dict]] = {}
     for item in result["edges"]:
@@ -680,8 +689,8 @@ def _shape(box: _NodeBox) -> str:
     return f'<rect x="{_f(x - w / 2)}" y="{_f(y - h / 2)}" width="{_f(w)}" height="{_f(h)}"{r} {common}/>'
 
 
-def _route(points: List[Tuple[float, float]], arrow: bool) -> Tuple[str, str]:
-    """矢印の曲線（3次ベジェ）と、矢じり。矢じりの分だけ、線を短くする。"""
+def _route(points: List[Tuple[float, float]], arrow: bool, polyline: bool = False) -> Tuple[str, str]:
+    """矢印の曲線（3次ベジェ）と、矢じり。矢じりの分だけ、線を短くする。`polyline`なら、点を直線でつなぐ（直角の線。#540）。"""
     pts = list(points)
     head = ''
     if arrow and len(pts) >= 2:
@@ -698,7 +707,7 @@ def _route(points: List[Tuple[float, float]], arrow: bool) -> Tuple[str, str]:
         pts[-1] = base
     d = f"M{_f(pts[0][0])},{_f(pts[0][1])}"
     rest = pts[1:]
-    if len(rest) % 3 == 0:
+    if len(rest) % 3 == 0 and not polyline:
         for k in range(0, len(rest), 3):
             c1, c2, p = rest[k], rest[k + 1], rest[k + 2]
             d += f" C{_f(c1[0])},{_f(c1[1])} {_f(c2[0])},{_f(c2[1])} {_f(p[0])},{_f(p[1])}"
@@ -720,7 +729,7 @@ def draw_svg(chart: Flowchart) -> str:
     body = []
     for route in placed["routes"]:
         edge = route["edge"]
-        d, head = _route(route["points"], edge.arrow)
+        d, head = _route(route["points"], route.get("arrow", edge.arrow), route.get("polyline", False))
         style = {'solid': '1.2', 'thick': '2.6', 'dotted': '1.2'}[edge.line]
         dash = ' stroke-dasharray="4 3"' if edge.line == 'dotted' else ''
         body.append(f'<path d="{d}" fill="none" stroke="{STROKE}" stroke-width="{style}"{dash}/>{head}')

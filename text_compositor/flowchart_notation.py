@@ -88,7 +88,7 @@ class _Parser:
     def __init__(self, lines: List[_Line]):
         self.lines = lines
         self.pos = 0
-        self.chart = Flowchart()
+        self.chart = Flowchart(orthogonal=True)     # 独自記法の図は、線を水平・垂直だけで引く（#540）
         self.count = 0
         self.loop_names: List[str] = []
 
