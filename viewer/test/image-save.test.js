@@ -59,6 +59,7 @@ describe('isDiagramCacheBasename', () => {
     assert.equal(isDiagramCacheBasename('timeliney_abcdef01.svg'), true);
     assert.equal(isDiagramCacheBasename('finite_abcdef01.svg'), true);
     assert.equal(isDiagramCacheBasename('bizmodel_abcdef01.svg'), true);
+    assert.equal(isDiagramCacheBasename('flowchart_0e774f7e399af832.svg'), true);
   });
 
   test('does not match descriptive human filenames', () => {
