@@ -6,16 +6,18 @@
 //   - 通常の文字列検索: 件数・現在位置の表示、次候補・前候補への移動、ハイライト（<mark>）
 //   - 正規表現モード: 通常検索と違う件数になること、不正な正規表現でエラーが出ること
 //   - 大文字・小文字の区別トグル
-//   - Ctrl+F（実際のキー操作）で開き、Escで閉じてハイライトが消えること（Windowsのみ、SendKeysを使うため）
+//   - Ctrl+Fで開き、Escで閉じてハイライトが消えること（キーは、メインプロセスから送る。send-keys.js。#551）
 
-const { execFileSync, spawn } = require('node:child_process');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
 const electron = require('electron');
+const { connectKeys } = require('./send-keys');
 const viewerDir = path.resolve(__dirname, '..');
 const port = 9700 + Math.floor(Math.random() * 200);
+const inspectPort = port + 300;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function targets() {
@@ -51,13 +53,6 @@ async function connect(target) {
   };
 }
 
-function sendKeys(pid, keys) {
-  const script = 'Add-Type -AssemblyName System.Windows.Forms; '
-    + `(New-Object -ComObject WScript.Shell).AppActivate(${pid}) | Out-Null; `
-    + `Start-Sleep -Milliseconds 400; [Windows.Forms.SendKeys]::SendWait("${keys}")`;
-  execFileSync('powershell', ['-NoProfile', '-Command', script]);
-}
-
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viewer-search-'));
   const md = path.join(dir, 'doc.md');
@@ -73,10 +68,11 @@ function sendKeys(pid, keys) {
   ].join('\n'));
 
   const userData = path.join(dir, 'user-data');
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, md], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, md], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
   proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
   const results = [];
-  const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
+  let keys = null;
+  const check =(name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
 
   try {
     const content = await connect(await findTarget(/(?<!chrome)\.html$/));
@@ -150,18 +146,15 @@ function sendKeys(pid, keys) {
     check('閉じるボタンで、検索欄が閉じる', (await chrome.eval("document.getElementById('search').hidden")) === true);
     check('閉じると、内容のビューのハイライトも消える', (await markCount()) === 0, `marks=${await markCount()}`);
 
-    // -- Ctrl+F・Esc（実際のキー操作。Windowsのみ） --------------------------------
-    if (process.platform === 'win32') {
-      sendKeys(proc.pid, '^f');
-      await sleep(300);
-      check('Ctrl+Fで、検索欄が開き、フォーカスが当たる', (await chrome.eval("document.getElementById('search').hidden")) === false
-        && (await chrome.eval("document.activeElement?.id")) === 'search-input');
-      sendKeys(proc.pid, '{ESC}');
-      await sleep(300);
-      check('文書側にフォーカスがあっても、Escで検索欄が閉じる', (await chrome.eval("document.getElementById('search').hidden")) === true);
-    } else {
-      console.log('     Ctrl+F・Escの実キー操作は、Windowsのみ確認します（SendKeysのため）。スキップしました。');
-    }
+    // -- Ctrl+F・Esc（キーは、メインプロセスから送る） --------------------------------
+    keys = await connectKeys(inspectPort);
+    await keys.press('Ctrl+F');
+    await sleep(300);
+    check('Ctrl+Fで、検索欄が開き、フォーカスが当たる', (await chrome.eval("document.getElementById('search').hidden")) === false
+      && (await chrome.eval("document.activeElement?.id")) === 'search-input');
+    await keys.press('Esc');
+    await sleep(300);
+    check('文書側にフォーカスがあっても、Escで検索欄が閉じる', (await chrome.eval("document.getElementById('search').hidden")) === true);
 
     content.close();
     chrome.close();
@@ -169,6 +162,7 @@ function sendKeys(pid, keys) {
     console.error('FAILED', error);
     results.push(false);
   } finally {
+    keys?.close();
     proc.kill();
     if (process.platform === 'win32') spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
     try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }

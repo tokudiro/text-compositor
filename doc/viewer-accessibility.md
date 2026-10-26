@@ -61,7 +61,7 @@ cd viewer
 TEXT_COMPOSITOR_PYTHON=<python.exeのパス> TEXT_COMPOSITOR_PYTHONPATH=<リポジトリ> node scripts/check-a11y.js
 ```
 
-実際のElectronを起動して、次を確かめる（Windowsのみ。実行中は、ほかのウィンドウを操作しないこと）。
+実際のElectronを起動して、次を確かめる（Windowsでだけ確認。キーは、メインプロセスから送るので、実行中も、ほかのウィンドウを操作できる。#551）。
 
 - axe-coreの違反が無い。ツールバー・検索・設定画面・エラーの帯と一覧・文書の表示。ライトとダークの両方（コントラスト比を含む）。ウィンドウ本体のビューは、見出しも、メインのランドマークも持たない（文書は、別のビュー）ため、`landmark-one-main`と`page-has-heading-one`だけは、調べない。
 - ランドマーク・名前・役割・状態（上の「対応の範囲」のとおり）。
