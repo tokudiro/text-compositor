@@ -2,7 +2,7 @@
 // Obunzuの画面のアクセシビリティを、axe-core（開発用。配布物には入らない）と、実際の操作で、チェックする（#340）。
 //   TEXT_COMPOSITOR_PYTHON=<python> TEXT_COMPOSITOR_PYTHONPATH=<repo> node scripts/check-a11y.js
 //
-// 確認すること（実際のElectronを起動する。Windowsのみ。実行中は、ほかのウィンドウを操作しないこと）:
+// 確認すること（実際のElectronを起動する。キーは、メインプロセスから送るので、実行中も、ほかのウィンドウを操作できる。#551）:
 //   - axe: ツールバー・検索・設定画面・エラーの帯と一覧（ウィンドウ本体のビュー）と、文書の表示（変換済みのHTML）に、
 //     違反がない。ライトとダークの両方（文字のコントラスト比を含む）。
 //   - 部品の名前・役割・状態: ツールバー・検索のランドマーク、すべてのボタンの名前、エラーの帯の通知（alert）、
@@ -16,11 +16,7 @@ const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-
-if (process.platform !== 'win32') {
-  console.log('このスクリプトは、Windowsでだけ動きます（F6のキー操作に、SendKeysを使うため）。');
-  process.exit(0);
-}
+const { connectKeys } = require('./send-keys');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
@@ -79,25 +75,22 @@ async function setScheme(view, scheme) {
   await sleep(300);
 }
 
-function sendKeys(pid, keys) {
-  const script = 'Add-Type -AssemblyName System.Windows.Forms; '
-    + `(New-Object -ComObject WScript.Shell).AppActivate(${pid}) | Out-Null; `
-    + `Start-Sleep -Milliseconds 400; [Windows.Forms.SendKeys]::SendWait("${keys}")`;
-  execFileSync('powershell', ['-NoProfile', '-Command', script]);
-}
-
 async function session(file, body, { settings = null, env = {} } = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-a11y-'));
   if (settings) fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
   const port = 9500 + Math.floor(Math.random() * 100);
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, file],
+  const inspectPort = port + 300;
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, file],
     { env: { ...process.env, ...env }, stdio: 'ignore' });
+  let keys = null;
   try {
     await sleep(7000);
     const chrome = await connectChrome(port);
-    await body({ chrome, proc });
+    keys = await connectKeys(inspectPort);
+    await body({ chrome, keys });
     chrome.close();
   } finally {
+    keys?.close();
     proc.kill();
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
     await sleep(1500);
@@ -139,7 +132,7 @@ async function main() {
   checkAxe('文書の表示（ライト）', auditContent(html, 'light'));
   checkAxe('文書の表示（ダーク）', auditContent(html, 'dark'));
 
-  await session(good, async ({ chrome, proc }) => {
+  await session(good, async ({ chrome, keys }) => {
     // 文書の表示を待つ（初回は、Typstの図の描画に、時間がかかる）
     let shown = false;
     for (let i = 0; i < 60 && !shown; i += 1) {
@@ -190,12 +183,12 @@ async function main() {
     await click(chrome, 'settings-close');
     await sleep(500);
 
-    // F6: ツールバーと文書の間を、行き来する（実際のキー操作）
-    sendKeys(proc.pid, '{F6}');
+    // F6: ツールバーと文書の間を、行き来する（メニューのショートカットを、メインプロセスから呼ぶ）
+    await keys.press('F6');
     await sleep(700);
     const afterFirst = await chrome.evaluate("document.hasFocus() && document.activeElement?.closest('#toolbar') ? document.activeElement.id : ''");
     check('F6で、文書から、ツールバーのボタンへ、フォーカスが移る', afterFirst !== '', afterFirst);
-    sendKeys(proc.pid, '{F6}');
+    await keys.press('F6');
     await sleep(700);
     const afterSecond = await chrome.evaluate("document.hasFocus() && document.activeElement?.closest('#toolbar') ? document.activeElement.id : ''");
     check('もう一度F6で、文書へ戻る（ツールバーのフォーカスが外れる）', afterSecond === '', afterSecond);
