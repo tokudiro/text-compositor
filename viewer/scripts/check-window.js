@@ -4,30 +4,21 @@
 //
 // 確認すること:
 //   - 設定画面は、Ctrl+,・歯車・「戻る」・Esc で閉じられ、ファイルを開く・再読み込みでも閉じる。
-// キーは、SendKeysで、前面のウィンドウへ送る。実行中は、ほかのウィンドウを操作しないこと。
+// キーは、メインプロセスへ`--inspect`で接続し、`webContents.sendInputEvent`で送る（#551）。前面のウィンドウに依存しないので、
+// 実行中も、ほかの作業ができる。
 
-const { execFileSync, spawn } = require('node:child_process');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-
-if (process.platform !== 'win32') {
-  console.log('このスクリプトは、Windowsでだけ動きます（キー操作に、SendKeysを使うため）。');
-  process.exit(0);
-}
+const { connectKeys } = require('./send-keys');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
 const sample = path.join(viewerDir, '..', 'benchmarks', 'html-view', 'fixture', 'fixture.md');
 const port = 9400 + Math.floor(Math.random() * 100);
+const inspectPort = 9600 + Math.floor(Math.random() * 100);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function sendKeys(pid, keys) {
-  const script = 'Add-Type -AssemblyName System.Windows.Forms; '
-    + `(New-Object -ComObject WScript.Shell).AppActivate(${pid}) | Out-Null; `
-    + `Start-Sleep -Milliseconds 400; [Windows.Forms.SendKeys]::SendWait("${keys}")`;
-  execFileSync('powershell', ['-NoProfile', '-Command', script]);
-}
 
 async function connect() {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
@@ -45,15 +36,18 @@ async function connect() {
 
 async function main() {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-window-'));
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, sample],
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, sample],
     { env: { ...process.env }, stdio: 'ignore' });
   let failures = 0;
+  let keys = null;
   try {
     await sleep(6500);
     const evaluate = await connect();
+    keys = await connectKeys(inspectPort);
     const wait = 1000;
+    // `key:`で始まるaction（'key:Ctrl+,'）は、キーを送る。それ以外は、ページで実行する式
     const settings = async (label, action, expectedOpen) => {
-      if (action.startsWith('{') || action.startsWith('^')) sendKeys(proc.pid, action);
+      if (action.startsWith('key:')) await keys.press(action.slice(4));
       else await evaluate(action);
       await sleep(wait);
       const open = await evaluate("!document.getElementById('settings').hidden");
@@ -61,18 +55,19 @@ async function main() {
       console.log(`${open === expectedOpen ? 'OK  ' : 'NG  '} ${label}`);
     };
     const click = (id) => `document.getElementById('${id}').click()`;
-    await settings('Ctrl+, で設定画面が開く', '^,', true);
-    await settings('Esc で閉じる', '{ESC}', false);
+    await settings('Ctrl+, で設定画面が開く', 'key:Ctrl+,', true);
+    await settings('Esc で閉じる', 'key:Esc', false);
     await settings('歯車で開く', click('settings-button'), true);
     await settings('「戻る」で閉じる', click('settings-close'), false);
     await settings('歯車で開く', click('settings-button'), true);
     await settings('歯車で閉じる', click('settings-button'), false);
     await settings('歯車で開く', click('settings-button'), true);
-    await settings('F5（再読み込み）で閉じる', '{F5}', false);
+    await settings('F5（再読み込み）で閉じる', 'key:F5', false);
     await settings('歯車で開く', click('settings-button'), true);
     await settings('「開く」で閉じる', click('open'), false);
-    sendKeys(proc.pid, '{ESC}');   // 「開く」で出たダイアログを閉じる
+    // 「開く」で出たダイアログは、ネイティブのため、キーを送れない。下のtaskkillで、Viewerごと閉じる
   } finally {
+    keys?.close();
     proc.kill();
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
     await sleep(1500);
