@@ -17,6 +17,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { connectKeys } = require('./send-keys');
+const { waitFor } = require('./wait-for');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
@@ -81,11 +82,16 @@ async function session(file, body, { settings = null, env = {} } = {}) {
   const port = 9500 + Math.floor(Math.random() * 100);
   const inspectPort = port + 300;
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, file],
-    { env: { ...process.env, ...env }, stdio: 'ignore' });
+    { env: { ...process.env, VIEWER_INACTIVE: '1', ...env }, stdio: 'ignore' });
   let keys = null;
   try {
-    await sleep(7000);
-    const chrome = await connectChrome(port);
+    // 画面が出るまで待つ（固定の時間ではなく、条件で。#557）
+    const chrome = await waitFor(async () => {
+      const c = await connectChrome(port);
+      if (await c.evaluate("!!document.getElementById('settings-button')")) return c;
+      c.close();
+      return null;
+    }, { label: '画面の表示' });
     keys = await connectKeys(inspectPort);
     await body({ chrome, keys });
     chrome.close();

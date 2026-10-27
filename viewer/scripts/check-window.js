@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { connectKeys } = require('./send-keys');
+const { waitFor } = require('./wait-for');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
@@ -37,19 +38,22 @@ async function connect() {
 async function main() {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-window-'));
   const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, sample],
-    { env: { ...process.env }, stdio: 'ignore' });
+    { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: 'ignore' });
   let failures = 0;
   let keys = null;
   try {
-    await sleep(6500);
-    const evaluate = await connect();
+    const evaluate = await waitFor(async () => {
+      const ev = await connect();
+      return (await ev("!!document.getElementById('settings-button')")) ? ev : null;
+    }, { label: '画面の表示' });
     keys = await connectKeys(inspectPort);
-    const wait = 1000;
     // `key:`で始まるaction（'key:Ctrl+,'）は、キーを送る。それ以外は、ページで実行する式
     const settings = async (label, action, expectedOpen) => {
       if (action.startsWith('key:')) await keys.press(action.slice(4));
       else await evaluate(action);
-      await sleep(wait);
+      // 期待した状態になるまで待つ。ならなければ、時間切れの時点の状態で判定する（NGとして表示される）
+      await waitFor(async () => (await evaluate("!document.getElementById('settings').hidden")) === expectedOpen,
+        { timeout: 3000, label }).catch(() => {});
       const open = await evaluate("!document.getElementById('settings').hidden");
       if (open !== expectedOpen) failures += 1;
       console.log(`${open === expectedOpen ? 'OK  ' : 'NG  '} ${label}`);
