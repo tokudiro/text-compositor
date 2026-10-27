@@ -59,6 +59,10 @@ const TREE_ROOT_FROM_ENV = process.env.VIEWER_TREE_ROOT && path.isAbsolute(proce
   ? process.env.VIEWER_TREE_ROOT
   : null;
 
+// 環境変数 VIEWER_INACTIVE=1 は、ウィンドウを、フォーカスを奪わずに出す（確認スクリプト用。#557）。
+// 確認の実行中に、ほかの作業の入力が途切れないようにする。ほかのウィンドウの背後でも、描画が止まらないよう、スロットリングも切る。
+const INACTIVE_FROM_ENV = process.env.VIEWER_INACTIVE === '1';
+
 // 環境変数 VIEWER_TRACE=1 で、起動の各段階の時刻（プロセスの開始から）を、標準エラーへ出す。
 const trace = process.env.VIEWER_TRACE
   ? (label) => process.stderr.write(`[viewer] ${label} +${Math.round(process.uptime() * 1000)}ms\n`)
@@ -207,13 +211,16 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     backgroundColor: background,
     autoHideMenuBar: true,
+    ...(INACTIVE_FROM_ENV ? { show: false } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'chrome', 'preload.js'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      ...(INACTIVE_FROM_ENV ? { backgroundThrottling: false } : {}),
     },
   });
+  if (INACTIVE_FROM_ENV) win.once('ready-to-show', () => win.showInactive());
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'chrome', 'chrome.html'));
@@ -259,6 +266,7 @@ function createTab() {
     webPreferences: {
       preload: path.join(__dirname, 'chrome', 'content-preload.js'),   // ドロップの受け口・検索・コピーなど
       sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true,
+      ...(INACTIVE_FROM_ENV ? { backgroundThrottling: false } : {}),
     },
   });
   created.contentView.setBackgroundColor(background);

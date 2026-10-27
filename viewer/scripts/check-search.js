@@ -68,7 +68,7 @@ async function connect(target) {
   ].join('\n'));
 
   const userData = path.join(dir, 'user-data');
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, md], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--inspect=${inspectPort}`, `--user-data-dir=${userData}`, viewerDir, md], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
   proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
   const results = [];
   let keys = null;
