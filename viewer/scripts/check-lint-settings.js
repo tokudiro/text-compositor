@@ -19,7 +19,7 @@ const path = require('node:path');
 const electron = require('electron');
 const viewerDir = path.resolve(__dirname, '..');
 const port = 9900 + Math.floor(Math.random() * 90);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { sleep, waitExit } = require('./wait-for');
 const screenshotPath = process.argv.includes('--screenshot') ? process.argv[process.argv.indexOf('--screenshot') + 1] : null;
 
 let failures = 0;
@@ -123,7 +123,7 @@ async function waitFor(predicate, timeoutMs = 30000) {
     check('確認を最後まで実行できた', false, error.message);
   } finally {
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-    await sleep(1500);
+    await waitExit(proc);
     try { fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗: ${failures}件`);
