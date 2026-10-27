@@ -77,7 +77,7 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
 
   const userData = path.join(dir, 'user-data');
   fs.mkdirSync(userData, { recursive: true });
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, a], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, a], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
   proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };

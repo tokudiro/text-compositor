@@ -76,7 +76,7 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
   const start = (env = {}) => {
-    const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: { ...process.env, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
+    const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: { ...process.env, VIEWER_INACTIVE: '1', ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
     proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
     return proc;
   };

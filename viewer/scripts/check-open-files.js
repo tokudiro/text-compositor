@@ -101,7 +101,7 @@ async function open(arg, wait = 4500, act = null, { requireStatus = false, until
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-open-'));
   const port = nextPort();
   const args = packaged ? [] : [viewerDir];
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env }, stdio: 'ignore' });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: 'ignore' });
   const started = Date.now();
   try {
     // 待ちの上限は、起動に掛かる時間（数秒。負荷で伸びる）より短くしない。成功すれば、すぐ先へ進むため、待ちは増えない

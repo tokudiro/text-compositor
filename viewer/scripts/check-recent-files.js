@@ -36,7 +36,7 @@ async function waitRecent(expected, timeout = 15000) {
   return false;
 }
 
-const launch = (file) => spawn(electron, [`--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env }, stdio: 'ignore' });
+const launch = (file) => spawn(electron, [`--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: 'ignore' });
 const kill = (proc) => spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
 
 async function main() {

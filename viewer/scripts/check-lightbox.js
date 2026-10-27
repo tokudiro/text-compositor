@@ -73,7 +73,7 @@ async function waitFor(read, predicate, timeoutMs = 20000) {
   fs.writeFileSync(doc, '# 図\n\n```mermaid\nflowchart LR\n  A[開始] --> B[終了]\n```\n\n本文です。\n');
   const userData = path.join(dir, 'user-data');
   fs.mkdirSync(userData, { recursive: true });
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
   proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };
