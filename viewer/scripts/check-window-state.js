@@ -22,7 +22,7 @@ if (process.platform !== 'win32') {
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
 const sample = path.join(viewerDir, '..', 'benchmarks', 'html-view', 'fixture', 'fixture.md');
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { waitFor, waitExit } = require('./wait-for');
 
 const user32 = (pid) => `
 Add-Type -Namespace W -Name U -MemberDefinition @'
@@ -58,8 +58,24 @@ function launch(userData) {
 
 async function stop(proc) {
   spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-  await sleep(1500);
+  await waitExit(proc);
 }
+
+/** ウィンドウが出て、大きさが落ち着く（続けて2回、同じ）まで待つ。固定の時間の代わり。 */
+async function waitWindow(proc) {
+  let last = null;
+  await waitFor(() => {
+    const state = windowState(proc);
+    const settled = state.width > 0 && last && JSON.stringify(state) === JSON.stringify(last);
+    last = state;
+    return settled;
+  }, { timeout: 30000, interval: 200, label: 'ウィンドウの表示' });
+}
+
+/** 設定ファイルに保存されたウィンドウの状態が、条件を満たすまで待つ（保存は、変更が落ち着いてから）。 */
+const waitSaved = (settingsFile, predicate) => waitFor(() => {
+  try { return predicate(JSON.parse(fs.readFileSync(settingsFile, 'utf8')).window ?? {}); } catch { return false; }
+}, { timeout: 5000, label: '設定の保存' }).catch(() => {});
 
 async function main() {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-window-state-'));
@@ -75,25 +91,25 @@ async function main() {
   try {
     // 1. 動かして、大きさを変える → 再起動
     proc = launch(userData);
-    await sleep(5000);
+    await waitWindow(proc);
     move(proc, 140, 90, 900, 650);
-    await sleep(1500);   // 保存は、変更が落ち着いてから（400 ms後）
+    await waitSaved(settingsFile, (w) => w.width > 0 && w.maximized === false && near(w.width, 900));
     const moved = windowState(proc);
     await stop(proc);
     proc = launch(userData);
-    await sleep(5000);
+    await waitWindow(proc);
     const reopened = windowState(proc);
     check('動かした位置と大きさで、再起動後も開く', same(moved, reopened), `${JSON.stringify(moved)} → ${JSON.stringify(reopened)}`);
 
     // 2. 最大化したまま終了 → 再起動後も最大化。戻すと、最大化前の大きさ
     showMaximized(proc);
-    await sleep(1500);
+    await waitSaved(settingsFile, (w) => w.maximized === true);
     await stop(proc);
     proc = launch(userData);
-    await sleep(5000);
+    await waitWindow(proc);
     check('最大化のまま終了すると、再起動後も最大化で開く', windowState(proc).maximized);
     restore(proc);
-    await sleep(800);
+    await waitFor(() => !windowState(proc).maximized, { timeout: 5000, interval: 200, label: '最大化の解除' }).catch(() => {});
     check('最大化を戻すと、最大化する前の大きさになる', same(windowState(proc), moved), JSON.stringify(windowState(proc)));
     await stop(proc);
 
@@ -102,7 +118,7 @@ async function main() {
     saved.window = { x: 15000, y: 15000, width: 800, height: 600, maximized: false };
     fs.writeFileSync(settingsFile, JSON.stringify(saved));
     proc = launch(userData);
-    await sleep(5000);
+    await waitWindow(proc);
     const offscreen = windowState(proc);
     check('画面の外の位置は使わず、大きさだけ戻す', offscreen.x < 15000 && near(offscreen.width, 800) && near(offscreen.height, 600), JSON.stringify(offscreen));
     await stop(proc);
@@ -110,7 +126,7 @@ async function main() {
     // 4. 壊れた設定ファイル
     fs.writeFileSync(settingsFile, '{ broken');
     proc = launch(userData);
-    await sleep(5000);
+    await waitWindow(proc);
     const fallback = windowState(proc);
     check('壊れた設定でも、既定の大きさ（1000×800）で開く', near(fallback.width, 1000) && near(fallback.height, 800), JSON.stringify(fallback));
   } finally {

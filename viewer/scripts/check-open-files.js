@@ -16,7 +16,7 @@ const electron = packaged ? path.join(packaged, 'obunzu-markdown-viewer.exe') : 
 const basePort = 9700 + Math.floor(Math.random() * 100);
 let portCounter = 0;
 const nextPort = () => basePort + portCounter++;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { sleep, waitFor } = require('./wait-for');
 
 let failures = 0;
 function check(name, ok, detail = '') {
@@ -97,17 +97,20 @@ async function waitPortClosed(port, timeout = 6000) {
 }
 
 /** ファイルを引数にして起動し、画面の状態が決まるまで待って（waitは、その上限）、画面の状態（帯・状態・文書の中身）を読む。 */
-async function open(arg, wait = 4500, act = null, { requireStatus = false } = {}) {
+async function open(arg, wait = 4500, act = null, { requireStatus = false, until = null } = {}) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-open-'));
   const port = nextPort();
   const args = packaged ? [] : [viewerDir];
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env }, stdio: 'ignore' });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...args, arg], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: 'ignore' });
   const started = Date.now();
   try {
     // 待ちの上限は、起動に掛かる時間（数秒。負荷で伸びる）より短くしない。成功すれば、すぐ先へ進むため、待ちは増えない
     const chrome = await waitReady(Math.max(wait, 10000), requireStatus, port);
     if (!chrome) throw new Error(`アプリの画面に、接続できませんでした（${arg}）。起動に失敗したか、ポートが使えません`);
-    if (act) { await waitContent(Math.min(wait, 5000), port); await act(chrome, (match) => connect(match, port)); await sleep(3000); }
+    if (act) { await waitContent(Math.min(wait, 5000), port); await act(chrome, (match) => connect(match, port));
+      // 操作の結果が出るまで待つ（固定の時間ではなく、条件で。#557）。`until`は、保存された設定を受け取って、真偽を返す
+      if (until) await waitFor(() => { try { return until(JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'))); } catch { return false; } }, { timeout: 5000, label: '操作の結果' }).catch(() => {});
+    }
     const state = JSON.parse(await chrome("JSON.stringify({ status: document.getElementById('status').textContent, "
       + "banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent, "
       + "detail: document.querySelector('#details .item')?.textContent ?? '' })"));
@@ -219,7 +222,7 @@ async function main() {
   const csvText = 'りんご,10\nみかん,3\nぶどう,2\n';
   r = await open(write('noheader.csv', csvText));
   check('.csvでは、見出しの切り替えのボタンが出て、既定は、1行目が見出し', r.csvButton.hidden === false && r.csvButton.checked === 'true' && r.page?.tableHead.length === 2 && r.page.tableRows === 2, JSON.stringify(r.csvButton));
-  r = await open(write('noheader2.csv', csvText), 4500, (chrome) => chrome("document.getElementById('csv-header').click()"));
+  r = await open(write('noheader2.csv', csvText), 4500, (chrome) => chrome("document.getElementById('csv-header').click()"), { until: (saved) => saved.csvHeader === false });
   check('ボタンを押すと、すべての行がデータ行になり、設定として覚える',
     r.page?.tableHead.length === 0 && r.page.tableRows === 3 && r.csvButton.checked === 'false' && r.saved?.csvHeader === false, JSON.stringify({ head: r.page?.tableHead, rows: r.page?.tableRows, saved: r.saved?.csvHeader }));
   r = await open(write('other.txt', 'text\n'));

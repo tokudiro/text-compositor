@@ -10,7 +10,7 @@ const path = require('node:path');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { sleep, waitExit } = require('./wait-for');
 let failures = 0;
 function check(name, ok, detail = '') {
   if (!ok) failures += 1;
@@ -36,7 +36,7 @@ async function waitRecent(expected, timeout = 15000) {
   return false;
 }
 
-const launch = (file) => spawn(electron, [`--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env }, stdio: 'ignore' });
+const launch = (file) => spawn(electron, [`--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: 'ignore' });
 const kill = (proc) => spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
 
 async function main() {
@@ -49,11 +49,11 @@ async function main() {
   launch(a);
   check('開き直したファイルは、重複せず、先頭に移る', await waitRecent([a, c, b]));
   kill(first);
-  await sleep(2000);
+  await waitExit(first);   // 2重起動の判定に、前のプロセスを残さない
   const second = launch(b);
   check('アプリを終了して、起動し直しても、一覧が残る（開いたファイルは、先頭へ）', await waitRecent([b, a, c]));
   kill(second);
-  await sleep(1500);
+  await waitExit(second);
 }
 
 main().finally(() => {

@@ -83,7 +83,7 @@ async function pressCtrl(view, key, code, keyCode) {
   fs.writeFileSync(doc, '# 見出しの文字\n\n1つ目の段落です。\n\n2つ目の段落です。\n');
   const userData = path.join(dir, 'user-data');
   fs.mkdirSync(userData, { recursive: true });
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
   proc.stderr.on('data', (chunk) => process.stderr.write(chunk));
   const results = [];
   const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'NG  '} ${name}${detail ? `  ${detail}` : ''}`); };

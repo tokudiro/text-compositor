@@ -100,7 +100,7 @@ async function waitFor(read, predicate, timeoutMs = 10000) {
   // 自動更新は、オンにしておく（旧名称の設定の引き継ぎで、実環境の設定が入ることがあるため、明示する）
   fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoReload: true }));
   const start = (file, env = {}) => {
-    proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
+    proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, file], { env: { ...process.env, VIEWER_INACTIVE: '1', ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
     proc.stderr.on('data', () => {});
   };
   const stop = async () => { chrome?.close(); proc?.kill(); await sleep(1000); };

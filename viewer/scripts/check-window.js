@@ -12,14 +12,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { connectKeys } = require('./send-keys');
-const { waitFor } = require('./wait-for');
+const { waitFor, waitExit } = require('./wait-for');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
 const sample = path.join(viewerDir, '..', 'benchmarks', 'html-view', 'fixture', 'fixture.md');
 const port = 9400 + Math.floor(Math.random() * 100);
 const inspectPort = 9600 + Math.floor(Math.random() * 100);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function connect() {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
@@ -74,7 +73,7 @@ async function main() {
     keys?.close();
     proc.kill();
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-    await sleep(1500);
+    await waitExit(proc);
     try { fs.rmSync(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
   console.log(failures === 0 ? '\nすべて成功' : `\n失敗 ${failures} 件`);

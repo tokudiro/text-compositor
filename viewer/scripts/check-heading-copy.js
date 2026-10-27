@@ -76,7 +76,7 @@ function check(name, ok, detail = '') {
   ].join('\n'), 'utf8');
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'obunzu-heading-copy-ud-'));
   const proc = spawn(electron, [viewerDir, `--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, file], {
-    env: { ...process.env, TEXT_COMPOSITOR_PYTHONPATH: process.env.TEXT_COMPOSITOR_PYTHONPATH || repoDir }, stdio: 'ignore',
+    env: { ...process.env, VIEWER_INACTIVE: '1', TEXT_COMPOSITOR_PYTHONPATH: process.env.TEXT_COMPOSITOR_PYTHONPATH || repoDir }, stdio: 'ignore',
   });
   try {
     const content = await connect(await findTarget((url) => url.endsWith('.html') && !url.endsWith('/chrome.html')));

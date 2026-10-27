@@ -17,7 +17,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { connectKeys } = require('./send-keys');
-const { waitFor } = require('./wait-for');
+const { waitFor, waitExit } = require('./wait-for');
 
 const viewerDir = path.resolve(__dirname, '..');
 const electron = require('electron');
@@ -99,7 +99,7 @@ async function session(file, body, { settings = null, env = {} } = {}) {
     keys?.close();
     proc.kill();
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-    await sleep(1500);
+    await waitExit(proc);
     try { fs.rmSync(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
 }
@@ -201,7 +201,7 @@ async function main() {
   });
 
   await session(bad, async ({ chrome }) => {
-    await sleep(1500);
+    await waitFor(() => chrome.evaluate("!document.getElementById('banner').hidden"), { timeout: 15000, label: 'エラーの帯' }).catch(() => {});
     check('エラーの帯が出る', (await chrome.evaluate("!document.getElementById('banner').hidden")) === true);
     const banner = JSON.parse(await chrome.evaluate(`JSON.stringify({
       role: document.getElementById('banner').getAttribute('role'),
@@ -225,7 +225,7 @@ async function main() {
 
   // タブ列（#332）。設定「複数のタブ」をオンにして、2つのタブを開いた状態を調べる（既定のオフでは、タブ列が出ないため）
   await session(good, async ({ chrome }) => {
-    await sleep(2500);
+    await waitFor(() => chrome.evaluate("/更新/.test(document.getElementById('status').textContent) && document.getElementById('empty').hidden"), { timeout: 60000, label: '文書の表示' }).catch(() => {});
     await chrome.evaluate(`window.viewer.openPath(${JSON.stringify(bad)}, true)`);
     let visible = false;
     for (let i = 0; i < 40 && !visible; i += 1) {
@@ -254,15 +254,14 @@ async function main() {
     await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].focus()");
     check('タブのボタンに、フォーカスできる', (await chrome.evaluate("document.activeElement?.classList.contains('tab')")) === true);
     await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].click()");
-    await sleep(600);
+    await waitFor(async () => (await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].getAttribute('aria-selected')")) === 'true', { timeout: 3000, label: 'タブの切り替え' }).catch(() => {});
     check('タブを押すと、選ばれるタブが切り替わる', (await chrome.evaluate("document.querySelectorAll('#tabs .tab')[0].getAttribute('aria-selected')")) === 'true');
     checkAxe('タブを切り替えたあと（ライト）', await runAxe(chrome));
   }, { settings: { enableTabs: true } });
 
   // サイドバーとファイルツリー（#339）。開いた状態（既定は閉じている）で、ルートのフォルダ（原稿のあるフォルダ）を決めて調べる
   await session(good, async ({ chrome }) => {
-    await sleep(2500);
-    const shown = await chrome.evaluate("!document.getElementById('sidebar').hidden && document.querySelectorAll('#tree [role=treeitem]').length > 0");
+    const shown = await waitFor(() => chrome.evaluate("!document.getElementById('sidebar').hidden && document.querySelectorAll('#tree [role=treeitem]').length > 0"), { timeout: 15000, label: 'サイドバーとツリー' }).catch(() => false);
     check('サイドバーが開き、ツリーに項目が出た状態で起動する（以降の確認の前提）', shown === true);
     for (const scheme of ['light', 'dark']) {
       await setScheme(chrome, scheme);

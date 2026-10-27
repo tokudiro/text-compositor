@@ -32,7 +32,7 @@ const stage = path.join(viewerDir, 'dist', 'stage');
 const appDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(stage, fs.readdirSync(stage).find((n) => n.startsWith('Obunzu-Markdown-Viewer-')));
 const exe = path.join(appDir, 'obunzu-markdown-viewer.exe');
 const port = 9500 + Math.floor(Math.random() * 100);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { waitFor, waitExit } = require('./wait-for');
 
 let failures = 0;
 function check(name, ok, detail = '') {
@@ -75,7 +75,11 @@ async function runCase(name, markdown, file, expect, wait = 6000, extraEnv = {})
   fs.writeFileSync(file, markdown);
   const proc = spawn(exe, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, file], { env, stdio: 'ignore' });
   try {
-    await sleep(wait);
+    // 画面の状態（状態表示か、エラーの帯）が決まるまで待つ。決まらないケースは、上限まで待って、そのまま読む（#557）
+    await waitFor(async () => {
+      const probe = await connect();
+      return probe("document.getElementById('status').textContent !== '' || !document.getElementById('banner').hidden");
+    }, { timeout: wait, interval: 200, label: '画面の状態' }).catch(() => {});
     const evaluate = await connect();
     const content = await connect(isContent).catch(() => null);   // 文書のビュー（表示できなかったときは、無い）
     const state = JSON.parse(await evaluate("JSON.stringify({ status: document.getElementById('status').textContent, "
@@ -84,7 +88,7 @@ async function runCase(name, markdown, file, expect, wait = 6000, extraEnv = {})
     await expect(state, workerPythonPaths(), { chrome: evaluate, content });
   } finally {
     spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-    await sleep(1500);
+    await waitExit(proc);
     try { fs.rmSync(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* 一時ファイルが残るだけ */ }
   }
   console.log(`   （${name}）`);

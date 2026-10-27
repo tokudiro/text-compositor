@@ -74,7 +74,7 @@ async function run(settings, steps) {
   fs.mkdirSync(userData, { recursive: true });
   if (settings) fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
   port = 9900 + Math.floor(Math.random() * 900);
-  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(electron, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, viewerDir, doc], { env: { ...process.env, VIEWER_INACTIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
   try {
     const chrome = await connect(await findTarget(/chrome\.html/));
     await waitFor(() => chrome.eval("document.getElementById('file-name').textContent"), (name) => name === 'a.md');

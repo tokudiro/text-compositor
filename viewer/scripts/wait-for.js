@@ -22,4 +22,13 @@ async function waitFor(condition, { timeout = 30000, interval = 100, label = '�
   }
 }
 
-module.exports = { waitFor, sleep };
+/** 子プロセスが終わるまで待つ（時間切れつき）。`taskkill`のあと、固定の時間を待つ代わりに使う。 */
+function waitExit(proc, timeout = 10000) {
+  if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeout);
+    proc.once('exit', () => { clearTimeout(timer); resolve(); });
+  });
+}
+
+module.exports = { waitFor, waitExit, sleep };
