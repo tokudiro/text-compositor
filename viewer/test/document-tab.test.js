@@ -37,19 +37,36 @@ test('whenIdle resolves at once when nothing is converting', async () => {
   await tab.whenIdle();
 });
 
-test('whenIdle waits for the conversion and releaseIdleWaiters wakes every waiter', async () => {
+test('whenIdle waits for the conversion and the last endOpen wakes every waiter', async () => {
   const tab = new DocumentTab();
-  tab.inFlight = true;
+  tab.beginOpen();
   const order = [];
   const first = tab.whenIdle().then(() => order.push('first'));
   const second = tab.whenIdle().then(() => order.push('second'));
   await Promise.resolve();
   assert.deepEqual(order, []);
-  tab.inFlight = false;
-  tab.releaseIdleWaiters();
+  tab.endOpen();
   await Promise.all([first, second]);
   assert.deepEqual(order, ['first', 'second']);
   assert.equal(tab.idleWaiters.length, 0);
+});
+
+test('overlapping opens: the tab stays busy and in flight until the last one ends', async () => {
+  const tab = new DocumentTab();
+  assert.equal(tab.inFlight, false);
+  tab.beginOpen();
+  tab.beginOpen();   // 変換中に重なった依頼
+  assert.deepEqual([tab.inFlight, tab.busy, tab.pending], [true, true, 2]);
+  let idle = false;
+  const waiting = tab.whenIdle().then(() => { idle = true; });
+  tab.endOpen();   // 古い依頼が、置き換えられた
+  await Promise.resolve();
+  assert.deepEqual([tab.inFlight, tab.busy, idle], [true, true, false]);
+  tab.endOpen();
+  await waiting;
+  assert.deepEqual([tab.inFlight, tab.busy, tab.pending, idle], [false, false, 0, true]);
+  tab.endOpen();   // 数え間違いでも、負にならない
+  assert.equal(tab.pending, 0);
 });
 
 test('snapshot carries what the toolbar needs and nothing about the window', () => {

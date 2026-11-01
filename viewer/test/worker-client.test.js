@@ -145,6 +145,15 @@ describe('WorkerClient documents and events (#284)', () => {
     await assert.rejects(client._expectOk('set_auto_reload', { value: 'yes' }), (error) => error instanceof WorkerProtocolError && error.code === 'bad_request');
   });
 
+  test('overlapping opens are sent without waiting for the earlier answer, so the worker can supersede the older one', async () => {
+    const client = create('open-pair');
+    await client.warmUp();
+    const older = client.open({ doc: '1', path: 'a.md' });
+    const newer = client.open({ doc: '1', path: 'b.md' });
+    await assert.rejects(older, (error) => error instanceof WorkerProtocolError && error.code === 'superseded');
+    assert.equal((await newer).html, 'b.md.html');
+  });
+
   test('onExit is called when a ready worker dies on its own, but not after dispose or when it never became ready', async () => {
     const exits = [];
     const crashing = create('crash-once', { onExit: (info) => exits.push(info.code) });

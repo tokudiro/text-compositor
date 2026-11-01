@@ -15,6 +15,7 @@ if (mode === 'no-ready') {
 } else {
   say({ event: 'ready', protocol: 1, version: 'fake' });
   let waiting = null;
+  const held = [];
   readline.createInterface({ input: process.stdin }).on('line', (line) => {
     const request = JSON.parse(line);
     if (request.callback !== undefined) {   // 呼び出し元からの、描画の応答
@@ -37,6 +38,17 @@ if (mode === 'no-ready') {
       return;
     }
 
+    // #284: 2つ目の`open`が届くまで、1つ目に答えない。届いたら、1つ目は`superseded`、2つ目は成功で答える
+    // （クライアントが、前の応答を待たずに、`open`を送ることの確認用）。
+    if (mode === 'open-pair' && request.method === 'open') {
+      held.push(request);
+      if (held.length === 2) {
+        const [older, newer] = held.splice(0);
+        say({ id: older.id, ok: false, error: { code: 'superseded', message: 'newer open' } });
+        say({ id: newer.id, ok: true, html: `${newer.params.path}.html`, diagnostics: [], timings_ms: {}, dependencies: [] });
+      }
+      return;
+    }
     // #284: open・close_doc・watch・set_auto_reloadと、変更の通知（rendered・changed）。
     // `open`は、応答のあとに`rendered`を1つ出す（params.notifyが真のとき）。`watch`は、`changed`を1つ出す。
     if (mode === 'watch') {

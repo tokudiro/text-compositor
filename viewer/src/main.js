@@ -731,7 +731,10 @@ function targetFromArgv(argv, cwd) {
   const args = argv.slice(1).filter((arg) => !arg || arg.startsWith('-') || path.resolve(cwd, arg) !== appPath);
   return fileFromArgv(args, { cwd });
 }
-/** ファイルを開く。変換中に、次の依頼が来たときは、最後の依頼だけを残す。開く先は、指定がなければ、いま見ているタブ。 */
+/**
+ * ファイルを開く。変換中に、同じタブへ次の依頼が来たときは、ワーカーが、最後の依頼だけを処理する（古い依頼は`superseded`）。
+ * 開く先は、指定がなければ、いま見ているタブ。
+ */
 function openFile(file, { targetScrollY = null, historyNav = null, fragment = null, notices = [] } = {}, target = tab) {
   const full = path.resolve(file);
   const check = checkOpenTarget(full);
@@ -748,8 +751,7 @@ function openFile(file, { targetScrollY = null, historyNav = null, fragment = nu
     rememberDirectory(path.dirname(full));
     rememberRecentFile(full);
   }
-  target.queued = { file: full, targetScrollY, historyNav, fragment, notices };
-  if (!target.inFlight) void drain(target);
+  void renderOnce(target, full, targetScrollY, historyNav, fragment, notices);
 }
 
 /** 開いたファイルのフォルダを覚える（ファイルを開くダイアログの、最初の場所）。変わったときだけ保存する。 */
@@ -838,33 +840,26 @@ function reload() {
   if (tab.file) openFile(tab.file);
 }
 
-async function drain(target) {
-  target.inFlight = true;
-  try {
-    while (target.queued) {
-      const task = target.queued;
-      target.queued = null;
-      await renderOnce(target, task.file, task.targetScrollY, task.historyNav, task.fragment, task.notices);
-    }
-  } finally {
-    target.inFlight = false;
-    target.releaseIdleWaiters();
-  }
-}
-
 /** どのタブも、変換が終わるまで待つ（変換中に、変換の材料を消さないため）。 */
 function whenIdle() {
   return Promise.all(tabs.map((each) => each.whenIdle()));
 }
 
 async function renderOnce(target, file, targetScrollY = null, historyNav = null, fragment = null, notices = []) {
-  const sameDocument = target.shown?.md === file;
   target.file = file;
-  target.busy = true;
+  target.beginOpen();
   target.status = '';
   // 原稿の監視は、ワーカーが、`open`の変換の前から始める。変換中の保存も取りこぼさない（#424）。
   push();
+  try {
+    await renderOpened(target, file, targetScrollY, historyNav, fragment, notices);
+  } finally {
+    target.endOpen();
+    push();
+  }
+}
 
+async function renderOpened(target, file, targetScrollY, historyNav, fragment, notices) {
   let result;
   let fellBack = false;
   try {
@@ -882,6 +877,7 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
       plugins: { structurizr: true }, ...location.params,
     });
   } catch (error) {
+    if (error.code === 'superseded') return;   // 同じタブへの、より新しい依頼に置き換えられた。結果は、そちらが持ってくる
     if (error instanceof PythonNotFoundError) worker = null;
     // 想定外の例外でも、アプリを落とさず、原因を診断として見せる
     result = { ok: false, html: null, timings_ms: {}, diagnostics: [{ severity: 'error', message: error.message }] };
@@ -891,7 +887,7 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
     // 設定は「原稿の隣」でも、書き込めない場所の原稿は、開けないより、開けるほうがよい。切り替えたことを知らせる
     result.diagnostics = [...(result.diagnostics ?? []), { severity: 'warning', message: '原稿のフォルダに書き込めないため、変換したファイルを、アプリの領域に保存しました（設定は「原稿の隣」）', file }];
   }
-  await applyResult(target, file, result, { sameDocument, targetScrollY, historyNav, fragment, notices });
+  await applyResult(target, file, result, { targetScrollY, historyNav, fragment, notices });
 }
 
 /**
@@ -904,10 +900,12 @@ function applyResult(target, file, result, context) {
   return run;
 }
 
-async function applyResultNow(target, file, result, { sameDocument, targetScrollY = null, historyNav = null, fragment = null, notices = [] }) {
+async function applyResultNow(target, file, result, { targetScrollY = null, historyNav = null, fragment = null, notices = [] }) {
   // 開く前に分かった注意（章の一覧の誤りなど。#373）は、変換の診断の前に並べる
   target.diagnostics = summarize([...notices, ...result.diagnostics]);
   if (target.closed) return;   // 変換の途中で、タブが閉じられた
+  // 同じ文書の再読み込みか。前の結果の反映が済んでから決める（重なった依頼で、前の結果が表示を替えることがあるため）
+  const sameDocument = target.shown?.md === file;
   if (result.ok && result.html) {
     await showHtml(target, file, result.html, sameDocument, result.dependencies, targetScrollY, fragment);
     // 変換に成功して表示できた段階で、履歴の位置を更新する（#342レビュー指摘）。
@@ -929,7 +927,6 @@ async function applyResultNow(target, file, result, { sameDocument, targetScroll
     target.file = target.shown ? target.shown.md : file;
     target.status = target.shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
   }
-  target.busy = false;
   push();
 }
 
@@ -955,7 +952,7 @@ function onWorkerEvent(message) {
     diagnostics: message.diagnostics ?? [],
     timings_ms: message.timings_ms ?? {},
     dependencies: message.dependencies ?? [],
-  }, { sameDocument: true });
+  }, {});
 }
 
 /** .csvの1行目を、見出し行にするか（#220）。設定として覚え、開いているCSVを、表示し直す（スクロール位置は、保たれる）。 */
@@ -1184,7 +1181,6 @@ function closeTab(target = tab) {
   const index = tabs.indexOf(target);
   if (speechTab === target) stopSpeech();
   target.closed = true;
-  target.queued = null;
   worker?.closeDoc(docId(target)).catch(() => {});   // ワーカーの記憶と監視を捨てる。失敗しても、タブは閉じる
   tabs.splice(index, 1);
   win.contentView.removeChildView(target.contentView);
