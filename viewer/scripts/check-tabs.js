@@ -112,6 +112,13 @@ async function waitFor(read, predicate, timeoutMs = 8000) {
     await chrome.eval(`window.viewer.openPath(${JSON.stringify(a)}, false)`);
     await waitFor(fileName, (name) => name === 'a.md');
 
+    // -- 重なった依頼（#284）。同じタブへ続けて開くと、ワーカーが最後の1件だけを処理し、最後のファイルが表示される ----------
+    await chrome.eval(`[${JSON.stringify(b)}, ${JSON.stringify(c)}, ${JSON.stringify(a)}].forEach((file) => window.viewer.openPath(file, false))`);
+    await waitFor(() => contentWith('文書A'), (found) => found !== null, 15000);
+    await sleep(500);
+    check('同じタブへ続けて3つ開くと、最後のファイル（A）が表示され、変換中の表示は解ける',
+      (await fileName()) === 'a.md' && (await contentWith('文書A')) !== null && (await chrome.eval("document.getElementById('banner').hidden")) === true);
+
     // -- 設定をオンにする -------------------------------------------------------------
     await chrome.eval("window.viewer.setSetting('enableTabs', true)");
     check('設定をオンにしただけでは、タブは増えない（1つなので、タブ列は出ない）', (await tabsVisible()) === false);

@@ -100,7 +100,10 @@ class WorkerClient {
    * @param {{doc: string, path: string} & object} params `path`以外は、`renderHtml`と同じ
    */
   async open(params) {
-    return htmlResult(await this._request('open', params));
+    // 他の依頼と違い、前の依頼の応答を待たずに送る。同じ`doc`の`open`が重なったとき、ワーカーが、古いものを
+    // `superseded`で返し、最後の1件だけを処理するため。ここで直列にすると、重なりが、ワーカーに見えない。
+    // 呼び出し元は、`superseded`（`WorkerProtocolError`の`code`）を、捨てられた依頼として扱うこと。
+    return htmlResult(await this._send('open', params));
   }
 
   /** `open`した文書を閉じる（記憶と監視を捨てる）。実行中の変換は取り消せないため、閉じた`doc`の`rendered`は無視すること。 */

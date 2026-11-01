@@ -27,8 +27,7 @@ class DocumentTab {
     this.history = new NavigationHistory();   // 戻る・進む（#330）
     this.contentView = null;     // 内容のビュー（WebContentsView）
     this.shown = null;           // 表示中の文書 {md, html, deps}
-    this.inFlight = false;       // 変換中か
-    this.queued = null;          // 変換中に来た、次の依頼（最後の1件だけを残す）
+    this.pending = 0;            // ワーカーに頼んで、まだ終わっていない`open`の数。同じタブの重なった依頼は、ワーカーが最後の1件だけを処理する（#284）
     this.idleWaiters = [];       // 変換が終わるのを待つ処理（キャッシュの削除）
     this.closed = false;         // 閉じたタブか（変換の途中で閉じられたとき、結果を捨てる）
     this.applying = Promise.resolve();   // 変換の結果を表示へ反映する処理の列（結果は、タブごとに、順番に反映する。#284）
@@ -45,6 +44,25 @@ class DocumentTab {
 
   get canGoForward() {
     return this.history.canGoForward;
+  }
+
+  /** 変換中か（ワーカーに頼んだ`open`が、1つでも終わっていない）。 */
+  get inFlight() {
+    return this.pending > 0;
+  }
+
+  /** `open`をワーカーに頼む。終わるまで、変換中の状態にする。 */
+  beginOpen() {
+    this.pending += 1;
+    this.busy = true;
+  }
+
+  /** `open`が終わった（結果の反映も済んだ、または、新しい依頼に置き換えられた）。最後の1つが終わったら、変換中を解き、待っている処理を起こす。 */
+  endOpen() {
+    this.pending = Math.max(0, this.pending - 1);
+    if (this.pending > 0) return;
+    this.busy = false;
+    this.releaseIdleWaiters();
   }
 
   /** 変換が終わるまで待つ（変換中に、変換の材料を消さないため）。 */
