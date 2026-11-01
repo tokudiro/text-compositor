@@ -72,7 +72,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import queue
 import sys
+import threading
 from typing import Any, Dict, Optional, TextIO
 
 from text_compositor import __version__
@@ -87,9 +89,73 @@ _BUILD_PARAMS = ("output", "template", "plugins", "document", "variables", "conf
 _HTML_PARAMS = ("output", "plugins", "variables", "config", "csv_header", "allow_external_images", "cache_dir", "lint")
 
 
+# 応答とイベント（`rendered`等）が、別のスレッドから同時に書かれても、1行が混ざらないようにする（#284）
+_write_lock = threading.Lock()
+
+
 def _write(out: TextIO, obj: Dict[str, Any]) -> None:
-    out.write(json.dumps(obj, ensure_ascii=False) + "\n")
-    out.flush()
+    line = json.dumps(obj, ensure_ascii=False) + "\n"
+    with _write_lock:
+        out.write(line)
+        out.flush()
+
+
+class _Reader:
+    """標準入力の唯一の読み手（#284）。専用のスレッドで1行ずつ読み、行を2つに振り分ける。
+
+    - `callback`（数値）を持つ行: 描画を依頼した側（`HostRenderer`）への返信。番号ごとに預かり、`wait_reply`で渡す。
+    - それ以外: 新しい依頼。到着順に`next_request`で渡す（依頼は、1つずつ順に処理される）。JSONとして読めない行も、
+      ここでは判断せず、依頼として渡す（誤りの応答は、依頼を処理する側が返す）。
+
+    標準入力を複数のスレッドが読み合うと、行を取り合ってしまう。そのため、読むのはこのスレッドだけにする。
+    """
+
+    def __init__(self, stdin: TextIO) -> None:
+        self._stdin = stdin
+        self._requests: "queue.Queue[Optional[str]]" = queue.Queue()
+        self._cond = threading.Condition()
+        self._replies: Dict[int, Dict[str, Any]] = {}
+        self._closed = False
+        # daemon: 標準入力の読み待ちのまま、プロセスが終われるようにする（`shutdown`は、入力が閉じられる前に来る）
+        threading.Thread(target=self._run, name="worker-stdin", daemon=True).start()
+
+    def _run(self) -> None:
+        try:
+            while True:
+                line = self._stdin.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if line:
+                    self._dispatch(line)
+        finally:
+            with self._cond:
+                self._closed = True
+                self._cond.notify_all()
+            self._requests.put(None)
+
+    def _dispatch(self, line: str) -> None:
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            message = None
+        if isinstance(message, dict) and isinstance(message.get("callback"), int):
+            with self._cond:
+                self._replies[message["callback"]] = message
+                self._cond.notify_all()
+            return
+        self._requests.put(line)
+
+    def next_request(self) -> Optional[str]:
+        """次の依頼の行を返す。標準入力が閉じられ、依頼を読み切ったら、Noneを返す。"""
+        return self._requests.get()
+
+    def wait_reply(self, number: int) -> Optional[Dict[str, Any]]:
+        """番号が`number`の返信を待って返す。届く前に標準入力が閉じられたら、Noneを返す。"""
+        with self._cond:
+            while number not in self._replies and not self._closed:
+                self._cond.wait()
+            return self._replies.pop(number, None)
 
 
 def _protocol_error(request_id: Any, code: str, message: str) -> Dict[str, Any]:
@@ -171,8 +237,8 @@ def handle_request(session: Session, request: Any) -> Optional[Dict[str, Any]]:
 class HostRenderer:
     """Mermaidの描画を、呼び出し元（ViewerのElectron）に、標準入出力で依頼する（#207）。依頼は、1つずつ順に処理される。"""
 
-    def __init__(self, stdin: TextIO, out: TextIO) -> None:
-        self._stdin = stdin
+    def __init__(self, reader: _Reader, out: TextIO) -> None:
+        self._reader = reader
         self._out = out
         self._next = 0
 
@@ -195,36 +261,30 @@ class HostRenderer:
         self._next += 1
         number = self._next
         _write(self._out, {"event": event, "callback": number, **fields})
-        while True:
-            line = self._stdin.readline()
-            if not line:
-                raise RuntimeError(f"The host application closed the connection while rendering a {label} diagram.")
-            try:
-                reply = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(reply, dict) or reply.get("callback") != number:
-                continue   # 待っている応答ではない行は、読み捨てる
-            if reply.get("ok") is True and isinstance(reply.get("svg"), str):
-                return reply["svg"]
-            raise RuntimeError(str(reply.get("error") or f"The host application could not render the {label} diagram."))
+        reply = self._reader.wait_reply(number)   # 待っている番号ではない行は、読み手が預かるだけで、ここへは届かない
+        if reply is None:
+            raise RuntimeError(f"The host application closed the connection while rendering a {label} diagram.")
+        if reply.get("ok") is True and isinstance(reply.get("svg"), str):
+            return reply["svg"]
+        raise RuntimeError(str(reply.get("error") or f"The host application could not render the {label} diagram."))
 
 
 def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     """依頼を1行ずつ読み、応答を1行ずつ書く。stdinが閉じられるか、`shutdown`を受けたら、終了する。"""
     session = Session()
+    reader = _Reader(stdin)
     if host_renderer:
-        host = HostRenderer(stdin, out)
+        host = HostRenderer(reader, out)
         _host_renderers.set_mermaid_host_renderer(host.render_mermaid)
         _host_renderers.set_vega_host_renderer(host.render_vega)
         _host_renderers.set_wavedrom_host_renderer(host.render_wavedrom)
         _host_renderers.set_bytefield_host_renderer(host.render_bytefield)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
-        for line in stdin:
-            line = line.strip()
-            if not line:
-                continue
+        while True:
+            line = reader.next_request()
+            if line is None:
+                break
             try:
                 request = json.loads(line)
             except json.JSONDecodeError as e:
@@ -258,7 +318,13 @@ def main() -> int:
     os.dup2(2, 1)
     sys.stdout = sys.stderr
     stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
-    return serve(stdin, protocol_out, host_renderer=os.environ.get("TEXT_COMPOSITOR_MERMAID_HOST") == "1")
+    code = serve(stdin, protocol_out, host_renderer=os.environ.get("TEXT_COMPOSITOR_MERMAID_HOST") == "1")
+    # 標準入力を読むスレッド（_Reader）は、`shutdown`のあとも読み待ちで残る。通常の終了処理は、そのスレッドが
+    # 握る標準入力の読み取りの錠に触れ、Windowsでは異常終了する（終了コード0xC0000005）ことを確かめた。
+    # セッションの片付けは、serveの中で済んでいるため、残りの出力を書き出して、すぐ終える。
+    protocol_out.flush()
+    sys.stderr.flush()
+    os._exit(code)
 
 
 if __name__ == "__main__":
