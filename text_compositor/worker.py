@@ -325,7 +325,9 @@ class _Documents:
         deps_before = previous["deps"] if previous and previous["path"] == path else []
         self._watch.begin(("doc", doc), [path, *deps_before])
         response = handle_request(self._session, {"id": request_id, "method": "render_html", "params": render_params})
-        if "error" in response:   # 誤った依頼。それまでの文書の記憶を、そのまま保つ
+        # 誤った依頼、または、別のファイルへの切り替えが失敗した場合は、それまでの文書の記憶を、そのまま保つ
+        # （呼び出し側は、直前に成功した表示を残す。監視も、表示している原稿に合わせる）
+        if "error" in response or (previous and previous["path"] != path and not response.get("ok")):
             if previous:
                 self._watch.begin(("doc", doc), [previous["path"], *previous["deps"]])
             else:

@@ -27,13 +27,34 @@ class WorkerProtocolError extends WorkerError {
 
 const STDERR_TAIL_LINES = 40;
 
+/** `render_html`・`open`の応答を、呼び出し元へ返す形にする。プロトコルの誤り（`error`キー）は、例外にする。 */
+function htmlResult(response) {
+  if (response.error) throw new WorkerProtocolError(response.error.code ?? 'error', response.error.message ?? '');
+  return {
+    ok: response.ok === true,
+    html: response.html ?? null,
+    diagnostics: response.diagnostics ?? [],
+    timings_ms: response.timings_ms ?? {},
+    // 原稿が参照している、ローカルのファイル（画像など）。変更を検知して、自動で更新するために使う（#170）
+    dependencies: response.dependencies ?? [],
+  };
+}
+
 class WorkerClient {
   /**
    * @param {{file: string, args: string[], env?: Record<string,string>, cwd?: string}} launch
-   * @param {{startTimeoutMs?: number, requestTimeoutMs?: number, services?: Record<string, (payload: object) => Promise<any>>}} [options]
+   * @param {{startTimeoutMs?: number, requestTimeoutMs?: number, services?: Record<string, (payload: object) => Promise<any>>,
+   *   onEvent?: (message: object) => void, onReady?: (info: {restarted: boolean}) => any,
+   *   onExit?: (info: {code: number|null, signal: string|null}) => void}} [options]
    *   services: ワーカーが、依頼の処理中に、こちらへ頼んでくる処理（`render_mermaid`など。#207）。名前は、イベントの名前。
+   *   onEvent: ワーカーからの、応答を待たない通知（`rendered`・`changed`。#284）。
+   *   onReady: ワーカーが準備できるたびに呼ぶ（起動し直した後は`restarted`が真）。ワーカーは起動し直すと、文書も自動更新の設定も忘れる。
+   *   onExit: 準備できていたワーカーが、`dispose`されずに終了したときに呼ぶ。次の依頼は、起動し直して処理される。
    */
   constructor(launch, options = {}) {
+    this._onExit = options.onExit;
+    this._onEvent = options.onEvent;
+    this._onReady = options.onReady;
     this._launch = launch;
     this._startTimeoutMs = options.startTimeoutMs ?? 60_000;
     this._requestTimeoutMs = options.requestTimeoutMs ?? 300_000;
@@ -70,16 +91,31 @@ class WorkerClient {
    * @returns {Promise<{ok: boolean, html: string|null, diagnostics: object[], timings_ms: object, dependencies: string[]}>}
    */
   async renderHtml(params) {
-    const response = await this._request('render_html', params);
-    if (response.error) throw new WorkerProtocolError(response.error.code ?? 'error', response.error.message ?? '');
-    return {
-      ok: response.ok === true,
-      html: response.html ?? null,
-      diagnostics: response.diagnostics ?? [],
-      timings_ms: response.timings_ms ?? {},
-      // 原稿が参照している、ローカルのファイル（画像など）。変更を検知して、自動で更新するために使う（#170）
-      dependencies: response.dependencies ?? [],
-    };
+    return htmlResult(await this._request('render_html', params));
+  }
+
+  /**
+   * 文書（`doc`。Viewerではタブの番号）を開く（#284）。結果は`renderHtml`と同じ。以後、自動更新が入っている間は、
+   * 原稿と参照ファイルの変更を、ワーカーが監視し、変換し直した結果を`onEvent`の`rendered`で知らせる。
+   * @param {{doc: string, path: string} & object} params `path`以外は、`renderHtml`と同じ
+   */
+  async open(params) {
+    return htmlResult(await this._request('open', params));
+  }
+
+  /** `open`した文書を閉じる（記憶と監視を捨てる）。実行中の変換は取り消せないため、閉じた`doc`の`rendered`は無視すること。 */
+  async closeDoc(doc) {
+    await this._expectOk('close_doc', { doc });
+  }
+
+  /** 文書ではないファイル（プロジェクトの設定ファイル）を、名前をつけて監視する。変更は、`onEvent`の`changed`で知らせる。空配列で解除。 */
+  async watch(name, files) {
+    await this._expectOk('watch', { name, files });
+  }
+
+  /** 自動更新のON/OFF。ワーカー全体で1つ。ワーカーを起動し直すと、既定のOFFに戻るため、`onReady`で送り直すこと。 */
+  async setAutoReload(value) {
+    await this._expectOk('set_auto_reload', { value: Boolean(value) });
   }
 
   /**
@@ -118,6 +154,20 @@ class WorkerClient {
   }
 
   // ---------------------------------------------------------------------
+
+  async _expectOk(method, params) {
+    const response = await this._request(method, params);
+    if (response.error) throw new WorkerProtocolError(response.error.code ?? 'error', response.error.message ?? '');
+  }
+
+  /** ワーカーからの、応答を待たない一方向の通知（`rendered`・`changed`）を、呼び出し元へ渡す。 */
+  _emit(message) {
+    try {
+      this._onEvent?.(message);
+    } catch {
+      /* 通知の処理の失敗で、ワーカーとの通信を止めない */
+    }
+  }
 
   _request(method, params) {
     if (this._disposed) return Promise.reject(new WorkerError('ワーカーは、すでに終了しています。'));
@@ -180,6 +230,7 @@ class WorkerClient {
       this._stderr = [];
       this.startCount += 1;
       let settled = false;
+      let wasReady = false;
       const settle = (fn, value) => { if (!settled) { settled = true; clearTimeout(startTimer); fn(value); } };
 
       const startTimer = setTimeout(() => {
@@ -196,8 +247,14 @@ class WorkerClient {
         let message;
         try { message = JSON.parse(line); } catch { return; }   // JSONでない行は、通信の対象外
         if (message === null || typeof message !== 'object' || Array.isArray(message)) return;
-        if (message.event === 'ready') { settle(resolve); return; }
+        if (message.event === 'ready') {
+          wasReady = true;
+          settle(resolve);
+          if (this._proc === proc) this._notifyReady();
+          return;
+        }
         if (typeof message.event === 'string' && typeof message.callback === 'number') { this._serve(proc, message); return; }
+        if (typeof message.event === 'string') { this._emit(message); return; }
         if (typeof message.id === 'number') {
           const pending = this._pending.get(message.id);
           if (pending) { this._pending.delete(message.id); pending.resolve(message); }
@@ -218,9 +275,20 @@ class WorkerClient {
           for (const pending of this._pending.values()) pending.reject(error);
           this._pending.clear();
           this._proc = null;
+          // 準備できていたワーカーが、終了を頼まれていないのに終わった（クラッシュ・時間切れでの強制終了）。呼び出し元が、
+          // 起動し直せるよう知らせる。次の依頼を待つと、その間は、変更の検知も止まるため（#284）
+          if (wasReady && !this._disposed) this._onExit?.({ code, signal });
         }
       });
     });
+  }
+
+  /** ワーカーが準備できたことを、呼び出し元へ知らせる。起動し直した後（`restarted`）に、状態を送り直すために使う。 */
+  _notifyReady() {
+    if (!this._onReady) return;
+    Promise.resolve()
+      .then(() => this._onReady({ restarted: this.startCount > 1 }))
+      .catch(() => { /* 送り直しの失敗は、次の依頼の失敗として現れる */ });
   }
 
   /**

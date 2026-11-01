@@ -316,6 +316,20 @@ class TestDocuments:
         fixed = live.next()
         assert fixed["ok"] is True and "Fixed" in open(fixed["html"], encoding="utf-8").read()
 
+    def test_a_failed_switch_to_another_file_keeps_watching_the_previous_one(self, live, tmp_path):
+        md, _ = self.open_doc(live, tmp_path, text="# Shown\n")
+        broken = tmp_path / "broken.md"
+        broken.write_bytes(b"# T\n\xff\xfe\n")
+        live.send({"id": 5, "method": "open", "params": {"doc": "tab-1", "path": str(broken), "plugins": self.PLUGINS,
+                                                          "output": str(tmp_path / "out" / "broken.html")}})
+        failed = live.next()
+        assert failed["id"] == 5 and failed["ok"] is False
+        md.write_text("# Edited\n", encoding="utf-8")   # 表示が残っている原稿の変更は、検知される
+        event = live.next()
+        assert event["event"] == "rendered" and event["path"] == str(md) and "Edited" in open(event["html"], encoding="utf-8").read()
+        broken.write_text("# Fixed\n", encoding="utf-8")   # 失敗した切り替え先は、監視しない
+        assert live.nothing_within(2) is None
+
     def test_watch_reports_changes_without_converting(self, live, tmp_path):
         config = tmp_path / "config.yaml"
         config.write_text("a: 1\n", encoding="utf-8")

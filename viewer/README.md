@@ -116,7 +116,6 @@ Settings are stored as `settings.json` in the app's user data folder (`%APPDATA%
 | `src/path-menu.js` | Context-menu items for sidebar files and folders and for tabs, and the check that a sidebar path may be used (#428) |
 | `src/settings.js` | Reads and writes the settings (falls back to defaults) |
 | `src/workdir.js` | Where the converted HTML and the diagram cache go (app folder or next to the document), and the cache size and delete (#258) |
-| `src/watcher.js` | Watches the open file and the files it references |
 | `src/image-save.js` | Saves and rasterizes diagrams and images (SVG and PNG, #327) |
 | `src/search-match.js` | The text/regex matching behind in-document search (#325); the part with no DOM, so it is unit-tested |
 | `scripts/check-auto-reload.js` | Starts the viewer and checks automatic reload (manual) |

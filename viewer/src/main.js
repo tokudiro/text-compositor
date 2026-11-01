@@ -11,7 +11,7 @@ const path = require('node:path');
 const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, session, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
-const { DocumentTab, tabsAffectedBy } = require('./document-tab');
+const { DocumentTab } = require('./document-tab');
 const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
@@ -20,7 +20,6 @@ const { isInsideDirectory, listDirectory } = require('./directory-list');
 const { currentHeadingId, effectiveSidebarView, sanitizeOutline } = require('./outline');
 const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
-const { FileWatcher } = require('./watcher');
 const { buildSelectionContextMenuTemplate } = require('./selection-menu');
 const { buildPathContextMenuTemplate, buildTabContextMenuTemplate, isSidebarPath: checkSidebarPath } = require('./path-menu');
 const { chooseVoice, createSpeaker, rateOf } = require('./speech');
@@ -110,7 +109,6 @@ let win = null;
 let chromeHeight = 40;
 let zoomLevel = 0;
 let worker = null;
-let watcher = null;
 const workRoot = cacheRoot();   // アプリの領域（#258）
 // Mermaidの描画（非表示のウィンドウ。最初の図で作る。#207）および画像のラスタライズ（#327）。
 const createHiddenWindow = (options = {}) => new BrowserWindow({
@@ -152,7 +150,6 @@ if (!app.requestSingleInstanceLock()) {
     state.autoReload = state.settings.autoReload;
     applyTheme();
     createWindow();
-    watcher = new FileWatcher({ onChange: onFilesChanged });
     Menu.setApplicationMenu(buildMenu());
     startWorker();
     const file = targetFromArgv(process.argv, process.cwd());
@@ -188,7 +185,6 @@ async function speakSelection(origin, text) {
 let quitting = false;
 app.on('before-quit', (event) => {
   stopSpeech({ wait: true });
-  watcher?.close();
   mermaidHost.dispose();
   vegaHost.dispose();
   wavedromHost.dispose();
@@ -434,7 +430,7 @@ function leaveRoot() {
   state.tree = { root: null, kind: null };
   state.sidebarOpen = false;
   state.sidebarView = null;
-  updateWatch();   // プロジェクトの設定ファイルの監視を、やめる
+  syncProjectWatch();   // プロジェクトの設定ファイルの監視を、やめる
   layout();
   push();
 }
@@ -606,10 +602,10 @@ function changeSetting(key, value) {
   if (!accepted) return;
   state.settings = next;
   if (key === 'theme') applyTheme();
-  if (key === 'autoReload') state.autoReload = next.autoReload;
+  if (key === 'autoReload') { state.autoReload = next.autoReload; syncAutoReload(); }
   if (key === 'showLineNumber') for (const each of tabs) { resetLine(each); sendLineIndicator(each); }
   if (key === 'showHeadingAnchor' || key === 'showCodeCopy' || key === 'showCodeBorder') for (const each of tabs) sendContentFeatures(each);
-  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = state.sidebarOpen && next.showOutline; updateWatch(); }   // 「出さない」にしたら、開いていたフォルダも、手放す（目次が使えれば、サイドバーは、そのまま）
+  if (key === 'showFileTree' && !next.showFileTree) { project = null; state.tree = { root: null, kind: null }; state.sidebarOpen = state.sidebarOpen && next.showOutline; syncProjectWatch(); }   // 「出さない」にしたら、開いていたフォルダも、手放す（目次が使えれば、サイドバーは、そのまま）
   if (key === 'showOutline' && !next.showOutline && !next.showFileTree) state.sidebarOpen = false;   // 使える表示が、なくなる
   if (key === 'enableTabs' && !next.enableTabs) closeOtherTabs();   // 「使わない」にしたら、いま見ているタブだけを残す
   saveSettings(settingsFile, state.settings);
@@ -677,9 +673,53 @@ async function getWorker() {
         render_wavedrom: (payload) => wavedromHost.render(payload),
         render_bytefield: (payload) => bytefieldHost.render(payload),
       },
+      // 原稿・参照ファイル・設定ファイルの変更の検知は、ワーカーが行う（#284）。変換し直した結果と変更は、通知で届く
+      onEvent: onWorkerEvent,
+      onReady: resyncWorker,
+      onExit: reviveWorker,
     });
   }
   return worker;
+}
+
+let lastRevive = 0;
+
+/**
+ * ワーカーが、終了を頼んでいないのに終わった（クラッシュなど）。次の依頼を待たずに、起動し直す。待つと、その間は、
+ * 原稿の変更の検知が止まるため（#284）。起動し直すと、`resyncWorker`が、自動更新の設定と、開いているタブを戻す。
+ * 起動の直後に落ち続けても、嵐にならないよう、5秒以内の2回目は、しない（次の依頼で、起動し直す）。
+ */
+function reviveWorker() {
+  if (quitting || Date.now() - lastRevive < 5000) return;
+  lastRevive = Date.now();
+  getWorker().then((client) => client.warmUp()).catch(() => {});
+}
+
+/** ワーカーに開かせる文書の識別子。タブの番号。 */
+const docId = (target) => String(target.id);
+
+/**
+ * ワーカーが準備できた。ワーカーは、起動し直すと、文書も自動更新の設定も忘れるため、送り直す。
+ * 起動し直した場合は、開いているタブを、開き直す（監視を戻すため。変換が1回走る）。
+ */
+async function resyncWorker({ restarted }) {
+  await worker.setAutoReload(state.autoReload);
+  await worker.watch('project', projectWatchFiles());
+  if (restarted) for (const each of tabs) if (each.file && !each.closed) openFile(each.file, {}, each);
+}
+
+function projectWatchFiles() {
+  return state.tree.kind === 'project' ? [state.tree.root] : [];
+}
+
+/** プロジェクトの設定ファイルの監視を、いまのルートに合わせる（プロジェクトモードの間だけ監視する。#373）。 */
+function syncProjectWatch() {
+  getWorker().then((client) => client.watch('project', projectWatchFiles())).catch(() => {});
+}
+
+/** 自動更新の設定を、ワーカーへ送る。 */
+function syncAutoReload() {
+  getWorker().then((client) => client.setAutoReload(state.autoReload)).catch(() => {});
 }
 
 /**
@@ -822,9 +862,7 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
   target.file = file;
   target.busy = true;
   target.status = '';
-  // 変換の前から原稿を監視する。末尾でしか登録しないと、最初の変換中に保存されたとき、通知を取りこぼし、
-  // 古い表示のまま止まる（見ていないタブでは、特に起きやすい。#424）。保存を検知すると、キューで再変換される。
-  updateWatch();
+  // 原稿の監視は、ワーカーが、`open`の変換の前から始める。変換中の保存も取りこぼさない（#424）。
   push();
 
   let result;
@@ -838,8 +876,8 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
     // Obunzuは、Mermaid/PlantUML/D2と同じく常に有効にする（#290。同梱すれば追加取得なし、無くてもPlantUML/D2と同じ
     // ライブ取得にフォールバックするだけで、CLIのconfig.yamlのような「意図しない重い取得」への配慮は要らない）。
     // ワーカーは、全タブで1つ。変換は、1件ずつ順に処理される（#332）。
-    result = await client.renderHtml({
-      path: file, csv_header: state.settings.csvHeader, allow_external_images: state.settings.allowExternalImages,
+    result = await client.open({
+      doc: docId(target), path: file, csv_header: state.settings.csvHeader, allow_external_images: state.settings.allowExternalImages,
       lint: state.settings.lint,   // 原稿の警告のON/OFF（{名前: 真偽値}。#271）。変換のたびに渡すので、変えたら、次の変換から効く
       plugins: { structurizr: true }, ...location.params,
     });
@@ -853,6 +891,20 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
     // 設定は「原稿の隣」でも、書き込めない場所の原稿は、開けないより、開けるほうがよい。切り替えたことを知らせる
     result.diagnostics = [...(result.diagnostics ?? []), { severity: 'warning', message: '原稿のフォルダに書き込めないため、変換したファイルを、アプリの領域に保存しました（設定は「原稿の隣」）', file }];
   }
+  await applyResult(target, file, result, { sameDocument, targetScrollY, historyNav, fragment, notices });
+}
+
+/**
+ * ワーカーが返した変換の結果（`open`の応答、または、変更を検知して変換し直した`rendered`の通知）を、タブに反映する。
+ * タブごとに、順番に処理する（表示の読み込みが終わる前に、次の結果で、表示を差し替えないため）。
+ */
+function applyResult(target, file, result, context) {
+  const run = target.applying.then(() => applyResultNow(target, file, result, context));
+  target.applying = run.catch(() => {});
+  return run;
+}
+
+async function applyResultNow(target, file, result, { sameDocument, targetScrollY = null, historyNav = null, fragment = null, notices = [] }) {
   // 開く前に分かった注意（章の一覧の誤りなど。#373）は、変換の診断の前に並べる
   target.diagnostics = summarize([...notices, ...result.diagnostics]);
   if (target.closed) return;   // 変換の途中で、タブが閉じられた
@@ -878,31 +930,32 @@ async function renderOnce(target, file, targetScrollY = null, historyNav = null,
     target.status = target.shown ? '変換に失敗しました。前回の成功した表示を残しています' : '変換に失敗しました';
   }
   target.busy = false;
-  updateWatch();
   push();
 }
 
 /**
- * 監視するファイルを、全タブの原稿と、その参照ファイルにする。変換に失敗しても、原稿は監視し続ける
- * （直して保存したときに、自動で更新できるように）。
+ * ワーカーからの通知（#284）。`rendered`は、開いている文書の原稿・参照ファイルの保存を検知して、ワーカーが変換し直した結果。
+ * `changed`は、監視を頼んだファイル（プロジェクトの設定ファイル）の保存。どちらも、自動更新が入っている間だけ届く。
  */
-function updateWatch() {
-  if (!watcher) return;
-  // プロジェクトモード（#373）では、設定ファイルも監視する（章の並びの変更を、一覧へ反映するため）
-  watcher.setFiles([...tabs.flatMap((each) => each.watchedFiles), ...(state.tree.kind === 'project' ? [state.tree.root] : [])]);
-}
-
-/** 監視しているファイルが、保存された。自動更新が有効なら、そのファイルを開いているタブを、もう一度変換する。 */
-async function onFilesChanged(paths) {
-  trace(`changed ${paths.length}`);
-  if (!state.autoReload) return;
-  if (state.tree.kind === 'project' && paths.includes(state.tree.root)) void refreshProject();   // 監視は、解決済みの絶対パスで登録するため、そのまま比べられる
-  for (const each of tabsAffectedBy(tabs, paths)) {
-    const target = each.file;
-    // エディタの原子的な保存の途中で、原稿が、一時的に無いことがある。短く待つ。
-    for (let i = 0; i < 10 && !fs.existsSync(target); i++) await new Promise((resolve) => setTimeout(resolve, 100));
-    if (!each.closed && each.file === target && fs.existsSync(target)) openFile(target, {}, each);
+function onWorkerEvent(message) {
+  if (message.event === 'changed') {
+    trace(`changed ${message.name}`);
+    if (message.name === 'project' && state.tree.kind === 'project') void refreshProject();
+    return;
   }
+  if (message.event !== 'rendered') return;
+  const target = tabs.find((each) => docId(each) === message.doc);
+  // 閉じたタブ・別のファイルに切り替わったタブの通知は、捨てる（ワーカーは、実行中の変換を取り消せない）。
+  // 開く依頼が処理中のタブも、捨てる（その応答が、より新しい結果を持ってくる）。
+  if (!target || target.closed || target.file !== message.path || target.inFlight) return;
+  trace('rendered');
+  void applyResult(target, target.file, {
+    ok: message.ok === true,
+    html: message.html ?? null,
+    diagnostics: message.diagnostics ?? [],
+    timings_ms: message.timings_ms ?? {},
+    dependencies: message.dependencies ?? [],
+  }, { sameDocument: true });
 }
 
 /** .csvの1行目を、見出し行にするか（#220）。設定として覚え、開いているCSVを、表示し直す（スクロール位置は、保たれる）。 */
@@ -1053,7 +1106,7 @@ async function openProject(configPath) {
   if (built) {
     project = built;
     enterRoot(configPath, 'project');
-    updateWatch();   // 設定ファイルの変更を検知して、一覧を更新する
+    syncProjectWatch();   // 設定ファイルの変更を検知して、一覧を更新する
   } else {
     leaveRoot();
   }
@@ -1086,7 +1139,6 @@ async function refreshProject() {
   if (!built || state.tree.kind !== 'project' || state.tree.root !== configPath) return;
   project = built;
   state.tree = { ...state.tree, version: (state.tree.version ?? 0) + 1 };
-  updateWatch();
   push();
 }
 
@@ -1133,6 +1185,7 @@ function closeTab(target = tab) {
   if (speechTab === target) stopSpeech();
   target.closed = true;
   target.queued = null;
+  worker?.closeDoc(docId(target)).catch(() => {});   // ワーカーの記憶と監視を捨てる。失敗しても、タブは閉じる
   tabs.splice(index, 1);
   win.contentView.removeChildView(target.contentView);
   if (!target.contentView.webContents.isDestroyed()) target.contentView.webContents.close();
@@ -1142,7 +1195,6 @@ function closeTab(target = tab) {
     win?.setTitle(tab.file ? `${path.basename(tab.file)} - ${APP_TITLE}` : APP_TITLE);
     if (!state.settingsOpen && tab.hasDocument) tab.contentView.webContents.focus();
   }
-  updateWatch();
   push();
 }
 

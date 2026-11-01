@@ -31,6 +31,7 @@ class DocumentTab {
     this.queued = null;          // 変換中に来た、次の依頼（最後の1件だけを残す）
     this.idleWaiters = [];       // 変換が終わるのを待つ処理（キャッシュの削除）
     this.closed = false;         // 閉じたタブか（変換の途中で閉じられたとき、結果を捨てる）
+    this.applying = Promise.resolve();   // 変換の結果を表示へ反映する処理の列（結果は、タブごとに、順番に反映する。#284）
   }
 
   /** 開いているのが、.csvか（ツールバーの、見出し行の切り替えを出す。#220）。 */
@@ -54,12 +55,6 @@ class DocumentTab {
   /** 変換が終わったことを、待っている処理へ知らせる。 */
   releaseIdleWaiters() {
     for (const resolve of this.idleWaiters.splice(0)) resolve();
-  }
-
-  /** 監視するファイル: 表示中の原稿と、その参照ファイル。変換に失敗しても、原稿は監視し続ける（直して保存したときに、自動で更新できるように）。 */
-  get watchedFiles() {
-    if (!this.file) return [];
-    return [this.file, ...(this.shown && this.shown.md === this.file ? this.shown.deps : [])];
   }
 
   /** タブ列に出す名前。文書があればファイル名、無ければ「新しいタブ」。 */
@@ -93,9 +88,4 @@ class DocumentTab {
   }
 }
 
-/** 保存されたファイル（`paths`）を、監視している（原稿または参照ファイルとして持っている）タブだけを、返す。 */
-function tabsAffectedBy(tabs, paths) {
-  return tabs.filter((tab) => tab.watchedFiles.some((watched) => paths.includes(watched)));
-}
-
-module.exports = { DocumentTab, tabsAffectedBy };
+module.exports = { DocumentTab };

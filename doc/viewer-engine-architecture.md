@@ -108,6 +108,13 @@ Viewer（Obunzu、[#165](https://github.com/tokudiro/text-compositor/issues/165)
 
 **JS側（`worker-client.js`）に必要な追加**: 現行の受信処理（`_start`内の`readline`ハンドラ）は、`event`と`callback`（数値）を両方持つ行だけを`_serve`（応答を待つ依頼）へ回し、`id`（数値）を持つ行だけを応答として扱う。`callback`を持たない`rendered`のような一方向イベントは、今のコードだと、どちらの条件にも合致せず黙って無視される。`_serve`とは別に、`event`はあるが`callback`が無い行を、登録済みのイベントリスナー（`main.js`が渡す）へ渡す仕組みを、`WorkerClient`に追加する必要がある。
 
+### ワーカーを起動し直したとき
+
+ワーカーは、起動し直すと、`doc`も自動更新の設定も忘れる。殻は、次の2つを行う（Electron殻の`worker-client.js`・`main.js`が実装済み）。
+
+* ワーカーが、終了を頼まれていないのに終わったら（クラッシュ・時間切れでの強制終了）、次の依頼を待たずに、起動し直す。待つと、その間は、変更の検知が止まる。起動の直後に落ち続けても嵐にならないよう、5秒以内の2回目は、しない。
+* 準備ができるたびに、`set_auto_reload`と、`watch`（プロジェクトの設定ファイル）を送り直す。起動し直した場合は、ファイルを開いているタブを、`open`で開き直す（監視を戻すため。変換が1回走る）。
+
 ### ファイル監視の実装
 
 新規のポーリングコードは書かず、CLIの`--watch`が使っている`text_compositor/changes.py`の`_watch_snapshot(roots, ignore, files)`をそのまま使う。Viewerの場合、`roots=[]`・`ignore=[]`・`files=`全`doc`の`[path, *dependencies]`と、`watch`の`files`の和集合、として、個別ファイルの一覧だけを渡す（`--watch`のようなディレクトリ配下の走査は不要。監視対象は、直近の変換結果が返す`dependencies`から決まるため）。変化したパスから、影響を受ける`doc`（今のJSの`tabsAffectedBy`）と`watch`の名前を求める。CLIの`--watch`と同じ間隔（0.5秒ごとに走査し、0.3秒間変化が無くなるまで待って確定）を踏襲する。

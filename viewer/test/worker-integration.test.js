@@ -183,3 +183,58 @@ describe('real worker + WorkerClient (#172)', { skip: prepared.reason ? `${prepa
     assert.equal(client.startCount, 1);
   });
 });
+
+describe('real worker: watching and rendered events (#284)', { skip: prepared.reason ? `${prepared.reason}（飛ばします）` : false }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viewer-watch-'));
+  const PLAIN = { mermaid: false, plantuml: false, d2: false };
+  const events = [];
+  let client;
+
+  const nextEvent = async (predicate, timeoutMs = 20_000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const index = events.findIndex(predicate);
+      if (index >= 0) return events.splice(index, 1)[0];
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error('no event');
+  };
+
+  before(async () => {
+    client = new WorkerClient(prepared.launch, { startTimeoutMs: 60_000, requestTimeoutMs: 120_000, onEvent: (event) => events.push(event) });
+    await client.warmUp();
+  });
+
+  after(async () => {
+    await client?.dispose();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('a saved change comes back as a rendered event for the doc, once auto reload is on', async () => {
+    const file = path.join(dir, 'a.md');
+    fs.writeFileSync(file, '# 一\n', 'utf8');
+    await client.setAutoReload(true);
+    const opened = await client.open({ doc: '1', path: file, plugins: PLAIN, output: path.join(dir, 'out', 'a.html') });
+    assert.equal(opened.ok, true);
+    fs.writeFileSync(file, '# 二\n', 'utf8');
+    const event = await nextEvent((e) => e.event === 'rendered' && e.doc === '1');
+    assert.equal(event.ok, true);
+    assert.equal(event.path, file);
+    assert.match(fs.readFileSync(event.html, 'utf8'), /二/);
+  });
+
+  test('watch reports a changed config file, and closeDoc stops the document events', async () => {
+    const config = path.join(dir, 'config.yaml');
+    fs.writeFileSync(config, 'a: 1\n', 'utf8');
+    await client.watch('project', [config]);
+    fs.writeFileSync(config, 'a: 2\n', 'utf8');
+    const event = await nextEvent((e) => e.event === 'changed' && e.name === 'project');
+    assert.deepEqual(event.paths, [config]);
+
+    const file = path.join(dir, 'a.md');
+    await client.closeDoc('1');
+    fs.writeFileSync(file, '# 三\n', 'utf8');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    assert.equal(events.some((e) => e.event === 'rendered' && e.doc === '1'), false);
+  });
+});
