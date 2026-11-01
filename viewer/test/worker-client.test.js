@@ -109,6 +109,69 @@ describe('WorkerClient', () => {
   });
 });
 
+describe('WorkerClient documents and events (#284)', () => {
+  test('open returns the same shape as renderHtml', async () => {
+    const client = create('watch');
+    const result = await client.open({ doc: '1', path: 'a.md' });
+    assert.deepEqual(result, { ok: true, html: 'a.md.html', diagnostics: [], timings_ms: {}, dependencies: [] });
+  });
+
+  test('rendered events after an open are handed to onEvent, not dropped', async () => {
+    const events = [];
+    const client = create('watch', { onEvent: (event) => events.push(event) });
+    await client.open({ doc: '7', path: 'a.md', notify: true });
+    await client.ping().catch(() => {});   // 応答の後に届いた通知を、取りこぼしていないことを確かめるための往復
+    assert.deepEqual(events.map((e) => [e.event, e.doc, e.path, e.html]), [['rendered', '7', 'a.md', 'a.md.again.html']]);
+  });
+
+  test('watch sends the name and files, and a changed event comes back', async () => {
+    const events = [];
+    const client = create('watch', { onEvent: (event) => events.push(event) });
+    await client.watch('project', ['C:/docs/config.yaml']);
+    await client.ping().catch(() => {});
+    assert.deepEqual(events, [{ event: 'changed', name: 'project', paths: ['C:/docs/config.yaml'] }]);
+  });
+
+  test('closeDoc and setAutoReload resolve when the worker accepts them', async () => {
+    const client = create('watch');
+    await client.closeDoc('1');
+    await client.setAutoReload(true);
+  });
+
+  test('a protocol error from setAutoReload and a throwing onEvent do not break the connection', async () => {
+    const client = create('watch', { onEvent: () => { throw new Error('handler bug'); } });
+    await client.watch('p', ['x']);   // changedが届き、onEventが例外を投げる
+    await client.open({ doc: '1', path: 'a.md' });   // 通信は、続いている
+    await assert.rejects(client._expectOk('set_auto_reload', { value: 'yes' }), (error) => error instanceof WorkerProtocolError && error.code === 'bad_request');
+  });
+
+  test('onExit is called when a ready worker dies on its own, but not after dispose or when it never became ready', async () => {
+    const exits = [];
+    const crashing = create('crash-once', { onExit: (info) => exits.push(info.code) });
+    await assert.rejects(crashing.renderHtml({ path: 'x.md' }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(exits, [3]);
+
+    const never = create('no-ready', { startTimeoutMs: 500, onExit: (info) => exits.push(info.code) });
+    await assert.rejects(never.warmUp());
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.deepEqual(exits, [3]);
+
+    const disposed = create('watch', { onExit: (info) => exits.push(info.code) });
+    await disposed.warmUp();
+    await disposed.dispose();
+    assert.deepEqual(exits, [3]);
+  });
+
+  test('onReady is called for every start, with restarted true after the first', async () => {
+    const calls = [];
+    const client = create('crash-once', { onReady: (info) => calls.push(info) });
+    await assert.rejects(client.renderHtml({ path: 'x.md' }));   // 1回目: 起動して、クラッシュ
+    await client.renderHtml({ path: 'x.md' });   // 起動し直す
+    assert.deepEqual(calls, [{ restarted: false }, { restarted: true }]);
+  });
+});
+
 describe('WorkerClient services (render_mermaid, #207)', () => {
   const reply = (result) => JSON.parse(result.diagnostics[0].message);
 

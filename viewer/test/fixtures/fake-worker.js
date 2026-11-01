@@ -37,6 +37,24 @@ if (mode === 'no-ready') {
       return;
     }
 
+    // #284: open・close_doc・watch・set_auto_reloadと、変更の通知（rendered・changed）。
+    // `open`は、応答のあとに`rendered`を1つ出す（params.notifyが真のとき）。`watch`は、`changed`を1つ出す。
+    if (mode === 'watch') {
+      if (request.method === 'open') {
+        const p = request.params.path;
+        say({ id: request.id, ok: true, html: `${p}.html`, diagnostics: [], timings_ms: {}, dependencies: [] });
+        if (request.params.notify) say({ event: 'rendered', doc: request.params.doc, path: p, ok: true, html: `${p}.again.html`, diagnostics: [], timings_ms: {}, dependencies: [] });
+      } else if (request.method === 'watch') {
+        say({ id: request.id, ok: true, result: {} });
+        if (request.params.files.length > 0) say({ event: 'changed', name: request.params.name, paths: request.params.files });
+      } else if (request.method === 'set_auto_reload' && typeof request.params.value !== 'boolean') {
+        say({ id: request.id, ok: false, error: { code: 'bad_request', message: 'value' } });
+      } else {
+        say({ id: request.id, ok: true, result: { method: request.method, params: request.params } });
+      }
+      return;
+    }
+
     const first = !fs.existsSync(marker);
     if (request.method === 'render_html' && mode === 'crash-once' && first) {
       fs.writeFileSync(marker, '');

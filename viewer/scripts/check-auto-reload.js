@@ -11,8 +11,9 @@
 //   4. 参照する画像の変更でも、表示が更新される
 //   5. 変換に失敗しても、直前の表示が残り、直して保存すると、自動で回復する
 //   6. 自動更新を切ると、更新されない
+//   7. ワーカーが落ちても、自動で起動し直し、次の保存から更新される（検知はワーカーが持つ。#284。Windowsのみ）
 
-const { spawn } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -196,6 +197,21 @@ const stats = (values) => {
     await chrome.eval("document.getElementById('auto-reload').click()");
     fs.writeFileSync(md, markdown('版再開'));
     check('自動更新を入れ直すと、次の保存から更新される', (await waitH1('版再開')) !== null);
+    await sleep(600);
+
+    // 7. ワーカーが落ちても、自動で起動し直し、検知が戻る（#284。検知は、ワーカーが持つ）
+    const workerPids = () => {
+      const script = `Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${proc.pid} -and $_.CommandLine -like '*text_compositor.worker*' } | ForEach-Object { $_.ProcessId }`;
+      try { return execFileSync('powershell', ['-NoProfile', '-Command', script], { encoding: 'utf8' }).split(/\s+/).filter(Boolean).map(Number); } catch { return []; }
+    };
+    const before1 = workerPids();
+    for (const pid of before1) { try { process.kill(pid); } catch { /* すでに終了 */ } }
+    let after1 = [];
+    for (let i = 0; i < 300 && (after1.length === 0 || after1.some((pid) => before1.includes(pid))); i++) { await sleep(100); after1 = workerPids(); }
+    check('ワーカーを終了させると、自動で起動し直される', before1.length > 0 && after1.length > 0 && !after1.some((pid) => before1.includes(pid)), `${before1} → ${after1}`);
+    await sleep(2500);   // 起動し直したあとの、開き直し（1回の変換）が落ち着くのを待つ
+    fs.writeFileSync(md, markdown('版復帰'));
+    check('起動し直したあとも、次の保存から更新される', (await waitH1('版復帰', 30000)) !== null);
 
     content.close();
     chrome.close();
