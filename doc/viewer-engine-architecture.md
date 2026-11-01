@@ -16,7 +16,17 @@ Viewer（Obunzu、[#165](https://github.com/tokudiro/text-compositor/issues/165)
 
 * `text_compositor/worker.py`は、依頼を1件受けて1件返すだけの、完全にステートレスなサービスである。ファイルの変更検知・キューの管理・自動更新の状態は、一切持たない。
 * これらの状態は、すべて`viewer/src/main.js`（Node.js、Electronのメインプロセス）が、JavaScriptで持っている。`FileWatcher`（`watcher.js`）によるポーリング、`drain()`/`queued`/`inFlight`による変換のキュー処理、`state.autoReload`による自動更新の判断は、いずれもmain.js側の責務である。
-* main.js自体でElectron固有API（`BrowserWindow`・`ipcMain`・`dialog`・`Menu`・`nativeTheme`・`screen`・`shell`）に依存する行は、594行中21行程度に留まる。
+* main.js自体でElectron固有API（`BrowserWindow`・`ipcMain`・`dialog`・`Menu`・`nativeTheme`・`screen`・`shell`）に依存する行は、本書の初版を書いた時点（594行）では21行程度に留まった。
+
+**2026-11の見直し**: 初版のあと、main.jsは約1500行に増え、次の機能が加わった。状態管理を移す設計は、これらを前提にしなければならない。
+
+* **タブ**（`document-tab.js`）: 1つのウィンドウが、複数の文書をタブで持つ。変換のキュー（`queued`・`inFlight`）は、タブごとにある。ワーカーは、全タブで1つで、変換は1件ずつ順に処理される（#332）。
+* **監視対象の集約**: `updateWatch()`が、全タブの原稿とその参照ファイル（`DocumentTab.watchedFiles`）を、1つの`FileWatcher`にまとめて登録する。保存を検知すると、`tabsAffectedBy`が、そのファイルを持つタブだけを選び、再変換する。
+* **プロジェクトモード**（#373）: 設定ファイル（`config.yaml`）も監視する。保存されたら、文書ではなく、サイドバーの章の一覧（`refreshProject()`）を作り直す。
+* **原子的な保存への対応**: 保存の途中で原稿が一時的に無いとき、最大1秒（100ms×10回）待ってから再変換する。
+* **ファイル監視の方式**: `watcher.js`は、`fs.watch`でディレクトリを監視し、名前で絞る。変化が150ms止まるのを待って、1回にまとめる。
+
+したがって「1ワーカーが監視する文書は1つ」という初版の前提は成り立たない。次章以降は、文書をタブ単位（`doc`）で扱う形に改めた。
 
 つまり、現状のmain.jsを「Electron固有の部分」と「それ以外」に物理的に2ファイル分割しても、「それ以外」は依然としてNode.js製のJavaScriptのままであり、Node.jsを持たない殻（RustでビルドするWebView2殻等）は、結局この状態管理ロジックを丸ごと再実装する羽目になる。**#187が本当に狙う「殻を小さく保つ」を実現するには、この状態管理（ファイル監視・キュー・自動更新）を、Pythonワーカー側に移す必要がある。**
 
@@ -45,14 +55,35 @@ Viewer（Obunzu、[#165](https://github.com/tokudiro/text-compositor/issues/165)
 ### `open`: 文書を開く（以後、変更を監視する）
 
 ```
-→ {"id": 1, "method": "open", "params": {"path": "doc.md", "auto_reload": true, "csv_header": true}}
+→ {"id": 1, "method": "open", "params": {"doc": "tab-1", "path": "doc.md", "csv_header": true, "lint": {...}, ...}}
 ← {"id": 1, "ok": true, "html": "...", "diagnostics": [...], "timings_ms": {...}, "dependencies": [...]}
 ```
 
-応答の形は、現行の`render_html`と同じ。`auto_reload: true`のときは、応答を返した後、`path`とその`dependencies`（画像等の参照ファイル）の変更監視を、ワーカー内部で開始する。
+`doc`は、殻が決める文書の識別子（Electron殻では、タブの番号）。`path`以外の`params`は、現行の`render_html`と同じ（`csv_header`・`lint`・`plugins`・`output`・`cache_dir`・`allow_external_images`など）。応答の形も、`render_html`と同じ。ワーカーは、`doc`ごとに、直近の`open`の`params`を覚える。
 
-* **再読み込み（F5）・別ファイルを開く、いずれも同じ`open`を呼ぶだけでよい。** 「今開いている文書を、同じパスで開き直す」のが再読み込み、「別のパスで開く」のが切り替えであり、呼び出し側から見て特別扱いは不要（今のJSの`reload()`が`openFile(state.file)`を呼ぶだけなのと同じ考え方）。
-* 1ワーカーにつき、監視する文書は常に1つ（Viewerが1ウィンドウ1文書のため）。新しい`open`は、それまでの監視を置き換える。
+* **文書は`doc`で区別する。** ワーカーは、複数の`doc`を同時に持つ（タブの数だけ）。`doc`ごとに、`path`・直近の`params`・`dependencies`（画像等の参照ファイル）を覚える。
+* **再読み込み（F5）・別ファイルを開く、いずれも同じ`open`を呼ぶだけでよい。** 同じ`doc`で同じパスを開き直すのが再読み込み、別のパスを開くのが切り替えである。切り替えると、その`doc`の監視対象は、新しい`path`と`dependencies`に置き換わる（今のJSの`reload()`が`openFile(tab.file)`を呼ぶだけなのと同じ考え方）。
+* **監視は、`open`の応答を返した後に始まる。** 自動更新が有効（`set_auto_reload`）なら、`path`と`dependencies`が監視対象になる。変換に失敗した`doc`も、`path`は監視し続ける（直して保存したときに、自動で更新するため）。変換の前から監視を始めるのは、最初の変換中の保存を取りこぼさないためである（#424）。
+* **変換のキューは、`doc`ごとに、最新の1件だけを残す。** 変換中に同じ`doc`の`open`が重なったときは、古い待ちを捨てる（今のJSの`queued`と同じ）。捨てた依頼には、`{"ok": false, "error": {"code": "superseded", ...}}`を返す。
+
+### `close_doc`: 文書を閉じる（監視をやめる）
+
+```
+→ {"id": 3, "method": "close_doc", "params": {"doc": "tab-1"}}
+← {"id": 3, "ok": true, "result": {}}
+```
+
+タブを閉じたときに呼ぶ。その`doc`の記憶と監視を捨て、待っている変換があれば取り消す。無い`doc`を指定しても、エラーにしない。
+
+### `watch`: 文書以外のファイルを監視する
+
+```
+→ {"id": 4, "method": "watch", "params": {"name": "project", "files": ["C:/docs/config.yaml"]}}
+← {"id": 4, "ok": true, "result": {}}
+← {"event": "changed", "name": "project", "paths": ["C:/docs/config.yaml"]}
+```
+
+文書として変換しないファイルを、名前（`name`）つきで監視する。プロジェクトモード（#373）の設定ファイルが、これにあたる。`files`は、その名前の監視対象を置き換える（空配列で解除）。変更を検知すると、ワーカーは`changed`イベントだけを出し、再変換はしない。殻は、受け取ったら、章の一覧を作り直す（`refreshProject()`）。自動更新が無効（`set_auto_reload`）のときは、`changed`も出さない。
 
 ### `set_auto_reload`: 自動更新のON/OFFだけを切り替える
 
@@ -61,28 +92,34 @@ Viewer（Obunzu、[#165](https://github.com/tokudiro/text-compositor/issues/165)
 ← {"id": 2, "ok": true, "result": {}}
 ```
 
-現在開いている文書はそのままに、監視の開始・停止だけを切り替える（今のJSの`setAutoReload`相当）。開いている文書が無ければ何もしない。
+開いている全文書と`watch`の監視を、まとめて有効・無効にする（今のJSの`state.autoReload`相当）。ワーカー全体で1つの値で、既定は無効。起動直後に、殻が設定の値を送る。無効の間も`doc`の記憶は保つ。有効に戻したときは、無効の間に起きた変更も検知して再変換する（監視の基準を、有効にした時点ではなく、直近の変換時点に置くため）。
 
 ### `rendered`イベント: ワーカーからの一方向通知（応答不要）
 
 ```
-← {"event": "rendered", "path": "doc.md", "html": "...", "diagnostics": [...], "timings_ms": {...}, "dependencies": [...]}
+← {"event": "rendered", "doc": "tab-1", "path": "doc.md", "ok": true, "html": "...", "diagnostics": [...], "timings_ms": {...}, "dependencies": [...]}
 ```
 
-監視中に変更を検知し、再変換が終わるたびに、ワーカーが自発的に出す。`render_mermaid`と違い、呼び出し元からの返信は不要（一方向）。殻は、これを受け取ったら画面に反映するだけでよい（今のJSの`onFilesChanged`→`openFile`→`showHtml`の一連の流れが、ここに集約される）。
+自動更新が有効な間に、`doc`の原稿または参照ファイルの変更を検知し、再変換が終わるたびに、ワーカーが自発的に出す。応答の形は、`open`と同じ（`ok`が偽でも、`diagnostics`に内容が入る）。`render_mermaid`と違い、呼び出し元からの返信は不要（一方向）。`open`への応答と違い、依頼の`id`は無く、`doc`で対応づける。
+
+* 殻は、`open`への応答と`rendered`イベントを、同じ関数で画面に反映する。ただし、スクロール位置・見出しへの移動（`fragment`）・履歴の更新・開く前の注意（`notices`）は、`open`を呼んだ側の事情であり、`rendered`には関わらない。`rendered`は、同じ文書の再読み込みとして、スクロール位置を保って表示する（今のJSの`onFilesChanged`→`openFile`→`showHtml`の流れが、ここに集約される）。
+* **原子的な保存への対応は、ワーカーが持つ。** 原稿が一時的に無いときは、現れるまで待つ（今のJSと同じく最大1秒）。1秒を過ぎても現れなければ、その変更は無視する。
+* 変換中に`doc`が閉じられた（`close_doc`）ときは、結果を捨てて、`rendered`を出さない。
 
 **JS側（`worker-client.js`）に必要な追加**: 現行の受信処理（`_start`内の`readline`ハンドラ）は、`event`と`callback`（数値）を両方持つ行だけを`_serve`（応答を待つ依頼）へ回し、`id`（数値）を持つ行だけを応答として扱う。`callback`を持たない`rendered`のような一方向イベントは、今のコードだと、どちらの条件にも合致せず黙って無視される。`_serve`とは別に、`event`はあるが`callback`が無い行を、登録済みのイベントリスナー（`main.js`が渡す）へ渡す仕組みを、`WorkerClient`に追加する必要がある。
 
 ### ファイル監視の実装
 
-新規のポーリングコードは書かず、CLIの`--watch`が使っている`text_compositor/changes.py`の`_watch_snapshot(roots, ignore, files)`をそのまま使う。Viewerの場合、`roots=[]`・`ignore=[]`・`files=[path, *dependencies]`として、個別ファイルの一覧だけを渡す（`--watch`のようなディレクトリ配下の走査は不要。監視対象は、直近の変換結果が返す`dependencies`から決まるため）。CLIの`--watch`と同じ間隔（0.5秒ごとに走査し、0.3秒間変化が無くなるまで待って確定）を踏襲する。
+新規のポーリングコードは書かず、CLIの`--watch`が使っている`text_compositor/changes.py`の`_watch_snapshot(roots, ignore, files)`をそのまま使う。Viewerの場合、`roots=[]`・`ignore=[]`・`files=`全`doc`の`[path, *dependencies]`と、`watch`の`files`の和集合、として、個別ファイルの一覧だけを渡す（`--watch`のようなディレクトリ配下の走査は不要。監視対象は、直近の変換結果が返す`dependencies`から決まるため）。変化したパスから、影響を受ける`doc`（今のJSの`tabsAffectedBy`）と`watch`の名前を求める。CLIの`--watch`と同じ間隔（0.5秒ごとに走査し、0.3秒間変化が無くなるまで待って確定）を踏襲する。
+
+**今のJSの`fs.watch`方式との違い**: スナップショットは、更新時刻とサイズの比較なので、原子的な保存（一時ファイルへ書いて名前を付け替える）も、まだ存在しない参照先が後から作られる場合も、検知できる（存在しない→存在する、も変化として扱うため）。一方で、検知までの遅れは、現在の約0.15秒から、最大で約0.8秒（走査0.5秒＋確定0.3秒）に延びる。自動更新の用途では許容できると判断した。体感に問題が出たときは、間隔を短くする（監視対象が数ファイルなので、走査の負荷は小さい）。
 
 ### 並行処理の設計
 
 ワーカーは、次の3種類の「読み書き」が同時に起こり得る構成になる。
 
-1. 殻からの新しい依頼（`open`・`set_auto_reload`・`ping`等）を、標準入力から読む。
-2. 監視スレッドが変更を検知し、再変換して`rendered`イベントを標準出力へ書く。
+1. 殻からの新しい依頼（`open`・`close_doc`・`watch`・`set_auto_reload`・`ping`等）を、標準入力から読む。
+2. 監視スレッドが変更を検知し、再変換して`rendered`イベント（または`changed`イベント）を標準出力へ書く。
 3. 変換中（1でも2でも）に、Mermaid描画を殻に依頼し（`render_mermaid`）、その返信を標準入力から読む。
 
 これらが素朴にスレッドを分けるだけだと、「標準入力を複数のスレッドが同時に読もうとする」「応答と`rendered`イベントの行が書き込み中に混ざる」という2つの事故が起こり得る。対策は以下の通り。
@@ -140,7 +177,10 @@ Viewer（Obunzu、[#165](https://github.com/tokudiro/text-compositor/issues/165)
 ## 9. 移行計画
 
 1. **本書（設計、[#284](https://github.com/tokudiro/text-compositor/issues/284)の一部）**
-2. **`text_compositor/worker.py`の拡張**（`open`・`set_auto_reload`・`rendered`イベント・並行処理の実装）と、`viewer/src/main.js`をこれに合わせて簡素化する（`watcher.js`・`drain()`等のJS側の状態管理を削除する）。既存の`viewer/test/`が通ること、Electron版Obunzuが実機で従来どおり動くことを確認する。
-3. **WebView2（wry）殻の実装**（[#285](https://github.com/tokudiro/text-compositor/issues/285)）。2で確定したプロトコルに乗るだけでよく、状態管理の再実装は不要になる。
+2. **設計の改訂**（2026-11）。タブ・プロジェクトモード・監視方式の現状に合わせて、4章を書き直した（本書の1章末尾と4章）。
+3. **`text_compositor/worker.py`の並行処理化**。標準入力の読み手を1スレッドにし、標準出力と変換呼び出しを`Lock`で直列化する。新しいメソッドは足さない。成功の判定は、既存の`worker-integration.test.js`とPython側のテストが、変更なしで通ること。
+4. **`open`・`close_doc`・`watch`・`set_auto_reload`・`rendered`・`changed`の実装**（`worker.py`）。成功の判定は、Python側のテストが通ること。この段階では、`main.js`は変えない。
+5. **`worker-client.js`の一方向イベント対応と、`main.js`の簡素化**。`watcher.js`・`drain()`・`tabsAffectedBy`・`DocumentTab.watchedFiles`等のJS側の状態管理を削除する。成功の判定は、`viewer/test/`が通ることと、`check-*.js`・実機で、タブ・プロジェクトモード・自動更新が従来どおり動くこと。
+6. **WebView2（wry）殻の実装**（[#285](https://github.com/tokudiro/text-compositor/issues/285)）。3〜5で確定したプロトコルに乗るだけでよく、状態管理の再実装は不要になる。
 
-2・3は、それぞれ既存issue（#284の残り作業／#285）で扱う。本書はその前提となる設計を固めるものであり、コードの変更は含まない。
+3〜5は[#284](https://github.com/tokudiro/text-compositor/issues/284)の残り作業、6は#285で扱う。
