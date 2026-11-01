@@ -24,6 +24,12 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
                `lint`は、`build`と同じ。
   - `list_chapters`: 設定ファイルの`chapters`を、ファイルの一覧にする（Viewerのサイドバー用、#373）。params: `path`
                （必須。設定ファイル）。中身は読まない。設定の誤りでも、ワーカーは終了しない。
+  - `open`   : 文書を開き、以後、原稿と参照ファイルの変更を監視する（#284）。params: `doc`（必須。文書の識別子）と、
+               `render_html`と同じ。応答も、`render_html`と同じ。同じ`doc`の`open`が変換中に重なったら、最後の1件だけを
+               処理し、古い依頼には`error.code`が`superseded`の応答を返す。
+  - `close_doc`: `doc`の記憶と監視を捨てる。params: `doc`（必須）。
+  - `watch`  : 文書ではないファイル（プロジェクトの設定ファイル）の監視。params: `name`・`files`（空配列で解除）。
+  - `set_auto_reload`: 自動更新のON/OFF（既定OFF）。params: `value`（真偽値）。ONの間だけ、次のイベントが出る。
   - `ping`   : 生きているかの確認。
   - `shutdown`: 応答を返した後、Mermaidのブラウザ等を片付けて、終了する。
 
@@ -34,6 +40,10 @@ JSONオブジェクトが返る。文字コードは、UTF-8。ワーカーは�
   `html`は、生成したHTMLの絶対パス（図・画像は、そこからの相対パスで参照される）。`dependencies`は、原稿が参照している
   ローカルのファイル（画像など）の絶対パスで、変更を検知して自動で更新するために使う（成功時のみ）。他は、`build`と同じ。
   プロトコルのバージョンは、1のまま（メソッドの追加は、互換性を壊さない）。
+イベント（ワーカーから。応答を待たない。`id`は無い）。自動更新がONの間だけ出る（#284）。
+  {"event": "rendered", "doc": ..., "path": ..., "ok": ..., "html": ..., "diagnostics": [...], "timings_ms": {...}, "dependencies": [...]}
+    `doc`の変更を検知して変換し直した結果。`open`の応答と同じ形。
+  {"event": "changed", "name": ..., "paths": [...]}   `watch`した対象の変更。変換はしない。
 図の描画の依頼（ワーカーから、呼び出し元へ）。環境変数`TEXT_COMPOSITOR_MERMAID_HOST=1`で起動されたときだけ、
 Mermaidと、Vega・Vega-Lite・WaveDrom・Bytefieldの図を、Playwrightとシステムのブラウザではなく、呼び出し元（ViewerのElectron。#207・#351・#392・#300）に描画してもらう。
 （Graphvizは、呼び出し元に任せず、ワーカーが、Typstのdiagraphで描く。#264）
@@ -75,15 +85,20 @@ import os
 import queue
 import sys
 import threading
-from typing import Any, Dict, Optional, TextIO
+from typing import Any, Dict, List, Optional, TextIO
 
 from text_compositor import __version__
 from text_compositor import host_renderers as _host_renderers
 from text_compositor.api import Session
 from text_compositor.chapter_list import ChapterListError, list_chapters
 from text_compositor.lints import check_lint_overrides
+from text_compositor.worker_watch import WatchState
 
 PROTOCOL_VERSION = 1
+
+# 変更の検知（#284）。CLIの`--watch`と同じ間隔: 0.5秒ごとに調べ、0.3秒変化が止まるのを待って確定する
+_POLL_INTERVAL = 0.5
+_SETTLE = 0.3
 
 _BUILD_PARAMS = ("output", "template", "plugins", "document", "variables", "config", "lint", "keep_temp")
 _HTML_PARAMS = ("output", "plugins", "variables", "config", "csv_header", "allow_external_images", "cache_dir", "lint")
@@ -112,7 +127,7 @@ class _Reader:
 
     def __init__(self, stdin: TextIO) -> None:
         self._stdin = stdin
-        self._requests: "queue.Queue[Optional[str]]" = queue.Queue()
+        self._requests: "queue.Queue[Any]" = queue.Queue()
         self._cond = threading.Condition()
         self._replies: Dict[int, Dict[str, Any]] = {}
         self._closed = False
@@ -146,9 +161,14 @@ class _Reader:
             return
         self._requests.put(line)
 
-    def next_request(self) -> Optional[str]:
-        """次の依頼の行を返す。標準入力が閉じられ、依頼を読み切ったら、Noneを返す。"""
-        return self._requests.get()
+    def next_request(self, block: bool = True) -> Any:
+        """次の依頼を返す。依頼は、標準入力の行（文字列）か、`post`された内部の依頼。標準入力が閉じられ、
+        依頼を読み切ったら、Noneを返す。`block=False`で、待たずに取れる依頼が無いときは、`queue.Empty`を投げる。"""
+        return self._requests.get(block)
+
+    def post(self, item: Any) -> None:
+        """内部の依頼（監視スレッドが見つけた変更）を、標準入力の行と同じ順番の列に加える。"""
+        self._requests.put(item)
 
     def wait_reply(self, number: int) -> Optional[Dict[str, Any]]:
         """番号が`number`の返信を待って返す。届く前に標準入力が閉じられたら、Noneを返す。"""
@@ -269,10 +289,159 @@ class HostRenderer:
         raise RuntimeError(str(reply.get("error") or f"The host application could not render the {label} diagram."))
 
 
+class _Documents:
+    """Viewerが開いている文書（`doc`）の記憶と、変更の検知（#284）。状態は、依頼を処理するスレッドだけが触る
+    （監視の判定を持つ`WatchState`だけが、監視スレッドからも触られる）。"""
+
+    METHODS = ("open", "close_doc", "watch", "set_auto_reload")
+
+    def __init__(self, session: Session, watch_state: WatchState) -> None:
+        self._session = session
+        self._watch = watch_state
+        self._docs: Dict[str, Dict[str, Any]] = {}   # doc -> {"path", "params", "deps"}
+        self._watches: Dict[str, List[str]] = {}     # 名前 -> 監視するファイル
+
+    def has_doc(self, doc: str) -> bool:
+        return doc in self._docs
+
+    def handle(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        request_id = request.get("id")
+        params = request.get("params") or {}
+        if not isinstance(params, dict):
+            return _protocol_error(request_id, "bad_request", "'params' must be an object.")
+        handlers = {"open": self._open, "close_doc": self._close_doc, "watch": self._watch_files,
+                    "set_auto_reload": self._set_auto_reload}
+        return handlers[request["method"]](request_id, params)
+
+    def _open(self, request_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+        doc, path = params.get("doc"), params.get("path")
+        if not isinstance(doc, str) or not doc:
+            return _protocol_error(request_id, "bad_request", "'params.doc' (a string) is required.")
+        if not isinstance(path, str) or not path:
+            return _protocol_error(request_id, "bad_request", "'params.path' (a string) is required.")
+        render_params = {k: v for k, v in params.items() if k != "doc"}
+        previous = self._docs.get(doc)
+        # 変換の前から監視する。変換の最中の保存を取りこぼさないため（#424）
+        deps_before = previous["deps"] if previous and previous["path"] == path else []
+        self._watch.begin(("doc", doc), [path, *deps_before])
+        response = handle_request(self._session, {"id": request_id, "method": "render_html", "params": render_params})
+        if "error" in response:   # 誤った依頼。それまでの文書の記憶を、そのまま保つ
+            if previous:
+                self._watch.begin(("doc", doc), [previous["path"], *previous["deps"]])
+            else:
+                self._watch.remove(("doc", doc))
+            return response
+        self._remember(doc, path, render_params, response, deps_before)
+        return response
+
+    def _remember(self, doc: str, path: str, render_params: Dict[str, Any], response: Dict[str, Any],
+                  deps_before: List[str]) -> None:
+        # 変換に失敗したときは、直前の参照ファイルを保つ（直して保存したときに、自動で更新できるように）
+        deps = list(response.get("dependencies") or []) if response.get("ok") else deps_before
+        self._docs[doc] = {"path": path, "params": render_params, "deps": deps}
+        self._watch.finish(("doc", doc), [path, *deps])
+
+    def rerender(self, doc: str) -> Optional[Dict[str, Any]]:
+        """監視が見つけた変更で、文書を変換し直し、`rendered`イベントにして返す。文書が閉じられていたら、None。"""
+        info = self._docs.get(doc)
+        if info is None:
+            return None
+        self._watch.begin(("doc", doc), [info["path"], *info["deps"]])
+        response = handle_request(self._session, {"id": None, "method": "render_html", "params": info["params"]})
+        response.pop("id", None)
+        self._remember(doc, info["path"], info["params"], response, info["deps"])
+        return {"event": "rendered", "doc": doc, "path": info["path"], **response}
+
+    def changed_event(self, name: str, paths: List[str]) -> Dict[str, Any]:
+        """`watch`の対象の変更を、`changed`イベントにして返す。次の変更を見つけられるよう、基準を取り直す。"""
+        self._watch.begin(("watch", name), self._watches.get(name, []))
+        return {"event": "changed", "name": name, "paths": paths}
+
+    def _close_doc(self, request_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+        doc = params.get("doc")
+        if not isinstance(doc, str) or not doc:
+            return _protocol_error(request_id, "bad_request", "'params.doc' (a string) is required.")
+        self._docs.pop(doc, None)
+        self._watch.remove(("doc", doc))
+        return {"id": request_id, "ok": True, "result": {}}
+
+    def _watch_files(self, request_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+        name, files = params.get("name"), params.get("files")
+        if not isinstance(name, str) or not name:
+            return _protocol_error(request_id, "bad_request", "'params.name' (a string) is required.")
+        if not isinstance(files, list) or not all(isinstance(f, str) and f for f in files):
+            return _protocol_error(request_id, "bad_request", "'params.files' must be an array of strings.")
+        if files:
+            self._watches[name] = list(files)
+            self._watch.begin(("watch", name), list(files))
+        else:
+            self._watches.pop(name, None)
+            self._watch.remove(("watch", name))
+        return {"id": request_id, "ok": True, "result": {}}
+
+    def _set_auto_reload(self, request_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+        value = params.get("value")
+        if not isinstance(value, bool):
+            return _protocol_error(request_id, "bad_request", "'params.value' (a boolean) is required.")
+        self._watch.enabled = value
+        return {"id": request_id, "ok": True, "result": {}}
+
+
+def _parse(item: Any) -> Any:
+    """依頼の行を読む。JSONでなければ、("bad_json", 説明)。内部の依頼（タプル）は、そのまま返す。"""
+    if isinstance(item, tuple):
+        return item
+    try:
+        return json.loads(item)
+    except json.JSONDecodeError as e:
+        return ("bad_json", f"Invalid JSON: {e}")
+
+
+def _is_open(request: Any) -> bool:
+    if not isinstance(request, dict) or request.get("method") != "open":
+        return False
+    params = request.get("params")
+    return isinstance(params, dict) and isinstance(params.get("doc"), str) and bool(params["doc"])
+
+
+def _handle(session: Session, documents: "_Documents", request: Any) -> Dict[str, Any]:
+    if isinstance(request, dict) and request.get("method") in _Documents.METHODS:
+        return documents.handle(request)
+    return handle_request(session, request)
+
+
+def _take_batch(reader: _Reader) -> "tuple[list, bool]":
+    """いま届いている依頼を、まとめて取る（1件は、届くまで待つ）。戻り値: (依頼の列, 標準入力が閉じられたか)。"""
+    items: list = []
+    item = reader.next_request()
+    while True:
+        if item is None:
+            return items, True
+        items.append(item)
+        try:
+            item = reader.next_request(block=False)
+        except queue.Empty:
+            return items, False
+
+
+def _watch_loop(watch_state: WatchState, reader: _Reader, stop: threading.Event) -> None:
+    """一定の間隔で変更を調べ、見つけたら、依頼の列に加える（変換は、依頼を処理するスレッドが行う）。"""
+    while not stop.wait(_POLL_INTERVAL):
+        try:
+            for key, paths in watch_state.poll():
+                reader.post(("changed", key, paths))
+        except Exception as e:  # 一時的な読み取りの失敗で、監視を止めない
+            print(f"watch error: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
     """依頼を1行ずつ読み、応答を1行ずつ書く。stdinが閉じられるか、`shutdown`を受けたら、終了する。"""
     session = Session()
     reader = _Reader(stdin)
+    watch_state = WatchState(settle=_SETTLE)
+    documents = _Documents(session, watch_state)
+    stop_watching = threading.Event()
+    threading.Thread(target=_watch_loop, args=(watch_state, reader, stop_watching), name="worker-watch", daemon=True).start()
     if host_renderer:
         host = HostRenderer(reader, out)
         _host_renderers.set_mermaid_host_renderer(host.render_mermaid)
@@ -281,26 +450,45 @@ def serve(stdin: TextIO, out: TextIO, host_renderer: bool = False) -> int:
         _host_renderers.set_bytefield_host_renderer(host.render_bytefield)
     try:
         _write(out, {"event": "ready", "protocol": PROTOCOL_VERSION, "version": __version__})
-        while True:
-            line = reader.next_request()
-            if line is None:
-                break
-            try:
-                request = json.loads(line)
-            except json.JSONDecodeError as e:
-                _write(out, _protocol_error(None, "bad_json", f"Invalid JSON: {e}"))
-                continue
-            try:
-                response = handle_request(session, request)
-            except Exception as e:  # 想定外の例外でも、ワーカーを落とさない
-                request_id = request.get("id") if isinstance(request, dict) else None
-                response = _protocol_error(request_id, "internal_error", f"{type(e).__name__}: {e}")
-            shutdown = bool(response.pop("_shutdown", False))
-            _write(out, response)
-            if shutdown:
+        shutdown = False
+        while not shutdown:
+            items, eof = _take_batch(reader)
+            parsed = [_parse(item) for item in items]
+            # 同じ文書の`open`が重なったら、最後の1件だけを処理する。文書の`open`がある間は、変更による変換し直しは要らない
+            last_open = {p["params"]["doc"]: i for i, p in enumerate(parsed) if _is_open(p)}
+            seen_changes = set()
+            for i, request in enumerate(parsed):
+                try:
+                    if isinstance(request, tuple) and request[0] == "bad_json":
+                        _write(out, _protocol_error(None, "bad_json", request[1]))
+                    elif isinstance(request, tuple):   # ("changed", キー, パスの一覧)
+                        _, key, paths = request
+                        if key[0] == "watch":
+                            _write(out, documents.changed_event(key[1], paths))
+                        elif key[1] not in last_open and key not in seen_changes:
+                            seen_changes.add(key)
+                            event = documents.rerender(key[1])
+                            if event is not None:
+                                _write(out, event)
+                    elif _is_open(request) and last_open[request["params"]["doc"]] != i:
+                        _write(out, _protocol_error(request.get("id"), "superseded", "A newer 'open' for the same 'doc' replaced this request."))
+                    else:
+                        response = _handle(session, documents, request)
+                        shutdown = bool(response.pop("_shutdown", False))
+                        _write(out, response)
+                        if shutdown:
+                            break
+                except Exception as e:  # 想定外の例外でも、ワーカーを落とさない
+                    if isinstance(request, tuple):   # 依頼ではなく、監視が起こした処理。応答の宛先が無いので、記録だけ残す
+                        print(f"worker error: {type(e).__name__}: {e}", file=sys.stderr)
+                        continue
+                    request_id = request.get("id") if isinstance(request, dict) else None
+                    _write(out, _protocol_error(request_id, "internal_error", f"{type(e).__name__}: {e}"))
+            if eof:
                 break
         return 0
     finally:
+        stop_watching.set()
         if host_renderer:
             _host_renderers.set_mermaid_host_renderer(None)
             _host_renderers.set_vega_host_renderer(None)
