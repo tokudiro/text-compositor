@@ -3,8 +3,10 @@ import io
 import json
 import os
 import subprocess
+import queue
 import sys
 import threading
+import time
 
 import pytest
 
@@ -206,6 +208,185 @@ class TestServe:
         out = io.StringIO()
         worker._write(out, {"message": "日本語"})
         assert out.getvalue() == '{"message": "日本語"}\n'
+
+
+class LiveWorker:
+    """実際のワーカー（別プロセス）。出力の行を、スレッドで受け取り、待ちには時間切れを付ける。"""
+
+    def __init__(self):
+        self.proc = subprocess.Popen([sys.executable, "-m", "text_compositor.worker"], stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=SUBPROCESS_ENV, cwd=REPO_ROOT)
+        self.lines = queue.Queue()
+        threading.Thread(target=self._pump, daemon=True).start()
+        assert self.next()["event"] == "ready"
+
+    def _pump(self):
+        for raw in self.proc.stdout:
+            self.lines.put(json.loads(raw.decode("utf-8")))
+
+    def send(self, obj):
+        self.proc.stdin.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
+        self.proc.stdin.flush()
+
+    def next(self, timeout=20):
+        return self.lines.get(timeout=timeout)
+
+    def nothing_within(self, seconds):
+        try:
+            return self.lines.get(timeout=seconds)
+        except Exception:
+            return None
+
+    def close(self):
+        self.proc.kill()
+        self.proc.wait()
+        for stream in (self.proc.stdin, self.proc.stdout, self.proc.stderr):
+            stream.close()
+
+
+class TestDocuments:
+    """`open`・`close_doc`・`watch`・`set_auto_reload`と、`rendered`・`changed`イベント（#284）。"""
+
+    PLUGINS = {"mermaid": False, "plantuml": False, "d2": False}
+
+    @pytest.fixture
+    def live(self):
+        worker_ = LiveWorker()
+        yield worker_
+        worker_.close()
+
+    def open_doc(self, live, tmp_path, text="# One\n", doc="tab-1", name="a.md", auto_reload=True):
+        md = tmp_path / name
+        md.write_text(text, encoding="utf-8")
+        if auto_reload:
+            live.send({"id": 1, "method": "set_auto_reload", "params": {"value": True}})
+            assert live.next()["ok"] is True
+        live.send({"id": 2, "method": "open", "params": {"doc": doc, "path": str(md), "plugins": self.PLUGINS,
+                                                          "output": str(tmp_path / "out" / (name + ".html"))}})
+        response = live.next()
+        assert response["id"] == 2 and response["ok"] is True, response
+        return md, response
+
+    def test_a_saved_change_is_rendered_again(self, live, tmp_path):
+        md, first = self.open_doc(live, tmp_path)
+        assert "One" in open(first["html"], encoding="utf-8").read()
+        md.write_text("# Two\n", encoding="utf-8")
+        event = live.next()
+        assert event["event"] == "rendered" and event["doc"] == "tab-1" and event["path"] == str(md) and event["ok"] is True
+        assert "id" not in event and "Two" in open(event["html"], encoding="utf-8").read()
+
+    def test_an_atomic_save_is_detected(self, live, tmp_path):
+        md, _ = self.open_doc(live, tmp_path)
+        temp = tmp_path / "a.md.tmp"
+        temp.write_text("# Replaced\n", encoding="utf-8")
+        os.replace(temp, md)   # エディタの、一時ファイルを経由する保存
+        event = live.next()
+        assert event["event"] == "rendered" and "Replaced" in open(event["html"], encoding="utf-8").read()
+
+    def test_a_dependency_change_is_rendered_again(self, live, tmp_path):
+        image = tmp_path / "pic.png"
+        image.write_bytes(b"\x89PNG\r\n\x1a\n")
+        md, first = self.open_doc(live, tmp_path, text="# T\n\n![p](pic.png)\n")
+        assert str(image) in first["dependencies"]
+        image.write_bytes(b"\x89PNG\r\n\x1a\n" + b"changed")
+        assert live.next()["event"] == "rendered"
+
+    def test_nothing_is_rendered_while_auto_reload_is_off_and_it_catches_up_when_turned_on(self, live, tmp_path):
+        md, _ = self.open_doc(live, tmp_path, auto_reload=False)
+        md.write_text("# Changed while off\n", encoding="utf-8")
+        assert live.nothing_within(2) is None
+        live.send({"id": 3, "method": "set_auto_reload", "params": {"value": True}})
+        assert live.next()["id"] == 3
+        event = live.next()
+        assert event["event"] == "rendered" and "Changed while off" in open(event["html"], encoding="utf-8").read()
+
+    def test_a_closed_doc_is_no_longer_watched(self, live, tmp_path):
+        md, _ = self.open_doc(live, tmp_path)
+        live.send({"id": 3, "method": "close_doc", "params": {"doc": "tab-1"}})
+        assert live.next() == {"id": 3, "ok": True, "result": {}}
+        md.write_text("# After close\n", encoding="utf-8")
+        assert live.nothing_within(2) is None
+
+    def test_a_failed_conversion_keeps_watching_the_document(self, live, tmp_path):
+        md, _ = self.open_doc(live, tmp_path)
+        md.write_bytes(b"# T\n\xff\xfe\n")   # UTF-8として読めない。変換に失敗する
+        failed = live.next()
+        assert failed["event"] == "rendered" and failed["ok"] is False and failed["diagnostics"]
+        md.write_text("# Fixed\n", encoding="utf-8")
+        fixed = live.next()
+        assert fixed["ok"] is True and "Fixed" in open(fixed["html"], encoding="utf-8").read()
+
+    def test_watch_reports_changes_without_converting(self, live, tmp_path):
+        config = tmp_path / "config.yaml"
+        config.write_text("a: 1\n", encoding="utf-8")
+        live.send({"id": 1, "method": "set_auto_reload", "params": {"value": True}})
+        assert live.next()["ok"] is True
+        live.send({"id": 2, "method": "watch", "params": {"name": "project", "files": [str(config)]}})
+        assert live.next() == {"id": 2, "ok": True, "result": {}}
+        config.write_text("a: 2\n", encoding="utf-8")
+        assert live.next() == {"event": "changed", "name": "project", "paths": [str(config)]}
+        config.write_text("a: 3\n", encoding="utf-8")   # 基準を取り直すので、次の変更も見つかる
+        assert live.next()["event"] == "changed"
+        live.send({"id": 3, "method": "watch", "params": {"name": "project", "files": []}})
+        assert live.next()["id"] == 3
+        config.write_text("a: 4\n", encoding="utf-8")
+        assert live.nothing_within(2) is None
+
+    def test_bad_requests_are_protocol_errors(self, live, tmp_path):
+        for method, params in [("open", {"path": "a.md"}), ("open", {"doc": "d"}), ("open", {"doc": "d", "path": "a.md", "bogus": 1}),
+                               ("close_doc", {}), ("watch", {"name": "n", "files": "x"}), ("watch", {"files": []}),
+                               ("set_auto_reload", {"value": "yes"})]:
+            live.send({"id": 9, "method": method, "params": params})
+            response = live.next()
+            assert response["id"] == 9 and response["error"]["code"] == "bad_request", (method, params, response)
+
+
+class TestSuperseded:
+    """変換中に重なった、同じ文書の`open`は、最後の1件だけが処理される（#284）。"""
+
+    def test_older_opens_for_the_same_doc_are_answered_with_superseded(self):
+        started, release = threading.Event(), threading.Event()
+        calls = []
+
+        class Slow(FakeSession):
+            def render_html(self, path, output=None, **options):
+                calls.append(path)
+                if len(calls) == 1:
+                    started.set()
+                    assert release.wait(timeout=20)
+                return HtmlResult(ok=True, html_path="/x/o.html", timings_ms={"total": 1.0})
+
+        stdin_r, stdin_w = os.pipe()
+        out = io.StringIO()
+        original = worker.Session
+        worker.Session = lambda: Slow()
+        try:
+            stdin = io.TextIOWrapper(os.fdopen(stdin_r, "rb"), encoding="utf-8")
+            host_in = os.fdopen(stdin_w, "w", encoding="utf-8", newline="\n")
+            thread = threading.Thread(target=worker.serve, args=(stdin, out), daemon=True)
+            thread.start()
+
+            def send(request_id, doc, path):
+                host_in.write(json.dumps({"id": request_id, "method": "open", "params": {"doc": doc, "path": path}}) + "\n")
+                host_in.flush()
+
+            send(1, "d", "first.md")
+            assert started.wait(timeout=20)
+            send(2, "d", "second.md")   # 1の変換中に、重なった依頼
+            send(3, "d", "third.md")
+            send(4, "other", "other.md")   # 別の文書は、影響を受けない
+            time.sleep(0.5)   # 読み手が、3つの行をキューに入れるのを待ってから、1の変換を終わらせる
+            release.set()
+            host_in.write(json.dumps({"id": 5, "method": "shutdown"}) + "\n")
+            host_in.flush()
+            thread.join(timeout=20)
+            assert not thread.is_alive()
+        finally:
+            worker.Session = original
+        responses = {r["id"]: r for r in (json.loads(l) for l in out.getvalue().splitlines()) if "id" in r}
+        assert responses[1]["ok"] is True and responses[3]["ok"] is True and responses[4]["ok"] is True
+        assert responses[2]["error"]["code"] == "superseded"
+        assert calls == ["first.md", "third.md", "other.md"]
 
 
 class TestReader:

@@ -528,8 +528,18 @@ result = build_markdown("doc.md", "out/doc.pdf")   # 1回だけなら
   * `build`: `params`は、`path`（必須）・`output`・`template`・`plugins`・`document`・`variables`・`config`・`keep_temp`（`Session.build`と同じ意味）。未知のキーは、プロトコルエラー。
   * `render_html`: MarkdownをHTMLにする（実験的、#161。前節）。`params`は、`path`（必須）・`output`・`plugins`・`variables`・`config`。
   * `list_chapters`: 設定ファイルの`chapters`を、ファイルの一覧にする（Viewerのサイドバー用、[#373](https://github.com/tokudiro/text-compositor/issues/373)）。`params`は、`path`（必須。設定ファイル）。応答は、`{"ok": true, "result": {"items": [...], "warnings": [...]}}`。`items`は、書いた順序の、`{"kind": "file", "name", "path"}`（`path`は絶対パス。基準は`inputs.dir`。未指定なら`inputs`）と、`{"kind": "section", "name", "children"}`（2階層まで）。`aggregate`の章は、`{"kind": "aggregate", "name", "path"}`（`name`は`title`、無ければフォルダ名。`path`はフォルダの絶対パス。基準は`inputs.dir`）で、書いた順序の位置に出す（[#478](https://github.com/tokudiro/text-compositor/issues/478)）。1つのファイルではなく、Obunzuは、表を出さない（PDFで確認する。方針は#478）ため、Viewerは、名前に「（表）」を付けた、薄い色の、押せない項目（`type: note`。ツールチップで案内。右クリックのメニューも無い）として、章の一覧に出す。章が、黙って消えて、抜けたように見えるのを、避けるため。新しい`kind`は、プロトコルのバージョンを変えない（古い呼び出し側は、知らない`kind`を読み飛ばす）。誤った章は、警告にして飛ばす。読めない設定（存在しない・構文の誤り・`chapters`が無い）は、`error.code`が`bad_config`。ビルドの解析（`sys.exit(1)`で終了する）は流用せず、`text_compositor/chapter_list.py`が、別に持つ（常駐のワーカーが、終了しないため）。章のファイルの中身は読まない（実測: 500章で約10 ms）。
+  * `open`・`close_doc`・`watch`・`set_auto_reload`: 開いている文書の変更を検知して、自動で変換し直す（[#284](https://github.com/tokudiro/text-compositor/issues/284)）。設計は、[doc/viewer-engine-architecture.md](viewer-engine-architecture.md)の4章。
+    * `open`: `params`は、`doc`（必須。呼び出し側が決める文書の識別子。Viewerではタブ）と、`render_html`と同じ`params`。応答も、`render_html`と同じ。`doc`ごとに、直近の`params`と参照ファイル（`dependencies`）を覚え、変換の前から、原稿と参照ファイルを監視する。変換に失敗しても、原稿の監視は続ける。同じ`doc`の`open`が、変換中に重なったときは、最後の1件だけを処理し、古い依頼には`error.code`が`superseded`の応答を返す。
+    * `close_doc`: `params`は、`doc`（必須）。その`doc`の記憶と監視を捨てる。応答は、`{"ok": true, "result": {}}`。無い`doc`でも、エラーにしない。
+    * `watch`: `params`は、`name`（必須）と`files`（絶対パスの配列。名前の監視対象を置き換える。空配列で解除）。文書として変換しないファイル（プロジェクトの設定ファイル）の監視で、変更を検知すると`changed`イベントだけを出す。
+    * `set_auto_reload`: `params`は、`value`（必須。真偽値）。ワーカー全体の自動更新のON/OFFで、既定はOFF。OFFの間は、イベントを出さず、基準も動かさない。ONに戻したとき、OFFの間の変更も検知する。
+    * 監視は、0.5秒ごとに、更新時刻とサイズを比べ（CLIの`--watch`と同じ`_watch_snapshot`）、0.3秒変化が止まるのを待って確定する。原子的な保存（一時ファイルからの名前の付け替え）も、後から作られる参照先も、検知できる。原稿（`watch`では先頭のファイル）が、一時的に無いときは、現れるまで知らせない。
   * `ping`: 生存確認。`{"id": ..., "ok": true, "result": {"pong": true}}`。
   * `shutdown`: 応答の後、Mermaidのブラウザ等を片付けて、終了する（終了コード0）。標準入力が閉じられた場合も、同じく片付けて終了する。
+* **変更のイベント**（応答を待たない、一方向の通知。`id`は無い。[#284](https://github.com/tokudiro/text-compositor/issues/284)）: 自動更新がONの間だけ出る。
+  * `{"event": "rendered", "doc": ..., "path": ..., "ok": true|false, "html": ..., "diagnostics": [...], "timings_ms": {...}, "dependencies": [...]}`: `doc`の原稿または参照ファイルの変更を検知し、変換し直した結果。`open`の応答と同じ形。
+  * `{"event": "changed", "name": ..., "paths": [...]}`: `watch`した対象の変更。変換はしない。
+  * 依頼の処理が終わるまでは、イベントも出ない（依頼とイベントは、同じ列で、1つずつ処理される）。`close_doc`より前に始まった変換の`rendered`は、`close_doc`の応答より先に届き得るため、呼び出し側は、閉じた`doc`のイベントを無視する。
 * **`build`の応答**: `{"id": ..., "ok": true|false, "pdf": "...", "diagnostics": [{"severity", "message", "file", "line", "detail"}, ...], "timings_ms": {...}}`。`ok`はビルドの成否で、**失敗（`ok: false`）でも、`error`キーは付かない**。
 * **プロトコルエラー**（JSONでない・JSONオブジェクトでない・未知のメソッド・`path`の欠落・未知の`params`）: `{"id": ..., "ok": false, "error": {"code": "bad_json|bad_request|unknown_method|internal_error", "message": "..."}}`。**`error`キーがあれば、依頼は処理されていない**。ワーカーは、次の依頼を受け付ける。
 * **通信路の保護**: 標準出力は、通信専用にする。起動時に、元の標準出力を複製して通信に使い、標準出力そのもの（fd 1）は、標準エラーへ付け替える。ビルド中にライブラリが`print`しても、外部プロセス（`playwright install`等）がfd 1へ書いても、通信路は壊れない（テストで確認した）。文字コードは、Windowsの既定（cp932等）に左右されないよう、UTF-8で読み書きする。
