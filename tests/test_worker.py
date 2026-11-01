@@ -208,6 +208,59 @@ class TestServe:
         assert out.getvalue() == '{"message": "日本語"}\n'
 
 
+class TestReader:
+    """標準入力の唯一の読み手（#284）。返信と依頼を振り分け、書き込みは混ざらない。"""
+
+    def test_requests_and_replies_are_separated(self):
+        lines = [
+            json.dumps({"id": 1, "method": "ping"}),
+            json.dumps({"callback": 2, "ok": True, "svg": "<svg/>"}),
+            "{not json",
+            "",
+            json.dumps({"id": 3, "method": "ping"}),
+        ]
+        reader = worker._Reader(io.StringIO("".join(line + "\n" for line in lines)))
+        assert json.loads(reader.next_request())["id"] == 1
+        assert reader.next_request() == "{not json"   # 誤りの判断は、依頼を処理する側に任せる
+        assert json.loads(reader.next_request())["id"] == 3
+        assert reader.next_request() is None   # 標準入力が閉じられ、読み切った
+        assert reader.wait_reply(2)["svg"] == "<svg/>"   # 先に届いていた返信も、失われない
+
+    def test_waiting_for_a_reply_ends_when_stdin_closes(self):
+        reader = worker._Reader(io.StringIO(""))
+        assert reader.wait_reply(1) is None
+
+    def test_a_reply_wakes_the_waiting_thread(self):
+        stdin_r, stdin_w = os.pipe()
+        reader = worker._Reader(io.TextIOWrapper(os.fdopen(stdin_r, "rb"), encoding="utf-8"))
+        host_in = os.fdopen(stdin_w, "w", encoding="utf-8", newline="\n")
+        got = []
+        waiter = threading.Thread(target=lambda: got.append(reader.wait_reply(7)), daemon=True)
+        waiter.start()
+        host_in.write(json.dumps({"callback": 7, "ok": True, "svg": "<svg>x</svg>"}) + "\n")
+        host_in.flush()
+        waiter.join(timeout=10)
+        host_in.close()
+        assert got and got[0]["svg"] == "<svg>x</svg>"
+
+    def test_concurrent_writes_do_not_mix_lines(self):
+        out = io.StringIO()
+        payload = "x" * 2000
+
+        def burst(tag):
+            for i in range(50):
+                worker._write(out, {"tag": tag, "i": i, "payload": payload})
+
+        threads = [threading.Thread(target=burst, args=(tag,)) for tag in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        lines = out.getvalue().splitlines()
+        assert len(lines) == 200
+        assert all(json.loads(line)["payload"] == payload for line in lines)
+
+
 class TestProcess:
     """実際に、別プロセスとして起動して、標準入出力で通信する。"""
 
