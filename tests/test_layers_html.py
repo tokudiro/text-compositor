@@ -142,10 +142,3 @@ class TestLayersHtmlWarnings:
         assert images(html)[0][3:] == ("40", "30")
         assert any("width" in w for w in warnings(result))
 
-
-class TestPdfSkipsLayers:
-    def test_pdf_pipeline_warns_and_skips_the_block(self, capsys):
-        from text_compositor.renderer import TypstRenderer
-        out = TypstRenderer(line_mapping="off").render("前\n\n::: layers\n```svg\n<svg/>\n```\n:::\n\n後\n")
-        assert "#grid" not in out and "columns" not in out
-        assert "前" in out and "後" in out

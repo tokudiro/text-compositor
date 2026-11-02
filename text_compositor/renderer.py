@@ -15,6 +15,9 @@ from mdit_py_plugins.dollarmath import dollarmath_plugin
 from text_compositor import chordpro_render
 from text_compositor.code_block_style import CodeBlockStyle, wrap_code_block
 from text_compositor.config import yaml
+from text_compositor.diagram_svg import DiagramSvgMixin
+from text_compositor.layers_pdf import LayersPdfMixin
+from text_compositor.layers_stack import LayersStackMixin
 from text_compositor.layout_blocks import find_layout_blocks
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
@@ -33,7 +36,7 @@ from text_compositor.renderer_tables import TableMixin
 from text_compositor.renderer_tokens import TokenMixin
 
 
-class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMixin, ChordproMixin):
+class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMixin, ChordproMixin):
     """
     markdown-it-py が生成したAST（構文木）を走査し、
     安全かつ正確にTypst構文へ変換するカスタムレンダラー
@@ -339,8 +342,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
             elif block_kind == 'align':
                 output.append(self._render_align_block(attrs_str, block_body))
             elif block_kind == 'layers':
-                # PDFの描画は、まだ無い（HTMLのみ。#560）。中身をcolumnsとして誤って描かないよう、読み飛ばす
-                self._warn_here("The layers block is not supported in PDF output yet; it is skipped.")
+                output.append(self._render_layers_block(attrs_str, block_body))
             else:
                 output.append(self._render_columns_block(attrs_str, block_body))
             pos = m.end()
