@@ -810,6 +810,15 @@ class TestLayoutBlocks:
         assert [c[0] for c in cells] == ["30.0", "70.0"]
         assert "説明文" in cells[0][1] and "<img" in cells[1][1]
 
+    def test_a_nested_layers_block_does_not_close_the_layout_block_early(self, tmp_path):
+        """#560: layersの閉じの`:::`で、外側のlayout-rightが先に閉じない（後ろの地の文が、セルに入らない）。"""
+        nested = f"::: layers 注釈\n{self.SVG}\n:::"
+        _, html = convert(tmp_path, f"::: layout-right\n説明文\n\n{nested}\n:::\n\n後ろの文\n")
+        cells = re.findall(r'<td style="width:([\d.]+)%">(.*?)</td>', body(html), re.S)
+        assert len(cells) == 2
+        assert "後ろの文" not in cells[0][1] + cells[1][1]
+        assert "後ろの文" in body(html).split("</table>", 1)[1]
+
     def test_layout_left_flips_the_columns_and_the_default_ratio(self, tmp_path):
         _, html = convert(tmp_path, f"::: layout-left\n説明文\n\n{self.SVG}\n:::\n")
         cells = re.findall(r'<td style="width:([\d.]+)%">(.*?)</td>', body(html), re.S)

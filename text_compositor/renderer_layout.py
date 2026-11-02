@@ -31,11 +31,7 @@ class LayoutMixin:
     # markdown-it の通常のASTフローでは「直前・直後のテキストと図をまとめて2カラム化する」表現が
     # 難しいため、通常のトークン処理に入る前の生テキスト段階で切り出して個別に処理する（#11）。
     # 対応する図の種類をmermaidだけに限らず一般化したもの（#77）。
-    LAYOUT_BLOCK_RE = re.compile(
-        r'^::: *(layout-right|layout-left|layout-compare|layout-feature|layout-columns|'
-        r'layout-takahashi|align)'
-        r'(?: +\{([^}\r\n]*)\})? *\r?\n(.*?)\r?\n::: *\r?$',
-        re.MULTILINE | re.DOTALL)
+    # ブロックの切り出しは、layout_blocks.py（入れ子の`layers`を数える。#560）。
 
     # フェンス（mermaid/plantuml/dot/graphviz/svg/d2/structurizr/pikchr/cetz/fletcher/timeliney/finite）か、単独行のMarkdown画像（`![alt](src)`のみの行）の
     # いずれかにマッチする。画像側は行全体にアンカーし、文中に埋め込まれたインライン画像を誤って
