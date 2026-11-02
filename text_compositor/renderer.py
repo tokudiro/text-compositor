@@ -15,6 +15,7 @@ from mdit_py_plugins.dollarmath import dollarmath_plugin
 from text_compositor import chordpro_render
 from text_compositor.code_block_style import CodeBlockStyle, wrap_code_block
 from text_compositor.config import yaml
+from text_compositor.layout_blocks import find_layout_blocks
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
 from text_compositor.mermaid import MermaidBrowser
@@ -59,7 +60,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
     FOOTNOTE_DEF_RE = re.compile(r'^( {0,3})\[\^([^\]\r\n]+)\]:', re.MULTILINE)
 
     def _fenced_char_ranges(self, text):
-        """LAYOUT_BLOCK_RE/DIAGRAM_OR_IMAGE_REは、markdown-itの通常のASTフローを経由しない、生テキスト
+        """`:::`ブロックの切り出し（layout_blocks.py）とDIAGRAM_OR_IMAGE_REは、markdown-itの通常のASTフローを経由しない、生テキスト
         段階での正規表現マッチである（#11、#77）。そのため、使い方説明用のサンプルコードのように
         外側の```/````フェンスで囲まれた範囲の中にたまたま`:::`ブロックや図表フェンス・画像参照と
         同じ見た目の文字列があると、本物のレイアウトブロック/図表として誤検出してしまう（#85）。
@@ -96,6 +97,11 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         あるマッチを除外して返す（#85）。"""
         ranges = self._fenced_char_ranges(text)
         return [m for m in regex.finditer(text) if not self._in_ranges(m.start(), ranges)]
+
+    def _finditer_layout_blocks(self, text):
+        """textから、最上位の`:::`ブロック（layout-*・align）を切り出す。入れ子の`layers`は、外側の
+        ブロックの中身として残す（#560）。フェンスの中は、除外する（#85）。"""
+        return find_layout_blocks(text, self._fenced_char_ranges(text))
 
     def _search_outside_fences(self, regex, text):
         """_finditer_outside_fencesの最初の1件版（.search()相当、#85）。"""
@@ -312,7 +318,7 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
         output = []
         pos = 0
         first_segment = True
-        for m in self._finditer_outside_fences(self.LAYOUT_BLOCK_RE, text):
+        for m in self._finditer_layout_blocks(text):
             md_before = text[pos:m.start()]
             if md_before.strip() or first_segment:
                 output.append(self._render_markdown_segment(md_before, drop_leading_title and first_segment))

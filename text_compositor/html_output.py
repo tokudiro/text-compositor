@@ -569,7 +569,7 @@ class HtmlRenderer(TypstRenderer):
 
         output = []
         pos = 0
-        for m in self._finditer_outside_fences(self.LAYOUT_BLOCK_RE, text):
+        for m in self._finditer_layout_blocks(text):
             before = text[pos:m.start()]
             if before.strip():
                 self._line_base = text.count('\n', 0, pos)
