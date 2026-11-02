@@ -231,6 +231,9 @@ class TokenMixin:
                         trim = self._parse_trim_attr(attrs_str)
                         result.append(self._render_diagram_fence(lang, t.content, width, height, trim,
                                                                  self._parse_alt_attr(attrs_str)))
+                    elif lang == 'table':
+                        result.append(self._render_table_fence(t.content, parts[1] if len(parts) > 1 else '',
+                                                               fence_line=self._line_of(t)))
                     elif lang == 'math':
                         result.append(self._render_math_block_typst(t.content))
                     elif lang in chordpro_render.LANGS and self.chordpro_enabled:

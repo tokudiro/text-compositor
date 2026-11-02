@@ -67,6 +67,7 @@ CommonMark準拠に加え、GFM (GitHub Flavored Markdown) の一部とGitHub Wi
 | 記法 | 種別 | 対応状況 |
 | --- | --- | --- |
 | テーブル（` \| a \| b \| `） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応 |
+| 表（```` ```table ````、CSV形式。見出し列・セル内の改行） | ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（GFMにない独自記法。下記） |
 | 数式（`$...$` / `$$...$$` / ```` ```math ````） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（インライン `$...$`、ブロック `$$...$$` または ```` ```math ````。下記） |
 | 取り消し線（`~~text~~`） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応 |
 | タスクリスト（`- [ ]` / `- [x]`） | ![GFM](badges/gfm.svg) ![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg) | 対応（☐/☑のUnicode記号で表示。実際に操作できるチェックボックスにはならない） |
@@ -170,6 +171,38 @@ Markdownテーブルの本文セルごとに、背景色と枠線（実線・破
 - **ヘッダ行**: ヘッダのセルにも書けます。`document.table_header.background`より、セルごとの指定が優先されます。
 - **隣り合うセルの枠線**: 2つのセルが共有する辺は、両方が枠線を指定していると、下・右のセルの指定が優先されます（Typstの規則）。`border=none`も、隣のセルが枠線を引く辺は消せません。破線のセルを目立たせたいときは、隣のセルに`border=solid`を指定しないでください。
 - CSVファイル（`.csv`）とaggregateの表には、この記法はありません。
+
+## 表: `table`フェンス
+
+![text-compositor](badges/text-compositor.svg) ![Obunzu](badges/obunzu.svg)
+
+標準のMarkdownの表（GFM）より書きやすい表を、```` ```table ````フェンスで書けます（[#554](https://github.com/tokudiro/text-compositor/issues/554)）。本文は、CSVです。セルの中の改行を、`<br>`ではなく、そのまま書けます。見出し列も指定できます。標準の表は、そのまま使えます。複雑な表にだけ、`table`フェンスを使ってください。
+
+````markdown
+```table {header_cols=1}
+項目,内容,備考
+条件,"次のどちらか
+A または B",**必須**
+金額,"1,000円",`JPY`
+```
+````
+
+- **CSVの規則**: `.csv`の章と同じです（RFC 4180）。セルにカンマ・改行を含めたいときは、ダブルクォートで囲みます。クォート文字は`""`と書きます。空行は無視します。
+- **セルの中身**: `.csv`の章と違い、インライン記法（太字・コード・リンク・`$...$`の数式・`<br>`）として解釈します。クォート内の改行は、改行として表示します。
+- **オプション**: 開始行の`{...}`に、`名前=値`を空白で区切って書きます。名前は、アンダースコアです（`header-rows`ではなく`header_rows`）。値に空白は書けません。
+
+  | オプション | 意味 | 既定 |
+  | --- | --- | --- |
+  | `header_rows` | 見出し行の数。`0`にすると、見出し行がなくなる | `1` |
+  | `header_cols` | 見出し列の数（左から） | `0` |
+  | `delimiter` | 区切り文字。`comma`か`tab` | `comma` |
+
+- **見出しのスタイル**: 見出し行と見出し列のセルに、`document.table_header`（太字・背景色・文字色）が効きます。見出し行が複数でも、すべてに効きます。PDFでは、ページをまたぐと、見出し行をすべて再掲します。HTMLでは、見出し行は`<th scope="col">`、見出し列は`<th scope="row">`です。
+- **Excelからの貼り付け**: Excelでコピーした表は、タブ区切りです。`{delimiter=tab}`を付けて、そのまま貼り付けます。区切り文字の自動判定はしません（明示性優先）。
+- **セルの装飾**: 標準の表と同じ、`[text]{bg=... border=...}`の記法を使えます（前の章）。
+- **誤りの扱い**: 列数の不一致（1行目の列数を基準にします）、未知のオプション、値の誤り（`header_rows=abc`、範囲外）は、本文の行番号つきで診断します。PDF出力は、エラーで止まります。HTML出力・Obunzuは、警告を出して、ソースをコードブロックで見せます。
+- **まだできないこと**: セルの結合（[#566](https://github.com/tokudiro/text-compositor/issues/566)で検討中）、数式（`=SUM()`など）、セルの中の箇条書き・段落。
+- **GitHubでの見え方**: GitHubは、`table`フェンスを、コードブロックとして表示します。表にはなりません。
 
 ## alert: 注意書きの囲み
 
