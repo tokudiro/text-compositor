@@ -22,8 +22,14 @@ class TestNesting:
         found = blocks(text)
         assert len(found) == 1 and found[0].group(3).count('::: layers') == 2
 
-    def test_top_level_layers_is_not_a_layout_block(self):
-        assert blocks(f'前\n\n{LAYERS}\n\n後\n') == []
+    def test_top_level_layers_is_a_block_with_its_header_as_attrs(self):
+        found = blocks(f'前\n\n{LAYERS}\n\n後\n')
+        assert len(found) == 1 and found[0].group(1) == 'layers'
+        assert found[0].group(2) == '注釈つき'
+        assert found[0].group(3).startswith('![|x=1](a.png)')
+
+    def test_layers_without_header_gives_none(self):
+        assert blocks('::: layers\n```svg\n<svg/>\n```\n:::\n')[0].group(2) is None
 
     def test_blocks_after_a_nested_one_are_found(self):
         text = f'::: layout-right\n{LAYERS}\n:::\n\n::: align {{align=center}}\n中央\n:::\n'

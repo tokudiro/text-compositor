@@ -48,10 +48,16 @@ def _read_offset(key: str, value: str, warnings: List[str]) -> int:
     return 0
 
 
+def _clean_src(src: str) -> str:
+    """`photo.png "タイトル"`や`<a b.png>`の書き方から、ファイルのパスだけを取り出す。"""
+    src = re.split(r'\s+["\'(]', src.strip(), maxsplit=1)[0]
+    return src[1:-1] if src.startswith('<') and src.endswith('>') else src
+
+
 def _parse_image(alt_text: str, src: str, warnings: List[str]) -> LayerPart:
     """画像のaltを、既存の画像と同じく`|`で分ける。最初が説明、残りが`key=値`。"""
     pieces = alt_text.split('|')
-    part = LayerPart(kind='image', src=src.strip(), alt=pieces[0])
+    part = LayerPart(kind='image', src=_clean_src(src), alt=pieces[0])
     for piece in pieces[1:]:
         key, sep, value = piece.strip().partition('=')
         if not sep:
