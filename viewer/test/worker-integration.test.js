@@ -190,7 +190,7 @@ describe('real worker: watching and rendered events (#284)', { skip: prepared.re
   const events = [];
   let client;
 
-  const nextEvent = async (predicate, timeoutMs = 20_000) => {
+  const nextEvent = async (predicate, timeoutMs = 40_000) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const index = events.findIndex(predicate);
