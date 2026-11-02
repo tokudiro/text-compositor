@@ -22,6 +22,7 @@ from typing import Optional
 
 from markdown_it.common.utils import escapeHtml
 from markdown_it.renderer import RendererHTML
+from markdown_it.token import Token
 from markdown_it.utils import OptionsDict
 
 from text_compositor import diagnostics
@@ -33,6 +34,7 @@ from text_compositor import bytefield_render
 from text_compositor import chordpro_render
 from text_compositor.plugins import registry as plugin_registry
 from text_compositor.renderer import TypstRenderer
+from text_compositor.table_fence import TableFenceError, parse_table_fence
 
 # CSSに、そのまま書いてよい値だけを通す（原稿の値が、CSSの構文を壊したり、別の宣言を足したりしないように）。
 _CSS_COLOR_RE = re.compile(r'^(?:[a-zA-Z][a-zA-Z0-9-]*|#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))$')
@@ -603,11 +605,62 @@ class HtmlRenderer(TypstRenderer):
         attrs = parts[1] if len(parts) > 1 else ''
         if info == 'typst-exec':
             lang = 'typst-exec'
+        line = self._abs_line(t)
+        if lang == 'table':
+            return self._table_fence_html(t.content, attrs, line)
         width, height = self._parse_size_attrs(attrs)
         trim = self._parse_trim_attr(attrs)
-        line = self._abs_line(t)
         return self._fenced_html(lang, t.content, width, height, trim, line=line, code_line=line + 1 if line else None,
                                  alt=self._parse_alt_attr(attrs))
+
+    def _table_fence_html(self, content: str, attrs: str, line: Optional[int]) -> str:
+        """`table`フェンス（#554）を、表にする。解析はPDF出力と共通（table_fence.py）。セルの中身は、
+        Markdownの表のセルと同じトークンにして、既存の変換ルール（セル装飾・インライン記法・数式）に通す。
+        誤りは、図の失敗と同じく、警告を出して、ソースをコードブロックで見せる（HTMLは、失敗で止めない）。
+        `data-line`は、フェンスの変換（fence）が、最初のタグへ足すため、ここでは持たせない。"""
+        try:
+            spec = parse_table_fence(content, attrs)
+        except TableFenceError as e:
+            at = line + e.line if line and e.line else line
+            self._warn_line(f"{str(e).rstrip('.')}; showing the source as a code block.", at)
+            return self._code_block(content, 'table')
+
+        tokens = []
+
+        def block(type_, tag, nesting, **attrs_):
+            token = Token(type_, tag, nesting)
+            for k, v in attrs_.items():
+                token.attrSet(k, v)
+            tokens.append(token)
+
+        def cell(text, header_scope):
+            tag = 'th' if header_scope else 'td'
+            block(f'{tag}_open', tag, 1, **({'scope': header_scope} if header_scope else {}))
+            inline = self.md.parseInline(text.replace('\r\n', '\n').replace('\n', '<br>'), {})[0]
+            tokens.append(inline)
+            block(f'{tag}_close', tag, -1)
+
+        block('table_open', 'table', 1)
+        for r, row in enumerate(spec.rows):
+            in_head = r < spec.header_rows
+            if r == 0 and in_head:
+                block('thead_open', 'thead', 1)
+            elif r == spec.header_rows:
+                block('tbody_open', 'tbody', 1)
+            block('tr_open', 'tr', 1)
+            for c, text in enumerate(row):
+                # 見出し行は、列の見出し（scope=col）。見出し列は、行の見出し（scope=row）。
+                cell(text, 'col' if in_head else ('row' if c < spec.header_cols else None))
+            block('tr_close', 'tr', -1)
+            if in_head and r == spec.header_rows - 1:
+                block('thead_close', 'thead', -1)
+        if spec.header_rows < len(spec.rows):
+            block('tbody_close', 'tbody', -1)
+        block('table_close', 'table', -1)
+
+        options = OptionsDict(dict(self.md.options))
+        options.breaks = True
+        return self._tokens.render(tokens, options, {})
 
     def _fenced_html(self, lang: str, code: str, width, height, trim=None, line=None, code_line=None, alt=None) -> str:
         """フェンス1つ分。図は`<img>`に、それ以外（未対応・無効な図を含む）は、コードブロックにする。

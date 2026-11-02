@@ -6,6 +6,8 @@ import sys
 import csv
 import io
 
+from text_compositor.table_fence import TableFenceError, parse_table_fence
+
 
 class TableMixin:
     """表（Markdownの表・`.csv`）のTypst化。"""
@@ -54,6 +56,44 @@ class TableMixin:
             for cell in row:
                 result.append('[' + self.escape_typst(cell, at_line_start=True) + '], ')
             result.append('\n  ')
+        result.append('\n)\n\n')
+        return ''.join(result)
+
+    def _render_table_fence(self, content, attrs_str, fence_line=None):
+        """`table`フェンス（#554）をTypstの#table()へ変換する。本文はCSV（解析はtable_fence.py）。
+        セルの中身は、Markdownの表のセルと同じく、インライン記法として解釈する。クォート内の改行は、
+        `<br>`にして、改行として扱う（#489と同じ見え方）。見出し行・見出し列のセルには、table_headerの
+        スタイル（太字・文字色）を付け、背景色はfill:の条件（行・列）で付ける。
+        誤りは、.csvの章や他の描画失敗と同じく、Fail-fastで即エラー終了する。"""
+        try:
+            spec = parse_table_fence(content, attrs_str)
+        except TableFenceError as e:
+            # e.lineは本文の行（1始まり）。フェンスの開始行の次が、本文の1行目。
+            line = fence_line + e.line if fence_line and e.line else fence_line
+            self._error_here(f"{self.current_file}: {e}", line=line)
+            sys.exit(1)
+
+        open_wrap, close_wrap = self._table_header_open_close()
+
+        def cell(text, is_header):
+            inline = self.md.parseInline(text.replace('\r\n', '\n').replace('\n', '<br>'), {})[0]
+            opening = self._table_cell_open([None, inline], 0)
+            body = self.render_inline(inline.children)
+            if is_header:
+                return opening + open_wrap + body + close_wrap + '], '
+            return opening + body + '], '
+
+        fill = self._table_header_fill_arg(spec.header_rows, spec.header_cols)
+        result = [f'#table(\n  columns: {spec.cols}{fill},\n  ']
+        for r, row in enumerate(spec.rows):
+            if r == 0 and spec.header_rows > 0:
+                result.append('table.header(\n  ')
+            result.extend(cell(text, r < spec.header_rows or c < spec.header_cols)
+                          for c, text in enumerate(row))
+            result.append('\n  ')
+            if spec.header_rows > 0 and r == spec.header_rows - 1:
+                # table.header()はrepeat: trueが既定で、ページを跨いだ次ページ以降にも再掲される（#70）。
+                result.append('),\n  ')
         result.append('\n)\n\n')
         return ''.join(result)
 
@@ -114,13 +154,22 @@ class TableMixin:
                     return children[0] if k == len(children) - 1 else None
         return None
 
-    def _table_header_fill_arg(self):
-        """table_header.backgroundが指定されていれば、#table()のfill:引数（1行目のみ着色）を返す。
-        未指定なら空文字列（従来どおり無装飾）。"""
+    def _table_header_fill_arg(self, header_rows=1, header_cols=0):
+        """table_header.backgroundが指定されていれば、#table()のfill:引数（見出し行・見出し列のみ着色）を返す。
+        既定（見出し行1・見出し列0）は、従来どおり1行目のみ。未指定なら空文字列（従来どおり無装飾）。"""
         background = self.table_header_style.get('background')
         if not background:
             return ''
-        return f',\n  fill: (col, row) => if row == 0 {{ {self._color_to_typst(background)} }} else {{ none }}'
+        conds = []
+        if header_rows == 1:
+            conds.append('row == 0')
+        elif header_rows > 1:
+            conds.append(f'row < {header_rows}')
+        if header_cols > 0:
+            conds.append(f'col < {header_cols}')
+        if not conds:
+            return ''
+        return f',\n  fill: (col, row) => if {" or ".join(conds)} {{ {self._color_to_typst(background)} }} else {{ none }}'
 
     def _table_header_open_close(self):
         """table_header.bold/colorに応じた、ヘッダセルの開き/閉じラッパー文字列のペアを返す。
