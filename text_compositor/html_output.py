@@ -32,6 +32,7 @@ from text_compositor import vega_render
 from text_compositor import wavedrom_render
 from text_compositor import bytefield_render
 from text_compositor import chordpro_render
+from text_compositor.layers_html import LayersHtmlMixin
 from text_compositor.plugins import registry as plugin_registry
 from text_compositor.renderer import TypstRenderer
 from text_compositor.table_fence import TableFenceError, parse_table_fence
@@ -287,7 +288,7 @@ class _TokenRenderer(RendererHTML):
         return _with_data_line(self.owner._math_block_token_html(tokens[idx], label=tokens[idx].info), self.owner._abs_line(tokens[idx]))
 
 
-class HtmlRenderer(TypstRenderer):
+class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
     """Markdown（と、図の単体ファイル）をHTMLにする。`TypstRenderer`の、Markdownの解釈・図のSVG生成・
     キャッシュ・診断の部品を引き継ぎ、出力だけを、HTMLにする（#161）。Typstを出力する側のメソッドは、使わない。
     共通の部分を、基底クラスへ切り出す整理は、#157で扱う。"""
@@ -786,6 +787,13 @@ class HtmlRenderer(TypstRenderer):
             return Path(abs_path).as_uri()
         return urllib.parse.quote(rel.replace(os.sep, '/'))
 
+    def _local_asset_path(self, src: str) -> str:
+        """ローカルの画像の`src`の、実ファイルのパス。`/`始まりはプロジェクトのルート、それ以外は原稿の場所が基準。"""
+        raw = urllib.parse.unquote(src.split('#', 1)[0].split('?', 1)[0])
+        if raw.startswith('/'):
+            return os.path.normpath(os.path.join(self.base_dir, raw.lstrip('/')))
+        return os.path.normpath(os.path.join(self.current_dir, raw))
+
     def _asset_url(self, src: str) -> Optional[str]:
         """画像の`src`を、HTMLからたどれるURLにする。相対パスは、Markdownファイルの場所が基準。
         外部（http/https/file等のスキーム）は、既定では読み込まない（方針2章、#238）。`allow_external_images`が
@@ -799,11 +807,7 @@ class HtmlRenderer(TypstRenderer):
                                 f"Set allow_external_images to load it (see doc/spec.md, #238).")
                 return None
             return src
-        raw = urllib.parse.unquote(src.split('#', 1)[0].split('?', 1)[0])
-        if raw.startswith('/'):
-            abs_path = os.path.normpath(os.path.join(self.base_dir, raw.lstrip('/')))
-        else:
-            abs_path = os.path.normpath(os.path.join(self.current_dir, raw))
+        abs_path = self._local_asset_path(src)
         self.dependencies.add(abs_path)
         if not os.path.exists(abs_path):
             # PDFは、画像が無いとFail-fastで止める。HTMLは、確認用の表示なので、警告にとどめ、他の部分は表示する。
@@ -975,7 +979,9 @@ class HtmlRenderer(TypstRenderer):
             return self._compare_html(body)
         if kind == 'layout-feature':
             return self._feature_html(body)
-        attrs = dict(self.FENCE_ATTR_RE.findall(attrs_str)) if attrs_str else {}
+        if kind == 'layers':
+            return self._layers_html(attrs_str, body)   # attrs_strは、見出し行の文字列（代替テキスト）
+        attrs =dict(self.FENCE_ATTR_RE.findall(attrs_str)) if attrs_str else {}
         if kind == 'layout-columns':
             count = attrs.get('n', '2')
             if not count.isdigit() or int(count) < 1:

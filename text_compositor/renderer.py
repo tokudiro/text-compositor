@@ -338,6 +338,9 @@ class TypstRenderer(DiagramMixin, LayoutMixin, InlineMixin, TableMixin, TokenMix
                 output.append(self._render_takahashi_block(attrs_str, block_body))
             elif block_kind == 'align':
                 output.append(self._render_align_block(attrs_str, block_body))
+            elif block_kind == 'layers':
+                # PDFの描画は、まだ無い（HTMLのみ。#560）。中身をcolumnsとして誤って描かないよう、読み飛ばす
+                self._warn_here("The layers block is not supported in PDF output yet; it is skipped.")
             else:
                 output.append(self._render_columns_block(attrs_str, block_body))
             pos = m.end()
