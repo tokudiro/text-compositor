@@ -372,6 +372,16 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
    * **`layout-columns`（[#78](https://github.com/tokudiro/text-compositor/issues/78)）**: 中身（任意のMarkdown、種類のバリデーションなし）をN列（省略時2列、`layout-columns {n=3}`のように指定可能。当初は`layout-columns-3`という末尾サフィックス方式だった。[#83](https://github.com/tokudiro/text-compositor/issues/83)でlayout-right等と同じ中括弧属性方式に統一した）に分割する。素朴に`#columns(N)[...]`と書くだけでは、Typstの`columns()`は「1列の高さを超えて初めて次列へあふれる」実装のため、スライドのように本文が短く1列に収まってしまう内容では分割されない（実機確認で判明）。`measure()`で中身の自然な高さを測り、その1/N（+わずかな余裕）をコンテナの高さとして明示的に指定することで、あふれを強制してN列に均等分割している。
    * **`align`（[#87](https://github.com/tokudiro/text-compositor/issues/87)）**: 本文（段落）を中央寄せ・右寄せにする手段が無かったため、`layout-columns`と同じ「中身は任意のMarkdown、バリデーションなし」という枠組みを流用し、`::: align {align=center}` / `::: align {align=right}` ... `:::` ブロックを追加した。`{n=N}`（layout-columns）や`{left=N right=M}`（layout-right/left）と同じ中括弧属性方式で`align=`の値を受け取り、`FENCE_ATTR_RE`をそのまま再利用する。中身全体を`#align(値)[...]`でラップするだけの薄い実装。画像の`align`属性（#75、`![alt|align=center](path)`）と同様、指定しない場合の既定の見た目（左寄せ）は変わらない。`align=`の値自体（`left`/`center`/`right`以外を弾く等）の妥当性チェックは、他の独自属性（`layout-columns`の`n`、`layout-right`/`left`の比率）と同じ方針で行わない。
    * **`layout-takahashi`（[#95](https://github.com/tokudiro/text-compositor/issues/95)）**: 高橋メソッド（1スライドに短い言葉を大きな文字だけで見せるプレゼン手法）向けに、中身（任意のMarkdown）を画面の上下左右中央・大きな文字で表示するブロックを追加した。`align`ブロックが水平方向の寄せのみ（垂直方向の中央揃えは非対応）だったのに対し、こちらは`#align(center + horizon)[#text(size: ...)[...]]`で水平・垂直の両方向を中央揃えする。文字サイズは`TAKAHASHI_DEFAULT_SIZE`（96pt。本文既定の10.5pt比で十分大きい値を実機確認のうえ採用）を既定とし、`{size=...}`（`FENCE_ATTR_RE`を再利用）で上書きできる。他の独自属性と同じ方針でサイズ値の妥当性チェックは行わない（不正値は`#text()`呼び出しがコンパイルエラーになる）。中身の種類を判別する必要が無い点は`layout-columns`/`align`と同じで、Fail-fastのバリデーションは設けていない。
+   * **`layers`（[#560](https://github.com/tokudiro/text-compositor/issues/560)。設計のみで、未実装）**: 画像や図を、互いに重ねて1つの部品にする。`::: layers 全体の代替テキスト` ... `:::` の中に、部品を上から順に書く。先に書いたものが下、後に書いたものが上になる。土台という区別は設けない（Mermaidなどは描画するまで大きさが決まらないため、どの部品も基準にしない）。
+     * **部品**: PNG・JPEG・SVGの画像（`[alt|x=40|y=20](photo.png)`）と、SVG・Mermaidなどの図フェンス（```` ```mermaid {x=240 y=140} ````）を、同じ扱いにする。画像の属性は、既存の画像と同じ規則（最初の`|`までがalt、残りが`key=値`）で書き、各層のaltは読み上げない。
+     * **位置**: すべての部品を、左上の同じ点（原点）に原寸で置く。拡大縮小はしない。ずらすときは`x=`・`y=`（ピクセル。負の値も可）を指定する。
+     * **大きさ**: 重ね全体の大きさは、全部品を包む最小の長方形とする。はみ出した部分も表示し、切らない。ページ幅に収めるときは、この長方形全体を同じ比率で縮める（部品ごとには縮めない）。
+     * **代替テキスト**: 見出し行の文字列を、重ね全体の代替テキストとする（HTMLは`<img alt>`、PDFは`alt`）。各層は読み上げから外す。
+     * **保存**: Viewerで右クリックして保存するときは、合成した1枚（SVG/PNG）にする（#327）。
+     * **`layout-*`との関係**: `layout-right`などの中に置ける。`layers`全体を1枚の画像として扱うため、`DIAGRAM_OR_IMAGE_RE`が中身を個別に拾わないよう、`layers`を先に1つの部品として切り出す。
+     * **フォント**: SVG内のテキストは、既存の`svg`フェンスに揃える（PDFはTypstが解決するフォント、HTMLはブラウザのフォント）。
+     * **安全**: 外部URLの参照は許さない（2章の方針）。HTML出力のインラインSVGは、既存の`svg`フェンスと同じサニタイズを通す。
+     * **範囲外**: スライド（Marp互換）のページ背景に重ねる使い方、アニメーション、ホバーで出る注釈。
 4. **D2**（[#90](https://github.com/tokudiro/text-compositor/issues/90)）: PlantUMLと同じ「ローカルの外部実行ファイルへsubprocessでソースを渡し、SVGを受け取る」方式を採る。**（実装済み）**
    * **検討経緯**: 当初PythonパッケージのD2ビルダーライブラリを検討した。しかし、これは「PythonオブジェクトからD2言語のコードを組み立てる」ためのものであり、原稿の```` ```d2 ````フェンス内にすでにD2言語で書かれたテキストをSVG化する（レンダリングする）機能を持たず、目的に合わないと判明した。Graphvizの`diagraph`のようなTypstパッケージ（Wasm等でローカル完結する描画）が無いかもPreviewレジストリで確認した。該当は無かったため、D2公式CLIバイナリを直接使う方式に決めた。
    * **ライセンス**: D2本体はMPL-2.0（Terrastruct Inc.）。PlantUMLのjar同梱と異なり、ツールのPyPI配布物には一切含めず、ユーザーの実行時に公式GitHub Releasesから取得するだけ（ソースの再配布は行わない）。
