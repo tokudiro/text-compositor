@@ -95,6 +95,7 @@ const state = {
   lints: LINTS.map(({ name, label, description, on, off }) => ({ name, label, description, on, off })),   // 設定画面の「原稿の警告」の行を作る材料（#271）
   speech: { supported: process.platform === 'win32', voices: [] },   // 読み上げ（#430）。設定画面の、声の選択肢の材料
   cache: { bytes: null, clearing: false },   // アプリの領域（変換したHTML・図のキャッシュ）の使用量。設定画面を開いたときに数える（#258）
+  appVersion: app.getVersion(),   // 設定画面に出す、アプリのバージョン（#567）。ウィンドウのタイトル（APP_TITLE）と、取得元をそろえる
 };
 
 // タブ（#332）。`tab`は、いま見ているタブ。設定「複数のタブ」がオフの間は、タブは常に1つ。

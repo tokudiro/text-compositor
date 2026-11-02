@@ -396,6 +396,7 @@ function render(state) {
   $('cache-size').textContent = state.cache.bytes === null ? '' : formatBytes(state.cache.bytes);
   $('clear-cache').disabled = state.cache.clearing || !state.cache.bytes;
   $('clear-cache').textContent = state.cache.clearing ? '削除中…' : '削除';
+  $('app-version').textContent = state.appVersion ?? '';
 
   // ファイル名だけを出す。フォルダは、常時は出さない（深いパスは、どう省略しても中途半端で、サイドバーが、根元を示すため。#497）。
   // 全体のパスは、ホバーで出し、右クリックで、コピー・エクスプローラーで表示できる
