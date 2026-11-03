@@ -1297,20 +1297,19 @@ async function handleContextMenu(origin, params) {
     speaking: speaker.isSpeaking(),
     paused: speaker.isPaused(),
   });
-  if (params.mediaType === 'image' && params.srcURL) {
+  // 重ね（layers。#560）は、先に調べる。中の`<image>`は、Chromiumが「画像」として報告する（mediaTypeがimage）ため、
+  // 後に回すと、一番上の部品1枚だけを保存するメニューになってしまう（実機で確認した）
+  const layers = await layersAtPoint(origin, params);
+  if (layers) {
+    template.push({ type: 'separator' });
+    template.push(...buildLayersContextMenuTemplate(layers, {
+      onSave: (l, format) => void saveImageFromContextMenu(origin, { layers: l, altText: l.label }, format),
+    }));
+  } else if (params.mediaType === 'image' && params.srcURL) {
     template.push({ type: 'separator' });
     template.push(...buildImageContextMenuTemplate(params, {
       onSave: (p, format) => void saveImageFromContextMenu(origin, p, format),
     }));
-  } else {
-    // 重ね（layers。#560）は、1つのインラインSVG。画像としては右クリックされないため、位置から探す
-    const layers = await layersAtPoint(origin, params);
-    if (layers) {
-      template.push({ type: 'separator' });
-      template.push(...buildLayersContextMenuTemplate(layers, {
-        onSave: (l, format) => void saveImageFromContextMenu(origin, { layers: l, altText: l.label }, format),
-      }));
-    }
   }
   const href = await linkAtPoint(origin, params);
   if (href !== null) {
