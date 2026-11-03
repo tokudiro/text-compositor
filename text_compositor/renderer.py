@@ -359,8 +359,29 @@ class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMi
             output.append(self._render_markdown_segment(md_after, drop_leading_title and first_segment))
         return "".join(output)
 
+    _LAYERS_LINE_RE = re.compile(r'^::: *layers', re.MULTILINE)
+
+    def _layers_blocks(self, text):
+        """textの中の`::: layers`ブロック（最上位のもの）。`align`・`layout-columns`などの中身の地の文にも、
+        置けるようにするため、断片の変換の前に切り出す（#560）。最上位の切り出しは、すでにlayersを取り除いて
+        から断片を渡すため、ここでは見つからない。"""
+        if not self._LAYERS_LINE_RE.search(text):
+            return []
+        return [b for b in self._finditer_layout_blocks(text) if b.group(1) == 'layers']
+
     def _render_markdown_segment(self, text, drop_leading_title):
         """通常のMarkdown断片をASTベースでTypstへ変換する（layout-rightブロックの前後の地の文用）"""
+        blocks = self._layers_blocks(text)
+        if blocks:
+            output, pos = [], 0
+            for b in blocks:
+                if text[pos:b.start()].strip():
+                    output.append(self._render_markdown_segment(text[pos:b.start()], False))
+                output.append(self._render_layers_block(b.group(2), b.group(3)))
+                pos = b.end()
+            if text[pos:].strip():
+                output.append(self._render_markdown_segment(text[pos:], False))
+            return ''.join(output)
         self.list_stack = []
         tokens = self.md.parse(text)
         start = self._skip_leading_title(tokens) if drop_leading_title else 0

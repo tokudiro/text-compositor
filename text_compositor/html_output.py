@@ -583,6 +583,17 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
 
     def _segment_html(self, text: str) -> str:
         """通常のMarkdown断片を、HTMLにする（`:::`ブロックの前後や、ブロックの中身）。"""
+        blocks = self._layers_blocks(text)
+        if blocks:   # `align`などの中身の`::: layers`（#560）。最上位は、切り出し済みで、ここへ来ない
+            output, pos = [], 0
+            for b in blocks:
+                if text[pos:b.start()].strip():
+                    output.append(self._segment_html(text[pos:b.start()]))
+                output.append(self._layers_html(b.group(2), b.group(3)))
+                pos = b.end()
+            if text[pos:].strip():
+                output.append(self._segment_html(text[pos:]))
+            return ''.join(output)
         tokens = self.md.parse(text)
         options = OptionsDict(dict(self.md.options))
         options.breaks = True  # PDFと同じく、原稿の改行を、そのまま改行にする
