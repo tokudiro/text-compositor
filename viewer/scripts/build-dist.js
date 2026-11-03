@@ -143,10 +143,10 @@ const PLANTUML_LICENSE = {
 // Mermaid公式配布の単一バンドルJS（deps.pyのMERMAID_JS_URL/SHA256と同じ）。#310。ライセンス全文は、jsの中に
 // 無いため、PlantUMLと同じ手順で、GitHub上のLICENSE（現在のmasterの内容）を別途取得・固定する。
 const MERMAID_JS = {
-  version: '12.1.0',
+  version: '12.2.0',
   file: 'mermaid.min.js',
-  url: 'https://cdn.jsdelivr.net/npm/mermaid@12.1.0/dist/mermaid.min.js',
-  sha256: '6484afc32872a3aa16cac9a76ba1816a1ed4cc870a6593cc2e17757750f518b2',
+  url: 'https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js',
+  sha256: 'a8a6a6f805b074a8261a2825c86f99c8054acb3b35f50bb7e24a4f9f2c3c3b9f',
 };
 const MERMAID_LICENSE = {
   url: 'https://raw.githubusercontent.com/mermaid-js/mermaid/master/LICENSE',
@@ -316,6 +316,11 @@ const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 async function fetchVerified(item, label) {
   fs.mkdirSync(cache, { recursive: true });
   const file = path.join(cache, item.file || path.basename(item.url));
+  // 版を上げたあとの、古い版のキャッシュ（同じ名前）は、取り直す。取り直したあとも一致しなければ、下で、エラーにする
+  if (fs.existsSync(file) && sha256(file) !== item.sha256) {
+    console.log(`キャッシュの${label}が、固定した版と違うため、取り直します`);
+    fs.rmSync(file, { force: true });
+  }
   if (!fs.existsSync(file)) {
     console.log(`取得: ${item.url}`);
     await download(item.url, file);

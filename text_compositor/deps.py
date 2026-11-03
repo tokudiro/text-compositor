@@ -254,8 +254,8 @@ def ensure_fonts():
 # ではなくこのファイル単体（実測約5.5MB）だけを取得し、Playwright経由でヘッドレスブラウザに
 # 読み込ませてmermaid.render()を直接呼び出す（仕様書11章、#35）。バージョン・SHA256を固定し、
 # Noto Sans JPと同様に決定論的な取得結果にする（9章）。
-MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@12.1.0/dist/mermaid.min.js"
-MERMAID_JS_SHA256 = "6484afc32872a3aa16cac9a76ba1816a1ed4cc870a6593cc2e17757750f518b2"
+MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js"
+MERMAID_JS_SHA256 = "a8a6a6f805b074a8261a2825c86f99c8054acb3b35f50bb7e24a4f9f2c3c3b9f"
 
 # 呼び出し元が、同梱したmermaid.min.jsのファイルを教える環境変数（#310）。ViewerのZIPは、これを`mermaid/`に
 # 同梱しており、FONT_DIR_ENVと同じ仕組みで、ダウンロードせずに、これを使う。
@@ -285,7 +285,7 @@ _verified_cache_files = set()
 
 
 def _cache_file_name(filename, sha256):
-    """キャッシュの名前に、固定したSHA256の先頭12文字を含める（`mermaid.min-6484afc32872.js`）。固定した版を上げると、
+    """キャッシュの名前に、固定したSHA256の先頭12文字を含める（`mermaid.min-a8a6a6f805b0.js`）。固定した版を上げると、
     名前が変わり、取得済みの古い版は、使われない（PlantUMLのjarと同じ考え方。#240・#597）。"""
     stem, ext = os.path.splitext(filename)
     return f"{stem}-{sha256[:12]}{ext}"
