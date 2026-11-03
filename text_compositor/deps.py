@@ -270,27 +270,7 @@ def ensure_mermaid_js():
     if bundled and os.path.isfile(bundled):
         return bundled
 
-    cache_dir = os.path.join(_user_cache_dir(), "mermaid")
-    os.makedirs(cache_dir, exist_ok=True)
-    js_path = os.path.join(cache_dir, "mermaid.min.js")
-    if os.path.exists(js_path):
-        return js_path
-
-    _log_info(f"Downloading mermaid.min.js (one-time; cached under {cache_dir})...")
-    try:
-        _download(MERMAID_JS_URL, js_path)
-    except OSError as e:
-        _error(f"Failed to download mermaid.min.js: {e}")
-        sys.exit(1)
-
-    with open(js_path, "rb") as f:
-        digest = hashlib.sha256(f.read()).hexdigest()
-    if digest != MERMAID_JS_SHA256:
-        os.remove(js_path)
-        _error(f"Checksum mismatch for mermaid.min.js: expected {MERMAID_JS_SHA256}, got {digest}")
-        sys.exit(1)
-
-    return js_path
+    return _ensure_verified_js(MERMAID_JS_URL, MERMAID_JS_SHA256, "mermaid", "mermaid.min.js")
 
 # Vega・Vega-Lite公式配布の単一バンドルJS（UMD形式。どちらもBSD-3-Clause。#211）。合わせて実測約772KBで、
 # Mermaidと同じヘッドレスブラウザに読み込ませて描画する。Vega-LiteはVegaへコンパイルされるため、両方を読み込む
@@ -300,13 +280,41 @@ VEGA_JS_SHA256 = "8f6a3587cf8d4f42c7e08120e3eb05d067e746d554e39d2dcf52acc0bd5ba2
 VEGA_LITE_JS_URL = "https://cdn.jsdelivr.net/npm/vega-lite@6.4.3/build/vega-lite.min.js"
 VEGA_LITE_JS_SHA256 = "35a9821df838825b05a6a73e9414b58747a1b18321583858ed903c66393a5c7e"
 
+# 確認済みのキャッシュのファイル（パス・更新時刻・サイズ）。プロセスの間は、同じファイルを、毎回ハッシュし直さない。
+_verified_cache_files = set()
+
+
+def _cache_file_name(filename, sha256):
+    """キャッシュの名前に、固定したSHA256の先頭12文字を含める（`mermaid.min-6484afc32872.js`）。固定した版を上げると、
+    名前が変わり、取得済みの古い版は、使われない（PlantUMLのjarと同じ考え方。#240・#597）。"""
+    stem, ext = os.path.splitext(filename)
+    return f"{stem}-{sha256[:12]}{ext}"
+
+
+def _cached_file_matches(path, sha256):
+    """キャッシュのファイルが、固定したSHA256と一致するか。一致の確認は、プロセスごとに1回（更新時刻かサイズが変わったら、もう一度）。"""
+    stat = os.stat(path)
+    token = (path, sha256, stat.st_mtime_ns, stat.st_size)
+    if token in _verified_cache_files:
+        return True
+    with open(path, "rb") as f:
+        ok = hashlib.sha256(f.read()).hexdigest() == sha256
+    if ok:
+        _verified_cache_files.add(token)
+    return ok
+
+
 def _ensure_verified_js(url, sha256, cache_subdir, filename):
-    """urlのJSをユーザーキャッシュのcache_subdir/へ取得し、SHA256を確認して、パスを返す（2回目以降は、ネットワーク不要）。"""
+    """urlのJSをユーザーキャッシュのcache_subdir/へ取得し、SHA256を確認して、パスを返す（2回目以降は、ネットワーク不要）。
+    キャッシュの名前は、固定したSHA256を含む。同じ名前のファイルがあっても、一致を確認し、壊れていれば、取得し直す（#597）。"""
     cache_dir = os.path.join(_user_cache_dir(), cache_subdir)
     os.makedirs(cache_dir, exist_ok=True)
-    js_path = os.path.join(cache_dir, filename)
+    js_path = os.path.join(cache_dir, _cache_file_name(filename, sha256))
     if os.path.exists(js_path):
-        return js_path
+        if _cached_file_matches(js_path, sha256):
+            return js_path
+        _log_info(f"{filename} in the cache does not match the pinned version; downloading it again...")
+        os.remove(js_path)
 
     _log_info(f"Downloading {filename} (one-time; cached under {cache_dir})...")
     try:
