@@ -8,6 +8,7 @@ import re
 import sys
 from typing import Optional
 
+from text_compositor.asset_path import resolve_local_asset
 from text_compositor.layers import LayerPart
 from text_compositor.typst_literal import escape_string_literal
 
@@ -57,10 +58,11 @@ class LayersPdfMixin:
         if _URL_SCHEME_RE.match(src):
             self._warn_here(f"External image in a layers block is not loaded: {src}; skipped.", line=self._block_line)
             return None
+        # `%20`などの書き方も探す（#586）
         if src.startswith('/'):
-            path = os.path.normpath(os.path.join(self.typst_root, src.lstrip('/')))
+            path = resolve_local_asset(self.typst_root, src.lstrip('/'))
         else:
-            path = os.path.normpath(os.path.join(self.current_dir, src))
+            path = resolve_local_asset(self.current_dir, src)
         # 仕様9章: 画像パス欠損はフォールバックせず即エラー (Fail-fast)
         if not os.path.exists(path):
             self._error_here(f"Image not found: {path} (referenced from {self.current_file})")

@@ -18,6 +18,7 @@ from text_compositor.config import yaml
 from text_compositor.diagram_svg import DiagramSvgMixin
 from text_compositor.layers_pdf import LayersPdfMixin
 from text_compositor.layers_stack import LayersStackMixin
+from text_compositor.asset_path import resolve_local_asset
 from text_compositor.layout_blocks import LayersMatch, find_layout_blocks
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
@@ -463,7 +464,7 @@ class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMi
             return escape_string_literal(root_rel_path)
         if not src or src.startswith('/') or re.match(r'^[a-zA-Z][a-zA-Z0-9+.\-]*://', src):
             return escape_string_literal(src)
-        abs_path = os.path.normpath(os.path.join(self.current_dir, src))
+        abs_path = resolve_local_asset(self.current_dir, src)   # `%20`などの書き方も探す（#586）
         # 仕様9章: 画像パス欠損はフォールバックせず即エラー (Fail-fast)
         if not os.path.exists(abs_path):
             self._error_here(f"Image not found: {abs_path} (referenced from {self.current_file})")
