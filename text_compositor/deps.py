@@ -348,9 +348,9 @@ def ensure_vega_js():
 
 # WaveDrom公式配布のブラウザ用JS（MIT。#299）。本体と、スキン（既定の見た目）の2ファイルで、合わせて実測約98KB。
 # Mermaid・Vegaと同じヘッドレスブラウザに読み込ませて描画する。バージョン・SHA256を固定し、決定論的にする。
-WAVEDROM_JS_URL = "https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/wavedrom.min.js"
-WAVEDROM_JS_SHA256 = "878c085ced379d3adee7a9cb7c19efcc77c96eefba596850c68f26c92fd2ea45"
-WAVEDROM_SKIN_URL = "https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/skins/default.js"
+WAVEDROM_JS_URL = "https://cdn.jsdelivr.net/npm/wavedrom@3.8.0/wavedrom.min.js"
+WAVEDROM_JS_SHA256 = "c02e6212b9515036b9531cb708996e95eef50bc8a030eb13d128c77b550a79e5"
+WAVEDROM_SKIN_URL = "https://cdn.jsdelivr.net/npm/wavedrom@3.8.0/skins/default.js"
 WAVEDROM_SKIN_SHA256 = "6d42a35297a5faa2e07e565ddc47dd6e1228af045881291a64a336b3f062d152"
 
 # 呼び出し元が、同梱したdefault.js（スキン）・wavedrom.min.jsのフォルダを教える環境変数（#392）。ViewerのZIPは、これを`wavedrom/`に
