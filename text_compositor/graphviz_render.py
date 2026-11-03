@@ -14,7 +14,7 @@ from text_compositor.typst_runtime import typst_lib, typst_package_options
 
 # 使うdiagraphの版。`templates/_common.typ`の`@preview/diagraph:...`・`viewer/scripts/build-dist.js`と、同じ値にする
 # （tests/test_graphviz_render.pyが、一致を確かめる）。
-DIAGRAPH_VERSION = "0.3.7"
+DIAGRAPH_VERSION = "0.3.8"
 
 # 図1つ分のTypstコード。余白なし・大きさは、図に合わせる。フォントは、PDFのテンプレートと同じ`Noto Sans JP`。
 # 文字の大きさは、PDFの本文（`render-graph`は、本文の大きさで描く）に近い値にした。
@@ -92,7 +92,10 @@ def render_svg(code: str) -> str:
         m = _DIAGRAPH_ERROR_RE.search(text)
         if m:
             line = _DOT_LINE_RE.search(m.group(1))
-            raise GraphvizRenderError(m.group(0).strip(), int(line.group(1)) if line else None) from e
+            # diagraph 0.3.8から、メッセージは、`Diagraph error:`の次の行に、`Error: `つきで出る。診断の文言を、
+            # 0.3.7までと同じ1行（`Diagraph error: syntax error in line 4 …`）に整える（#255）
+            detail = re.sub(r'^Error:\s*', '', m.group(1))
+            raise GraphvizRenderError(f"Diagraph error: {detail}", int(line.group(1)) if line else None) from e
         raise GraphvizRenderError(getattr(e, "diagnostic", None) or text) from e
     if isinstance(svg, (list, tuple)):   # 複数ページには、ならない（ページの大きさは、図に合わせる）。念のため
         svg = svg[0]

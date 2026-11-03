@@ -88,7 +88,7 @@ def test_build_dist_pins_the_same_fonts_and_packages_as_the_tool():
     used = set(re.findall(r"@preview/([a-z0-9-]+):([\d.]+)", common))
     used.add(("kip", pikchr_render.KIP_VERSION))   # Pikchr（#213）は、テンプレートではなく、生成コードが読み込む
     # CeTZ・Fletcher（#236）・timeliney（#294）も、生成コードが読み込む。Fletcher 0.5.8が内部で使うcetz 0.3.4・oxifmt、
-    # cetz 0.5.2が使うoxifmt 1.0.0、timeliney 0.4.0が使うcetz 0.4.1は、ネットワークなしで動くように、推移的な依存として、
+    # cetz 0.5.3が使うoxifmt 1.0.0、timeliney 0.4.0が使うcetz 0.4.1は、ネットワークなしで動くように、推移的な依存として、
     # 同梱する（同梱の不足は、viewer/scripts/check-dist.jsの、オフラインでのコンパイルが検出する）。
     # finite（#292）も、生成コードが読み込む。finite 0.5.1が使うcetz 0.4.2・diagraph-layout 0.0.1・t4t 0.4.3も、同梱する
     used |= {("cetz", cetz_render.CETZ_VERSION), ("fletcher", cetz_render.FLETCHER_VERSION),

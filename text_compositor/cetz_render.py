@@ -23,7 +23,7 @@ from text_compositor.typst_runtime import typst_lib
 # 使う版。`viewer/scripts/build-dist.js`と、同じ値にする（tests/test_cetz_render.pyが、一致を確かめる）。
 # fletcherは、内部で、cetz 0.3.4とoxifmtに依存する（推移的な依存も、同梱する。build-dist.js）。
 # timelineyは、内部で、cetz 0.4.1に依存する（#294。fletcher・cetz直接利用とは別の3本目のcetzの版になる）。
-CETZ_VERSION = "0.5.2"
+CETZ_VERSION = "0.5.3"
 FLETCHER_VERSION = "0.5.8"
 TIMELINEY_VERSION = "0.4.0"
 TIMELINEY_CETZ_VERSION = "0.4.1"
