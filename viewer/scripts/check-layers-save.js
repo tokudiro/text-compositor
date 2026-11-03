@@ -162,6 +162,25 @@ function check(name, ok, detail = '') {
       check('PNGの形式で、重ねの全体の大きさの2倍（400x240）', isPng && data.readUInt32BE(16) === 400 && data.readUInt32BE(20) === 240,
         `${data.readUInt32BE(16)}x${data.readUInt32BE(20)}`);
     }
+    // 「画像をコピー」: クリップボードの画像が、重ねの全体の大きさの2倍になる
+    await main.eval(`(() => { process.mainModule.require('electron').clipboard.clear(); return true; })()`);   // 前の中身が残って、通らないように
+    await main.eval('globalThis.__templates.length = 0');
+    const labelsForCopy = await rightClick(box.x, box.y);
+    check('重ねの上で、「画像をコピー」が出る', labelsForCopy.includes('画像をコピー'), JSON.stringify(labelsForCopy));
+    await clickItem('画像をコピー');
+    // 貼り付け先と同じ、OS側のクリップボードを読む（STAでないと、画像を読めない）
+    const readClipboardImageSize = () => {
+      const out = execFileSync('powershell', ['-NoProfile', '-STA', '-Command',
+        'Add-Type -AssemblyName System.Windows.Forms; $i = [Windows.Forms.Clipboard]::GetImage(); if ($i) { "$($i.Width)x$($i.Height)" }'], { encoding: 'utf8' }).trim();
+      const [width, height] = out ? out.split('x').map(Number) : [0, 0];
+      return { width, height };
+    };
+    let size = { width: 0, height: 0 };
+    for (let i = 0; i < 30 && !size.width; i++) {
+      await sleep(300);
+      size = readClipboardImageSize();
+    }
+    check('クリップボードの画像が、重ねの全体の大きさの2倍（400x240）', size.width === 400 && size.height === 240, `${size.width}x${size.height}`);
     content.close();
     main.close();
   } finally {

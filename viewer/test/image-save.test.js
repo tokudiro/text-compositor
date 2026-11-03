@@ -437,11 +437,48 @@ describe('layers (#560)', () => {
     await assert.rejects(buildStandaloneLayersSvg(MARKUP, BASE, { readFile }), /ENOENT/);
   });
 
-  test('menu offers SVG and PNG', () => {
+  test('menu offers SVG, PNG and copy', () => {
     const calls = [];
-    const items = buildLayersContextMenuTemplate({ markup: 'm' }, { onSave: (l, f) => calls.push(f) });
+    const items = buildLayersContextMenuTemplate({ markup: 'm' }, {
+      onSave: (l, f) => calls.push(f),
+      onCopy: () => calls.push('copy'),
+    });
     items.forEach((item) => item.click());
-    assert.deepEqual(calls, ['svg', 'png']);
+    assert.deepEqual(items.map((item) => item.label), ['画像（SVG）を保存…', '画像（PNG）を保存…', '画像をコピー']);
+    assert.deepEqual(calls, ['svg', 'png', 'copy']);
+  });
+
+  describe('copyLayersImage', () => {
+    const { copyLayersImage } = require('../src/image-save');
+    const fakeWindow = (capture) => () => ({
+      async loadURL() {},
+      isDestroyed() { return false; },
+      destroy() {},
+      webContents: { async capturePage(rect) { capture.rect = rect; return { toPNG: () => Buffer.from('PNG_DATA') }; } },
+    });
+
+    test('writes the rasterized composed picture at twice the size', async () => {
+      const written = [];
+      const capture = {};
+      await copyLayersImage({ markup: MARKUP, base: BASE }, {
+        writeImage: (png) => written.push(png.toString()),
+        createWindow: fakeWindow(capture),
+        readFile: async (p) => (p.endsWith('.png') ? PNG : SVG),
+        netFetch: fetcher({ 'file:///C:/doc/dir/a%20b.png?x=1&y=2': PNG, 'file:///C:/doc/dir/cache/p.svg': SVG }),
+      });
+      assert.deepEqual(written, ['PNG_DATA']);
+      assert.deepEqual([capture.rect.width, capture.rect.height], [20, 20]);
+    });
+
+    test('writes nothing when a part cannot be read', async () => {
+      const written = [];
+      await assert.rejects(copyLayersImage({ markup: MARKUP, base: BASE }, {
+        writeImage: (png) => written.push(png),
+        createWindow: fakeWindow({}),
+        readFile: async () => { throw new Error('ENOENT'); },
+      }), /ENOENT/);
+      assert.deepEqual(written, []);
+    });
   });
 
   test('locating script divides the position by the zoom factor', () => {

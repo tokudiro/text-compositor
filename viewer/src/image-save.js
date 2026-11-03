@@ -397,11 +397,25 @@ async function buildStandaloneLayersSvg(markup, baseUrl, { netFetch = null, read
  * @param {{markup: string, base: string, label?: string}} layers
  * @param {{onSave?: (layers: object, format: string) => void}} handlers
  */
-function buildLayersContextMenuTemplate(layers, { onSave } = {}) {
+function buildLayersContextMenuTemplate(layers, { onSave, onCopy } = {}) {
   return [
     { label: '画像（SVG）を保存…', click: () => onSave?.(layers, 'svg') },
     { label: '画像（PNG）を保存…', click: () => onSave?.(layers, 'png') },
+    { label: '画像をコピー', click: () => onCopy?.(layers) },
   ];
+}
+
+/**
+ * 重ね（layers）を、合成した1枚の画像として、クリップボードへ入れる（#560）。
+ * 保存のPNGと同じ画像（2倍）にする。部品を読めないときは、何も書かずにエラーにする。
+ *
+ * @param {{markup: string, base: string}} layers
+ * @param {{writeImage: (png: Buffer) => void|Promise<void>, createWindow: Function, netFetch?: Function, readFile?: Function}} context
+ */
+async function copyLayersImage(layers, { writeImage, createWindow, netFetch = null, readFile } = {}) {
+  const svg = await buildStandaloneLayersSvg(layers.markup, layers.base, { netFetch, readFile });
+  const png = await rasterizeSvg(svg, { createWindow, scale: 2 });
+  await writeImage(png);
 }
 
 /**
@@ -534,6 +548,7 @@ module.exports = {
   sniffImageMime,
   buildStandaloneLayersSvg,
   buildLayersContextMenuTemplate,
+  copyLayersImage,
   buildImageContextMenuTemplate,
   executeSaveImage,
 };
