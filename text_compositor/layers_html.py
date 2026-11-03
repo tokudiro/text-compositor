@@ -33,7 +33,9 @@ class LayersHtmlMixin:
             for p in stack.parts)
         # 見出し行の文字列が、重ね全体の代替テキスト。無ければ、装飾として読み上げから外す（画像のalt=""と同じ）
         label = f' role="img" aria-label="{escapeHtml(stack.alt)}"' if stack.alt else ' aria-hidden="true"'
-        return (f'<div class="diagram diagram-layers"><svg class="layers" xmlns="http://www.w3.org/2000/svg" '
+        # 部品がすべて図なら、ダークで反転する（CSSは、`svg.layers-invert`）。画像が混じるときは、しない
+        classes = 'layers layers-invert' if stack.diagram_only else 'layers'
+        return (f'<div class="diagram diagram-layers"><svg class="{classes}" xmlns="http://www.w3.org/2000/svg" '
                 f'viewBox="{_num(stack.left)} {_num(stack.top)} {_num(stack.width)} {_num(stack.height)}" '
                 f'width="{_num(stack.width)}" height="{_num(stack.height)}"{label} '
                 f'style="max-width:100%;height:auto">\n{images}</svg></div>\n')

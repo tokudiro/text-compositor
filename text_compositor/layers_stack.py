@@ -29,6 +29,9 @@ class LayersStack:
     top: float
     width: float
     height: float
+    # 部品が、すべて図のフェンスか。画像のファイル（写真・スクリーンショット・SVGのロゴ）が1つでもあれば、False。
+    # ダークの表示で、通常の図（フェンス）は反転し、通常の画像は反転しない規則に揃えるために使う（HTMLのみ）
+    diagram_only: bool = False
 
 
 class LayersStackMixin:
@@ -53,7 +56,8 @@ class LayersStackMixin:
         top = min(p.y for p in placed)
         right = max(p.x + p.width for p in placed)
         bottom = max(p.y + p.height for p in placed)
-        return LayersStack(block.alt, placed, left, top, right - left, bottom - top)
+        return LayersStack(block.alt, placed, left, top, right - left, bottom - top,
+                           diagram_only=all(part.kind == 'fence' for part in block.parts))
 
     def _place_layer(self, part: LayerPart) -> Optional[PlacedLayer]:
         if part.kind == 'fence':

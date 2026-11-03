@@ -97,6 +97,28 @@ class TestInOtherBlocks:
         assert '<svg class="layers"' not in out and "::: layers x" in out
 
 
+SVG_FENCE = '```svg\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>\n```'
+
+
+class TestDarkInversion:
+    """ダークで反転するのは、部品がすべて図のフェンスの重ねだけ（通常の図は反転し、通常の画像は反転しない規則に揃える）。"""
+
+    def test_only_fences_are_inverted(self, tmp_path):
+        out = html(tmp_path, f"::: layers x\n{SVG_FENCE}\n\n{SVG_FENCE}\n:::\n")
+        assert '<svg class="layers layers-invert"' in out
+        assert "svg.layers-invert { filter: invert(1)" in out
+
+    def test_an_image_file_keeps_the_stack_as_it_is(self, tmp_path):
+        out = html(tmp_path, f"::: layers x\n![](a.png)\n\n{SVG_FENCE}\n:::\n")
+        assert '<svg class="layers"' in out
+        assert '<svg class="layers layers-invert"' not in out
+
+    def test_an_svg_file_counts_as_an_image(self, tmp_path):
+        (tmp_path / "logo.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>')
+        out = html(tmp_path, "::: layers x\n![](logo.svg)\n:::\n")
+        assert '<svg class="layers"' in out
+
+
 class TestInnerPartsAreNotPickedUp:
     def test_image_inside_layers_is_not_taken_as_the_single_diagram(self, tmp_path):
         # layers 1つだけ。中の画像2枚が個別に拾われると、layout-compareの「ちょうど2つ」を満たしてしまう

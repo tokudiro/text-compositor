@@ -106,6 +106,8 @@ main.image-file { max-width: none; }
    PlantUML・D2のSVGは、不透明な白い背景を持ち、反転すると黒い四角になる。lightenで、ページの背景より暗い部分を、
    背景の色に置き換えて、なじませる。再描画もキャッシュの二重化も要らず、すべての図（Mermaid・PlantUML・D2・SVG）に効く。 */
 @media (prefers-color-scheme: dark) { .diagram img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
+/* 重ね（layers。#560）も、同じ規則。部品がすべて図のとき（`layers-invert`）だけ、全体を反転する。写真などの画像が混じる重ねは、反転しない */
+@media (prefers-color-scheme: dark) { svg.layers-invert { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
 @media (prefers-color-scheme: dark) { .math-block img, img.math-inline { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
 .alert { margin: 0 0 1em; padding: 0.5em 1em; border-left: 4px solid var(--alert, #0969da); background: var(--code-bg); }
 .alert p { margin: 0.4em 0; }
