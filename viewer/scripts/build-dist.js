@@ -166,13 +166,13 @@ const VEGA_LICENSE = {
   sha256: '63727832aaf62004a2b249c933e327f3c90caf49e41a72f4bf436edf632cbda8',
 };
 const VEGA_LITE_JS = {
-  version: '6.4.3',
+  version: '6.5.0',
   file: 'vega-lite.min.js',
-  url: 'https://cdn.jsdelivr.net/npm/vega-lite@6.4.3/build/vega-lite.min.js',
-  sha256: '35a9821df838825b05a6a73e9414b58747a1b18321583858ed903c66393a5c7e',
+  url: 'https://cdn.jsdelivr.net/npm/vega-lite@6.5.0/build/vega-lite.min.js',
+  sha256: '83e215e84e308ee8688fa6503ba0f1cf8a3c05c0d61df2841a0b92bf86809e00',
 };
 const VEGA_LITE_LICENSE = {
-  url: 'https://raw.githubusercontent.com/vega/vega-lite/v6.4.3/LICENSE',
+  url: 'https://raw.githubusercontent.com/vega/vega-lite/v6.5.0/LICENSE',
   sha256: 'f618900fd0d64046963b29f40590cdd1e341a2f41449f99110d82fd81fea808c',
 };
 
