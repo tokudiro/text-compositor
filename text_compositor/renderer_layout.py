@@ -5,6 +5,8 @@
 import re
 import sys
 
+from text_compositor.layout_blocks import LayersMatch
+
 
 class LayoutMixin:
     """`:::`のレイアウトブロック（layout-right・layout-left・layout-compare・layout-feature・layout-columns・layout-takahashi・align）。"""
@@ -69,7 +71,7 @@ class LayoutMixin:
         graphviz/svgまたはMarkdown画像）の2カラムgridへ変換する。flip=Trueならlayout-leftとして
         図を左・テキストを右に配置する（#81）。ratioは(左, 右)のfr比率"""
         block_name = 'layout-left' if flip else 'layout-right'
-        match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
+        match = next(iter(self._diagram_matches(inner_text)), None)
         if not match:
             self._error_here(f"'{block_name}' block in {self.current_file} must contain exactly one "
                   "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fence or a standalone image.")
@@ -94,7 +96,7 @@ class LayoutMixin:
         """::: layout-compare ... ::: ブロックを、2つの図（mermaid/plantuml/dot/graphviz/svg/d2/structurizr/pikchr/cetz/fletcher/timeliney/finiteまたは
         Markdown画像。種類は混在可）を左右に並べた2カラムgridへ変換する。
         各図の直前にあるテキスト（キャプション）は、その図と同じ列にまとめて配置する。"""
-        matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
+        matches = self._diagram_matches(inner_text)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
                   f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fences or images (found {len(matches)}).")
@@ -130,6 +132,8 @@ class LayoutMixin:
         既存のfit-image表示（高さ上限あり・cover表示ではない）に委ねる。フェンス側のwidth/height
         属性（#82）はcover化の対象外（画像と同じ強制はしない）なので、他のブロックと同様に
         そのまま反映する。"""
+        if isinstance(match, LayersMatch):
+            return self._render_layers_block(match.header, match.body).strip()
         if match.group('lang'):
             width, height = self._parse_size_attrs(match.group('attrs'))
             trim = self._parse_trim_attr(match.group('attrs'))
@@ -142,7 +146,7 @@ class LayoutMixin:
         """::: layout-feature ... ::: ブロックを、写真（または図）をフルブリードで敷き、
         下部に半透明の帯とキャッチコピーを重ねるレイアウトへ変換する（#78）。
         図/画像の抽出はlayout-right/layout-compareと同じDIAGRAM_OR_IMAGE_REを再利用する（#77）。"""
-        match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, inner_text)
+        match = next(iter(self._diagram_matches(inner_text)), None)
         if not match:
             self._error_here(f"'layout-feature' block in {self.current_file} must contain exactly one "
                   "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fence or a standalone image.")

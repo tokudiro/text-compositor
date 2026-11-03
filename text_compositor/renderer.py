@@ -18,7 +18,7 @@ from text_compositor.config import yaml
 from text_compositor.diagram_svg import DiagramSvgMixin
 from text_compositor.layers_pdf import LayersPdfMixin
 from text_compositor.layers_stack import LayersStackMixin
-from text_compositor.layout_blocks import find_layout_blocks
+from text_compositor.layout_blocks import LayersMatch, find_layout_blocks
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
 from text_compositor.mermaid import MermaidBrowser
@@ -110,6 +110,14 @@ class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMi
         """_finditer_outside_fencesの最初の1件版（.search()相当、#85）。"""
         matches = self._finditer_outside_fences(regex, text)
         return matches[0] if matches else None
+
+    def _diagram_matches(self, text):
+        """layout-right等の中の「図・画像」を、出てくる順に返す。`::: layers`は、中の画像やフェンスを
+        個別に拾わず、全体で1つの図として返す（LayersMatch。#560）。"""
+        layers = [LayersMatch(b) for b in self._finditer_layout_blocks(text) if b.group(1) == 'layers']
+        plain = [m for m in self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, text)
+                 if not any(b.start() <= m.start() < b.end() for b in layers)]
+        return sorted(plain + layers, key=lambda m: m.start())
 
     def _neutralize_footnote_definitions(self, text):
         """FOOTNOTE_DEF_REにマッチした行頭の`[`をエスケープし、CommonMarkのリンク参照定義として
