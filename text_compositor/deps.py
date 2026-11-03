@@ -384,29 +384,44 @@ def ensure_bytefield_js():
 # GPLv2+Classpath Exception。OpenJDK本体と同じライセンス系統で安心度が高い）。CI
 # （GitHub Actions ubuntu-latest等）はJavaが標準搭載されているためこの取得は発生しない（#22）。
 # バージョン・プラットフォーム別にURL・SHA256を固定し、決定論的な取得結果にする（9章）。
-TEMURIN_JRE_RELEASE = "jdk-21.0.12.1+1"
-TEMURIN_JRE_BASE_URL = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/"
-TEMURIN_JRE_TOP_DIR = "jdk-21.0.12.1+1-jre"
+TEMURIN_JRE_RELEASE = "jdk-21.0.13+9"
+TEMURIN_JRE_BASE_URL = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/"
+TEMURIN_JRE_TOP_DIR = "jdk-21.0.13+9-jre"
+# Adoptiumは、21.0.13+9のWindows ARM（aarch64）向けJREを配布していない（前の版の21.0.12.1+1は、再リリースで配布していた。
+# 公式のAPIでも、確認した）。ARMだけ、前のリリースのまま残し、ARMのパソコンで、JREを自動で取得できなくならないようにする（#255）。
+# AdoptiumがARM向けを出したら、この例外をなくす。`check-pins.py`は、`TEMURIN_JRE_RELEASE`だけを見るため、この例外は、報告に出ない。
+TEMURIN_JRE_RELEASE_OVERRIDES = {
+    ("win32", "aarch64"): "jdk-21.0.12.1+1",
+}
+_TEMURIN_RELEASES_URL = "https://github.com/adoptium/temurin21-binaries/releases/download/"
+
+
+def temurin_jre_release(key):
+    """プラットフォーム（`_temurin_platform_key()`の値）に使うJREの、(リリース名, 取得先のURL, 展開先のフォルダ名)。
+    例外（`TEMURIN_JRE_RELEASE_OVERRIDES`）がなければ、`TEMURIN_JRE_RELEASE`。"""
+    release = TEMURIN_JRE_RELEASE_OVERRIDES.get(key, TEMURIN_JRE_RELEASE)
+    return release, _TEMURIN_RELEASES_URL + release.replace("+", "%2B") + "/", f"{release}-jre"
+
 # キー: (sys.platform判定用キー, platform.machine()正規化キー)。
 # 値: (アーカイブファイル名, SHA256, アーカイブ形式, TEMURIN_JRE_TOP_DIR配下のjava実行ファイルへの相対パス)
 TEMURIN_JRE_ASSETS = {
-    ("win32", "x86_64"): ("OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
-                           "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636",
+    ("win32", "x86_64"): ("OpenJDK21U-jre_x64_windows_hotspot_21.0.13_9.zip",
+                           "2332c0b4cff6bed722da3567c91d5e47568bcba863fa4945d0a8d6fc76158628",
                            "zip", ("bin", "java.exe")),
     ("win32", "aarch64"): ("OpenJDK21U-jre_aarch64_windows_hotspot_21.0.12.1_1.zip",
                             "e82cc17e0bf89a25b0b0ed106d072f2ea420587d0a6870534b71b1dce3ae28c3",
                             "zip", ("bin", "java.exe")),
-    ("linux", "x86_64"): ("OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz",
-                           "2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500",
+    ("linux", "x86_64"): ("OpenJDK21U-jre_x64_linux_hotspot_21.0.13_9.tar.gz",
+                           "a535a1df9c6284d9618872984e026ae0352d1f7e9e0605425c0e6114f47351dd",
                            "tar.gz", ("bin", "java")),
-    ("linux", "aarch64"): ("OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
-                            "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2",
+    ("linux", "aarch64"): ("OpenJDK21U-jre_aarch64_linux_hotspot_21.0.13_9.tar.gz",
+                            "b1734db7ade49c3f6acc6ae06233b8c2dd90e3e2f00f67000ae1c972aaa64d8c",
                             "tar.gz", ("bin", "java")),
-    ("darwin", "x86_64"): ("OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz",
-                            "6717ec641fd9ce0bb209ca083ee23b42202ac68cb6fcc5753496e0e4a0f41989",
+    ("darwin", "x86_64"): ("OpenJDK21U-jre_x64_mac_hotspot_21.0.13_9.tar.gz",
+                            "c909674b1c10c261b9a3fb7e9c0efebd303e33f88a4fe84be7135b5e2d711f89",
                             "tar.gz", ("Contents", "Home", "bin", "java")),
-    ("darwin", "aarch64"): ("OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz",
-                             "dec50fc6f9fcd4fe3ae8cabf5a5fa68f6afc48841f7698e468e9aa5d54beed84",
+    ("darwin", "aarch64"): ("OpenJDK21U-jre_aarch64_mac_hotspot_21.0.13_9.tar.gz",
+                             "225bab0a09491ef06835488cd942f5d2befa9a0410a2484f0c8bbcf7506ec09a",
                              "tar.gz", ("Contents", "Home", "bin", "java")),
 }
 
@@ -436,18 +451,19 @@ def ensure_temurin_jre():
               "Install Java 11+ manually and ensure it is on PATH, or set plugins.plantuml: false.")
         sys.exit(1)
     filename, sha256, archive_type, java_rel_parts = asset
+    release, base_url, top_dir = temurin_jre_release(key)
 
     cache_root = _jre_cache_root()
-    java_bin_path = os.path.join(cache_root, TEMURIN_JRE_TOP_DIR, *java_rel_parts)
+    java_bin_path = os.path.join(cache_root, top_dir, *java_rel_parts)
     if os.path.exists(java_bin_path):
         return java_bin_path
 
     os.makedirs(cache_root, exist_ok=True)
     archive_path = os.path.join(cache_root, filename)
-    _log_info(f"No local Java 11+ found; downloading Eclipse Temurin JRE {TEMURIN_JRE_RELEASE} "
+    _log_info(f"No local Java 11+ found; downloading Eclipse Temurin JRE {release} "
               f"(one-time; cached under {cache_root})...")
     try:
-        _download(TEMURIN_JRE_BASE_URL + filename, archive_path)
+        _download(base_url + filename, archive_path)
     except OSError as e:
         _error(f"Failed to download Eclipse Temurin JRE: {e}")
         sys.exit(1)

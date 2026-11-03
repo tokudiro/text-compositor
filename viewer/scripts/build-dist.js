@@ -122,11 +122,11 @@ const EPL_NOTICE = [
 // Java（Structurizr・PlantUMLが使う。#290）。ローカルにJava 11+が見つからない場合と同じ取得元（text_compositor/deps.pyの
 // TEMURIN_JRE_ASSETS、win32/x86_64の1件のみ。build-dist.js自体がWindows向けのため）。
 const JRE = {
-  version: '21.0.12.1+1',
-  file: 'OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip',
-  url: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip',
-  sha256: 'd35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636',
-  topDir: 'jdk-21.0.12.1+1-jre',
+  version: '21.0.13+9',
+  file: 'OpenJDK21U-jre_x64_windows_hotspot_21.0.13_9.zip',
+  url: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jre_x64_windows_hotspot_21.0.13_9.zip',
+  sha256: '2332c0b4cff6bed722da3567c91d5e47568bcba863fa4945d0a8d6fc76158628',
+  topDir: 'jdk-21.0.13+9-jre',
 };
 
 // PlantUML本体（deps.pyのPLANTUML_JAR_URL/SHA256と同じ、MIT版）。jarの中にライセンス全文は無いため、

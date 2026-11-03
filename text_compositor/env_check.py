@@ -5,7 +5,7 @@ import sys
 import importlib.metadata
 from collections import namedtuple
 from text_compositor.config import _load_project_config, yaml
-from text_compositor.deps import D2_ASSETS, font_file_names, TEMURIN_JRE_ASSETS, TEMURIN_JRE_TOP_DIR, _d2_bin_path, _d2_cache_root, _jre_cache_root, _structurizr_cli_cache_root, _structurizr_cli_lib_dir, _temurin_platform_key, _user_cache_dir, find_system_browser, find_system_d2, find_system_java
+from text_compositor.deps import D2_ASSETS, font_file_names, TEMURIN_JRE_ASSETS, temurin_jre_release, _d2_bin_path, _d2_cache_root, _jre_cache_root, _structurizr_cli_cache_root, _structurizr_cli_lib_dir, _temurin_platform_key, _user_cache_dir, find_system_browser, find_system_d2, find_system_java
 from text_compositor.log import _warn
 
 def _typst_version_info(repo_root):
@@ -136,7 +136,7 @@ def _check_plantuml(plantuml_enabled, plantuml_auto_download):
     asset = TEMURIN_JRE_ASSETS.get(key)
     if asset:
         _, _, _, java_rel_parts = asset
-        java_bin_path = os.path.join(_jre_cache_root(), TEMURIN_JRE_TOP_DIR, *java_rel_parts)
+        java_bin_path = os.path.join(_jre_cache_root(), temurin_jre_release(key)[2], *java_rel_parts)
         if os.path.exists(java_bin_path):
             return CheckResult("plantuml", "OK", f"no local Java 11+, but Eclipse Temurin JRE already cached under {_jre_cache_root()}")
     if plantuml_auto_download:
@@ -157,7 +157,7 @@ def _check_structurizr(structurizr_enabled, structurizr_auto_download):
     if not java_path:
         key = _temurin_platform_key()
         asset = TEMURIN_JRE_ASSETS.get(key)
-        cached = asset and os.path.exists(os.path.join(_jre_cache_root(), TEMURIN_JRE_TOP_DIR, *asset[3]))
+        cached = asset and os.path.exists(os.path.join(_jre_cache_root(), temurin_jre_release(key)[2], *asset[3]))
         if not cached:
             if structurizr_auto_download:
                 return CheckResult("structurizr", "WARN",
