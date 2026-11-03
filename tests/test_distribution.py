@@ -85,3 +85,11 @@ def test_the_distribution_requirements_follow_pyproject():
     assert "typst" in project and "typst" in dist
     assert "playwright" not in dist
     assert set(expected) == set(dist)
+
+
+def test_the_release_requirements_follow_pyproject():
+    """リリースのワークフローが`pip install -r`で使う`requirements.txt`も、pyprojectの必須の依存と、同じ版にする（#588）。"""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    project = _pins(re.search(r"^dependencies = \[(.*?)^\]", pyproject, re.S | re.M).group(1).splitlines())
+    release = _pins((ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines())
+    assert release == project
