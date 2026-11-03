@@ -20,7 +20,7 @@ updates:
       - infrastructure
 
   # Pythonのパッケージ。pyproject.toml・requirements.txt・viewer/dist-requirements.txtの版は、そろえる決まり
-  # （tests/test_distribution.py）。別々のPRになると、そろわずにテストが落ちるため、1つのPRにまとめる。
+  # （tests/test_distribution.py。viewer/dist-requirements.txtとrequirements.txtを、pyproject.tomlと比べる）。別々のPRになると、そろわずにテストが落ちるため、1つのPRにまとめる。
   # viewer/dist-requirements.txtが、検出されるかは、未確認（マージ後に、PRの内容で確認する）。
   - package-ecosystem: pip
     directories:
