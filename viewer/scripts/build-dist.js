@@ -71,15 +71,15 @@ const MONO_FONTS = {
 };
 // 実際に使う版だけ入れる（text_compositor/templates/_common.typの`@preview/...`と、kip（Pikchr。#213）・cetz・fletcher（#236）・
 // timeliney（#294）・finite（#292）はtext_compositor/のpikchr_render.py・cetz_render.pyの版の定数と、同じ版）。fletcher 0.5.8は、cetz 0.3.4と
-// oxifmtに依存する（cetz 0.5.2は、cetz自身がoxifmtに依存する）。timeliney 0.4.0は、cetz 0.4.1に依存する（3本目のcetzの版）。
+// oxifmtに依存する（cetz 0.5.3は、cetz自身がoxifmtに依存する）。timeliney 0.4.0は、cetz 0.4.1に依存する（3本目のcetzの版）。
 // finite 0.5.1は、cetz 0.4.2（4本目のcetzの版）・diagraph-layout 0.0.1・t4t 0.4.3・oxifmt 1.0.0に依存する。
 // 推移的な依存も、オフラインで動くように、すべて入れる。CeTZ（LGPL-3.0以降）の扱いは、下の`LGPL_NOTICE`。
 const TYPST_PACKAGES = [
   { name: 'cetz', version: '0.3.4', license: 'LGPL-3.0-or-later', sha256: '4f4b5a8d311d519e749940a766fe50521e40c041129e1c91af0c42e61f307514' },
   { name: 'cetz', version: '0.4.1', license: 'LGPL-3.0-or-later', sha256: '195549e2e42035320572dddf06ba0702ed3eb31ac6969a4a5aa6d7785c8a9b83' },
   { name: 'cetz', version: '0.4.2', license: 'LGPL-3.0-or-later', sha256: 'e1d2f121b166f1520fc529cad834e2ca5e0b6bcab6816e1d0e07d70836aa0b59' },
-  { name: 'cetz', version: '0.5.2', license: 'LGPL-3.0-or-later', sha256: '77cf8490114ae04c6e665a11efa691d284a0cadb9719771b5708c1197292f23f' },
-  { name: 'diagraph', version: '0.3.7', license: 'MIT', sha256: '08b9927b047e95c661c1d7ae28806b8cbefa25a07f8ae2d4a47911028875abc6' },
+  { name: 'cetz', version: '0.5.3', license: 'LGPL-3.0-or-later', sha256: '79ca64869c60aefaf0eccc7e7371ab47cc6cb85bce1ad222e42cf1879c965b5f' },
+  { name: 'diagraph', version: '0.3.8', license: 'MIT', sha256: 'd30c07d02762f74fa24493bc34a7e0c309444efe29bd0bf09bb918e41d0286ba' },
   { name: 'diagraph-layout', version: '0.0.1', license: 'MIT', sha256: '0bd85571728596beacb6004f36cf52d14753ac9acfd4d1d4717190765146ece1' },
   { name: 'finite', version: '0.5.1', license: 'MIT', sha256: '4d17271b35425f5cf1cf0dc14b451ea6765dfb8ecdb626d0181b9238ec71e7fd' },
   { name: 'fletcher', version: '0.5.8', license: 'MIT', sha256: 'a61883a4af4ca923a37c597900e674f40dad3f7bde3f2a3d8fe8042e6ca8a66b' },

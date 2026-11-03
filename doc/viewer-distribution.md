@@ -42,7 +42,7 @@ Obunzu-Markdown-Viewer-0.4.6-win-x64/
 | **`typst`**（Typstのコンパイラ。Pythonのパッケージ） | **同梱**（[#263](https://github.com/tokudiro/text-compositor/issues/263)。[#237](https://github.com/tokudiro/text-compositor/issues/237)で決めた） | 約59.6 MB（ZIPで約27 MB） |
 | Noto Sans JP（`fonts/`。RegularとBold） | **同梱**（#263） | 8.8 MB |
 | Noto Sans Mono CJK JP（`fonts/`。RegularとBold。コードブロック用の等幅フォント。[#511](https://github.com/tokudiro/text-compositor/issues/511)） | **同梱**（OFL-1.1。Noto Sans JPと同じリリース） | 約32 MB（Regular 15.7 MB・Bold 16.2 MB。実測） |
-| Typstのパッケージ（`typst-packages/`。`diagraph` 0.3.7・`kip` 0.1.0（Pikchr。#213）・`cetz` 0.5.2と0.4.2と0.4.1と0.3.4・`fletcher` 0.5.8・`timeliney` 0.4.0（#294）・`finite` 0.5.1（#292。`diagraph-layout` 0.0.1・`t4t` 0.4.3を含む）・`oxifmt` 0.2.1と1.0.0（CeTZ・Fletcher。#236）・`mitex` 0.2.7（数式。#183）・`note-me` 0.6.0） | **同梱**（#263） | 約7 MB（`kip`は、WASMを含み、約1.4 MB。CeTZ・Fletcher・timeliney・finiteと、その依存は、約3.8 MB。`diagraph-layout`は、約1.1 MB） |
+| Typstのパッケージ（`typst-packages/`。`diagraph` 0.3.8・`kip` 0.1.0（Pikchr。#213）・`cetz` 0.5.3と0.4.2と0.4.1と0.3.4・`fletcher` 0.5.8・`timeliney` 0.4.0（#294）・`finite` 0.5.1（#292。`diagraph-layout` 0.0.1・`t4t` 0.4.3を含む）・`oxifmt` 0.2.1と1.0.0（CeTZ・Fletcher。#236）・`mitex` 0.2.7（数式。#183）・`note-me` 0.6.0） | **同梱**（#263） | 約7 MB（`kip`は、WASMを含み、約1.4 MB。CeTZ・Fletcher・timeliney・finiteと、その依存は、約3.8 MB。`diagraph-layout`は、約1.1 MB） |
 | Java（Eclipse Temurin JRE 21。`jre/`。PlantUML・Structurizrが使う） | **同梱**（[#290](https://github.com/tokudiro/text-compositor/issues/290)） | 約144.5 MB |
 | PlantUMLの`plantuml-mit-1.2026.8.jar`（`plantuml/`） | **同梱**（#290） | 約16.9 MB |
 | D2のCLI v0.9.0（`d2/`） | **同梱**（#290） | 約40.8 MB |

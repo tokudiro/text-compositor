@@ -32,7 +32,7 @@
 // Graphviz（diagraph、#82でwidth/height明示指定に対応するためconf()の外へ出し、
 // build.py生成コードから直接呼べるようエクスポートした。conf()内のshow raw.where(lang: "dot")
 // ルールは、width/height未指定の呼び出し（自動縮小のみ）としてこの関数をそのまま使う）。
-#import "@preview/diagraph:0.3.7": render
+#import "@preview/diagraph:0.3.8": render
 #let render-graph(code, width: none, height: none) = if width != none or height != none {
   render(code,
     width: if width != none { width } else { auto },

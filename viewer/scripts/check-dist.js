@@ -125,10 +125,10 @@ from text_compositor.deps import ensure_fonts
 d = tempfile.mkdtemp()
 src = os.path.join(d, 'doc.typ')
 with open(src, 'w', encoding='utf-8') as f:
-    f.write('#import "@preview/diagraph:0.3.7": render\\n#import "@preview/note-me:0.6.0": note\\n#import "@preview/kip:0.1.0": pikchr-plugin\\n'
+    f.write('#import "@preview/diagraph:0.3.8": render\\n#import "@preview/note-me:0.6.0": note\\n#import "@preview/kip:0.1.0": pikchr-plugin\\n'
             '#set text(font: "Noto Sans JP")\\n#note[日本語の注記]\\n#render("digraph { あ -> い }")\\n'
             '#image(pikchr-plugin.typst_pikchr(bytes("box \\\\"あ\\\\" fit")), format: "svg")\\n'
-            '#import "@preview/fletcher:0.5.8": diagram, node, edge\\n#import "@preview/cetz:0.5.2"\\n'
+            '#import "@preview/fletcher:0.5.8": diagram, node, edge\\n#import "@preview/cetz:0.5.3"\\n'
             '#diagram(node((0, 0), [あ]), edge("->"), node((1, 0), [い]))\\n#cetz.canvas({ import cetz.draw: *; circle((0, 0)) })\\n'
             '#import "@preview/timeliney:0.4.0" as timeliney\\n'
             '#timeliney.timeline(show-grid: true, { timeliney.headerline(timeliney.group(([*2024*], 1))); timeliney.taskgroup(title: [あ], { timeliney.task("A", (0, 1)) }) })\\n'
@@ -154,10 +154,10 @@ function checkOfflineTypst(work) {
     ['NotoSansJP-Regular.otf', 'NotoSansJP-Bold.otf', 'NotoSansMonoCJKjp-Regular.otf', 'NotoSansMonoCJKjp-Bold.otf', 'LICENSE', 'LICENSE-NotoSansMonoCJKjp']
       .every((name) => fs.existsSync(path.join(fonts, name))));
   check('typst-packages/ に、diagraph・kip・note-me・cetz（4つの版）・fletcher・timeliney・finite（diagraph-layout・t4tを含む）・oxifmt（2つの版）がある',
-    ['diagraph/0.3.7', 'kip/0.1.0', 'note-me/0.6.0', 'cetz/0.5.2', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4', 'fletcher/0.5.8', 'timeliney/0.4.0',
+    ['diagraph/0.3.8', 'kip/0.1.0', 'note-me/0.6.0', 'cetz/0.5.3', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4', 'fletcher/0.5.8', 'timeliney/0.4.0',
       'finite/0.5.1', 'diagraph-layout/0.0.1', 't4t/0.4.3', 'oxifmt/0.2.1', 'oxifmt/1.0.0']
       .every((name) => fs.existsSync(path.join(packages, 'preview', ...name.split('/'), 'typst.toml'))));
-  check('CeTZ（LGPL）の全文が、パッケージのフォルダに、改造されずに、入っている', ['cetz/0.5.2', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4']
+  check('CeTZ（LGPL）の全文が、パッケージのフォルダに、改造されずに、入っている', ['cetz/0.5.3', 'cetz/0.4.2', 'cetz/0.4.1', 'cetz/0.3.4']
     .every((name) => /GNU LESSER GENERAL PUBLIC LICENSE/i.test(fs.readFileSync(path.join(packages, 'preview', ...name.split('/'), 'LICENSE'), 'utf8'))));
   try {
     const out = execFileSync(python, [script], { encoding: 'utf8', env: { ...baseEnv, TEXT_COMPOSITOR_FONT_DIR: fonts, TEXT_COMPOSITOR_TYPST_PACKAGES: packages } }).trim().split(/\r?\n/);
