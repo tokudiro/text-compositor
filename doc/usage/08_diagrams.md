@@ -306,7 +306,7 @@ final: ("q0",)
   - データファイルを変えると、図は描き直されます。`--if-changed`・`--watch`・Obunzuの自動更新も、データファイルの変更を検知します。
 - **diffを見やすくする書き方があります。** データは1行に1件、それ以外は1キー1行で書くと、値や設定の変更が、1行の差分になります。データの1件を5行に展開すると、差分が読みにくくなります。
 - 仕様は、JSONです（YAMLやコメントは使えません）。JSONの誤りは、エラーの行と桁で報告します。
-- 描画には、Mermaidと同じヘッドレスブラウザ（Chrome/Edge）を使います。初回だけ、`vega.min.js`・`vega-lite.min.js`（合わせて約772KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。`plugins.mermaid_auto_download`は、Vega・Vega-Liteにも効きます。
+- 描画には、Mermaidと同じヘッドレスブラウザ（Chrome/Edge）を使います。初回だけ、`vega.min.js`・`vega-lite.min.js`（合わせて約779KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。`plugins.mermaid_auto_download`は、Vega・Vega-Liteにも効きます。
 - サイズは、仕様の`width`・`height`で決まります。フェンスの`{width=...}`でも指定できます。
 - `plugins.vega: false`で、無効にできます。
 

@@ -68,7 +68,7 @@ class MermaidBrowser:
 
     def ensure_vega_page(self, mermaid_enabled, mermaid_auto_download):
         """Vega・Vega-Lite描画用のページを遅延起動して返す（#211）。Mermaidと同じヘッドレスブラウザに、別のタブとして開く
-        （ブラウザの起動は、約1.3秒かかるため、共有する）。vega.min.jsとvega-lite.min.js（合わせて約772KB）を読み込ませ、
+        （ブラウザの起動は、約1.3秒かかるため、共有する）。vega.min.jsとvega-lite.min.js（合わせて約779KB）を読み込ませ、
         `vega.View`・`vegaLite.compile`を直接呼ぶ（Node.jsやvega-cliは、要らない）。"""
         if self.vega_page is not None:
             try:

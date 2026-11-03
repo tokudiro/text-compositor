@@ -272,13 +272,13 @@ def ensure_mermaid_js():
 
     return _ensure_verified_js(MERMAID_JS_URL, MERMAID_JS_SHA256, "mermaid", "mermaid.min.js")
 
-# Vega・Vega-Lite公式配布の単一バンドルJS（UMD形式。どちらもBSD-3-Clause。#211）。合わせて実測約772KBで、
+# Vega・Vega-Lite公式配布の単一バンドルJS（UMD形式。どちらもBSD-3-Clause。#211）。合わせて実測約779KBで、
 # Mermaidと同じヘッドレスブラウザに読み込ませて描画する。Vega-LiteはVegaへコンパイルされるため、両方を読み込む
 # （Vega本体の仕様は、vega.min.jsだけで描ける）。バージョン・SHA256を固定し、Mermaidと同様に決定論的にする。
 VEGA_JS_URL = "https://cdn.jsdelivr.net/npm/vega@6.4.0/build/vega.min.js"
 VEGA_JS_SHA256 = "8f6a3587cf8d4f42c7e08120e3eb05d067e746d554e39d2dcf52acc0bd5ba28f"
-VEGA_LITE_JS_URL = "https://cdn.jsdelivr.net/npm/vega-lite@6.4.3/build/vega-lite.min.js"
-VEGA_LITE_JS_SHA256 = "35a9821df838825b05a6a73e9414b58747a1b18321583858ed903c66393a5c7e"
+VEGA_LITE_JS_URL = "https://cdn.jsdelivr.net/npm/vega-lite@6.5.0/build/vega-lite.min.js"
+VEGA_LITE_JS_SHA256 = "83e215e84e308ee8688fa6503ba0f1cf8a3c05c0d61df2841a0b92bf86809e00"
 
 # 確認済みのキャッシュのファイル（パス・更新時刻・サイズ）。プロセスの間は、同じファイルを、毎回ハッシュし直さない。
 _verified_cache_files = set()
