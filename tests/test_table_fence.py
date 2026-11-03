@@ -1,7 +1,8 @@
 """`table`フェンスの解析（#554 段階1）のテスト。"""
 import pytest
 
-from text_compositor.table_fence import TableFenceError, parse_table_fence
+from text_compositor import table_fence
+from text_compositor.table_fence import TableFenceError, parse_table_attrs, parse_table_fence
 
 
 class TestParse:
@@ -55,3 +56,36 @@ class TestErrors:
     def test_invalid_values(self, attrs):
         with pytest.raises(TableFenceError):
             parse_table_fence("a,b\n1,2\n", attrs)
+
+
+class TestQuotedValues:
+    """属性の値は、`"…"`・`'…'`で囲むと、空白を含められる（#569）。"""
+
+    @pytest.fixture(autouse=True)
+    def future_options(self, monkeypatch):
+        # 空白を含む値が要る設定（列の幅など）は、まだ無い。足されたあとの状態を、テストの中だけで再現する
+        monkeypatch.setattr(table_fence, '_KNOWN_ATTRS', (*table_fence._KNOWN_ATTRS, 'col_widths', 'note'))
+
+    def test_double_quotes_keep_spaces(self):
+        assert parse_table_attrs('{header_rows=2 col_widths="20% 30% 50%"}') == {'header_rows': '2', 'col_widths': '20% 30% 50%'}
+
+    def test_single_quotes_keep_spaces(self):
+        assert parse_table_attrs("{note='a b c' header_cols=1}") == {'note': 'a b c', 'header_cols': '1'}
+
+    def test_unquoted_values_are_read_as_before(self):
+        assert parse_table_attrs("{header_cols=1 delimiter=tab}") == {'header_cols': '1', 'delimiter': 'tab'}
+
+    def test_empty_quoted_value(self):
+        assert parse_table_attrs('{note=""}') == {'note': ''}
+
+    def test_a_known_option_may_be_quoted(self):
+        assert parse_table_fence("a\tb\n1\t2\n", '{delimiter="tab"}').cols == 2
+
+    @pytest.mark.parametrize("attrs", ['{x="a b}', "{x='a b}", '{x=a"b}', '{x="a{b}"}'])
+    def test_an_unclosed_or_invalid_quote_is_an_error(self, attrs):
+        with pytest.raises(TableFenceError, match="quote"):
+            parse_table_attrs(attrs)
+
+    def test_a_quoted_value_does_not_hide_an_unknown_option(self):
+        with pytest.raises(TableFenceError, match="unknown option 'caption'"):
+            parse_table_fence("a\n", '{caption="a long title"}')
