@@ -8,7 +8,18 @@ You could wire up the same diagram conversions directly with pandoc or Typst —
 
 This README covers only the essentials needed to get started quickly. For a full walkthrough of `config.yaml` and how to write your source documents, see the [usage guide](doc/usage/) (which can also be built into a PDF with `cd doc/usage && python ../../build.py`). For detailed design rationale and implementation status, see [doc/spec.md](doc/spec.md).
 
-## Features
+## Obunzu Markdown Viewer
+
+This repository also contains **Obunzu Markdown Viewer** (Obunzu for short), a lightweight, read-only viewer for Markdown and diagrams. It is built on the same conversion engine as text-compositor.
+
+- Opens Markdown files and standalone diagram files (Mermaid, PlantUML, D2, Graphviz, Vega-Lite, SVG and more) in its own window, and shows them as pictures.
+- Updates the view when you save the file, so you can write in your own editor and check the result in Obunzu. When a conversion fails, it shows which line of the source went wrong.
+- Comes as a portable ZIP for Windows (64-bit). Python and the diagram tools are bundled, so there is nothing to install first. Download it from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest).
+- Does not edit documents and does not produce a PDF. Use text-compositor below when you need a PDF.
+
+See [viewer/README.md](viewer/README.md) for developers, and the [Obunzu guide](doc/obunzu-guide/) (in Japanese) for users.
+
+## text-compositor features
 
 - Combines multiple text files (chapters) into a single PDF
 - Markdown → AST via [markdown-it-py](https://github.com/executablebooks/markdown-it-py) → deterministic conversion to [Typst](https://typst.app/) syntax → PDF output
