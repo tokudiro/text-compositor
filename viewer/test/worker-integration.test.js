@@ -227,7 +227,9 @@ describe('real worker: watching and rendered events (#284)', { skip: prepared.re
     const config = path.join(dir, 'config.yaml');
     fs.writeFileSync(config, 'a: 1\n', 'utf8');
     await client.watch('project', [config]);
-    fs.writeFileSync(config, 'a: 2\n', 'utf8');
+    // 監視は、更新時刻とサイズの比較（worker_watch.py）。ほぼ同時の2回の書き込みで、サイズも同じだと、更新時刻が同じになり、
+    // 変化に見えない（CIで、まれに「no event」になった。#284）。2回目は、サイズを変える
+    fs.writeFileSync(config, 'a: 22\n', 'utf8');
     const event = await nextEvent((e) => e.event === 'changed' && e.name === 'project');
     assert.deepEqual(event.paths, [config]);
 
