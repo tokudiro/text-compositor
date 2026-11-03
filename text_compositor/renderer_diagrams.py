@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import subprocess
+from text_compositor.layout_blocks import LayersMatch
 import hashlib
 import tempfile
 from text_compositor import bizmodel_render, cetz_render, flowchart_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render, bytefield_render
@@ -126,6 +127,8 @@ class DiagramMixin:
         """DIAGRAM_OR_IMAGE_REの1マッチをTypstコードへ変換する。フェンスは_render_diagram_fenceへ、
         単独行のMarkdown画像は通常の画像処理（alt|width=/height=構文込み）をそのまま再利用するため
         _render_markdown_segmentに委譲する（#77）。"""
+        if isinstance(m, LayersMatch):
+            return self._render_layers_block(m.header, m.body).strip()
         if m.group('lang'):
             width, height = self._parse_size_attrs(m.group('attrs'))
             trim = self._parse_trim_attr(m.group('attrs'))

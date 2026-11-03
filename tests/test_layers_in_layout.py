@@ -1,0 +1,79 @@
+"""`layout-*`の中に置いた`::: layers`を、1つの図として扱うテスト（#560）。"""
+import struct
+
+import pytest
+
+from text_compositor.api import render_html
+from text_compositor.renderer import TypstRenderer
+
+
+def png_bytes(width, height):
+    return b'\x89PNG\r\n\x1a\n' + struct.pack('>I', 13) + b'IHDR' + struct.pack('>II', width, height) + b'\x08\x02\x00\x00\x00'
+
+
+LAYERS = "::: layers 注釈つき\n![|x=0|y=0](a.png)\n\n![|x=10|y=10](b.png)\n:::"
+FILES = {"a.png": png_bytes(100, 80), "b.png": png_bytes(20, 20)}
+
+
+def prepare(tmp_path):
+    for name, data in FILES.items():
+        (tmp_path / name).write_bytes(data)
+
+
+def pdf(tmp_path, markdown):
+    prepare(tmp_path)
+    renderer = TypstRenderer(line_mapping="off", base_dir=str(tmp_path), typst_root=str(tmp_path))
+    return renderer.render(markdown, filepath=str(tmp_path / "doc.md"))
+
+
+def convert(tmp_path, markdown):
+    prepare(tmp_path)
+    md = tmp_path / "doc.md"
+    md.write_text(markdown, encoding="utf-8")
+    result = render_html(str(md), None, plugins={"mermaid": False, "plantuml": False, "d2": False})
+    return result, (open(result.html_path, encoding="utf-8").read() if result.ok else "")
+
+
+def html(tmp_path, markdown):
+    return convert(tmp_path, markdown)[1]
+
+
+@pytest.mark.parametrize("kind", ["layout-right", "layout-left"])
+class TestSide:
+    def test_pdf_places_the_whole_stack_in_the_image_cell(self, tmp_path, kind):
+        out = pdf(tmp_path, f"::: {kind}\n説明文\n\n{LAYERS}\n:::\n")
+        assert "#grid(" in out and out.count("place(top + left") == 2
+        assert "説明文" in out
+        assert "::: layers" not in out
+
+    def test_html_has_one_svg_with_both_images(self, tmp_path, kind):
+        out = html(tmp_path, f"::: {kind}\n説明文\n\n{LAYERS}\n:::\n")
+        assert out.count('<svg class="layers"') == 1 and out.count("<image ") == 2
+        assert f'class="layout {kind}"' in out and "説明文" in out
+        assert "::: layers" not in out
+
+
+class TestCompare:
+    def test_layers_and_a_plain_image_are_the_two_cells(self, tmp_path):
+        md = f"::: layout-compare\n{LAYERS}\n\n![](a.png)\n:::\n"
+        assert html(tmp_path, md).count("<image ") == 2
+        assert pdf(tmp_path, md).count("place(top + left") == 2
+
+    def test_two_layers_are_two_cells(self, tmp_path):
+        md = f"::: layout-compare\n{LAYERS}\n\n{LAYERS}\n:::\n"
+        assert html(tmp_path, md).count('<svg class="layers"') == 2
+
+
+class TestFeature:
+    def test_caption_overlays_the_stack(self, tmp_path):
+        md = f"::: layout-feature\n{LAYERS}\n\nキャッチコピー\n:::\n"
+        out = html(tmp_path, md)
+        assert out.count('<svg class="layers"') == 1 and "キャッチコピー" in out
+        assert "キャッチコピー" in pdf(tmp_path, md)
+
+
+class TestInnerPartsAreNotPickedUp:
+    def test_image_inside_layers_is_not_taken_as_the_single_diagram(self, tmp_path):
+        # layers 1つだけ。中の画像2枚が個別に拾われると、layout-compareの「ちょうど2つ」を満たしてしまう
+        result, _ = convert(tmp_path, f"::: layout-compare\n{LAYERS}\n:::\n")
+        assert not result.ok

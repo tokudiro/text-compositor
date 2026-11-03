@@ -42,6 +42,27 @@ class LayoutBlockMatch:
         return self._end
 
 
+class LayersMatch:
+    """`layout-*`の中に置かれた`::: layers`を、「図・画像の1マッチ」として扱うためのもの。
+
+    DIAGRAM_OR_IMAGE_REのマッチと同じ位置の読み方（start・end）を持つ。フェンスや画像のグループ
+    （lang・image・attrs・code）は、すべてNoneを返す。"""
+
+    def __init__(self, block: LayoutBlockMatch):
+        self.header = block.group(2)
+        self.body = block.group(3)
+        self._start, self._end = block.start(), block.end()
+
+    def group(self, name):
+        return None
+
+    def start(self, index: int = 0) -> int:
+        return self._start
+
+    def end(self, index: int = 0) -> int:
+        return self._end
+
+
 def _in_ranges(offset: int, ranges: List[Tuple[int, int]]) -> bool:
     # 外側のフェンス（使い方説明のサンプルなど）の中の行は、ブロックの開始・終わりとして数えない。
     # 厳密な不等号にする理由は、renderer.py の`_in_ranges`と同じ（#127）。

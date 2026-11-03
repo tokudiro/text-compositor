@@ -29,6 +29,7 @@ from text_compositor import diagnostics
 from text_compositor import highlight
 from text_compositor import chordpro_render
 from text_compositor.layers_html import LayersHtmlMixin
+from text_compositor.layout_blocks import LayersMatch
 from text_compositor.renderer import TypstRenderer
 from text_compositor.table_fence import TableFenceError, parse_table_fence
 
@@ -715,6 +716,8 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
 
     def _diagram_or_image_html(self, match) -> str:
         """DIAGRAM_OR_IMAGE_REの1マッチ（図のフェンス、または、単独行のMarkdown画像）を、HTMLにする。"""
+        if isinstance(match, LayersMatch):
+            return self._layers_html(match.header, match.body)
         if match.group('lang'):
             width, height = self._parse_size_attrs(match.group('attrs'))
             trim = self._parse_trim_attr(match.group('attrs'))
@@ -946,7 +949,7 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
         return f'<div style="text-align:{align}">\n{self._segment_html(body)}</div>\n'
 
     def _require_one_diagram(self, name: str, body: str):
-        match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
+        match = next(iter(self._diagram_matches(body)), None)
         if not match:
             self._error_here(f"'{name}' block in {self.current_file} must contain exactly one "
                              "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fence or a standalone image.")
@@ -969,7 +972,7 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
 
     def _compare_html(self, body: str) -> str:
         """layout-compare: 2つの図を、左右に並べる。各図の直前のテキストは、同じ列のキャプションにする。"""
-        matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
+        matches = self._diagram_matches(body)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
                              f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fences or images (found {len(matches)}).")
@@ -991,7 +994,7 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
         """layout-feature: 写真（または図）の下部に、キャッチコピーを重ねる。"""
         match = self._require_one_diagram('layout-feature', body)
         caption = (body[:match.start()] + body[match.end():]).strip()
-        if match.group('lang'):
+        if isinstance(match, LayersMatch) or match.group('lang'):
             image_html = self._diagram_or_image_html(match)
         else:
             m = re.match(r'!\[[^\]]*\]\(([^)]+)\)', match.group('image'))
