@@ -179,19 +179,19 @@ const VEGA_LITE_LICENSE = {
 // WaveDrom公式配布のブラウザ用JS（deps.pyのWAVEDROM_JS_URL/SHA256・WAVEDROM_SKIN_URL/SHA256と同じ）。#392。MIT。
 // ライセンス全文は、jsの中に無く、GitHubに版のタグも無いため、同じ版のnpmパッケージ（jsDelivr）のLICENSEを、別途取得・固定する。
 const WAVEDROM_JS = {
-  version: '3.7.0',
+  version: '3.8.0',
   file: 'wavedrom.min.js',
-  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/wavedrom.min.js',
-  sha256: '878c085ced379d3adee7a9cb7c19efcc77c96eefba596850c68f26c92fd2ea45',
+  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.8.0/wavedrom.min.js',
+  sha256: 'c02e6212b9515036b9531cb708996e95eef50bc8a030eb13d128c77b550a79e5',
 };
 const WAVEDROM_SKIN = {
-  version: '3.7.0',
+  version: '3.8.0',
   file: 'default.js',
-  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/skins/default.js',
+  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.8.0/skins/default.js',
   sha256: '6d42a35297a5faa2e07e565ddc47dd6e1228af045881291a64a336b3f062d152',
 };
 const WAVEDROM_LICENSE = {
-  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.7.0/LICENSE',
+  url: 'https://cdn.jsdelivr.net/npm/wavedrom@3.8.0/LICENSE',
   sha256: '68f6442e5967ddb6a75ec8a4570215cac8cc415ea293c05cf857843c73fa5a57',
 };
 

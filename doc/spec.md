@@ -429,7 +429,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
 
 12. **WaveDrom**（JSONの仕様で描く、デジタルのタイミング図とレジスタ図、[#299](https://github.com/tokudiro/text-compositor/issues/299)）: Mermaid・PlantUML・D2のうち、PlantUMLだけがタイミング図を描ける。WaveDromは、Markdown Preview Enhancedが標準で対応している実績があり、採用した。
    * **描画方式**: Vega（上の10）と同じ型。Mermaid・Vegaと同じヘッドレスブラウザに、別のタブとして`wavedrom.min.js`とスキン`default.js`を読み込ませ、`WaveDrom.RenderWaveForm`を呼ぶ（`mermaid.py`の`ensure_wavedrom_page`）。Node.jsは、要らない（npm版は、Node.js単体でも、ブラウザなしでSVGにできることを確認済み）。
-   * **ライセンス・サイズ**: WaveDrom本体と依存（onml・json5・tspan・logidrom・bit-field）は、すべてMIT。`wavedrom.min.js`が約55KB、スキンが約43KB。`deps.py`が、バージョン（3.7.0）とSHA256を固定して取得し、検証する（`check-pins.py`の監視対象）。
+   * **ライセンス・サイズ**: WaveDrom本体と依存（onml・json5・tspan・logidrom・bit-field）は、すべてMIT。`wavedrom.min.js`が約55KB、スキンが約43KB。`deps.py`が、バージョン（3.8.0）とSHA256を固定して取得し、検証する（`check-pins.py`の監視対象）。
    * **仕様は、厳密なJSONだけ**: WaveDrom本家は、入力を`eval`で読む。ここでは、Pythonで`json.loads`し、ブラウザには、値（dict）だけを渡す。原稿の文字列を、ブラウザの中で、コードとして実行しない。`signal`・`reg`のどちらも無い仕様は、描く前に止める（WaveDromは、描けない入力でも、例外にせず、空の図を返すため）。
    * **`reg`も使える**: WaveDrom 3.xに、bit-fieldが同梱されており、`reg`でレジスタ図（ビットフィールド図）も描ける。
    * **Obunzu（Viewer）は、ElectronのChromiumで描画する**（[#392](https://github.com/tokudiro/text-compositor/issues/392)）: Vegaの#351と同じ仕組み。`render_wavedrom`イベントで、ワーカーが、検査済みの仕様と、描画スクリプト（`wavedrom_render.RENDER_SCRIPT`）を渡し、`WaveDromHost`（`viewer/src/wavedrom-host.js`）が、非表示のウィンドウで実行する。`default.js`（スキン）と`wavedrom.min.js`（合わせて約98KB）は、ZIPの`wavedrom/`に同梱し、環境変数`TEXT_COMPOSITOR_WAVEDROM_JS_DIR`で、ワーカーに教える。
