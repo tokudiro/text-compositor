@@ -32,7 +32,7 @@ def warnings(result):
 
 
 def layers_svg(html):
-    return re.search(r'<svg class="layers".*?</svg>', html, re.S).group(0)
+    return re.search(r'<svg class="layers[^"]*".*?</svg>', html, re.S).group(0)
 
 
 def images(html):
@@ -111,7 +111,7 @@ class TestLayersHtml:
 
     def test_text_around_the_block_is_kept(self, tmp_path):
         _, html = convert(tmp_path, f"前の文\n\n::: layers\n{self.SVG_FENCE}\n:::\n\n後ろの文\n")
-        assert html.index("前の文") < html.index('<svg class="layers"') < html.index("後ろの文")
+        assert html.index("前の文") < html.index('<svg class="layers') < html.index("後ろの文")
 
 
 class TestLayersHtmlWarnings:
@@ -134,7 +134,7 @@ class TestLayersHtmlWarnings:
 
     def test_no_drawable_part_shows_nothing_and_warns(self, tmp_path):
         result, html = convert(tmp_path, "::: layers\n![](none.png)\n:::\n")
-        assert '<svg class="layers"' not in html
+        assert '<svg class="layers' not in html
         assert any("no part that can be drawn" in w for w in warnings(result))
 
     def test_size_attributes_warn_and_are_ignored(self, tmp_path):

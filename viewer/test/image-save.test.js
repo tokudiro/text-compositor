@@ -397,3 +397,104 @@ describe('executeSaveImage', () => {
   });
 });
 
+
+describe('layers (#560)', () => {
+  const { layersAtPointScript, sniffImageMime, buildStandaloneLayersSvg, buildLayersContextMenuTemplate } = require('../src/image-save');
+  const PNG = Buffer.from('89504e470d0a1a0a0000', 'hex');
+  const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const BASE = 'file:///C:/doc/dir/out.html';
+  const MARKUP = '<svg class="layers" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10" '
+    + 'role="img" aria-label="a" style="max-width: 100%; height: auto;">\n'
+    + '<image href="a%20b.png?x=1&amp;y=2" x="0" y="0" width="10" height="10"></image>'
+    + '<image href="cache/p.svg" x="1" y="1" width="5" height="5"></image></svg>';
+  const fetcher = (map) => async (url) => {
+    if (!(url in map)) return { ok: false, status: 404, statusText: 'Not Found' };
+    return { ok: true, arrayBuffer: async () => map[url] };
+  };
+
+  test('sniffs the mime type from the bytes', () => {
+    assert.equal(sniffImageMime(PNG), 'image/png');
+    assert.equal(sniffImageMime(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg');
+    assert.equal(sniffImageMime(SVG), 'image/svg+xml');
+    assert.equal(sniffImageMime(Buffer.from([1, 2, 3])), 'application/octet-stream');
+  });
+
+  test('embeds every part as a data URI and drops the screen-only style', async () => {
+    const netFetch = fetcher({
+      'file:///C:/doc/dir/a%20b.png?x=1&y=2': PNG,
+      'file:///C:/doc/dir/cache/p.svg': SVG,
+    });
+    const out = await buildStandaloneLayersSvg(MARKUP, BASE, { netFetch, readFile: async (p) => (p.endsWith('.png') ? PNG : SVG) });
+    assert.match(out, /<image href="data:image\/png;base64,[^"]+" x="0"/);
+    assert.match(out, /<image href="data:image\/svg\+xml;base64,[^"]+" x="1"/);
+    assert.doesNotMatch(out, /max-width/);
+    assert.match(out, /^<svg class="layers" xmlns=/);
+    assert.match(out, /aria-label="a"/);
+  });
+
+  test('fails when a part cannot be read', async () => {
+    const readFile = async () => { throw new Error('ENOENT'); };
+    await assert.rejects(buildStandaloneLayersSvg(MARKUP, BASE, { readFile }), /ENOENT/);
+  });
+
+  test('menu offers SVG, PNG and copy', () => {
+    const calls = [];
+    const items = buildLayersContextMenuTemplate({ markup: 'm' }, {
+      onSave: (l, f) => calls.push(f),
+      onCopy: () => calls.push('copy'),
+    });
+    items.forEach((item) => item.click());
+    assert.deepEqual(items.map((item) => item.label), ['画像（SVG）を保存…', '画像（PNG）を保存…', '画像をコピー']);
+    assert.deepEqual(calls, ['svg', 'png', 'copy']);
+  });
+
+  describe('copyLayersImage', () => {
+    const { copyLayersImage } = require('../src/image-save');
+    const fakeWindow = (capture) => () => ({
+      async loadURL() {},
+      isDestroyed() { return false; },
+      destroy() {},
+      webContents: { async capturePage(rect) { capture.rect = rect; return { toPNG: () => Buffer.from('PNG_DATA') }; } },
+    });
+
+    test('writes the rasterized composed picture at twice the size', async () => {
+      const written = [];
+      const capture = {};
+      await copyLayersImage({ markup: MARKUP, base: BASE }, {
+        writeImage: (png) => written.push(png.toString()),
+        createWindow: fakeWindow(capture),
+        readFile: async (p) => (p.endsWith('.png') ? PNG : SVG),
+        netFetch: fetcher({ 'file:///C:/doc/dir/a%20b.png?x=1&y=2': PNG, 'file:///C:/doc/dir/cache/p.svg': SVG }),
+      });
+      assert.deepEqual(written, ['PNG_DATA']);
+      assert.deepEqual([capture.rect.width, capture.rect.height], [20, 20]);
+    });
+
+    test('writes nothing when a part cannot be read', async () => {
+      const written = [];
+      await assert.rejects(copyLayersImage({ markup: MARKUP, base: BASE }, {
+        writeImage: (png) => written.push(png),
+        createWindow: fakeWindow({}),
+        readFile: async () => { throw new Error('ENOENT'); },
+      }), /ENOENT/);
+      assert.deepEqual(written, []);
+    });
+  });
+
+  test('locating script divides the position by the zoom factor', () => {
+    assert.match(layersAtPointScript(200, 100, 2), /elementFromPoint\(100, 50\)/);
+    assert.equal(layersAtPointScript(NaN, 1), 'null');
+  });
+
+  test('saves the composed SVG without fetching, named after the alt text', async () => {
+    const written = [];
+    const result = await executeSaveImage({ inlineSvg: '<svg viewBox="0 0 5 5"/>', altText: 'screen notes' }, 'svg', {
+      showSaveDialog: async (_w, opts) => ({ canceled: false, filePath: path.resolve('/saved', path.basename(opts.defaultPath)) }),
+      readFile: async () => { throw new Error('must not read'); },
+      writeFile: async (p, d) => written.push({ path: p, data: d.toString() }),
+    });
+    assert.equal(result.saved, true);
+    assert.equal(path.basename(written[0].path), 'screen-notes.svg');
+    assert.equal(written[0].data, '<svg viewBox="0 0 5 5"/>');
+  });
+});

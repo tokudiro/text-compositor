@@ -409,7 +409,8 @@ ipcRenderer.on('scroll-to-heading', (_event, id) => {
 // ホイールで拡大・縮小（カーソルの位置を中心に）、ドラッグでパン、ダブルクリックと0キーで「画面に収める」に戻す。Escか背景のクリックで閉じる。
 // ページ全体のズーム（Ctrl＋ホイール）とは別。ページはscriptを持てないため、ここ（プリロード）でDOMを足す。
 // 図は、.diagramの中の<img>のまま複製する。ダークの反転フィルター（#209。CSSは、html_output.pyの`.diagram img`）が、そのまま掛かるため。
-// 右クリックの「画像を保存」（#327）も、<img>なので、そのまま使える。倍率は、「画面に収めた大きさ」を1として、0.5〜32倍。
+// 右クリックの「画像を保存」（#327）も、<img>なので、そのまま使える。重ね（`svg.layers`。#560）は、SVGごと複製して、同じ操作で開く。
+// 重ねの保存・コピーは、複製した`svg.layers`が、右クリックの位置から見つかるため、そのまま使える。倍率は、「画面に収めた大きさ」を1として、0.5〜32倍。
 const LIGHTBOX_MIN_SCALE = 0.5;
 const LIGHTBOX_MAX_SCALE = 32;
 const LIGHTBOX_FIT_RATIO = 0.92;   // 収めるときの、画面に対する大きさ（縁を少し残す）
@@ -420,12 +421,12 @@ function ensureLightboxStyle() {
   const style = document.createElement('style');
   style.id = 'tc-lightbox-style';
   style.textContent = `
-    .diagram img { cursor: zoom-in; }
+    .diagram img, .diagram-layers svg.layers { cursor: zoom-in; }
     .tc-lightbox { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center;
       overflow: hidden; background: Canvas; color-scheme: light dark; cursor: grab; user-select: none; touch-action: none; }
     .tc-lightbox.dragging { cursor: grabbing; }
     .tc-lightbox .diagram { margin: 0; flex: none; transform-origin: center center; will-change: transform; }
-    .tc-lightbox .diagram img { display: block; max-width: none; cursor: inherit; -webkit-user-drag: none; }
+    .tc-lightbox .diagram img, .tc-lightbox .diagram svg.layers { display: block; max-width: none; cursor: inherit; -webkit-user-drag: none; }
     .tc-lightbox-close { position: absolute; top: 12px; right: 12px; padding: 4px 12px; font: 13px/1.5 system-ui, sans-serif; cursor: pointer;
       color: ButtonText; background: ButtonFace; border: 1px solid GrayText; border-radius: 6px; }
     .tc-lightbox-close:hover { filter: brightness(0.92); }
@@ -447,8 +448,14 @@ function openLightbox(source) {
   overlay.setAttribute('aria-label', '図の拡大表示');
   const stage = document.createElement('div');
   stage.className = 'diagram';
-  const image = document.createElement('img');
-  image.alt = source.alt || '';
+  // 重ね（layers。#560）は、1つのインラインSVG。<img>の代わりに、SVGごと複製する（反転のクラスも、そのまま残る）
+  const isLayers = source instanceof SVGElement;
+  const image = isLayers ? source.cloneNode(true) : document.createElement('img');
+  if (isLayers) {
+    image.removeAttribute('style');   // 本文での縮小（max-width）は、拡大表示では要らない
+  } else {
+    image.alt = source.alt || '';
+  }
   stage.appendChild(image);
   overlay.appendChild(stage);
   // 閉じ方が、見て分かるように、閉じるボタンと、操作のヒント（数秒で、薄れて消える）を出す
@@ -468,10 +475,12 @@ function openLightbox(source) {
   // 画面に収める大きさを、画像の元の大きさ（SVGは、viewBoxなどで決まる大きさ）から求める。0のときは、本文での表示の大きさを使う
   const fit = () => {
     const rect = source.getBoundingClientRect();
-    const naturalWidth = image.naturalWidth || rect.width || 1;
-    const naturalHeight = image.naturalHeight || rect.height || 1;
+    // 重ねの原寸は、SVGのwidth・height属性（ピクセル）
+    const naturalWidth = (isLayers ? parseFloat(source.getAttribute('width')) : image.naturalWidth) || rect.width || 1;
+    const naturalHeight = (isLayers ? parseFloat(source.getAttribute('height')) : image.naturalHeight) || rect.height || 1;
     const ratio = Math.min(window.innerWidth * LIGHTBOX_FIT_RATIO / naturalWidth, window.innerHeight * LIGHTBOX_FIT_RATIO / naturalHeight);
     image.style.width = `${naturalWidth * ratio}px`;
+    if (isLayers) image.style.height = `${naturalHeight * ratio}px`;
     view.scale = 1; view.x = 0; view.y = 0;
     apply();
   };
@@ -540,8 +549,10 @@ function openLightbox(source) {
   closeButton.addEventListener('click', (event) => { event.stopPropagation(); close(); });
   window.addEventListener('keydown', onKeyDown, true);
   window.addEventListener('resize', fit);
-  image.addEventListener('load', fit);
-  image.src = source.currentSrc || source.src;
+  if (!isLayers) {
+    image.addEventListener('load', fit);
+    image.src = source.currentSrc || source.src;
+  }
   fit();
   lightbox = { close, overlay, view };
 }
@@ -549,7 +560,7 @@ function openLightbox(source) {
 window.addEventListener('click', (event) => {
   if (event.button !== 0 || event.ctrlKey || event.shiftKey || event.altKey || event.metaKey || !(event.target instanceof Element)) return;
   if (event.target.closest('.tc-lightbox') || event.target.closest('a[href]')) return;
-  const image = event.target.closest('.diagram img');
+  const image = event.target.closest('.diagram img, .diagram-layers svg.layers');
   if (image) openLightbox(image);
 }, true);
 window.addEventListener('DOMContentLoaded', ensureLightboxStyle);

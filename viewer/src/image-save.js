@@ -334,6 +334,91 @@ async function rasterizeSvg(svgText, { dimensions, scale = 2, createWindow } = {
 }
 
 /**
+ * 右クリックした位置の`::: layers`（#560。1つのインライン`<svg class="layers">`）を取り出す、ページ内で動かすスクリプト。
+ * 重ねた部品は、文書の中では別々の`<image>`で、画像として右クリックできない。そのため、位置から探す。
+ * zoomFactorで割る理由は、link-info.jsの`linkAtPointScript`と同じ（右クリックの座標は、ズーム前の値）。
+ *
+ * @returns {string} 結果は`{markup, base, label}`またはnull
+ */
+function layersAtPointScript(x, y, zoomFactor = 1) {
+  const factor = Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1;
+  const cssX = Number(x) / factor;
+  const cssY = Number(y) / factor;
+  if (!Number.isFinite(cssX) || !Number.isFinite(cssY)) return 'null';
+  return `(() => { const s = document.elementFromPoint(${cssX}, ${cssY})?.closest('svg.layers'); `
+    + `return s ? { markup: s.outerHTML, base: document.baseURI, label: s.getAttribute('aria-label') || '' } : null; })()`;
+}
+
+/** 先頭のバイトから、画像のMIMEタイプを決める。SVGは、先頭が`<`（空白・BOMを除く）の文字列とみなす。 */
+function sniffImageMime(buffer) {
+  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  if (buffer.length >= 4 && buffer.toString('latin1', 0, 3) === 'GIF') return 'image/gif';
+  if (buffer.length >= 12 && buffer.toString('latin1', 0, 4) === 'RIFF' && buffer.toString('latin1', 8, 12) === 'WEBP') return 'image/webp';
+  if (/^\s*(﻿)?\s*</.test(buffer.toString('utf8', 0, 256))) return 'image/svg+xml';
+  return 'application/octet-stream';
+}
+
+const decodeAttr = (value) => value
+  .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+/**
+ * 文書の中の`<svg class="layers">`を、それだけで開ける1枚のSVGにする（#560）。
+ * 各`<image href>`の画像を取得して`data:`のURIに置き換える（ラスター画像も、SVGの部品も）。
+ * 取得に失敗した部品があれば、欠けた1枚を黙って保存せず、エラーにする。
+ *
+ * @param {string} markup `<svg class="layers">`の`outerHTML`
+ * @param {string} baseUrl 文書のURL（相対の`href`の基準）
+ * @param {{netFetch?: Function, readFile?: Function}} [options]
+ * @returns {Promise<string>}
+ */
+async function buildStandaloneLayersSvg(markup, baseUrl, { netFetch = null, readFile } = {}) {
+  const hrefs = [];
+  markup.replace(/<image\b[^>]*?\shref="([^"]*)"/g, (_m, href) => { hrefs.push(href); return ''; });
+  const embedded = new Map();
+  for (const href of hrefs) {
+    if (embedded.has(href)) continue;
+    const url = new URL(decodeAttr(href), baseUrl).href;
+    const data = await fetchImageData(url, { netFetch, readFile });
+    embedded.set(href, `data:${sniffImageMime(data)};base64,${data.toString('base64')}`);
+  }
+  let out = markup.replace(/(<image\b[^>]*?\shref=")([^"]*)(")/g, (_m, head, href, tail) => head + embedded.get(href) + tail);
+  // 画面用の縮小のstyle（max-width）は、保存するファイルには要らない。ルートの開始タグだけ外す
+  out = out.replace(/^<svg\b[^>]*>/, (tag) => {
+    let t = tag.replace(/\sstyle="[^"]*"/, '');
+    if (!/\sxmlns=/.test(t)) t = t.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    return t;
+  });
+  return out;
+}
+
+/**
+ * 重ね（layers）を右クリックしたときのメニュー。合成した1枚として保存する。
+ * @param {{markup: string, base: string, label?: string}} layers
+ * @param {{onSave?: (layers: object, format: string) => void}} handlers
+ */
+function buildLayersContextMenuTemplate(layers, { onSave, onCopy } = {}) {
+  return [
+    { label: '画像（SVG）を保存…', click: () => onSave?.(layers, 'svg') },
+    { label: '画像（PNG）を保存…', click: () => onSave?.(layers, 'png') },
+    { label: '画像をコピー', click: () => onCopy?.(layers) },
+  ];
+}
+
+/**
+ * 重ね（layers）を、合成した1枚の画像として、クリップボードへ入れる（#560）。
+ * 保存のPNGと同じ画像（2倍）にする。部品を読めないときは、何も書かずにエラーにする。
+ *
+ * @param {{markup: string, base: string}} layers
+ * @param {{writeImage: (png: Buffer) => void|Promise<void>, createWindow: Function, netFetch?: Function, readFile?: Function}} context
+ */
+async function copyLayersImage(layers, { writeImage, createWindow, netFetch = null, readFile } = {}) {
+  const svg = await buildStandaloneLayersSvg(layers.markup, layers.base, { netFetch, readFile });
+  const png = await rasterizeSvg(svg, { createWindow, scale: 2 });
+  await writeImage(png);
+}
+
+/**
  * 画像右クリック時のコンテキストメニューのテンプレートを生成する。
  * @param {{srcURL: string, mediaType: string}} params
  * @param {{onSave?: (params: object, format: string) => void}} handlers
@@ -381,7 +466,9 @@ async function executeSaveImage(params, requestedFormat, {
   createWindow,
   statSync = fs.statSync,
 } = {}) {
-  const isSvg = isSvgUrl(params.srcURL);
+  // 合成したlayers（#560）は、取得せず、渡されたSVGの文字列をそのまま使う
+  const inlineSvg = typeof params.inlineSvg === 'string' ? params.inlineSvg : null;
+  const isSvg = inlineSvg !== null || isSvgUrl(params.srcURL);
   let format = requestedFormat;
   if (format === 'auto') {
     try {
@@ -417,10 +504,9 @@ async function executeSaveImage(params, requestedFormat, {
 
   if (result.canceled || !result.filePath) return { saved: false, canceled: true };
 
-  const rawData = await fetchImageData(params.srcURL, {
-    readFile,
-    netFetch,
-  });
+  const rawData = inlineSvg !== null
+    ? Buffer.from(inlineSvg, 'utf8')
+    : await fetchImageData(params.srcURL, { readFile, netFetch });
 
   if (format === 'png') {
     if (isSvg) {
@@ -458,6 +544,11 @@ module.exports = {
   calculateRasterDimensions,
   fetchImageData,
   rasterizeSvg,
+  layersAtPointScript,
+  sniffImageMime,
+  buildStandaloneLayersSvg,
+  buildLayersContextMenuTemplate,
+  copyLayersImage,
   buildImageContextMenuTemplate,
   executeSaveImage,
 };

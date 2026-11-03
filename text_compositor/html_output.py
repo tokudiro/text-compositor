@@ -29,6 +29,7 @@ from text_compositor import diagnostics
 from text_compositor import highlight
 from text_compositor import chordpro_render
 from text_compositor.layers_html import LayersHtmlMixin
+from text_compositor.layout_blocks import LayersMatch
 from text_compositor.renderer import TypstRenderer
 from text_compositor.table_fence import TableFenceError, parse_table_fence
 
@@ -105,6 +106,8 @@ main.image-file { max-width: none; }
    PlantUML・D2のSVGは、不透明な白い背景を持ち、反転すると黒い四角になる。lightenで、ページの背景より暗い部分を、
    背景の色に置き換えて、なじませる。再描画もキャッシュの二重化も要らず、すべての図（Mermaid・PlantUML・D2・SVG）に効く。 */
 @media (prefers-color-scheme: dark) { .diagram img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
+/* 重ね（layers。#560）も、同じ規則。部品がすべて図のとき（`layers-invert`）だけ、全体を反転する。写真などの画像が混じる重ねは、反転しない */
+@media (prefers-color-scheme: dark) { svg.layers-invert { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
 @media (prefers-color-scheme: dark) { .math-block img, img.math-inline { filter: invert(1) hue-rotate(180deg); mix-blend-mode: lighten; } }
 .alert { margin: 0 0 1em; padding: 0.5em 1em; border-left: 4px solid var(--alert, #0969da); background: var(--code-bg); }
 .alert p { margin: 0.4em 0; }
@@ -582,6 +585,17 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
 
     def _segment_html(self, text: str) -> str:
         """通常のMarkdown断片を、HTMLにする（`:::`ブロックの前後や、ブロックの中身）。"""
+        blocks = self._layers_blocks(text)
+        if blocks:   # `align`などの中身の`::: layers`（#560）。最上位は、切り出し済みで、ここへ来ない
+            output, pos = [], 0
+            for b in blocks:
+                if text[pos:b.start()].strip():
+                    output.append(self._segment_html(text[pos:b.start()]))
+                output.append(self._layers_html(b.group(2), b.group(3)))
+                pos = b.end()
+            if text[pos:].strip():
+                output.append(self._segment_html(text[pos:]))
+            return ''.join(output)
         tokens = self.md.parse(text)
         options = OptionsDict(dict(self.md.options))
         options.breaks = True  # PDFと同じく、原稿の改行を、そのまま改行にする
@@ -715,6 +729,8 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
 
     def _diagram_or_image_html(self, match) -> str:
         """DIAGRAM_OR_IMAGE_REの1マッチ（図のフェンス、または、単独行のMarkdown画像）を、HTMLにする。"""
+        if isinstance(match, LayersMatch):
+            return self._layers_html(match.header, match.body)
         if match.group('lang'):
             width, height = self._parse_size_attrs(match.group('attrs'))
             trim = self._parse_trim_attr(match.group('attrs'))
@@ -946,7 +962,7 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
         return f'<div style="text-align:{align}">\n{self._segment_html(body)}</div>\n'
 
     def _require_one_diagram(self, name: str, body: str):
-        match = self._search_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
+        match = next(iter(self._diagram_matches(body)), None)
         if not match:
             self._error_here(f"'{name}' block in {self.current_file} must contain exactly one "
                              "```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fence or a standalone image.")
@@ -969,7 +985,7 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
 
     def _compare_html(self, body: str) -> str:
         """layout-compare: 2つの図を、左右に並べる。各図の直前のテキストは、同じ列のキャプションにする。"""
-        matches = self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, body)
+        matches = self._diagram_matches(body)
         if len(matches) != 2:
             self._error_here(f"'layout-compare' block in {self.current_file} must contain exactly two "
                              f"```mermaid/```plantuml/```d2/```structurizr/```dot/```graphviz/```pikchr/```cetz/```fletcher/```timeliney/```finite/```vega-lite/```vega/```wavedrom/```bytefield/```bizmodel/```svg fences or images (found {len(matches)}).")
@@ -991,7 +1007,7 @@ class HtmlRenderer(LayersHtmlMixin, TypstRenderer):
         """layout-feature: 写真（または図）の下部に、キャッチコピーを重ねる。"""
         match = self._require_one_diagram('layout-feature', body)
         caption = (body[:match.start()] + body[match.end():]).strip()
-        if match.group('lang'):
+        if isinstance(match, LayersMatch) or match.group('lang'):
             image_html = self._diagram_or_image_html(match)
         else:
             m = re.match(r'!\[[^\]]*\]\(([^)]+)\)', match.group('image'))

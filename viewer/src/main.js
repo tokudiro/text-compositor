@@ -8,11 +8,14 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, session, shell } = require('electron');
+const { app, BrowserWindow, ClipboardItem, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, session, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
 const { DocumentTab } = require('./document-tab');
-const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
+const {
+  buildImageContextMenuTemplate, buildLayersContextMenuTemplate, buildStandaloneLayersSvg, copyLayersImage, layersAtPointScript,
+  executeSaveImage,
+} = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { addRecentFile, recentLabel, removeRecentFile } = require('./recent-files');
@@ -1225,6 +1228,17 @@ async function lineAtPoint(origin, params) {
   }
 }
 
+/** 右クリックした位置の重ね（layers。#560）の、SVGの文字列と文書のURL。重ねの外では、null。 */
+async function layersAtPoint(origin, params) {
+  try {
+    const found = await origin.contentView.webContents.executeJavaScript(
+      layersAtPointScript(params.x, params.y, origin.contentView.webContents.getZoomFactor()));
+    return found && typeof found.markup === 'string' ? found : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 右クリックした位置のリンクの、href属性の値（#362）。リンクの外では、null。 */
 async function linkAtPoint(origin, params) {
   try {
@@ -1265,7 +1279,7 @@ function openLink(origin, href) {
 /**
  * 内容のビューの右クリックのメニュー。項目は、次の4種類で、あるものを、区切り線で分けて並べる。
  *   - コピー（選択があるとき）・すべて選択（常に。#409）
- *   - 画像の保存（#327）
+ *   - 画像の保存（#327）・重ね（layers）を合成した1枚としての保存とコピー（#560）
  *   - リンクを開く・リンクのアドレスをコピー（#362）
  *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
  *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
@@ -1284,7 +1298,16 @@ async function handleContextMenu(origin, params) {
     speaking: speaker.isSpeaking(),
     paused: speaker.isPaused(),
   });
-  if (params.mediaType === 'image' && params.srcURL) {
+  // 重ね（layers。#560）は、先に調べる。中の`<image>`は、Chromiumが「画像」として報告する（mediaTypeがimage）ため、
+  // 後に回すと、一番上の部品1枚だけを保存するメニューになってしまう（実機で確認した）
+  const layers = await layersAtPoint(origin, params);
+  if (layers) {
+    template.push({ type: 'separator' });
+    template.push(...buildLayersContextMenuTemplate(layers, {
+      onSave: (l, format) => void saveImageFromContextMenu(origin, { layers: l, altText: l.label }, format),
+      onCopy: (l) => void copyLayersFromContextMenu(origin, l),
+    }));
+  } else if (params.mediaType === 'image' && params.srcURL) {
     template.push({ type: 'separator' });
     template.push(...buildImageContextMenuTemplate(params, {
       onSave: (p, format) => void saveImageFromContextMenu(origin, p, format),
@@ -1310,8 +1333,30 @@ async function handleContextMenu(origin, params) {
   menu.popup({ window: win });
 }
 
+/** 重ね（layers。#560）を、合成した1枚の画像として、クリップボードへコピーする。失敗は、保存と同じく、診断に出す。 */
+async function copyLayersFromContextMenu(origin, layers) {
+  try {
+    await copyLayersImage(layers, {
+      // Electron 45のclipboardは、Promise形式（`write`とClipboardItem）。`writeImage`は、無い
+      writeImage: (png) => clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]),
+      createWindow: createHiddenWindow,
+      netFetch: net.fetch,
+    });
+  } catch (error) {
+    origin.diagnostics = summarize([{
+      severity: 'error',
+      message: `画像のコピーに失敗しました: ${error.message}`,
+    }]);
+    push();
+  }
+}
+
 async function saveImageFromContextMenu(origin, params, requestedFormat) {
   try {
+    // 重ねは、部品の画像を埋め込んだ、それだけで開ける1枚のSVGにしてから保存する
+    if (params.layers) {
+      params = { ...params, inlineSvg: await buildStandaloneLayersSvg(params.layers.markup, params.layers.base, { netFetch: net.fetch }) };
+    }
     const result = await executeSaveImage(params, requestedFormat, {
       win,
       documentFile: origin.file,

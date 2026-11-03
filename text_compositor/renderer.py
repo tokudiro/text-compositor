@@ -18,7 +18,8 @@ from text_compositor.config import yaml
 from text_compositor.diagram_svg import DiagramSvgMixin
 from text_compositor.layers_pdf import LayersPdfMixin
 from text_compositor.layers_stack import LayersStackMixin
-from text_compositor.layout_blocks import find_layout_blocks
+from text_compositor.asset_path import resolve_local_asset
+from text_compositor.layout_blocks import LayersMatch, find_layout_blocks
 from text_compositor.lints import resolve_lints
 from text_compositor.log import _error
 from text_compositor.mermaid import MermaidBrowser
@@ -110,6 +111,14 @@ class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMi
         """_finditer_outside_fencesの最初の1件版（.search()相当、#85）。"""
         matches = self._finditer_outside_fences(regex, text)
         return matches[0] if matches else None
+
+    def _diagram_matches(self, text):
+        """layout-right等の中の「図・画像」を、出てくる順に返す。`::: layers`は、中の画像やフェンスを
+        個別に拾わず、全体で1つの図として返す（LayersMatch。#560）。"""
+        layers = [LayersMatch(b) for b in self._finditer_layout_blocks(text) if b.group(1) == 'layers']
+        plain = [m for m in self._finditer_outside_fences(self.DIAGRAM_OR_IMAGE_RE, text)
+                 if not any(b.start() <= m.start() < b.end() for b in layers)]
+        return sorted(plain + layers, key=lambda m: m.start())
 
     def _neutralize_footnote_definitions(self, text):
         """FOOTNOTE_DEF_REにマッチした行頭の`[`をエスケープし、CommonMarkのリンク参照定義として
@@ -351,8 +360,29 @@ class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMi
             output.append(self._render_markdown_segment(md_after, drop_leading_title and first_segment))
         return "".join(output)
 
+    _LAYERS_LINE_RE = re.compile(r'^::: *layers', re.MULTILINE)
+
+    def _layers_blocks(self, text):
+        """textの中の`::: layers`ブロック（最上位のもの）。`align`・`layout-columns`などの中身の地の文にも、
+        置けるようにするため、断片の変換の前に切り出す（#560）。最上位の切り出しは、すでにlayersを取り除いて
+        から断片を渡すため、ここでは見つからない。"""
+        if not self._LAYERS_LINE_RE.search(text):
+            return []
+        return [b for b in self._finditer_layout_blocks(text) if b.group(1) == 'layers']
+
     def _render_markdown_segment(self, text, drop_leading_title):
         """通常のMarkdown断片をASTベースでTypstへ変換する（layout-rightブロックの前後の地の文用）"""
+        blocks = self._layers_blocks(text)
+        if blocks:
+            output, pos = [], 0
+            for b in blocks:
+                if text[pos:b.start()].strip():
+                    output.append(self._render_markdown_segment(text[pos:b.start()], False))
+                output.append(self._render_layers_block(b.group(2), b.group(3)))
+                pos = b.end()
+            if text[pos:].strip():
+                output.append(self._render_markdown_segment(text[pos:], False))
+            return ''.join(output)
         self.list_stack = []
         tokens = self.md.parse(text)
         start = self._skip_leading_title(tokens) if drop_leading_title else 0
@@ -434,7 +464,7 @@ class TypstRenderer(LayersPdfMixin, LayersStackMixin, DiagramSvgMixin, DiagramMi
             return escape_string_literal(root_rel_path)
         if not src or src.startswith('/') or re.match(r'^[a-zA-Z][a-zA-Z0-9+.\-]*://', src):
             return escape_string_literal(src)
-        abs_path = os.path.normpath(os.path.join(self.current_dir, src))
+        abs_path = resolve_local_asset(self.current_dir, src)   # `%20`などの書き方も探す（#586）
         # 仕様9章: 画像パス欠損はフォールバックせず即エラー (Fail-fast)
         if not os.path.exists(abs_path):
             self._error_here(f"Image not found: {abs_path} (referenced from {self.current_file})")
