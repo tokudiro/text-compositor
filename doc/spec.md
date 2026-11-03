@@ -378,6 +378,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
      * **大きさ**: 重ね全体の大きさは、全部品を包む最小の長方形とする。はみ出した部分も表示し、切らない。ページ幅に収めるときは、この長方形全体を同じ比率で縮める（部品ごとには縮めない）。
      * **代替テキスト**: 見出し行の文字列を、重ね全体の代替テキストとする（HTMLはインラインSVGの`role="img" aria-label`、PDFは`alt`）。各層は読み上げから外す。
      * **保存**: Viewerで右クリックして保存するときは、合成した1枚（SVG/PNG）にする（#327）。右クリックの「画像をコピー」も、同じ合成した1枚を、PNG（2倍。透明な背景）として、クリップボードへ入れる。
+     * **ダークの表示と拡大（HTML・Viewer。[#560](https://github.com/tokudiro/text-compositor/issues/560)）**: 通常の図（フェンス）はダークで反転し、通常の画像は反転しない（#209）。重ねも同じ規則にする。部品がすべて図のフェンスなら、`<svg>`に`layers-invert`のクラスを付け、ダークのとき、全体を反転する（`LayersStack.diagram_only`）。画像のファイル（PNG・JPEG・SVGのロゴなど。`.svg`のファイルも含む）が1つでも混じれば、反転しない。反転は、画面表示だけで、保存・コピー・PDFには掛けない。属性での指定は設けない（記法を増やさず、既存の規則に揃えるため）。Viewerでは、重ねをクリックすると、図と同じ拡大表示が開く（`content-preload.js`。SVGごと複製するため、反転のクラスも残り、右クリックの保存・コピーも使える）。
      * **`layout-*`との関係**: `layout-right`・`layout-left`・`layout-compare`・`layout-feature`の中に置ける。`align`・`layout-columns`・`layout-takahashi`の中の地の文にも置ける（断片の変換の前に切り出す。`renderer.py`の`_layers_blocks`）。`layers`全体を1枚の画像として扱うため、`DIAGRAM_OR_IMAGE_RE`が中身を個別に拾わないよう、`layers`を先に1つの部品として切り出す。
      * **フォント**: SVG内のテキストは、既存の`svg`フェンスに揃える（PDFはTypstが解決するフォント、HTMLはブラウザのフォント）。
      * **安全**: 外部URLの参照は許さない（2章の方針）。HTML出力は、部品を`<image>`で読み込む1つのインラインSVGにするため、部品の中のスクリプトは動かない（`<img>`で読む既存の図と同じ）。
