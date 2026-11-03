@@ -7,8 +7,10 @@ import io
 import re
 from dataclasses import dataclass
 
-# renderer_layout.FENCE_ATTR_REと同じ形。rendererを取り込むと循環するため、ここに持つ。
-_ATTR_RE = re.compile(r'(\w+)=([^\s{}]+)')
+# renderer_layout.FENCE_ATTR_REの拡張。rendererを取り込むと循環するため、ここに持つ。
+# 値は、`"…"`・`'…'`で囲むと、空白を含められる（#569。図のalt="…"と同じ書き方）。囲まない値は、これまでどおり、
+# 空白・`{}`・引用符を含まない。囲みの中にも、`{}`と、同じ種類の引用符は、書けない。
+_ATTR_RE = re.compile(r'''(\w+)=(?:"([^"{}]*)"|'([^'{}]*)'|([^\s{}"']+))''')
 _DELIMITERS = {'comma': ',', 'tab': '\t'}
 _KNOWN_ATTRS = ('header_rows', 'header_cols', 'delimiter')
 
@@ -43,9 +45,15 @@ def _int_attr(attrs, key, default, minimum=0):
 
 
 def parse_table_attrs(attrs_str):
-    """開始行の属性部分（例: `{header_cols=1 delimiter=tab}`）を、検証して辞書で返す。
-    未知の属性は、綴りの誤りを黙って見逃さないよう、誤りにする。"""
-    attrs = dict(_ATTR_RE.findall(attrs_str or ''))
+    """開始行の属性部分（例: `{header_cols=1 delimiter=tab}`）を、検証して辞書で返す。値の囲み（`"…"`・`'…'`）は、外す。
+    未知の属性は、綴りの誤りを黙って見逃さないよう、誤りにする。囲みが閉じていないときも、同じく、誤りにする
+    （読めなかった属性を、黙って捨てないため）。"""
+    attrs_str = attrs_str or ''
+    attrs = {}
+    for match in _ATTR_RE.finditer(attrs_str):
+        attrs[match.group(1)] = next(v for v in match.groups()[1:] if v is not None)
+    if re.search(r'''["']''', _ATTR_RE.sub('', attrs_str)):
+        raise TableFenceError("table fence: an option value has an unclosed quote, or contains a quote, '{' or '}' inside quotes.")
     for key in attrs:
         if key not in _KNOWN_ATTRS:
             raise TableFenceError(f"table fence: unknown option {key!r}; expected one of {', '.join(_KNOWN_ATTRS)}.")
