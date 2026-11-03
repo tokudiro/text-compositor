@@ -8,7 +8,18 @@ text-compositorは、Mermaid・PlantUML・D2・Graphvizなど複数の図表形�
 
 このREADMEは最短で使い始めるための要点のみを記載します。`config.yaml`や原稿の書き方を一通り知りたい場合は[使い方ガイド](doc/usage/)（`cd doc/usage && python ../../build.py` でPDF化もできます）を、詳細な設計方針・実装状況は [doc/spec.md](doc/spec.md) を参照してください。
 
-## 特徴
+## Obunzu Markdown Viewer
+
+このリポジトリには、**Obunzu Markdown Viewer**（略称はObunzu）も入っています。Markdownと図を表示する、軽量な、閲覧専用のViewerです。text-compositorと、同じ変換の仕組みの上に作っています。
+
+- Markdownのファイルと、図の単体ファイル（Mermaid・PlantUML・D2・Graphviz・Vega-Lite・SVGなど）を、専用のウィンドウで開き、絵にして表示します。
+- ファイルを保存すると、表示が更新されます。お使いのエディタで書きながら、Obunzuで見た目を確かめられます。変換に失敗したときは、原稿の何行目で問題が起きたかを示します。
+- Windows（64ビット）向けの、ポータブルなZIPで配布します。Pythonと図のツールを同梱しているため、先にインストールするものはありません。[Releasesのページ](https://github.com/tokudiro/text-compositor/releases/latest)から、ダウンロードしてください。
+- 文書の編集と、PDFの出力は、できません。PDFが必要なときは、下のtext-compositorを使ってください。
+
+開発する人向けの情報は[viewer/README-ja.md](viewer/README-ja.md)に、使う人向けの説明は[Obunzuの説明書](doc/obunzu-guide/)にあります。
+
+## text-compositorの特徴
 
 - 複数のテキストファイル（章）を1冊のPDFに結合
 - Markdown → [markdown-it-py](https://github.com/executablebooks/markdown-it-py) でAST化 → [Typst](https://typst.app/) 構文へ決定論的に変換 → PDF出力
