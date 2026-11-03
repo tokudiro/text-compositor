@@ -72,6 +72,31 @@ class TestFeature:
         assert "キャッチコピー" in pdf(tmp_path, md)
 
 
+class TestInOtherBlocks:
+    """`align`・`layout-columns`・`layout-takahashi`の中の地の文にも、置ける。"""
+
+    @pytest.mark.parametrize("opening", ["::: align {align=center}", "::: layout-columns", "::: layout-takahashi {size=20pt}"])
+    def test_html_draws_it_and_keeps_the_text(self, tmp_path, opening):
+        out = html(tmp_path, f"{opening}\n前の文\n\n{LAYERS}\n\n後の文\n:::\n")
+        assert out.count('<svg class="layers"') == 1 and out.count("<image ") == 2
+        assert "前の文" in out and "後の文" in out and "::: layers" not in out
+
+    @pytest.mark.parametrize("opening", ["::: align {align=center}", "::: layout-columns", "::: layout-takahashi {size=20pt}"])
+    def test_pdf_draws_it_and_keeps_the_text(self, tmp_path, opening):
+        out = pdf(tmp_path, f"{opening}\n前の文\n\n{LAYERS}\n\n後の文\n:::\n")
+        assert out.count("place(top + left") == 2
+        assert "前の文" in out and "後の文" in out and "::: layers" not in out
+
+    def test_second_layers_in_the_text_cell_of_layout_right(self, tmp_path):
+        md = f"::: layout-right\n{LAYERS}\n\n{LAYERS}\n:::\n"
+        assert html(tmp_path, md).count('<svg class="layers"') == 2
+        assert pdf(tmp_path, md).count("place(top + left") == 4
+
+    def test_layers_inside_a_code_fence_stays_as_text(self, tmp_path):
+        out = html(tmp_path, "::: align {align=center}\n````markdown\n::: layers x\n![](a.png)\n:::\n````\n:::\n")
+        assert '<svg class="layers"' not in out and "::: layers x" in out
+
+
 class TestInnerPartsAreNotPickedUp:
     def test_image_inside_layers_is_not_taken_as_the_single_diagram(self, tmp_path):
         # layers 1つだけ。中の画像2枚が個別に拾われると、layout-compareの「ちょうど2つ」を満たしてしまう
