@@ -12,7 +12,9 @@ const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, n
 
 const { summarize } = require('./diagnostics');
 const { DocumentTab } = require('./document-tab');
-const { buildImageContextMenuTemplate, executeSaveImage } = require('./image-save');
+const {
+  buildImageContextMenuTemplate, buildLayersContextMenuTemplate, buildStandaloneLayersSvg, layersAtPointScript, executeSaveImage,
+} = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { addRecentFile, recentLabel, removeRecentFile } = require('./recent-files');
@@ -1225,6 +1227,17 @@ async function lineAtPoint(origin, params) {
   }
 }
 
+/** 右クリックした位置の重ね（layers。#560）の、SVGの文字列と文書のURL。重ねの外では、null。 */
+async function layersAtPoint(origin, params) {
+  try {
+    const found = await origin.contentView.webContents.executeJavaScript(
+      layersAtPointScript(params.x, params.y, origin.contentView.webContents.getZoomFactor()));
+    return found && typeof found.markup === 'string' ? found : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 右クリックした位置のリンクの、href属性の値（#362）。リンクの外では、null。 */
 async function linkAtPoint(origin, params) {
   try {
@@ -1265,7 +1278,7 @@ function openLink(origin, href) {
 /**
  * 内容のビューの右クリックのメニュー。項目は、次の4種類で、あるものを、区切り線で分けて並べる。
  *   - コピー（選択があるとき）・すべて選択（常に。#409）
- *   - 画像の保存（#327）
+ *   - 画像の保存（#327）・重ね（layers）を合成した1枚としての保存（#560）
  *   - リンクを開く・リンクのアドレスをコピー（#362）
  *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
  *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
@@ -1289,6 +1302,15 @@ async function handleContextMenu(origin, params) {
     template.push(...buildImageContextMenuTemplate(params, {
       onSave: (p, format) => void saveImageFromContextMenu(origin, p, format),
     }));
+  } else {
+    // 重ね（layers。#560）は、1つのインラインSVG。画像としては右クリックされないため、位置から探す
+    const layers = await layersAtPoint(origin, params);
+    if (layers) {
+      template.push({ type: 'separator' });
+      template.push(...buildLayersContextMenuTemplate(layers, {
+        onSave: (l, format) => void saveImageFromContextMenu(origin, { layers: l, altText: l.label }, format),
+      }));
+    }
   }
   const href = await linkAtPoint(origin, params);
   if (href !== null) {
@@ -1312,6 +1334,10 @@ async function handleContextMenu(origin, params) {
 
 async function saveImageFromContextMenu(origin, params, requestedFormat) {
   try {
+    // 重ねは、部品の画像を埋め込んだ、それだけで開ける1枚のSVGにしてから保存する
+    if (params.layers) {
+      params = { ...params, inlineSvg: await buildStandaloneLayersSvg(params.layers.markup, params.layers.base, { netFetch: net.fetch }) };
+    }
     const result = await executeSaveImage(params, requestedFormat, {
       win,
       documentFile: origin.file,
