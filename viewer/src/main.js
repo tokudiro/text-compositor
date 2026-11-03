@@ -8,12 +8,13 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, session, shell } = require('electron');
+const { app, BrowserWindow, ClipboardItem, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, net, screen, session, shell } = require('electron');
 
 const { summarize } = require('./diagnostics');
 const { DocumentTab } = require('./document-tab');
 const {
-  buildImageContextMenuTemplate, buildLayersContextMenuTemplate, buildStandaloneLayersSvg, layersAtPointScript, executeSaveImage,
+  buildImageContextMenuTemplate, buildLayersContextMenuTemplate, buildStandaloneLayersSvg, copyLayersImage, layersAtPointScript,
+  executeSaveImage,
 } = require('./image-save');
 const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
@@ -1278,7 +1279,7 @@ function openLink(origin, href) {
 /**
  * 内容のビューの右クリックのメニュー。項目は、次の4種類で、あるものを、区切り線で分けて並べる。
  *   - コピー（選択があるとき）・すべて選択（常に。#409）
- *   - 画像の保存（#327）・重ね（layers）を合成した1枚としての保存（#560）
+ *   - 画像の保存（#327）・重ね（layers）を合成した1枚としての保存とコピー（#560）
  *   - リンクを開く・リンクのアドレスをコピー（#362）
  *   - 行番号のコピー（#328・#357）: `ファイル名:行`を、クリップボードへ入れる。行は、右クリックの位置から、その場で求める
  *     （ホバーで保持している最後の行ではなく、今の位置のブロック。余白では、項目を出さない）。設定「行番号の表示」がオフなら、出さない。
@@ -1304,6 +1305,7 @@ async function handleContextMenu(origin, params) {
     template.push({ type: 'separator' });
     template.push(...buildLayersContextMenuTemplate(layers, {
       onSave: (l, format) => void saveImageFromContextMenu(origin, { layers: l, altText: l.label }, format),
+      onCopy: (l) => void copyLayersFromContextMenu(origin, l),
     }));
   } else if (params.mediaType === 'image' && params.srcURL) {
     template.push({ type: 'separator' });
@@ -1329,6 +1331,24 @@ async function handleContextMenu(origin, params) {
   }
   const menu = Menu.buildFromTemplate(template);
   menu.popup({ window: win });
+}
+
+/** 重ね（layers。#560）を、合成した1枚の画像として、クリップボードへコピーする。失敗は、保存と同じく、診断に出す。 */
+async function copyLayersFromContextMenu(origin, layers) {
+  try {
+    await copyLayersImage(layers, {
+      // Electron 45のclipboardは、Promise形式（`write`とClipboardItem）。`writeImage`は、無い
+      writeImage: (png) => clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]),
+      createWindow: createHiddenWindow,
+      netFetch: net.fetch,
+    });
+  } catch (error) {
+    origin.diagnostics = summarize([{
+      severity: 'error',
+      message: `画像のコピーに失敗しました: ${error.message}`,
+    }]);
+    push();
+  }
 }
 
 async function saveImageFromContextMenu(origin, params, requestedFormat) {
