@@ -132,11 +132,11 @@ const JRE = {
 // PlantUML本体（deps.pyのPLANTUML_JAR_URL/SHA256と同じ、MIT版）。jarの中にライセンス全文は無いため、
 // GitHub上の対応するライセンスファイル（同じ版のタグ）を、Apache-2.0の全文と同じ手順で別途取得・固定する。
 const PLANTUML = {
-  url: 'https://github.com/plantuml/plantuml/releases/download/v1.2026.8/plantuml-mit-1.2026.8.jar',
-  sha256: '3629c9cd017c7f73e6450396eea0040216c7e1eef8473ce33cc1aad469dab2f9',
+  url: 'https://github.com/plantuml/plantuml/releases/download/v1.2026.9/plantuml-mit-1.2026.9.jar',
+  sha256: '835b2f2eb1d756da3f03bffdbd0baf252b4b858547a741ac8e972958a09c7f91',
 };
 const PLANTUML_LICENSE = {
-  url: 'https://raw.githubusercontent.com/plantuml/plantuml/v1.2026.8/plantuml-mit/mit-license.txt',
+  url: 'https://raw.githubusercontent.com/plantuml/plantuml/v1.2026.9/license-variants/plantuml-mit/mit-license.txt',
   sha256: '0aadc58e7c3e1eee5914418ff63ffbd19b79747075190b5f9f69017ab58966df',
 };
 
