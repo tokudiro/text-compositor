@@ -1,4 +1,4 @@
-typst==0.15.0
+typst==0.15.2
 markdown-it-py==4.2.0
 mdit-py-plugins==0.6.1
 PyYAML==6.0.3
