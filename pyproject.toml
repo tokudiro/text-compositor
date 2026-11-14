@@ -10,11 +10,11 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
-    "typst==0.15.0",
+    "typst==0.15.2",
     "markdown-it-py==4.2.0",
     "mdit-py-plugins==0.6.1",
     "PyYAML==6.0.3",
-    "platformdirs==4.14.0",
+    "platformdirs==4.14.5",
 ]
 
 # plugins.mermaid: true（既定）を使う場合のみ必要（11章）。
