@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "8"
+CACHE_VERSION = "9"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -403,20 +403,31 @@ def layout(ast):
         return bizmodel_canvas.layout(ast)
     actors = {a["id"]: a for a in ast["actors"]}
     pairs = _group_pairs(ast)
+    # 同じ2者の間の逆向きの取引（往復。#525）は、先に書いた取引を順向きとし、逆向きは、別の行に向きを反転して引く
+    reverse_pairs = []
+    for i, p in enumerate(pairs):
+        forward = next((q for q in pairs[:i] if q["seller"] == p["buyer"] and q["buyer"] == p["seller"]), None)
+        if forward is not None:
+            if p["kind"] != "single" or forward["kind"] != "single":
+                raise BizModelError("E09", f"the trades between {p['seller']!r} and {p['buyer']!r} go both ways, "
+                                           "which is supported only for single trades (not bundle/timeline)", p["line"])
+            reverse_pairs.append(p)
+    forward_pairs = [p for p in pairs if p not in reverse_pairs]
     for p in pairs:
         if p["kind"] == "timeline" and (any(q["seller"] == p["buyer"] for q in pairs)
                                         or sum(1 for q in pairs if q["buyer"] == p["buyer"]) > 1):
             raise BizModelError("E09", f"{p['buyer']!r} receives a timeline but also sells or buys elsewhere "
                                        "(not supported yet)", p["line"])
-    ids, col = _assign_columns(pairs)
+    ids, col = _assign_columns(forward_pairs)
     # 列を飛ばす取引は、隣り合う列の間の取引とは別に扱う（中間の企業の下の行を、横に渡す。#524）
-    long_pairs = [p for p in pairs if col[p["buyer"]] != col[p["seller"]] + 1]
+    long_pairs = [p for p in forward_pairs if col[p["buyer"]] != col[p["seller"]] + 1]
     for p in long_pairs:
         if p["kind"] != "single":
             raise BizModelError("E09", f"the {p['kind']} from {p['seller']!r} to {p['buyer']!r} skips a column "
                                        "(only single trades can skip a column)", p["line"])
-    normal = [p for p in pairs if p not in long_pairs]
+    normal = [p for p in forward_pairs if p not in long_pairs]
     columns, gaps = _order_columns(normal, ids, col)
+    extra_pairs = long_pairs + reverse_pairs   # 通常の行の下に、1取引1行で積む取引
 
     lay = Layout(title=ast.get("title"), currency=ast.get("currency") or DEFAULT_CURRENCY)
     top = MARGIN + (TITLE_H if lay.title else 0)
@@ -446,9 +457,9 @@ def layout(ast):
             p["top"] = top + row * PAIR_H
             row += len(p["trades"])
             p["bottom"] = p["top"] + len(p["trades"]) * PAIR_H
-    # 列を飛ばす取引は、通常の行の下に、1取引1行で積む
+    # 列を飛ばす取引と、逆向きの取引は、通常の行の下に、1取引1行で積む
     row = total_rows
-    for p in long_pairs:
+    for p in extra_pairs:
         p["top"] = top + row * PAIR_H
         row += len(p["trades"])
         p["bottom"] = p["top"] + len(p["trades"]) * PAIR_H
@@ -461,8 +472,8 @@ def layout(ast):
         ys += [(p["top"], p["bottom"]) for p in pairs if p["seller"] == aid]
         ranges[aid] = (min(y for y, _ in ys), max(y for _, y in ys))
     # 飛ばした列にいる企業の範囲に、矢印の行が入ると、矢印が企業を貫く
-    for p in long_pairs:
-        for c in range(col[p["seller"]] + 1, col[p["buyer"]]):
+    for p in extra_pairs:
+        for c in range(min(col[p["seller"]], col[p["buyer"]]) + 1, max(col[p["seller"]], col[p["buyer"]])):
             for aid in columns[c]:
                 if ranges[aid][0] < p["bottom"] and ranges[aid][1] > p["top"]:
                     raise BizModelError("E09", f"the trade from {p['seller']!r} to {p['buyer']!r} would pass through "
@@ -473,15 +484,16 @@ def layout(ast):
         for p in ps:
             for i, t in enumerate(p["trades"]):
                 lay.pairs.append({"x1": x1, "x2": x2, "y": p["top"] + i * PAIR_H, "goods": t["goods"], "money": t["money"],
-                                  "highlight": bool(t.get("highlight"))})
+                                  "highlight": bool(t.get("highlight")), "reverse": False})
             if p["kind"] == "bundle":
                 lay.braces.append({"x": brace_x, "top": p["top"] + 62, "bottom": p["bottom"] - 40})
 
-    for p in long_pairs:
-        x1, x2 = spans[col[p["seller"]]][0], spans[col[p["buyer"]] - 1][1]
+    for p in extra_pairs:
+        left, right_col = sorted((col[p["seller"]], col[p["buyer"]]))
+        x1, x2 = spans[left][0], spans[right_col - 1][1]
         for i, t in enumerate(p["trades"]):
             lay.pairs.append({"x1": x1, "x2": x2, "y": p["top"] + i * PAIR_H, "goods": t["goods"], "money": t["money"],
-                              "highlight": bool(t.get("highlight"))})
+                              "highlight": bool(t.get("highlight")), "reverse": p in reverse_pairs})
 
     right = colx[-1] + RECT_W / 2
     for c, column in enumerate(columns):
@@ -571,15 +583,20 @@ def _svg_pair(p, currency=DEFAULT_CURRENCY):
     x1, x2, y0 = p["x1"], p["x2"], p["y"]
     mid = (x1 + x2) / 2
     ya, yb = y0 + 72, y0 + 92
+    # 逆向きの取引（往復の戻り。#525）は、売り手が右にいるため、2本の矢印の向きを入れ替える。
+    # 上の矢印がモノ（先端を塗りつぶす）、下の矢印がカネ（先端が開いている）という意味は、変えない
+    sgn = -1 if p.get("reverse") else 1
+    gs, ge = (x1, x2) if sgn > 0 else (x2, x1)   # モノの矢印の始点・終点
+    ms, me = ge, gs                               # カネの矢印は、逆向き
     return "\n".join([
         _text(mid, y0 + 18, p["goods"], LABEL_SIZE),
         f'<circle cx="{_fmt(mid)}" cy="{_fmt(y0 + 42)}" r="10" fill="#fff" stroke="{INK}" stroke-width="{STROKE}"/>',
-        # 販売（モノの流れ）: 右向き。先端を塗りつぶす
-        f'<line x1="{_fmt(x1)}" y1="{_fmt(ya)}" x2="{_fmt(x2 - 12)}" y2="{_fmt(ya)}" stroke="{INK}" stroke-width="{STROKE}"/>',
-        f'<polygon points="{_fmt(x2)},{_fmt(ya)} {_fmt(x2 - 16)},{_fmt(ya - 8)} {_fmt(x2 - 16)},{_fmt(ya + 8)}" fill="{INK}"/>',
-        # 支払（カネの流れ）: 左向き。先端が開いた標準的な矢印
-        f'<line x1="{_fmt(x2)}" y1="{_fmt(yb)}" x2="{_fmt(x1)}" y2="{_fmt(yb)}" stroke="{INK}" stroke-width="{STROKE}"/>',
-        f'<polyline points="{_fmt(x1 + 12)},{_fmt(yb - 7)} {_fmt(x1)},{_fmt(yb)} {_fmt(x1 + 12)},{_fmt(yb + 7)}" '
+        # 販売（モノの流れ）: 先端を塗りつぶす
+        f'<line x1="{_fmt(gs)}" y1="{_fmt(ya)}" x2="{_fmt(ge - 12 * sgn)}" y2="{_fmt(ya)}" stroke="{INK}" stroke-width="{STROKE}"/>',
+        f'<polygon points="{_fmt(ge)},{_fmt(ya)} {_fmt(ge - 16 * sgn)},{_fmt(ya - 8)} {_fmt(ge - 16 * sgn)},{_fmt(ya + 8)}" fill="{INK}"/>',
+        # 支払（カネの流れ）: 先端が開いた標準的な矢印
+        f'<line x1="{_fmt(ms)}" y1="{_fmt(yb)}" x2="{_fmt(me)}" y2="{_fmt(yb)}" stroke="{INK}" stroke-width="{STROKE}"/>',
+        f'<polyline points="{_fmt(me + 12 * sgn)},{_fmt(yb - 7)} {_fmt(me)},{_fmt(yb)} {_fmt(me + 12 * sgn)},{_fmt(yb + 7)}" '
         f'fill="none" stroke="{INK}" stroke-width="{STROKE}"/>',
         _text(mid, y0 + 120, currency, 20),
         *_svg_money(mid, y0 + 140, p["money"], p.get("highlight")),

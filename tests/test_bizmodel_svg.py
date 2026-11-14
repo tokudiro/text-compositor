@@ -81,7 +81,7 @@ class TestThreeOrMoreParties:
         assert t.count("\u00a5") == 2   # yen mark per pair
 
     def test_the_cache_version_is_bumped(self):
-        assert int(bm.CACHE_VERSION) >= 8
+        assert int(bm.CACHE_VERSION) >= 9
 
     def test_the_diagram_without_highlight_has_no_filled_shapes_except_arrowheads(self):
         r = root(BASIC)
