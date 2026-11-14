@@ -35,10 +35,13 @@ Provider -> User : goods "視聴権" / money "月額500円"
 | `person ID "表示名"` | 個人の宣言 | 人型。名前は、下に書きます |
 | `売り手 -> 買い手 : goods "…" / money "…"` | 取引 | 売り手から買い手へのモノと、買い手から売り手へのカネの、2本1組 |
 | `title "…"` | 題名 | 省略できます。図の上に出ます |
+| `currency "…"` | カネの記号 | 省略できます。矢印の下に出る記号を変えます。省略すると`¥`です |
 | `type flow` | 記法の種類 | 1行目に書きます。`flow`と`canvas`があり、省略すると`flow`です |
 | `# …` | コメント | 行頭にも、行の途中にも書けます |
 
 - 識別子（`Provider`・`User`）は、英数字と`_`です。日本語は、引用符の中の表示名に書きます。
+- `currency`は、図の全体で1回だけ書けます。`bundle`・`timeline`の中には書けません。記号は引用符で囲み、`"$"`・`"€"`・`"US$"`のように書きます。空の記号は、エラーです。
+- 金額の文字列は、記号とは別です。`currency "$"`と書いても、`money`の中身は、書いたとおりに出ます。
 - `goods`と`money`は、必ず両方書きます。順番は、どちらでも構いません。
 - 図の見た目は、黒の単色です。上の矢印（先端を塗りつぶす）がモノ、下の矢印（先端が開いている）がカネです。
 
@@ -58,6 +61,17 @@ Search -> User : goods "検索" / money "0円"
 company Maker "メーカー"
 person Customer "顧客"
 Maker -> Customer : goods "商品" / money "？円"
+```
+
+## カネの記号を変える
+
+矢印の下のカネの記号は、既定で`¥`です。英語の図などで`$`にするときは、`currency`で指定します。
+
+```bizmodel
+currency "$"
+company Provider "Provider"
+person User "User"
+Provider -> User : goods "Streaming" / money "$5 per month"
 ```
 
 ## 同時に買う（まとめ）
