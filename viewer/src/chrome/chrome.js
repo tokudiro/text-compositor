@@ -29,7 +29,13 @@ const fileTree = createFileTree({
   listDirectory: (directory) => api.listDirectory(directory),
   openFile: (file) => api.openFromSidebar(file),   // 設定ファイルでも、モードを変えず、ただのファイルとして開く（#373）
   autoExpand: () => lastTreeKind === 'project',     // 章の一覧は、見出しを開いた状態で出す
+  // 自動更新（#549）。展開中のフォルダを、メインへ知らせる。メインが、更新時刻を確かめ、変わったフォルダを、tree-changedで知らせてくる。
+  // 章の一覧（プロジェクトモード）は、フォルダではないため、知らせない（設定ファイルの監視が、更新する）
+  onExpandedChange: (directories) => { if (lastTreeKind === 'folder') api.setTreeWatch(directories); },
+  // 折りたたんでいた間に、変わったかもしれない。設定がオンなら、開き直すときに、読み直す
+  autoRefresh: () => lastTreeKind === 'folder' && lastState?.settings?.treeAutoRefresh !== false,
 });
+api.onTreeChanged((directories) => { for (const directory of directories) void fileTree.refresh(directory); });
 let lastTreeKind = null;
 $('settings-button').addEventListener('click', () => api.toggleSettings());
 $('settings-close').addEventListener('click', () => api.toggleSettings());

@@ -20,6 +20,7 @@ const { PythonNotFoundError, resolveWorkerLaunch } = require('./python');
 const { DEFAULTS, EDITABLE, FEATURES, LINTS, loadSettings, normalizeSettings, saveSettings } = require('./settings');
 const { addRecentFile, recentLabel, removeRecentFile } = require('./recent-files');
 const { isInsideDirectory, listDirectory } = require('./directory-list');
+const { DirectoryPoller } = require('./directory-poller');
 const { currentHeadingId, effectiveSidebarView, sanitizeOutline } = require('./outline');
 const { buildProject, isInsideProject, isProjectConfigFile, projectEntries } = require('./project');
 const { checkOpenTarget, classifyNavigation, fileFromArgv, resolveRelativeLink, openDialogDirectory, openDialogFilters } = require('./targets');
@@ -618,6 +619,7 @@ function changeSetting(key, value) {
 }
 
 function push() {
+  syncTreePoller();   // 設定・ルートが変わったら、ファイルツリーの自動更新を、動かす・止める（#549）
   const menu = Menu.getApplicationMenu();
   const backItem = menu?.getMenuItemById('go-back');
   if (backItem) backItem.enabled = tab.canGoBack;
@@ -1088,6 +1090,35 @@ function isInsideTreeRoot(directory) {
   return state.settings.showFileTree && state.tree.kind === 'folder' && isInsideDirectory(state.tree.root, directory);
 }
 
+// -- ファイルツリーの自動更新（#549） -------------------------------------------------
+// 画面が、展開中のフォルダの一覧を知らせてくる（`tree-watch`）。ここで、その更新時刻を一定の間隔で確かめ、変わったフォルダを、
+// 画面へ知らせる（`tree-changed`）。画面は、そのフォルダだけを読み直す。方式の理由は、`directory-poller.js`。
+// 確認を動かすのは、設定「ファイルツリーの自動更新」がオンで、フォルダモードのときだけ（章の一覧は、設定ファイルの監視が更新する）。
+// 一覧を読むたびに基準を控えるのは、設定がオフの間も続ける。オンに戻したとき、オフの間の変更も、最初の確認で見つかる。
+const TREE_POLL_INTERVAL_MS = 1000;
+const TREE_WATCH_LIMIT = 500;   // 画面からの一覧の上限（異常な数を、受け付けない）
+const treePoller = new DirectoryPoller();
+let polledTreeRoot = null;
+
+function treePollWanted() {
+  return state.settings.treeAutoRefresh && state.settings.showFileTree && state.tree.kind === 'folder' && state.tree.root !== null;
+}
+
+/** いまの設定・ルートに合わせて、確認を、動かす・止める。状態が変わるたび（`push`）に呼ぶ。 */
+function syncTreePoller() {
+  const root = state.tree.kind === 'folder' ? state.tree.root : null;
+  if (root !== polledTreeRoot) { polledTreeRoot = root; treePoller.setWatched([]); }   // ルートが替わったら、前のルートの対象を捨てる
+  if (treePollWanted()) {
+    if (!treePoller.running) treePoller.start(TREE_POLL_INTERVAL_MS, notifyTreeChanged);
+  } else {
+    treePoller.stop();
+  }
+}
+
+function notifyTreeChanged(directories) {
+  if (win && !win.isDestroyed()) win.webContents.send('tree-changed', directories);
+}
+
 /**
  * ファイルを開く入口（ダイアログ・ドロップ・コマンドライン引数）。設定ファイルの名前なら、プロジェクトモードで開く（#373）。
  * サイドバーの項目のクリック・相対リンクは、ここを通さない（クリックで、モードを変えないため）。
@@ -1527,10 +1558,16 @@ ipcMain.on('outline-jump', (event, id) => {
 });
 ipcMain.on('open-folder', () => void openFolder());
 // ファイルツリーの一覧。ワーカー（変換の直列キュー）を通さず、ここで直接読む（変換中でも、展開が待たされない）
-ipcMain.handle('list-directory', (event, directory) => {
+ipcMain.handle('list-directory', async (event, directory) => {
   if (event.sender === win?.webContents && state.settings.showFileTree && state.tree.kind === 'project') return projectEntries(project, directory);   // 章の一覧（#373）
   if (event.sender !== win?.webContents || !isInsideTreeRoot(directory)) return { ok: false, message: 'このフォルダは、読めません' };
+  await treePoller.record(directory);   // 読む「前」に、更新時刻を控える。読んでいる間の変更を、取りこぼさないため（#549）
   return listDirectory(directory);
+});
+// ファイルツリーの自動更新（#549）。画面が、いま展開しているフォルダ（ルートを含む）の一覧を知らせる。ルートの外は、受け付けない
+ipcMain.on('tree-watch', (event, directories) => {
+  if (event.sender !== win?.webContents || !Array.isArray(directories)) return;
+  treePoller.setWatched(directories.slice(0, TREE_WATCH_LIMIT).filter((each) => typeof each === 'string' && isInsideTreeRoot(each)));
 });
 // サイドバーの項目のクリック。設定ファイルでも、モードを変えず、ただのファイルとして開く（#373）
 ipcMain.on('open-from-sidebar', (event, filePath) => {

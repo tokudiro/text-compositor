@@ -104,6 +104,7 @@ const DEFAULTS = Object.freeze({
   toolbarPosition: 'top',   // 'top' | 'bottom'
   theme: 'system',          // 'system' | 'light' | 'dark'
   autoReload: true,         // 保存したら、自動で更新する（#170）
+  treeAutoRefresh: true,    // ファイルツリーを、フォルダ内のファイルの増減・改名に合わせて、自動で更新する（#549）。原稿の自動更新（autoReload）とは、独立した設定
   csvHeader: true,          // .csvの1行目を、見出し行にする（#220）。ツールバーで切り替え、覚える
   allowExternalImages: false, // 外部の画像（https://...等）を読み込むか（既定false。方針2章「ローカルに閉じる」。#238）
   window: null,             // 前回のウィンドウの大きさ・位置（#192）。設定画面では変えない
@@ -117,7 +118,7 @@ const DEFAULTS = Object.freeze({
 });
 
 /** 設定画面から変えられる項目（ウィンドウの状態などは、アプリが自動で保存する） */
-const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'lint', 'openDirectoryMode', 'workLocation', 'speechVoice', 'speechRate']);
+const EDITABLE = Object.freeze(['toolbarPosition', 'theme', 'autoReload', 'treeAutoRefresh', 'csvHeader', 'allowExternalImages', ...FEATURES.map((feature) => feature.key), 'lint', 'openDirectoryMode', 'workLocation', 'speechVoice', 'speechRate']);
 
 const WINDOW_MIN = Object.freeze({ width: 400, height: 300 });
 const WINDOW_MAX = 20000;
@@ -158,6 +159,7 @@ function normalizeSettings(value) {
     if (choices.includes(source[key])) result[key] = source[key];
   }
   if (typeof source.autoReload === 'boolean') result.autoReload = source.autoReload;
+  if (typeof source.treeAutoRefresh === 'boolean') result.treeAutoRefresh = source.treeAutoRefresh;
   if (typeof source.csvHeader === 'boolean') result.csvHeader = source.csvHeader;
   if (typeof source.allowExternalImages === 'boolean') result.allowExternalImages = source.allowExternalImages;
   for (const feature of FEATURES) {
