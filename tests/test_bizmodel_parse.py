@@ -157,6 +157,53 @@ bundle {
     def test_e06_currency_with_extra_tokens(self):
         assert parse_error('currency "$" "€"\n' + BASIC).code == "E06"
 
+    def test_highlight_defaults_to_false(self):
+        ast = bm.parse(BASIC)
+        assert [a["highlight"] for a in ast["actors"]] == [False, False]
+        assert ast["groups"][0]["trades"][0]["highlight"] is False
+
+    def test_highlight_actor_statement(self):
+        ast = bm.parse(BASIC + "highlight User\n")
+        assert [a["highlight"] for a in ast["actors"]] == [False, True]
+
+    def test_highlight_statement_may_come_before_the_declaration(self):
+        ast = bm.parse("highlight Provider\n" + BASIC)
+        assert [a["highlight"] for a in ast["actors"]] == [True, False]
+
+    def test_highlight_money_in_either_order(self):
+        a = bm.parse('company A "a"\ncompany B "b"\nA -> B : goods "x" / money "1" highlight\n')
+        b = bm.parse('company A "a"\ncompany B "b"\nA -> B : money "1" highlight / goods "x"\n')
+        assert a["groups"][0]["trades"][0]["highlight"] is True
+        assert b["groups"][0]["trades"][0]["highlight"] is True
+
+    def test_highlight_money_in_a_block_marks_only_that_trade(self):
+        ast = bm.parse('company A "a"\ncompany B "b"\nbundle {\n'
+                       '  A -> B : goods "x" / money "1" highlight\n  A -> B : goods "y" / money "2"\n}\n')
+        assert [t["highlight"] for t in ast["groups"][0]["trades"]] == [True, False]
+
+    def test_e03_highlight_undeclared_id(self):
+        e = parse_error(BASIC + "highlight Nobody\n")
+        assert e.code == "E03" and e.line == 5
+
+    def test_e06_highlight_without_id_or_twice_or_extra(self):
+        assert parse_error(BASIC + "highlight\n").code == "E06"
+        assert parse_error(BASIC + "highlight User\nhighlight User\n").code == "E06"
+        assert parse_error(BASIC + "highlight User Provider\n").code == "E06"
+        assert parse_error(BASIC + 'highlight "User"\n').code == "E06"
+
+    def test_e06_highlight_inside_a_block(self):
+        text = ('company A "a"\ncompany B "b"\nbundle {\n  highlight A\n'
+                '  A -> B : goods "x" / money "1"\n  A -> B : goods "y" / money "2"\n}\n')
+        e = parse_error(text)
+        assert e.code == "E06" and e.line == 4
+
+    def test_e06_highlight_after_goods(self):
+        e = parse_error('company A "a"\ncompany B "b"\nA -> B : goods "x" highlight / money "1"\n')
+        assert e.code == "E06" and e.line == 3
+
+    def test_highlight_is_a_reserved_word(self):
+        assert parse_error('company highlight "x"\n').code == "E06"
+
     def test_e06_japanese_id(self):
         assert parse_error('company 会社 "x"\n').code == "E06"
 
