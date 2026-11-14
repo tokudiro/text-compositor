@@ -241,6 +241,79 @@ class TestSkipColumn:
         assert l.height == bm.MARGIN + bm.PAIR_H + bm.MARGIN - 10
 
 
+class TestRoundTrip:
+    """同じ2者の間の逆向きの取引（買取と販売の往復）は、向きを反転した行を、下に足す（#525）。"""
+    HEAD2 = 'company Store "買取店"\nperson Customer "顧客"\n'
+    BODY2 = ('Store -> Customer : goods "中古品" / money "販売価格"\n'
+             'Customer -> Store : goods "売却品" / money "買取価格"\n')
+
+    def test_the_diagram_is_laid_out_and_rendered(self):
+        import xml.etree.ElementTree as ET
+        ET.fromstring(bm.render_svg(self.HEAD2 + self.BODY2))
+        assert len(lay(self.BODY2, head=self.HEAD2).pairs) == 2
+
+    def test_the_first_trade_decides_the_sides_and_the_return_is_below(self):
+        l = lay(self.BODY2, head=self.HEAD2)
+        fwd, back = l.pairs
+        assert not fwd["reverse"] and back["reverse"]
+        assert actor(l, "Store")["cx"] < actor(l, "Customer")["cx"]
+        assert back["y"] - fwd["y"] == bm.PAIR_H
+        assert (back["x1"], back["x2"]) == (fwd["x1"], fwd["x2"])
+
+    def test_each_symbol_is_drawn_once(self):
+        l = lay(self.BODY2, head=self.HEAD2)
+        assert sorted(a["id"] for a in l.actors) == ["Customer", "Store"]
+
+    def test_the_company_covers_both_rows(self):
+        l = lay(self.BODY2, head=self.HEAD2)
+        assert actor(l, "Store")["h"] == 2 * bm.PAIR_H - 20
+
+    def test_the_order_of_writing_decides_the_direction(self):
+        body = ('Customer -> Store : goods "売却品" / money "買取価格"\n'
+                'Store -> Customer : goods "中古品" / money "販売価格"\n')
+        l = lay(body, head=self.HEAD2)
+        assert actor(l, "Customer")["cx"] < actor(l, "Store")["cx"]
+
+    def test_the_arrows_of_the_return_row_are_reversed(self):
+        import xml.etree.ElementTree as ET
+        ns = "{http://www.w3.org/2000/svg}"
+        r = ET.fromstring(bm.render_svg(self.HEAD2 + self.BODY2))
+        lines = [(float(e.get("x1")), float(e.get("x2")), float(e.get("y1"))) for e in r.iter(ns + "line")]
+        ys = sorted({y for _, _, y in lines})
+        (g1, m1, g2, m2) = ys   # 行ごとに、モノ（上）・カネ（下）
+        goods1 = next(l for l in lines if l[2] == g1)
+        money1 = next(l for l in lines if l[2] == m1)
+        goods2 = next(l for l in lines if l[2] == g2)
+        money2 = next(l for l in lines if l[2] == m2)
+        assert goods1[0] < goods1[1] and money1[0] > money1[1]    # 順向き: モノは右向き、カネは左向き
+        assert goods2[0] > goods2[1] and money2[0] < money2[1]    # 逆向き: モノは左向き、カネは右向き
+        # 先端の形は変えない: モノは塗りつぶし（polygon）、カネは開いた先端（polyline）
+        assert len(list(r.iter(ns + "polygon"))) == 2
+        assert len(list(r.iter(ns + "polyline"))) == 2
+
+    def test_a_round_trip_in_a_chain_does_not_touch_the_middle_company(self):
+        head = 'company A "A"\ncompany B "B"\nperson C "C"\n'
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "b" / money "2円"\n'
+                'C -> B : goods "c" / money "3円"\n')
+        l = lay(body, head=head)
+        back = next(p for p in l.pairs if p["reverse"])
+        assert back["y"] >= max(p["y"] for p in l.pairs if not p["reverse"])
+        assert actor(l, "B")["x"] < back["x1"]
+
+    def test_a_round_trip_can_come_with_a_skipping_trade(self):
+        head = 'company A "A"\ncompany B "B"\nperson C "C"\n'
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "b" / money "2円"\n'
+                'A -> C : goods "d" / money "4円"\nC -> B : goods "c" / money "3円"\n')
+        with pytest.raises(BizModelError) as info:
+            lay(body, head=head)    # 戻りの行が、飛ばす取引の行と並び、B の範囲に入る
+        assert info.value.code == "E09"
+
+    def test_diagrams_without_a_round_trip_are_unchanged(self):
+        l = lay('Store -> Customer : goods "x" / money "1円"\n', head=self.HEAD2)
+        assert l.pairs[0]["reverse"] is False
+        assert l.height == bm.MARGIN + bm.PAIR_H + bm.MARGIN - 10
+
+
 class TestUnsupported:
     def head(self):
         return 'company A "A"\ncompany B "B"\ncompany C "C"\nperson X "X"\n'
@@ -261,11 +334,19 @@ class TestUnsupported:
             lay(body, head=head)
         assert info.value.code == "E09" and "pass through" in info.value.message
 
-    def test_a_circle_is_not_supported_yet(self):
-        body = 'A -> B : goods "a" / money "1円"\nB -> A : goods "a" / money "2円"\n'
+    def test_a_circle_through_three_parties_is_not_supported_yet(self):
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "b" / money "2円"\n'
+                'C -> A : goods "c" / money "3円"\n')
         with pytest.raises(BizModelError) as info:
             lay(body, head=self.head())
         assert info.value.code == "E09" and "circle" in info.value.message
+
+    def test_a_round_trip_with_a_bundle_is_not_supported(self):
+        body = ('bundle {\n  A -> B : goods "a" / money "1円"\n  A -> B : goods "b" / money "2円"\n}\n'
+                'B -> A : goods "c" / money "3円"\n')
+        with pytest.raises(BizModelError) as info:
+            lay(body, head=self.head())
+        assert info.value.code == "E09" and "both ways" in info.value.message
 
     def test_crossing_arrows_are_not_supported_yet(self):
         body = ('A -> B : goods "a" / money "1円"\nA -> C : goods "a" / money "2円"\n'
