@@ -81,4 +81,20 @@ class TestThreeOrMoreParties:
         assert t.count("\u00a5") == 2   # yen mark per pair
 
     def test_the_cache_version_is_bumped(self):
-        assert int(bm.CACHE_VERSION) >= 5
+        assert int(bm.CACHE_VERSION) >= 6
+
+    def test_currency_defaults_to_yen(self):
+        t = texts(root(BASIC))
+        assert t.count("¥") == 1
+
+    def test_currency_switches_the_money_mark(self):
+        t = texts(root('currency "$"\n' + BASIC))
+        assert t.count("$") == 1 and "¥" not in t
+
+    def test_currency_applies_to_every_pair(self):
+        text = ('currency "€"\ncompany A "a"\ncompany B "b"\ncompany C "c"\n'
+                'A -> B : goods "g1" / money "m1"\nB -> C : goods "g2" / money "m2"\n')
+        assert texts(root(text)).count("€") == 2
+
+    def test_currency_is_escaped_in_the_svg(self):
+        ET.fromstring(bm.render_svg('currency "<&>"\n' + BASIC))

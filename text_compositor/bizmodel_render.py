@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "5"
+CACHE_VERSION = "6"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -33,7 +33,8 @@ LABEL_SIZE = 14
 MONEY_SIZE = 13
 CHAR_LINE = 17        # 長方形の中の、1文字ぶんの行の高さ
 
-_RESERVED = {"type", "title", "company", "person", "bundle", "timeline", "goods", "money"}
+DEFAULT_CURRENCY = "¥"   # currency宣言を省略したときのカネの記号（#457）
+_RESERVED = {"type", "title", "currency", "company", "person", "bundle", "timeline", "goods", "money"}
 _SUPPORTED_TYPES = ("flow",)
 
 
@@ -123,6 +124,7 @@ def parse(text):
     actors = []
     groups = []
     title = None
+    currency = None
     seen_statement = False
     block = None   # 開いているbundle/timelineの、{'kind','line','trades'}
 
@@ -165,6 +167,15 @@ def parse(text):
                 raise BizModelError("E06", "'title' needs a quoted text (title \"...\")", lineno, first.col)
             _expect_end(toks, 2, lineno)
             title = toks[1].value
+        elif word == "currency":
+            if block is not None:
+                raise BizModelError("E06", "'currency' cannot be declared inside a block", lineno, first.col)
+            if currency is not None:
+                raise BizModelError("E06", "'currency' can be written only once", lineno, first.col)
+            if len(toks) < 2 or toks[1].kind != "string" or not toks[1].value.strip():
+                raise BizModelError("E06", "'currency' needs a non-empty quoted symbol (currency \"$\")", lineno, first.col)
+            _expect_end(toks, 2, lineno)
+            currency = toks[1].value.strip()
         elif word in ("company", "person"):
             if block is not None:
                 raise BizModelError("E06", f"'{word}' cannot be declared inside a block", lineno, first.col)
@@ -208,7 +219,7 @@ def parse(text):
     for g in groups:
         for t in g["trades"]:
             del t["seller_col"], t["buyer_col"]
-    return {"type": "flow", "title": title, "actors": actors, "groups": groups}
+    return {"type": "flow", "title": title, "currency": currency, "actors": actors, "groups": groups}
 
 
 def _expect_end(toks, index, lineno):
@@ -272,6 +283,7 @@ class Layout:
     height: float = 0
     title: str = None
     title_y: float = 0
+    currency: str = DEFAULT_CURRENCY
     actors: list = field(default_factory=list)      # {'id','kind','label','x','y','w','h','cx','cy'}
     pairs: list = field(default_factory=list)       # {'x1','x2','y','goods','money'}
     braces: list = field(default_factory=list)      # {'x','top','bottom'}
@@ -379,7 +391,7 @@ def layout(ast):
     ids, col = _assign_columns(pairs)
     columns, gaps = _order_columns(pairs, ids, col)
 
-    lay = Layout(title=ast.get("title"))
+    lay = Layout(title=ast.get("title"), currency=ast.get("currency") or DEFAULT_CURRENCY)
     top = MARGIN + (TITLE_H if lay.title else 0)
 
     def half(a):
@@ -501,7 +513,7 @@ def _svg_person(a):
     ])
 
 
-def _svg_pair(p):
+def _svg_pair(p, currency=DEFAULT_CURRENCY):
     x1, x2, y0 = p["x1"], p["x2"], p["y"]
     mid = (x1 + x2) / 2
     ya, yb = y0 + 72, y0 + 92
@@ -515,7 +527,7 @@ def _svg_pair(p):
         f'<line x1="{_fmt(x2)}" y1="{_fmt(yb)}" x2="{_fmt(x1)}" y2="{_fmt(yb)}" stroke="{INK}" stroke-width="{STROKE}"/>',
         f'<polyline points="{_fmt(x1 + 12)},{_fmt(yb - 7)} {_fmt(x1)},{_fmt(yb)} {_fmt(x1 + 12)},{_fmt(yb + 7)}" '
         f'fill="none" stroke="{INK}" stroke-width="{STROKE}"/>',
-        _text(mid, y0 + 120, "¥", 20),
+        _text(mid, y0 + 120, currency, 20),
         _text(mid, y0 + 140, p["money"], MONEY_SIZE),
     ])
 
@@ -550,7 +562,7 @@ def to_svg(lay):
     for a in lay.actors:
         parts.append(_svg_company(a) if a["kind"] == "company" else _svg_person(a))
     for p in lay.pairs:
-        parts.append(_svg_pair(p))
+        parts.append(_svg_pair(p, lay.currency))
     for b in lay.braces:
         parts.append(_svg_brace(b))
     for t in lay.timelines:

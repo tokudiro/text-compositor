@@ -133,6 +133,30 @@ bundle {
     def test_e06_unsupported_type(self):
         assert parse_error("type canvas\n" + BASIC).code == "E06"
 
+    def test_currency_is_parsed_and_defaults_to_none(self):
+        assert bm.parse(BASIC)["currency"] is None
+        assert bm.parse('currency "$"\n' + BASIC)["currency"] == "$"
+
+    def test_e06_currency_empty(self):
+        for text in ('currency ""\n', 'currency "  "\n', 'currency\n'):
+            assert parse_error(text + BASIC).code == "E06"
+
+    def test_e06_currency_unquoted(self):
+        assert parse_error('currency $\n' + BASIC).code == "E06"
+
+    def test_e06_currency_twice(self):
+        e = parse_error('currency "$"\ncurrency "€"\n' + BASIC)
+        assert e.code == "E06" and e.line == 2
+
+    def test_e06_currency_inside_a_block(self):
+        text = ('company A "a"\ncompany B "b"\nbundle {\n  currency "$"\n'
+                '  A -> B : goods "x" / money "1"\n  A -> B : goods "y" / money "2"\n}\n')
+        e = parse_error(text)
+        assert e.code == "E06" and e.line == 4
+
+    def test_e06_currency_with_extra_tokens(self):
+        assert parse_error('currency "$" "€"\n' + BASIC).code == "E06"
+
     def test_e06_japanese_id(self):
         assert parse_error('company 会社 "x"\n').code == "E06"
 
