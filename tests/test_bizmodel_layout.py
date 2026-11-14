@@ -172,16 +172,94 @@ class TestPlatform:
         assert actor(l, "B")["h"] == 2 * bm.PAIR_H - 20
 
 
+class TestSkipColumn:
+    """列を飛ばす取引（メーカー → 顧客の直販など）は、中間の企業の下の行を、横に渡す（#524）。"""
+    HEAD3 = 'company Maker "メーカー"\ncompany Shop "小売"\nperson User "顧客"\n'
+    BODY3 = ('Maker -> Shop : goods "商品" / money "卸値"\nShop -> User : goods "商品" / money "定価"\n'
+             'Maker -> User : goods "直販品" / money "直販価格"\n')
+
+    def test_the_diagram_is_laid_out_and_rendered(self):
+        text = self.HEAD3 + self.BODY3
+        import xml.etree.ElementTree as ET
+        ET.fromstring(bm.render_svg(text))
+        assert len(bm.layout(bm.parse(text)).pairs) == 3
+
+    def test_the_skipping_arrow_runs_in_a_row_below_the_middle_company(self):
+        l = lay(self.BODY3, head=self.HEAD3)
+        direct = next(p for p in l.pairs if p["goods"] == "直販品")
+        shop = actor(l, "Shop")
+        assert direct["y"] >= shop["y"] + shop["h"]            # 小売の長方形の下の行
+        assert direct["y"] == max(p["y"] for p in l.pairs)     # 通常の行より下
+
+    def test_the_arrow_does_not_touch_the_middle_company(self):
+        l = lay(self.BODY3, head=self.HEAD3)
+        direct = next(p for p in l.pairs if p["goods"] == "直販品")
+        shop = actor(l, "Shop")
+        # 矢印の行（記号を含めた高さ）が、小売の長方形・名前の範囲と、縦に重ならない
+        assert direct["y"] > shop["y"] + shop["h"] - 1
+
+    def test_the_arrow_spans_from_the_seller_to_the_buyer(self):
+        l = lay(self.BODY3, head=self.HEAD3)
+        direct = next(p for p in l.pairs if p["goods"] == "直販品")
+        maker, user = actor(l, "Maker"), actor(l, "User")
+        first, last = l.pairs[0], l.pairs[1]
+        assert maker["cx"] < direct["x1"] == first["x1"]
+        assert direct["x2"] == last["x2"] < user["cx"]
+
+    def test_the_end_companies_cover_the_extra_row(self):
+        l = lay(self.BODY3, head=self.HEAD3)
+        direct = next(p for p in l.pairs if p["goods"] == "直販品")
+        maker = actor(l, "Maker")
+        assert maker["y"] + maker["h"] >= direct["y"] + bm.PAIR_H - 20 - 1
+
+    def test_the_canvas_holds_the_extra_row(self):
+        l = lay(self.BODY3, head=self.HEAD3)
+        direct = next(p for p in l.pairs if p["goods"] == "直販品")
+        assert direct["y"] + bm.PAIR_H <= l.height + bm.MARGIN
+        assert 0 <= direct["x1"] and direct["x2"] <= l.width
+
+    def test_each_skipping_trade_has_its_own_row(self):
+        body = self.BODY3 + 'Maker -> User : goods "直販品2" / money "価格2"\n'
+        l = lay(body, head=self.HEAD3)
+        ys = sorted(p["y"] for p in l.pairs if p["goods"].startswith("直販品"))
+        assert len(ys) == 2 and ys[1] - ys[0] == bm.PAIR_H
+
+    def test_a_trade_can_skip_two_columns(self):
+        head = 'company A "A"\ncompany B "B"\ncompany C "C"\nperson D "D"\n'
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "b" / money "2円"\nC -> D : goods "c" / money "3円"\n'
+                'A -> D : goods "z" / money "9円"\n')
+        l = lay(body, head=head)
+        z = next(p for p in l.pairs if p["goods"] == "z")
+        for mid in ("B", "C"):
+            a = actor(l, mid)
+            assert z["y"] >= a["y"] + a["h"]
+        assert z["x1"] == l.pairs[0]["x1"] and z["x2"] == l.pairs[2]["x2"]
+
+    def test_diagrams_without_a_skipping_trade_are_unchanged(self):
+        body = 'Maker -> Shop : goods "商品" / money "卸値"\nShop -> User : goods "商品" / money "定価"\n'
+        l = lay(body, head=self.HEAD3)
+        assert l.height == bm.MARGIN + bm.PAIR_H + bm.MARGIN - 10
+
+
 class TestUnsupported:
     def head(self):
         return 'company A "A"\ncompany B "B"\ncompany C "C"\nperson X "X"\n'
 
-    def test_a_trade_that_skips_a_column_is_not_supported_yet(self):
+    def test_a_bundle_that_skips_a_column_is_not_supported(self):
         body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "a" / money "2円"\n'
-                'A -> C : goods "a" / money "3円"\n')
+                'bundle {\n  A -> C : goods "x" / money "3円"\n  A -> C : goods "y" / money "4円"\n}\n')
         with pytest.raises(BizModelError) as info:
             lay(body, head=self.head())
         assert info.value.code == "E09" and "skips" in info.value.message
+
+    def test_interleaved_skipping_trades_are_not_supported(self):
+        # A -> C と B -> D は、互いの企業（B・C）の下を通るため、矢印が企業を貫く
+        head = 'company A "A"\ncompany B "B"\ncompany C "C"\nperson D "D"\n'
+        body = ('A -> B : goods "a" / money "1円"\nB -> C : goods "b" / money "2円"\nC -> D : goods "c" / money "3円"\n'
+                'A -> C : goods "d" / money "4円"\nB -> D : goods "e" / money "5円"\n')
+        with pytest.raises(BizModelError) as info:
+            lay(body, head=head)
+        assert info.value.code == "E09" and "pass through" in info.value.message
 
     def test_a_circle_is_not_supported_yet(self):
         body = 'A -> B : goods "a" / money "1円"\nB -> A : goods "a" / money "2円"\n'

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "7"
+CACHE_VERSION = "8"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -337,7 +337,8 @@ def _group_pairs(ast):
 
 
 def _assign_columns(pairs):
-    """取引の向き（売り手 → 買い手）に沿って、左から右へ列を決める。隣り合わない列をつなぐ取引と、循環は、描けない。"""
+    """取引の向き（売り手 → 買い手）に沿って、左から右へ列を決める。循環は、描けない（E09）。
+    隣り合わない列をつなぐ取引（列を飛ばす取引）は、呼び出し側で、別の行に引く（#524）。"""
     ids = []
     for p in pairs:
         for a in (p["seller"], p["buyer"]):
@@ -363,10 +364,6 @@ def _assign_columns(pairs):
             col[a] = min(col[p["buyer"]] for p in pairs if p["seller"] == a) - 1
     base = min(col.values())
     col = {a: c - base for a, c in col.items()}
-    for p in pairs:
-        if col[p["buyer"]] != col[p["seller"]] + 1:
-            raise BizModelError("E09", f"the trade from {p['seller']!r} to {p['buyer']!r} skips a column "
-                                       "(not supported yet)", p["line"])
     return ids, col
 
 
@@ -412,7 +409,14 @@ def layout(ast):
             raise BizModelError("E09", f"{p['buyer']!r} receives a timeline but also sells or buys elsewhere "
                                        "(not supported yet)", p["line"])
     ids, col = _assign_columns(pairs)
-    columns, gaps = _order_columns(pairs, ids, col)
+    # 列を飛ばす取引は、隣り合う列の間の取引とは別に扱う（中間の企業の下の行を、横に渡す。#524）
+    long_pairs = [p for p in pairs if col[p["buyer"]] != col[p["seller"]] + 1]
+    for p in long_pairs:
+        if p["kind"] != "single":
+            raise BizModelError("E09", f"the {p['kind']} from {p['seller']!r} to {p['buyer']!r} skips a column "
+                                       "(only single trades can skip a column)", p["line"])
+    normal = [p for p in pairs if p not in long_pairs]
+    columns, gaps = _order_columns(normal, ids, col)
 
     lay = Layout(title=ast.get("title"), currency=ast.get("currency") or DEFAULT_CURRENCY)
     top = MARGIN + (TITLE_H if lay.title else 0)
@@ -442,6 +446,27 @@ def layout(ast):
             p["top"] = top + row * PAIR_H
             row += len(p["trades"])
             p["bottom"] = p["top"] + len(p["trades"]) * PAIR_H
+    # 列を飛ばす取引は、通常の行の下に、1取引1行で積む
+    row = total_rows
+    for p in long_pairs:
+        p["top"] = top + row * PAIR_H
+        row += len(p["trades"])
+        p["bottom"] = p["top"] + len(p["trades"]) * PAIR_H
+    total_rows = row
+
+    # 企業の高さ: 左右の取引の範囲を合わせたもの。timelineを受ける買い手は、最初の組の高さだけ
+    ranges = {}
+    for aid in ids:
+        ys = [(p["top"], p["top"] + PAIR_H if p["kind"] == "timeline" else p["bottom"]) for p in pairs if p["buyer"] == aid]
+        ys += [(p["top"], p["bottom"]) for p in pairs if p["seller"] == aid]
+        ranges[aid] = (min(y for y, _ in ys), max(y for _, y in ys))
+    # 飛ばした列にいる企業の範囲に、矢印の行が入ると、矢印が企業を貫く
+    for p in long_pairs:
+        for c in range(col[p["seller"]] + 1, col[p["buyer"]]):
+            for aid in columns[c]:
+                if ranges[aid][0] < p["bottom"] and ranges[aid][1] > p["top"]:
+                    raise BizModelError("E09", f"the trade from {p['seller']!r} to {p['buyer']!r} would pass through "
+                                               f"{aid!r} (no free row for it)", p["line"])
 
     for g, ps in enumerate(gaps):
         x1, x2, brace_x = spans[g]
@@ -452,16 +477,18 @@ def layout(ast):
             if p["kind"] == "bundle":
                 lay.braces.append({"x": brace_x, "top": p["top"] + 62, "bottom": p["bottom"] - 40})
 
+    for p in long_pairs:
+        x1, x2 = spans[col[p["seller"]]][0], spans[col[p["buyer"]] - 1][1]
+        for i, t in enumerate(p["trades"]):
+            lay.pairs.append({"x1": x1, "x2": x2, "y": p["top"] + i * PAIR_H, "goods": t["goods"], "money": t["money"],
+                              "highlight": bool(t.get("highlight"))})
+
     right = colx[-1] + RECT_W / 2
     for c, column in enumerate(columns):
         for aid in column:
             incoming = [p for p in pairs if p["buyer"] == aid]
             outgoing = [p for p in pairs if p["seller"] == aid]
-            # 法人の高さは、左右の取引の範囲を合わせたもの。timelineを受ける買い手は、最初の組の高さだけ
-            ys = [(p["top"], p["top"] + PAIR_H if p["kind"] == "timeline" else p["bottom"]) for p in incoming]
-            ys += [(p["top"], p["bottom"]) for p in outgoing]
-            sym = _add_actor(lay, actors[aid], colx[c], min(y for y, _ in ys), max(y for _, y in ys),
-                             incoming, outgoing)
+            sym = _add_actor(lay, actors[aid], colx[c], ranges[aid][0], ranges[aid][1], incoming, outgoing)
             for p in incoming:
                 if p["kind"] == "timeline":
                     lay.timelines.append({"x": colx[c], "y_from": sym["bottom"] + 8, "y_to": p["bottom"] + 10})
