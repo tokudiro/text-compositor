@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
 # 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
-CACHE_VERSION = "6"
+CACHE_VERSION = "7"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
 
@@ -34,7 +34,7 @@ MONEY_SIZE = 13
 CHAR_LINE = 17        # 長方形の中の、1文字ぶんの行の高さ
 
 DEFAULT_CURRENCY = "¥"   # currency宣言を省略したときのカネの記号（#457）
-_RESERVED = {"type", "title", "currency", "company", "person", "bundle", "timeline", "goods", "money"}
+_RESERVED = {"type", "title", "currency", "highlight", "company", "person", "bundle", "timeline", "goods", "money"}
 _SUPPORTED_TYPES = ("flow",)
 
 
@@ -125,6 +125,7 @@ def parse(text):
     groups = []
     title = None
     currency = None
+    highlighted = []   # `highlight ID`文のトークン（宣言済みかは、最後に確かめる）
     seen_statement = False
     block = None   # 開いているbundle/timelineの、{'kind','line','trades'}
 
@@ -176,6 +177,15 @@ def parse(text):
                 raise BizModelError("E06", "'currency' needs a non-empty quoted symbol (currency \"$\")", lineno, first.col)
             _expect_end(toks, 2, lineno)
             currency = toks[1].value.strip()
+        elif word == "highlight":
+            if block is not None:
+                raise BizModelError("E06", "'highlight' cannot be declared inside a block", lineno, first.col)
+            if len(toks) < 2 or toks[1].kind != "ident":
+                raise BizModelError("E06", "'highlight' needs an id (highlight ID)", lineno, first.col)
+            if any(t.value == toks[1].value for t, _ in highlighted):
+                raise BizModelError("E06", f"{toks[1].value!r} is highlighted twice", lineno, toks[1].col)
+            _expect_end(toks, 2, lineno)
+            highlighted.append((toks[1], lineno))
         elif word in ("company", "person"):
             if block is not None:
                 raise BizModelError("E06", f"'{word}' cannot be declared inside a block", lineno, first.col)
@@ -186,7 +196,8 @@ def parse(text):
             if any(a["id"] == toks[1].value for a in actors):
                 raise BizModelError("E07", f"id {toks[1].value!r} is declared twice", lineno, toks[1].col)
             _expect_end(toks, 3, lineno)
-            actors.append({"id": toks[1].value, "kind": word, "label": toks[2].value, "line": lineno})
+            actors.append({"id": toks[1].value, "kind": word, "label": toks[2].value,
+                           "highlight": False, "line": lineno})
         elif word in ("bundle", "timeline"):
             if block is not None:
                 raise BizModelError("E06", "blocks cannot be nested", lineno, first.col)
@@ -206,6 +217,11 @@ def parse(text):
         raise BizModelError("E06", f"'{block['kind']} {{' is not closed", block["line"])
 
     ids = {a["id"] for a in actors}
+    for tok, hl_line in highlighted:
+        if tok.value not in ids:
+            raise BizModelError("E03", f"{tok.value!r} is not declared (use company/person)", hl_line, tok.col)
+    for a in actors:
+        a["highlight"] = any(tok.value == a["id"] for tok, _ in highlighted)
     for g in groups:
         for t in g["trades"]:
             for role in ("seller", "buyer"):
@@ -236,6 +252,7 @@ def _parse_trade(toks, lineno):
         raise BizModelError("E01", "a trade needs both goods and money (SELLER -> BUYER : goods \"...\" / money \"...\")",
                             lineno, seller.col)
     values = {}
+    money_highlight = False
     i = 4
     while i < len(toks):
         if toks[i].kind != "ident" or toks[i].value not in ("goods", "money"):
@@ -250,6 +267,12 @@ def _parse_trade(toks, lineno):
                                 lineno, toks[i + 1].col)
         values[key] = toks[i + 1].value
         i += 2
+        if i < len(toks) and toks[i].kind == "ident" and toks[i].value == "highlight":
+            # 強調は、金額（money）の直後にだけ書ける（#459）
+            if key != "money":
+                raise BizModelError("E06", "'highlight' can follow only money (money \"...\" highlight)", lineno, toks[i].col)
+            money_highlight = True
+            i += 1
         if i < len(toks):
             if toks[i].kind != "slash":
                 raise BizModelError("E06", f"expected '/', found {toks[i].value!r}", lineno, toks[i].col)
@@ -260,7 +283,7 @@ def _parse_trade(toks, lineno):
         if key not in values:
             raise BizModelError("E01", f"a trade needs both goods and money ('{key}' is missing)", lineno, seller.col)
     return {"seller": seller.value, "buyer": buyer.value, "goods": values["goods"], "money": values["money"],
-            "line": lineno, "seller_col": seller.col, "buyer_col": buyer.col}
+            "highlight": money_highlight, "line": lineno, "seller_col": seller.col, "buyer_col": buyer.col}
 
 
 def _check_block(block, lineno):
@@ -424,7 +447,8 @@ def layout(ast):
         x1, x2, brace_x = spans[g]
         for p in ps:
             for i, t in enumerate(p["trades"]):
-                lay.pairs.append({"x1": x1, "x2": x2, "y": p["top"] + i * PAIR_H, "goods": t["goods"], "money": t["money"]})
+                lay.pairs.append({"x1": x1, "x2": x2, "y": p["top"] + i * PAIR_H, "goods": t["goods"], "money": t["money"],
+                                  "highlight": bool(t.get("highlight"))})
             if p["kind"] == "bundle":
                 lay.braces.append({"x": brace_x, "top": p["top"] + 62, "bottom": p["bottom"] - 40})
 
@@ -458,7 +482,7 @@ def _add_actor(lay, actor, cx, span_top, span_bottom, incoming, outgoing):
     span_h = span_bottom - span_top
     if actor["kind"] == "company":
         h = span_h - 20
-        item = {"id": actor["id"], "kind": "company", "label": actor["label"],
+        item = {"id": actor["id"], "kind": "company", "label": actor["label"], "highlight": actor.get("highlight", False),
                 "x": cx - RECT_W / 2, "y": span_top + 10, "w": RECT_W, "h": h, "cx": cx, "cy": span_top + 10 + h / 2}
         item["bottom"] = item["y"] + h
     else:
@@ -468,7 +492,7 @@ def _add_actor(lay, actor, cx, span_top, span_bottom, incoming, outgoing):
             cy = span_top + 62
         else:
             cy = span_top + span_h / 2 - 10
-        item = {"id": actor["id"], "kind": "person", "label": actor["label"],
+        item = {"id": actor["id"], "kind": "person", "label": actor["label"], "highlight": actor.get("highlight", False),
                 "x": cx - 22, "y": cy - 39, "w": 44, "h": 71, "cx": cx, "cy": cy, "bottom": cy + 60}
     lay.actors.append(item)
     return item
@@ -483,32 +507,35 @@ def _fmt(v):
     return s[:-2] if s.endswith(".0") else s
 
 
-def _text(x, y, s, size=LABEL_SIZE, anchor="middle", bold=False):
+def _text(x, y, s, size=LABEL_SIZE, anchor="middle", bold=False, fill=INK):
     weight = ' font-weight="bold"' if bold else ""
     return (f'<text x="{_fmt(x)}" y="{_fmt(y)}" font-family="{FONT_FAMILY}" font-size="{_fmt(size)}" '
-            f'text-anchor="{anchor}"{weight} fill="{INK}">{escape(s)}</text>')
+            f'text-anchor="{anchor}"{weight} fill="{fill}">{escape(s)}</text>')
 
 
 def _svg_company(a):
+    # 強調（#459）は、黒の塗りつぶしと白抜きの文字。色に頼らないので、白黒印刷でも、ダーク反転でも区別できる
+    hl = a.get("highlight")
     out = [f'<rect x="{_fmt(a["x"])}" y="{_fmt(a["y"])}" width="{_fmt(a["w"])}" height="{_fmt(a["h"])}" '
-           f'fill="#fff" stroke="{INK}" stroke-width="{STROKE}"/>']
+           f'fill="{INK if hl else "#fff"}" stroke="{INK}" stroke-width="{STROKE}"/>']
     # 名前は、縦書き（writing-mode）で、長方形の中央に置く。括弧・長音符・句読点が、縦書きの形になる
     # （PDF（Typst）・resvg・ブラウザで、同じに表示されることを確認してある）。長い名前は、収まるまで、文字を小さくする
     size = LABEL_SIZE
     while size > 8 and _text_width(a["label"], size) > a["h"] - 16:
         size -= 1
     out.append(f'<text x="{_fmt(a["cx"])}" y="{_fmt(a["cy"])}" writing-mode="tb" font-family="{FONT_FAMILY}" '
-               f'font-size="{_fmt(size)}" text-anchor="middle" fill="{INK}">{escape(a["label"])}</text>')
+               f'font-size="{_fmt(size)}" text-anchor="middle" fill="{"#fff" if hl else INK}">{escape(a["label"])}</text>')
     return "\n".join(out)
 
 
 def _svg_person(a):
     cx, cy = a["cx"], a["cy"]
+    fill = INK if a.get("highlight") else "#fff"
     return "\n".join([
-        f'<circle cx="{_fmt(cx)}" cy="{_fmt(cy - 26)}" r="13" fill="#fff" stroke="{INK}" stroke-width="{STROKE}"/>',
+        f'<circle cx="{_fmt(cx)}" cy="{_fmt(cy - 26)}" r="13" fill="{fill}" stroke="{INK}" stroke-width="{STROKE}"/>',
         f'<path d="M {_fmt(cx - 22)} {_fmt(cy + 32)} L {_fmt(cx - 22)} {_fmt(cy + 8)} Q {_fmt(cx - 22)} {_fmt(cy - 8)} '
         f'{_fmt(cx)} {_fmt(cy - 8)} Q {_fmt(cx + 22)} {_fmt(cy - 8)} {_fmt(cx + 22)} {_fmt(cy + 8)} '
-        f'L {_fmt(cx + 22)} {_fmt(cy + 32)} Z" fill="#fff" stroke="{INK}" stroke-width="{STROKE}"/>',
+        f'L {_fmt(cx + 22)} {_fmt(cy + 32)} Z" fill="{fill}" stroke="{INK}" stroke-width="{STROKE}"/>',
         _text(cx, cy + 52, a["label"], MONEY_SIZE),
     ])
 
@@ -528,8 +555,17 @@ def _svg_pair(p, currency=DEFAULT_CURRENCY):
         f'<polyline points="{_fmt(x1 + 12)},{_fmt(yb - 7)} {_fmt(x1)},{_fmt(yb)} {_fmt(x1 + 12)},{_fmt(yb + 7)}" '
         f'fill="none" stroke="{INK}" stroke-width="{STROKE}"/>',
         _text(mid, y0 + 120, currency, 20),
-        _text(mid, y0 + 140, p["money"], MONEY_SIZE),
+        *_svg_money(mid, y0 + 140, p["money"], p.get("highlight")),
     ])
+
+
+def _svg_money(cx, y, money, highlight):
+    """金額の文字。強調（#459）は、黒い角丸の帯に、白抜きの文字。"""
+    if not highlight:
+        return [_text(cx, y, money, MONEY_SIZE)]
+    w = _text_width(money, MONEY_SIZE) + 16
+    return [f'<rect x="{_fmt(cx - w / 2)}" y="{_fmt(y - 14)}" width="{_fmt(w)}" height="20" rx="4" fill="{INK}"/>',
+            _text(cx, y, money, MONEY_SIZE, fill="#fff")]
 
 
 def _svg_brace(b):

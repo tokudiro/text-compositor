@@ -81,7 +81,41 @@ class TestThreeOrMoreParties:
         assert t.count("\u00a5") == 2   # yen mark per pair
 
     def test_the_cache_version_is_bumped(self):
-        assert int(bm.CACHE_VERSION) >= 6
+        assert int(bm.CACHE_VERSION) >= 7
+
+    def test_the_diagram_without_highlight_has_no_filled_shapes_except_arrowheads(self):
+        r = root(BASIC)
+        assert not any(e.get("fill") == "#111" for e in r.iter("{http://www.w3.org/2000/svg}rect"))
+        assert not any(e.get("fill") == "#fff" for e in r.iter("{http://www.w3.org/2000/svg}text"))
+
+    def test_highlighted_company_is_filled_with_white_text(self):
+        r = root('company A "AAA"\nperson B "BBB"\nhighlight A\nA -> B : goods "g" / money "m"\n')
+        rects = [e for e in r.iter("{http://www.w3.org/2000/svg}rect") if e.get("width") != "100%"]
+        assert [e.get("fill") for e in rects] == ["#111"]
+        white = [e for e in r.iter("{http://www.w3.org/2000/svg}text") if e.get("fill") == "#fff"]
+        assert ["".join(e.itertext()) for e in white] == ["AAA"]
+
+    def test_highlighted_person_is_filled_and_the_name_stays_dark(self):
+        r = root('company A "AAA"\nperson B "BBB"\nhighlight B\nA -> B : goods "g" / money "m"\n')
+        ns = "{http://www.w3.org/2000/svg}"
+        assert [e.get("fill") for e in r.iter(ns + "circle") if e.get("r") == "13"] == ["#111"]
+        assert [e.get("fill") for e in r.iter(ns + "path")] == ["#111"]
+        assert not [e for e in r.iter(ns + "text") if e.get("fill") == "#fff"]
+
+    def test_highlighted_money_has_a_dark_band_and_white_text(self):
+        r = root('company A "a"\nperson B "b"\nA -> B : goods "g" / money "month 500" highlight\n')
+        ns = "{http://www.w3.org/2000/svg}"
+        bands = [e for e in r.iter(ns + "rect") if e.get("rx") == "4"]
+        assert len(bands) == 1 and bands[0].get("fill") == "#111"
+        white = [e for e in r.iter(ns + "text") if e.get("fill") == "#fff"]
+        assert ["".join(e.itertext()) for e in white] == ["month 500"]
+
+    def test_only_the_marked_trade_is_highlighted(self):
+        text = ('company A "a"\ncompany B "b"\nbundle {\n'
+                '  A -> B : goods "g1" / money "m1" highlight\n  A -> B : goods "g2" / money "m2"\n}\n')
+        r = root(text)
+        white = [e for e in r.iter("{http://www.w3.org/2000/svg}text") if e.get("fill") == "#fff"]
+        assert ["".join(e.itertext()) for e in white] == ["m1"]
 
     def test_currency_defaults_to_yen(self):
         t = texts(root(BASIC))

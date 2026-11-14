@@ -36,6 +36,8 @@ Provider -> User : goods "視聴権" / money "月額500円"
 | `売り手 -> 買い手 : goods "…" / money "…"` | 取引 | 売り手から買い手へのモノと、買い手から売り手へのカネの、2本1組 |
 | `title "…"` | 題名 | 省略できます。図の上に出ます |
 | `currency "…"` | カネの記号 | 省略できます。矢印の下に出る記号を変えます。省略すると`¥`です |
+| `highlight ID` | 法人・個人の強調 | 省略できます。指定した法人・個人を、黒く塗りつぶします |
+| `money "…" highlight` | 金額の強調 | 省略できます。`money`の金額の直後に書くと、その金額が黒い帯に白抜きで出ます |
 | `type flow` | 記法の種類 | 1行目に書きます。`flow`と`canvas`があり、省略すると`flow`です |
 | `# …` | コメント | 行頭にも、行の途中にも書けます |
 
@@ -43,7 +45,7 @@ Provider -> User : goods "視聴権" / money "月額500円"
 - `currency`は、図の全体で1回だけ書けます。`bundle`・`timeline`の中には書けません。記号は引用符で囲み、`"$"`・`"€"`・`"US$"`のように書きます。空の記号は、エラーです。
 - 金額の文字列は、記号とは別です。`currency "$"`と書いても、`money`の中身は、書いたとおりに出ます。
 - `goods`と`money`は、必ず両方書きます。順番は、どちらでも構いません。
-- 図の見た目は、黒の単色です。上の矢印（先端を塗りつぶす）がモノ、下の矢印（先端が開いている）がカネです。
+- 図の見た目は、黒の単色です。上の矢印（先端を塗りつぶす）がモノ、下の矢印（先端が開いている）がカネです。強調も、色ではなく、黒の塗りつぶしです。
 
 ## 無料と、分からない値
 
@@ -72,6 +74,23 @@ currency "$"
 company Provider "Provider"
 person User "User"
 Provider -> User : goods "Streaming" / money "$5 per month"
+```
+
+## 強調する
+
+説明したい法人・個人・金額は、強調できます。色は使わず、黒の塗りつぶしと白抜きの文字で示すので、白黒で印刷しても、ダーク表示でも、区別できます。
+
+- 法人・個人は、`highlight ID`と書きます。宣言済みの識別子だけを指定できます。同じ識別子は、1回だけ書けます。
+- 金額は、`money "…"`の直後に`highlight`を書きます。`goods`の後ろには書けません。
+- `bundle`・`timeline`の中では、`highlight ID`は書けません。取引の`money "…" highlight`は書けます。
+
+```bizmodel
+company Maker "メーカー"
+company Shop "小売店"
+person User "ユーザー"
+highlight Shop
+Maker -> Shop : goods "商品" / money "卸値800円" highlight
+Shop -> User : goods "商品" / money "定価1,000円"
 ```
 
 ## 同時に買う（まとめ）
