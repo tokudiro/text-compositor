@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('viewer', {
   jumpToHeading: (id) => ipcRenderer.send('outline-jump', id),
   openFolder: () => ipcRenderer.send('open-folder'),
   listDirectory: (directory) => ipcRenderer.invoke('list-directory', directory),
+  setTreeWatch: (directories) => ipcRenderer.send('tree-watch', directories),   // ファイルツリーの自動更新（#549）: 展開中のフォルダの一覧
+  onTreeChanged: (callback) => ipcRenderer.on('tree-changed', (_event, directories) => callback(directories)),
   setSetting: (key, value) => ipcRenderer.send('settings-set', key, value),
   chooseOpenDirectory: () => ipcRenderer.send('choose-open-directory'),
   clearCache: () => ipcRenderer.send('clear-cache'),

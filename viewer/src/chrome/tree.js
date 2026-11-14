@@ -6,8 +6,9 @@
 /**
  * @param {{container: HTMLElement, listDirectory: (path: string) => Promise<{ok: boolean, entries?: {name: string, path: string, type: string}[], message?: string}>, openFile: (path: string) => void}} options
  */
-function createFileTree({ container, listDirectory, openFile, autoExpand = () => false }) {
+function createFileTree({ container, listDirectory, openFile, autoExpand = () => false, onExpandedChange = () => {}, autoRefresh = () => false }) {
   let root = null;
+  const refreshTokens = new Map();   // フォルダ → 読み直しの通し番号。同じフォルダの読み直しが重なったとき、古い結果を捨てる（#549）
   let rootVersion = 0;      // 同じルートでも、版が変われば、読み直す（設定ファイルを開き直したとき。#373）
   let current = null;      // 今開いているファイル（ハイライトする）
   let generation = 0;       // フォルダを替えたら進める。古い読み込みの結果が、新しいツリーへ入らないようにする
@@ -102,19 +103,115 @@ function createFileTree({ container, listDirectory, openFile, autoExpand = () =>
     if (item.dataset.type !== 'directory' || item.getAttribute('aria-expanded') === 'true') return;
     item.setAttribute('aria-expanded', 'true');
     item.firstElementChild.firstElementChild.textContent = '▾';
-    if (item.dataset.loaded === 'true' || item.dataset.loading === 'true') return;
+    if (item.dataset.loading === 'true') return;
+    if (item.dataset.loaded === 'true') {
+      // 折りたたんでいた間に、フォルダの中が変わったかもしれない。自動更新がオンなら、開き直すときに、読み直す（#549）
+      if (autoRefresh()) void refresh(item.dataset.path);
+      reportExpanded();
+      return;
+    }
     item.dataset.loading = 'true';
     item.setAttribute('aria-busy', 'true');
     const group = await load(item.dataset.path, item, Number(item.getAttribute('aria-level')) + 1);
     item.removeAttribute('aria-busy');
     delete item.dataset.loading;
     if (group) item.dataset.loaded = 'true';
+    reportExpanded();
   }
 
   function collapse(item) {
     if (item.getAttribute('aria-expanded') !== 'true') return;
     item.setAttribute('aria-expanded', 'false');
     item.firstElementChild.firstElementChild.textContent = '▸';
+    reportExpanded();
+  }
+
+  // -- 自動更新（#549） ---------------------------------------------------------------
+
+  /** いま展開中のフォルダ（ルートを含む）。メインへ知らせ、更新時刻の確認の対象にしてもらう。 */
+  function expandedDirectories() {
+    if (root === null) return [];
+    const directories = [root];
+    for (const item of container.querySelectorAll('[role="treeitem"][data-type="directory"][aria-expanded="true"][data-loaded="true"]')) {
+      directories.push(item.dataset.path);
+    }
+    return directories;
+  }
+  function reportExpanded() { onExpandedChange(expandedDirectories()); }
+
+  /**
+   * `group`の子を、`wanted`の並びにそろえる。すでにある項目は、作り直さず、そのまま使う（展開の状態・フォーカスを、保つ）。
+   * 並びが同じなら、足す・取り除くだけで、既存の項目は動かさない（動かすと、フォーカスが外れるため）。
+   */
+  function placeChildren(group, wanted) {
+    let cursor = group.firstElementChild;
+    for (const each of wanted) {
+      if (each === cursor) { cursor = cursor.nextElementSibling; continue; }
+      group.insertBefore(each, cursor);
+    }
+    while (cursor) {
+      const next = cursor.nextElementSibling;
+      cursor.remove();
+      cursor = next;
+    }
+  }
+
+  /**
+   * 読み込み済みのフォルダを、読み直して、差し替える（自動更新。#549）。増えた項目だけを足し、消えた項目だけを取り除く。
+   * 展開している子フォルダ・選択・スクロールの位置は、そのまま残る。読み込んでいないフォルダは、何もしない。
+   */
+  async function refresh(directory) {
+    if (root === null || typeof directory !== 'string') return;
+    let owner = null;
+    let group = container;
+    let level = 1;
+    if (directory !== root) {
+      owner = [...container.querySelectorAll('[role="treeitem"][data-type="directory"]')].find((each) => each.dataset.path === directory) ?? null;
+      group = owner?.querySelector(':scope > [role="group"]') ?? null;
+      if (!owner || !group) return;   // もう無い、または、まだ読んでいない
+      level = Number(owner.getAttribute('aria-level')) + 1;
+    }
+    const mine = generation;
+    const token = (refreshTokens.get(directory) ?? 0) + 1;
+    refreshTokens.set(directory, token);
+    let result;
+    try {
+      result = await listDirectory(directory);
+    } catch {
+      result = { ok: false, message: 'フォルダを読めません' };
+    }
+    // 読んでいる間に、ルートが替わった・同じフォルダの新しい読み直しが始まった・項目が取り除かれた
+    if (mine !== generation || refreshTokens.get(directory) !== token || !group.isConnected) return;
+
+    const active = document.activeElement;
+    const hadFocus = active !== container && container.contains(active);
+    for (const each of [...group.children]) if (each.classList.contains('tree-message')) each.remove();
+    if (!result.ok) {
+      group.textContent = '';
+      group.append(messageItem(result.message ?? 'フォルダを読めません', level));
+    } else {
+      const existing = new Map();
+      for (const each of group.children) if (each.dataset.path) existing.set(each.dataset.path, each);
+      const wanted = result.entries.length === 0 ? [messageItem('（開けるファイルがありません）', level)]
+        : result.entries.map((entry) => {
+          const old = existing.get(entry.path);
+          return old && old.dataset.type === entry.type ? old : entryItem(entry, level);
+        });
+      placeChildren(group, wanted);
+    }
+
+    // フォーカスのあった項目が、消えた・動かされたとき、キー操作を続けられるように、近くの項目へ戻す
+    if (hadFocus && !active.isConnected) {
+      const fallback = group.querySelector('[role="treeitem"]:not(.tree-message)') ?? owner;
+      if (fallback) focusItem(fallback);
+    } else if (hadFocus && document.activeElement !== active) {
+      active.focus();
+    }
+    if (!container.querySelector('[role="treeitem"][tabindex="0"]')) {
+      const first = container.querySelector('[role="treeitem"]:not(.tree-message)');
+      if (first) first.tabIndex = 0;   // Tabで、ツリーへ入れるように、フォーカスの入口を残す
+    }
+    reportExpanded();
   }
 
   function activate(item) {
@@ -178,13 +275,15 @@ function createFileTree({ container, listDirectory, openFile, autoExpand = () =>
     root = directory ?? null;
     rootVersion = version;
     generation += 1;
+    refreshTokens.clear();
     container.textContent = '';
     container.hidden = root === null;
-    if (root === null) return;
+    if (root === null) { reportExpanded(); return; }   // 対象は、なくなった（メインも、ルートが替わった時点で、前の対象を捨てる）
     const group = await load(root, container, 1);
     const first = group && container.querySelector('[role="treeitem"]');
     if (first) first.tabIndex = 0;   // Tabで、ツリーへ入れるように、先頭の項目を、フォーカスの入口にする
+    if (group) reportExpanded();   // ルートの読み込みが済んだ。確認の対象は、ルート
   }
 
-  return { setRoot, setCurrent };
+  return { setRoot, setCurrent, refresh };
 }

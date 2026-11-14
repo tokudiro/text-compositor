@@ -156,6 +156,17 @@
       </div>
       <div class="row">
         <div class="text">
+          <div class="name" id="tree-auto-refresh-name">ファイルツリーの自動更新</div>
+          <div class="desc">サイドバーのファイルツリーを、フォルダ内のファイルの増減・名前の変更に合わせて、自動で更新します。開いているフォルダだけを、約1秒ごとに確かめます。
+            「更新しない」にすると、フォルダを開き直したときに、一覧を読み直します。原稿の自動更新（ツールバーの「保存したら自動で更新」）とは、別の設定です。</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-labelledby="tree-auto-refresh-name">
+          <label><input type="radio" name="treeAutoRefresh" value="true"><span>更新する</span></label>
+          <label><input type="radio" name="treeAutoRefresh" value="false"><span>更新しない</span></label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="text">
           <div class="name" id="allow-external-images-name">外部の画像</div>
           <div class="desc">Markdownの外部の画像（<code>https://</code>など）を読み込むかどうかです。既定は「読み込まない」で、代わりに
             URLを表示し、警告を出します（文書を開くだけで外部へ通信が起きないようにするため）。</div>
