@@ -192,6 +192,8 @@
 
 ## 散布図
 
+QC7つ道具の散布図としても使えます。2つの量の関係を見ます。`color`で、グループごとに色分け（層別）できます。
+
 ::: layout-left {left=55 right=45}
 ````text
 {
@@ -232,6 +234,8 @@
 
 ## ヒストグラム
 
+QC7つ道具のヒストグラム（度数分布図）です。`bin`で、値を区間に分けて、件数を数えます。
+
 ::: layout-left {left=55 right=45}
 ````text
 {
@@ -263,6 +267,127 @@
     "y": {"aggregate": "count", "type": "quantitative", "title": "人数"}
   },
   "width": 300,
+  "height": 160
+}
+```
+:::
+
+## パレート図
+
+QC7つ道具のパレート図です。件数の多い順に並べた棒グラフに、累積比率の折れ線を重ねます。`window`で累積の合計を、`joinaggregate`で全体の合計を求め、`resolve`で、左右の軸を別々にします。棒は、データに書いた順に並びます（`"sort": null`）ので、件数の多い順に書いてください。
+
+::: layout-left {left=55 right=45}
+````text
+{
+  "data": {"values": [
+    {"種類": "傷", "件数": 42}, {"種類": "汚れ", "件数": 27}, {"種類": "寸法不良", "件数": 15},
+    {"種類": "変形", "件数": 9}, {"種類": "その他", "件数": 7}
+  ]},
+  "transform": [
+    {"window": [{"op": "sum", "field": "件数", "as": "累積"}], "frame": [null, 0]},
+    {"joinaggregate": [{"op": "sum", "field": "件数", "as": "合計"}]},
+    {"calculate": "datum.累積 / datum.合計", "as": "累積比率"}
+  ],
+  "encoding": {"x": {"field": "種類", "type": "nominal", "sort": null}},
+  "layer": [
+    {"mark": "bar", "encoding": {"y": {"field": "件数", "type": "quantitative"}}},
+    {"mark": {"type": "line", "point": true, "color": "#c00"},
+     "encoding": {"y": {"field": "累積比率", "type": "quantitative",
+                        "axis": {"format": "%"}, "scale": {"domain": [0, 1]}}}}
+  ],
+  "resolve": {"scale": {"y": "independent"}},
+  "width": 240,
+  "height": 160
+}
+````
+
+```vega-lite
+{
+  "data": {"values": [
+    {"種類": "傷", "件数": 42}, {"種類": "汚れ", "件数": 27}, {"種類": "寸法不良", "件数": 15},
+    {"種類": "変形", "件数": 9}, {"種類": "その他", "件数": 7}
+  ]},
+  "transform": [
+    {"window": [{"op": "sum", "field": "件数", "as": "累積"}], "frame": [null, 0]},
+    {"joinaggregate": [{"op": "sum", "field": "件数", "as": "合計"}]},
+    {"calculate": "datum.累積 / datum.合計", "as": "累積比率"}
+  ],
+  "encoding": {"x": {"field": "種類", "type": "nominal", "sort": null}},
+  "layer": [
+    {"mark": "bar", "encoding": {"y": {"field": "件数", "type": "quantitative"}}},
+    {"mark": {"type": "line", "point": true, "color": "#c00"},
+     "encoding": {"y": {"field": "累積比率", "type": "quantitative",
+                        "axis": {"format": "%"}, "scale": {"domain": [0, 1]}}}}
+  ],
+  "resolve": {"scale": {"y": "independent"}},
+  "width": 240,
+  "height": 160
+}
+```
+:::
+
+## 管理図
+
+QC7つ道具の管理図です。測定値の折れ線に、上限（UCL）・中心線（CL）・下限（LCL）の線を重ねます。
+
+- 上限・中心線・下限は、計算せず、手で書いた値です（この例は、中心線が50、上下の幅が6.5です）。値を変えるときは、`rule`の層と、文字の層の、両方を直してください。
+- 限界を外れた点は、色（赤）だけに頼らず、大きな菱形にしています。白黒で印刷しても、区別できます。
+
+::: layout-left {left=55 right=45}
+````text
+{
+  "data": {"values": [
+    {"回": 1, "値": 50.2}, {"回": 2, "値": 49.1}, {"回": 3, "値": 51.0}, {"回": 4, "値": 50.4}, {"回": 5, "値": 48.7},
+    {"回": 6, "値": 49.9}, {"回": 7, "値": 52.1}, {"回": 8, "値": 50.6}, {"回": 9, "値": 47.9}, {"回": 10, "値": 50.0},
+    {"回": 11, "値": 51.4}, {"回": 12, "値": 49.5}, {"回": 13, "値": 50.8}, {"回": 14, "値": 57.3}, {"回": 15, "値": 50.1}
+  ]},
+  "layer": [
+    {"mark": "line",
+     "encoding": {"x": {"field": "回", "type": "quantitative", "axis": {"tickMinStep": 1}},
+                  "y": {"field": "値", "type": "quantitative", "scale": {"zero": false}}}},
+    {"mark": {"type": "point", "filled": true, "color": "#000"},
+     "encoding": {"x": {"field": "回", "type": "quantitative"},
+                  "y": {"field": "値", "type": "quantitative"},
+                  "shape": {"condition": {"test": "datum.値 > 56.5 || datum.値 < 43.5", "value": "diamond"}, "value": "circle"},
+                  "size": {"condition": {"test": "datum.値 > 56.5 || datum.値 < 43.5", "value": 160}, "value": 40},
+                  "color": {"condition": {"test": "datum.値 > 56.5 || datum.値 < 43.5", "value": "#c00"}, "value": "#000"}}},
+    {"mark": {"type": "rule", "strokeDash": [6, 4]}, "encoding": {"y": {"datum": 56.5}}},
+    {"mark": "rule", "encoding": {"y": {"datum": 50}}},
+    {"mark": {"type": "rule", "strokeDash": [6, 4]}, "encoding": {"y": {"datum": 43.5}}},
+    {"data": {"values": [{"限界": "UCL", "値": 56.5}, {"限界": "CL", "値": 50}, {"限界": "LCL", "値": 43.5}]},
+     "mark": {"type": "text", "align": "left", "dx": 6},
+     "encoding": {"x": {"datum": 15}, "y": {"field": "値", "type": "quantitative"}, "text": {"field": "限界"}}}
+  ],
+  "width": 260,
+  "height": 160
+}
+````
+
+```vega-lite
+{
+  "data": {"values": [
+    {"回": 1, "値": 50.2}, {"回": 2, "値": 49.1}, {"回": 3, "値": 51.0}, {"回": 4, "値": 50.4}, {"回": 5, "値": 48.7},
+    {"回": 6, "値": 49.9}, {"回": 7, "値": 52.1}, {"回": 8, "値": 50.6}, {"回": 9, "値": 47.9}, {"回": 10, "値": 50.0},
+    {"回": 11, "値": 51.4}, {"回": 12, "値": 49.5}, {"回": 13, "値": 50.8}, {"回": 14, "値": 57.3}, {"回": 15, "値": 50.1}
+  ]},
+  "layer": [
+    {"mark": "line",
+     "encoding": {"x": {"field": "回", "type": "quantitative", "axis": {"tickMinStep": 1}},
+                  "y": {"field": "値", "type": "quantitative", "scale": {"zero": false}}}},
+    {"mark": {"type": "point", "filled": true, "color": "#000"},
+     "encoding": {"x": {"field": "回", "type": "quantitative"},
+                  "y": {"field": "値", "type": "quantitative"},
+                  "shape": {"condition": {"test": "datum.値 > 56.5 || datum.値 < 43.5", "value": "diamond"}, "value": "circle"},
+                  "size": {"condition": {"test": "datum.値 > 56.5 || datum.値 < 43.5", "value": 160}, "value": 40},
+                  "color": {"condition": {"test": "datum.値 > 56.5 || datum.値 < 43.5", "value": "#c00"}, "value": "#000"}}},
+    {"mark": {"type": "rule", "strokeDash": [6, 4]}, "encoding": {"y": {"datum": 56.5}}},
+    {"mark": "rule", "encoding": {"y": {"datum": 50}}},
+    {"mark": {"type": "rule", "strokeDash": [6, 4]}, "encoding": {"y": {"datum": 43.5}}},
+    {"data": {"values": [{"限界": "UCL", "値": 56.5}, {"限界": "CL", "値": 50}, {"限界": "LCL", "値": 43.5}]},
+     "mark": {"type": "text", "align": "left", "dx": 6},
+     "encoding": {"x": {"datum": 15}, "y": {"field": "値", "type": "quantitative"}, "text": {"field": "限界"}}}
+  ],
+  "width": 260,
   "height": 160
 }
 ```
@@ -388,7 +513,7 @@
 
 ## ファセット分割
 
-同じ軸のグラフを、`facet`で、複数に分けて並べます。
+同じ軸のグラフを、`facet`で、複数に分けて並べます。QC7つ道具の層別（データをグループに分けて比べる）にも使えます。
 
 ::: layout-left {left=55 right=45}
 ````text
