@@ -8,6 +8,40 @@ You could wire up the same diagram conversions directly with pandoc or Typst —
 
 This README covers only the essentials needed to get started quickly. For a full walkthrough of `config.yaml` and how to write your source documents, see the [usage guide](doc/usage/) (which can also be built into a PDF with `cd doc/usage && python ../../build.py`). For detailed design rationale and implementation status, see [doc/spec.md](doc/spec.md).
 
+## At a glance: mix diagrams in a single document
+
+Write the diagram code right inside your Markdown. The syntax is the same whichever tool draws it — Graphviz, PlantUML, D2, Mermaid, and more.
+
+````markdown
+# Order service design
+
+```dot
+digraph { rankdir=LR; Web -> API -> DB; API -> Queue -> Worker; }
+```
+
+```plantuml
+@startuml
+Client -> API : POST /orders
+API -> DB : insert
+API --> Client : 201 Created
+@enduml
+```
+
+```d2
+user -> web -> api -> db
+```
+
+| Item | Target |
+| --- | --- |
+| Response time | under 200ms |
+````
+
+`text-compositor design.md` turns this into the following PDF (page 1; the sample text is in Japanese).
+
+![Example PDF mixing three kinds of diagrams in one document](doc/images/mixed-demo.png)
+
+You don't install a tool per diagram, or export images and paste them back in. The Graphviz, PlantUML, and D2 above work with no extra configuration (the needed tools are fetched and cached automatically; PlantUML uses Java). Only the diagrams drawn in a browser, such as Mermaid, need [a separate setup](#using-mermaid-diagrams-optional). Tables live in the same source as well. You can also split the source into separate files and compose them into one PDF (see [Usage](#usage)).
+
 ## Obunzu Markdown Viewer
 
 This repository also contains **Obunzu Markdown Viewer** (Obunzu for short), a lightweight, read-only viewer for Markdown and diagrams. It is built on the same conversion engine as text-compositor.

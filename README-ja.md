@@ -8,6 +8,40 @@ text-compositorは、Mermaid・PlantUML・D2・Graphvizなど複数の図表形�
 
 このREADMEは最短で使い始めるための要点のみを記載します。`config.yaml`や原稿の書き方を一通り知りたい場合は[使い方ガイド](doc/usage/)（`cd doc/usage && python ../../build.py` でPDF化もできます）を、詳細な設計方針・実装状況は [doc/spec.md](doc/spec.md) を参照してください。
 
+## ひと目で: 1つの原稿に、図を混ぜて書く
+
+Markdownの中に、図のコードをそのまま書きます。Graphviz・PlantUML・D2・Mermaidなど、ツールが違っても、書き方は同じです。
+
+````markdown
+# 注文サービス設計
+
+```dot
+digraph { rankdir=LR; Web -> API -> DB; API -> Queue -> Worker; }
+```
+
+```plantuml
+@startuml
+Client -> API : POST /orders
+API -> DB : insert
+API --> Client : 201 Created
+@enduml
+```
+
+```d2
+user -> web -> api -> db
+```
+
+| 項目 | 目標 |
+| --- | --- |
+| 応答時間 | 200ms以下 |
+````
+
+これを`text-compositor design.md`で変換すると、次のPDFになります（1ページ目）。
+
+![3種類の図を1つの原稿に混ぜたPDFの例](doc/images/mixed-demo.png)
+
+図ごとに、ツールをインストールしたり、画像を書き出して貼り直したりする必要はありません。上の例のGraphviz・PlantUML・D2は、追加の設定なしで動きます（必要なツールは自動で取得し、キャッシュします。PlantUMLはJavaを使います）。Mermaidなど、ブラウザで描く図だけは、[別途の準備](#mermaid図を使う場合任意)が要ります。表も、同じ原稿の中にそのまま書けます。ファイルを別々に分けて、1冊のPDFにまとめることもできます（[使い方](#使い方)）。
+
 ## Obunzu Markdown Viewer
 
 このリポジトリには、**Obunzu Markdown Viewer**（略称はObunzu）も入っています。Markdownと図を表示する、軽量な、閲覧専用のViewerです。text-compositorと、同じ変換の仕組みの上に作っています。
