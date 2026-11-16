@@ -44,30 +44,38 @@ You don't install a tool per diagram, or export images and paste them back in. T
 
 ## Annotate a diagram with SVG
 
-You can lay SVG shapes and text over a diagram to point out what matters. Inside `::: layers`, write the diagram fence and then an annotation `svg` fence. Later items are drawn on top.
+You can lay SVG shapes and text over a diagram to point out what matters. The example below traces the `timeout` transition of a state machine in red and rings the Error state. Inside `::: layers`, write the diagram fence and then an annotation `svg` fence. Later items are drawn on top.
 
 ````markdown
-::: layers Order flow. DB writes are slow; proposal to make them async via a queue
+::: layers Job state machine. Timeouts into Error are frequent
 ```dot
-digraph { rankdir=LR; node [shape=box]; Web -> API -> DB; API -> Queue -> Worker; }
+digraph {
+  rankdir=LR; node [shape=circle];
+  Idle -> Running [label="start"];
+  Running -> Done [label="ok"];
+  Running -> Error [label="timeout"];
+  Error -> Running [label="retry"];
+}
 ```
 
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="480pt" height="98pt" viewBox="0 0 480 98" font-size="12">
-  <rect x="180" y="0" width="62" height="44" rx="6" fill="none" stroke="#d00" stroke-width="3"/>
-  <line x1="242" y1="22" x2="336" y2="22" stroke="#d00" stroke-width="2"/>
-  <rect x="336" y="4" width="140" height="38" fill="#fff8c4" stroke="#d00"/>
-  <text x="344" y="21" fill="#d00">Slow writes</text>
-  <text x="344" y="36" fill="#d00">p95 800ms</text>
-  <rect x="180" y="54" width="62" height="44" rx="6" fill="none" stroke="#2a9d8f" stroke-width="3" stroke-dasharray="5 3"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="470pt" height="132pt" viewBox="0 0 470 132" font-size="12">
+  <g transform="translate(4 122.88)" fill="none" stroke="#d00" stroke-width="3">
+    <path d="M173.79,-49.01C193.14,-44.84 218.12,-39.29 240.2,-33.88 243.02,-33.19 245.94,-32.46 248.86,-31.7"/>
+    <circle cx="282.2" cy="-22.88" r="27"/>
+  </g>
+  <line x1="313" y1="100" x2="340" y2="100" stroke="#d00" stroke-width="2"/>
+  <rect x="340" y="78" width="126" height="44" fill="#fff8c4" stroke="#d00"/>
+  <text x="348" y="95" fill="#d00">Frequent timeouts</text>
+  <text x="348" y="112" fill="#d00">~300 per day</text>
 </svg>
 ```
 :::
 ````
 
-![A Graphviz diagram with an SVG circle, leader line and callout laid over it](doc/images/annotated-demo.png)
+![A state diagram with a transition traced in red, a state circled and a callout attached](doc/images/annotated-demo.png)
 
-The diagram is redrawn when you change it, but the annotation stays at the coordinates you wrote, so update them if nodes move. Graphviz sizes its diagrams in pt, so give the annotation `svg` pt dimensions too (`width="480pt"`); with no unit it is read as px and drifts by a factor of 1.33. (The sample image text is in Japanese.)
+The `path` that traces the transition uses the coordinates in the SVG Graphviz produces (the example adds `translate(4 122.88)` to those values). If you change the diagram and nodes move, update the annotation coordinates. Graphviz sizes its diagrams in pt, so give the annotation `svg` pt dimensions too (`width="470pt"`); with no unit it is read as px and drifts by a factor of 1.33. (The sample image text is in Japanese.)
 
 ## Obunzu Markdown Viewer
 

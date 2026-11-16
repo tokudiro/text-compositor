@@ -44,30 +44,38 @@ user -> web -> api -> db
 
 ## 図に、SVGで注釈を重ねる
 
-図の上に、SVGの図形や文字を重ねて、注目してほしい所を示せます。`::: layers`の中に、図のフェンスと、注釈の`svg`フェンスを順に書きます。後に書いたものが上になります。
+図の上に、SVGの図形や文字を重ねて、注目してほしい所を示せます。下の例は、状態遷移図の`timeout`の遷移を赤でなぞり、Error状態を囲んでいます。`::: layers`の中に、図のフェンスと、注釈の`svg`フェンスを順に書きます。後に書いたものが上になります。
 
 ````markdown
-::: layers 注文フロー。DBの書き込みが遅く、Queueで非同期化する案
+::: layers ジョブの状態遷移。Errorへのtimeout遷移が多発している
 ```dot
-digraph { rankdir=LR; node [shape=box]; Web -> API -> DB; API -> Queue -> Worker; }
+digraph {
+  rankdir=LR; node [shape=circle];
+  Idle -> Running [label="start"];
+  Running -> Done [label="ok"];
+  Running -> Error [label="timeout"];
+  Error -> Running [label="retry"];
+}
 ```
 
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="480pt" height="98pt" viewBox="0 0 480 98" font-size="12">
-  <rect x="180" y="0" width="62" height="44" rx="6" fill="none" stroke="#d00" stroke-width="3"/>
-  <line x1="242" y1="22" x2="336" y2="22" stroke="#d00" stroke-width="2"/>
-  <rect x="336" y="4" width="140" height="38" fill="#fff8c4" stroke="#d00"/>
-  <text x="344" y="21" fill="#d00">書き込みが遅い</text>
-  <text x="344" y="36" fill="#d00">p95 800ms</text>
-  <rect x="180" y="54" width="62" height="44" rx="6" fill="none" stroke="#2a9d8f" stroke-width="3" stroke-dasharray="5 3"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="470pt" height="132pt" viewBox="0 0 470 132" font-size="12">
+  <g transform="translate(4 122.88)" fill="none" stroke="#d00" stroke-width="3">
+    <path d="M173.79,-49.01C193.14,-44.84 218.12,-39.29 240.2,-33.88 243.02,-33.19 245.94,-32.46 248.86,-31.7"/>
+    <circle cx="282.2" cy="-22.88" r="27"/>
+  </g>
+  <line x1="313" y1="100" x2="340" y2="100" stroke="#d00" stroke-width="2"/>
+  <rect x="340" y="78" width="126" height="44" fill="#fff8c4" stroke="#d00"/>
+  <text x="348" y="95" fill="#d00">timeoutが多発</text>
+  <text x="348" y="112" fill="#d00">1日あたり約300件</text>
 </svg>
 ```
 :::
 ````
 
-![Graphvizの図に、SVGで丸・引き出し線・吹き出しを重ねた例](doc/images/annotated-demo.png)
+![状態遷移図の遷移を赤でなぞり、状態を丸で囲み、吹き出しをつけた例](doc/images/annotated-demo.png)
 
-図を直すと、図は新しく描かれます。注釈は、書いた座標のままなので、ノードが動いたら、注釈の座標も直してください。Graphvizの図の大きさは、ptで決まります。注釈の`svg`にも、`width="480pt"`のように、ptで書くと、位置が合います（単位なしだと、px扱いで、1.33倍ずれます）。
+遷移をなぞる`path`の座標は、Graphvizが出すSVGの値です（上の例は、同じ値に`translate(4 122.88)`を足しています）。図を直して、ノードが動いたら、注釈の座標も直してください。Graphvizの図の大きさは、ptで決まります。注釈の`svg`にも、`width="470pt"`のように、ptで書くと、位置が合います（単位なしだと、px扱いで、1.33倍ずれます）。
 
 ## Obunzu Markdown Viewer
 
