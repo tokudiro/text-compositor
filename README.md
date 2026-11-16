@@ -42,6 +42,33 @@ user -> web -> api -> db
 
 You don't install a tool per diagram, or export images and paste them back in. The Graphviz, PlantUML, and D2 above work with no extra configuration (the needed tools are fetched and cached automatically; PlantUML uses Java). Only the diagrams drawn in a browser, such as Mermaid, need [a separate setup](#using-mermaid-diagrams-optional). Tables live in the same source as well. You can also split the source into separate files and compose them into one PDF (see [Usage](#usage)).
 
+## Annotate a diagram with SVG
+
+You can lay SVG shapes and text over a diagram to point out what matters. Inside `::: layers`, write the diagram fence and then an annotation `svg` fence. Later items are drawn on top.
+
+````markdown
+::: layers Order flow. DB writes are slow; proposal to make them async via a queue
+```dot
+digraph { rankdir=LR; node [shape=box]; Web -> API -> DB; API -> Queue -> Worker; }
+```
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="480pt" height="98pt" viewBox="0 0 480 98" font-size="12">
+  <rect x="180" y="0" width="62" height="44" rx="6" fill="none" stroke="#d00" stroke-width="3"/>
+  <line x1="242" y1="22" x2="336" y2="22" stroke="#d00" stroke-width="2"/>
+  <rect x="336" y="4" width="140" height="38" fill="#fff8c4" stroke="#d00"/>
+  <text x="344" y="21" fill="#d00">Slow writes</text>
+  <text x="344" y="36" fill="#d00">p95 800ms</text>
+  <rect x="180" y="54" width="62" height="44" rx="6" fill="none" stroke="#2a9d8f" stroke-width="3" stroke-dasharray="5 3"/>
+</svg>
+```
+:::
+````
+
+![A Graphviz diagram with an SVG circle, leader line and callout laid over it](doc/images/annotated-demo.png)
+
+The diagram is redrawn when you change it, but the annotation stays at the coordinates you wrote, so update them if nodes move. Graphviz sizes its diagrams in pt, so give the annotation `svg` pt dimensions too (`width="480pt"`); with no unit it is read as px and drifts by a factor of 1.33. (The sample image text is in Japanese.)
+
 ## Obunzu Markdown Viewer
 
 This repository also contains **Obunzu Markdown Viewer** (Obunzu for short), a lightweight, read-only viewer for Markdown and diagrams. It is built on the same conversion engine as text-compositor.

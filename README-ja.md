@@ -42,6 +42,33 @@ user -> web -> api -> db
 
 図ごとに、ツールをインストールしたり、画像を書き出して貼り直したりする必要はありません。上の例のGraphviz・PlantUML・D2は、追加の設定なしで動きます（必要なツールは自動で取得し、キャッシュします。PlantUMLはJavaを使います）。Mermaidなど、ブラウザで描く図だけは、[別途の準備](#mermaid図を使う場合任意)が要ります。表も、同じ原稿の中にそのまま書けます。ファイルを別々に分けて、1冊のPDFにまとめることもできます（[使い方](#使い方)）。
 
+## 図に、SVGで注釈を重ねる
+
+図の上に、SVGの図形や文字を重ねて、注目してほしい所を示せます。`::: layers`の中に、図のフェンスと、注釈の`svg`フェンスを順に書きます。後に書いたものが上になります。
+
+````markdown
+::: layers 注文フロー。DBの書き込みが遅く、Queueで非同期化する案
+```dot
+digraph { rankdir=LR; node [shape=box]; Web -> API -> DB; API -> Queue -> Worker; }
+```
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="480pt" height="98pt" viewBox="0 0 480 98" font-size="12">
+  <rect x="180" y="0" width="62" height="44" rx="6" fill="none" stroke="#d00" stroke-width="3"/>
+  <line x1="242" y1="22" x2="336" y2="22" stroke="#d00" stroke-width="2"/>
+  <rect x="336" y="4" width="140" height="38" fill="#fff8c4" stroke="#d00"/>
+  <text x="344" y="21" fill="#d00">書き込みが遅い</text>
+  <text x="344" y="36" fill="#d00">p95 800ms</text>
+  <rect x="180" y="54" width="62" height="44" rx="6" fill="none" stroke="#2a9d8f" stroke-width="3" stroke-dasharray="5 3"/>
+</svg>
+```
+:::
+````
+
+![Graphvizの図に、SVGで丸・引き出し線・吹き出しを重ねた例](doc/images/annotated-demo.png)
+
+図を直すと、図は新しく描かれます。注釈は、書いた座標のままなので、ノードが動いたら、注釈の座標も直してください。Graphvizの図の大きさは、ptで決まります。注釈の`svg`にも、`width="480pt"`のように、ptで書くと、位置が合います（単位なしだと、px扱いで、1.33倍ずれます）。
+
 ## Obunzu Markdown Viewer
 
 このリポジトリには、**Obunzu Markdown Viewer**（略称はObunzu）も入っています。Markdownと図を表示する、軽量な、閲覧専用のViewerです。text-compositorと、同じ変換の仕組みの上に作っています。
