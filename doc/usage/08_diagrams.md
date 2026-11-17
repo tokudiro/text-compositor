@@ -405,6 +405,7 @@ Mermaid・Vega-LiteはChrome/Edge、PlantUML・StructurizrはJava（11以上）�
 - `@startuml` / `@enduml` を省略せず、実際のPlantUML構文どおりに書いてください（自動補完はしません）。
 - レイアウトエンジンには純Java実装の Smetana を使うため、`dot`（Graphviz）等の外部バイナリは不要です。
 - `plantuml.jar`（MIT版）は初回ビルド時のみ取得し、OS標準のユーザーキャッシュ領域（Windows: `%LOCALAPPDATA%\text-compositor\Cache`、Linux: `~/.cache/text-compositor`、macOS: `~/Library/Caches/text-compositor`）にキャッシュします。Eclipse Temurin JREを自動取得した場合も同じ領域にキャッシュします。
+- **`!include`で取り込めるのは、標準ライブラリだけです**（[#622](https://github.com/tokudiro/text-compositor/issues/622)）。`plantuml.jar`は、PlantUML自身のセキュリティ設定（`ALLOWLIST`）で動かします。`!include <C4/C4_Container>`のように、山括弧で囲む標準ライブラリ（`plantuml.jar`に同梱）と、`!theme`は、使えます。一方、ファイル（`!include defs.iuml`）と、URL（`!include https://…`・`!includeurl`）の取り込みは、拒否されます。原稿の外のファイルや、公開URLを、図に取り込めないようにするためです。環境変数`PLANTUML_SECURITY_PROFILE`で、設定を緩めることはできません。拒否されると、図の描画がエラーで止まり、理由の補足が付きます。原稿のフォルダにあるファイルを取り込む機能は、対応を予定しています（#622）。
 
 ## D2固有の注意点
 

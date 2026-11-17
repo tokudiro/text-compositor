@@ -43,6 +43,28 @@ _JAVA_UTF8_ENCODING_OPTS = [
 ]
 
 
+# plantuml.jarの、ファイルとURLへのアクセスを、PlantUML自身の設定で遮断する（#622）。
+# 既定（LEGACY）のままだと、図のコードの`!include`が、プロジェクトの外のファイルや、公開URLを
+# 読めてしまう（実機で確認）。ALLOWLISTは、`!include <C4/C4_Container>`のような標準ライブラリ
+# （jar同梱）は使えるまま、ファイルとURLの取り込みを、許可した場所以外では拒否する。
+# 許可する場所（原稿のフォルダ）は、手順2で、`PLANTUML_INCLUDE_PATH`として渡す。
+_PLANTUML_SECURITY_PROFILE = "ALLOWLIST"
+
+# 呼び出し元の環境変数が、許可の範囲を、広げてしまわないよう、取り除く環境変数
+_PLANTUML_ENV_REMOVED = ("PLANTUML_ALLOWLIST_PATH", "PLANTUML_INCLUDE_PATH")
+
+
+def _plantuml_env():
+    """plantuml.jarを起動するときの環境変数。呼び出し元の環境を引き継ぎつつ、セキュリティの
+    プロファイルを、ALLOWLISTに固定する（呼び出し元の`PLANTUML_SECURITY_PROFILE`は上書きする。
+    原稿の書き手も、実行する人も、設定で緩められないようにするため）。"""
+    env = dict(os.environ)
+    for name in _PLANTUML_ENV_REMOVED:
+        env.pop(name, None)
+    env["PLANTUML_SECURITY_PROFILE"] = _PLANTUML_SECURITY_PROFILE
+    return env
+
+
 class DiagramMixin:
     """図のフェンス（Mermaid・PlantUML・D2・Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finite・svg）の描画と、図のSVGのキャッシュ。"""
 
@@ -214,6 +236,11 @@ class DiagramMixin:
         messageは短い要約にし、ツールの出力は、detailへ入れる（Viewerが、帯には要約だけを出し、詳細を別に見せる。#202）。
         CLIの表示は、従来どおり（原稿のパスと、ツールの出力を、そのまま出す）。"""
         output = (output or "").strip()
+        if tool in ("PlantUML", "Structurizr") and ("cannot include" in output or "Cannot open URL" in output):
+            # ALLOWLIST（#622）で拒否された取り込みは、PlantUMLの出力だけでは、理由が分かりにくい
+            output += ("\n\nHint: PlantUML runs with PLANTUML_SECURITY_PROFILE=ALLOWLIST (#622), so "
+                       "!include of files and URLs is blocked. Only the bundled standard library "
+                       "(for example `!include <C4/C4_Container>`) can be included.")
         self._error_here(f"{tool} diagram failed to render", line=line, detail=output or None,
                          cli_text=f"{tool} rendering failed for {self.current_file}:\n{output}")
 
@@ -785,7 +812,8 @@ class DiagramMixin:
         Structurizr共通、#212）。OSError・終了コードのハンドリングは呼び出し側が行う。"""
         return subprocess.run(
             [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
-            input=code, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+            input=code, capture_output=True, text=True, encoding="utf-8", timeout=timeout,
+            env=_plantuml_env())
 
     # 複数の図をまとめて1回のJVM起動で処理するときの区切り文字列（#307）。plantuml.jarの
     # `-pipedelimitor`が標準出力にこの行をそのまま挟んで返す仕様を使う（実機確認）。図のコード
@@ -806,7 +834,8 @@ class DiagramMixin:
         result = subprocess.run(
             [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-jar", jar_path, "-tsvg", "-pipe",
              "-pipedelimitor", self._PLANTUML_BATCH_DELIMITER, "-Playout=smetana"],
-            input=combined, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+            input=combined, capture_output=True, text=True, encoding="utf-8", timeout=timeout,
+            env=_plantuml_env())
         delim_line = self._PLANTUML_BATCH_DELIMITER + "\n"
         parts = result.stdout.split(delim_line)
         if parts and parts[-1] == "":
