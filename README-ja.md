@@ -2,11 +2,9 @@
 
 *[English version (英語版)](README.md)*
 
-text-compositorは、Mermaid・PlantUML・D2・Graphvizなど複数の図表形式を本文と組み合わせて書く技術文書（設計書、アーキテクチャ資料など）向けのツールです。個々のテキストファイルを独立した断片として扱い、1つの人間可読なPDFへ決定論的に組み上げます（compose）。図表ツールごとの環境構築は不要です。各ツールのコンパイラやレンダラーは自動的に取得・キャッシュされます。既存の手作成ドキュメントを持ち込んで整理・統合する用途にも、AIが生成し人間が加筆・修正した原稿にも、同じように使えます。
+text-compositorは、図入りの技術文書（設計書、アーキテクチャ資料など）を、Markdownで書いて、1冊のPDFにするツールです。Mermaid・PlantUML・D2・Graphvizなど、図の種類が違っても、同じ原稿の中に混ぜて書けます。図ごとにツールをインストールする必要はなく、必要なものは自動で取得してキャッシュします。同じ入力からは、同じPDFができます。手で書いた文書にも、AIが書いた下書きを人が直した原稿にも、使えます。
 
-同じ図表変換は、pandocやTypstを直接使っても原理的に実現できます。この点で、text-compositorが新しい変換能力を持つわけではありません。text-compositorが行っているのは、Mermaid・PlantUML・D2それぞれの環境構築（依存ツールのインストール、キャッシュ管理、CI対応）を、`config.yaml`ひとつにパッケージ化することです。Typst自体との違い、Quarto等汎用ツールとの違いは、[doc/diff-ja.md](doc/diff-ja.md)にまとめています。
-
-このREADMEは最短で使い始めるための要点のみを記載します。`config.yaml`や原稿の書き方を一通り知りたい場合は[使い方ガイド](doc/usage/)（`cd doc/usage && python ../../build.py` でPDF化もできます）を、詳細な設計方針・実装状況は [doc/spec.md](doc/spec.md) を参照してください。
+このREADMEは、最短で使い始めるための要点だけを載せています。`config.yaml`や原稿の書き方は[使い方ガイド](doc/usage/)（`cd doc/usage && python ../../build.py` でPDF化もできます）を、設計方針・実装状況は[doc/spec.md](doc/spec.md)を参照してください。
 
 ## ひと目で: 1つの原稿に、図を混ぜて書く
 
@@ -77,17 +75,6 @@ digraph {
 
 遷移をなぞる`path`の座標は、Graphvizが出すSVGの値です（上の例は、同じ値に`translate(4 122.88)`を足しています）。図を直して、ノードが動いたら、注釈の座標も直してください。Graphvizの図の大きさは、ptで決まります。注釈の`svg`にも、`width="470pt"`のように、ptで書くと、位置が合います（単位なしだと、px扱いで、1.33倍ずれます）。
 
-## Obunzu Markdown Viewer
-
-このリポジトリには、**Obunzu Markdown Viewer**（略称はObunzu）も入っています。Markdownと図を表示する、軽量な、閲覧専用のViewerです。text-compositorと、同じ変換の仕組みの上に作っています。
-
-- Markdownのファイルと、図の単体ファイル（Mermaid・PlantUML・D2・Graphviz・Vega-Lite・SVGなど）を、専用のウィンドウで開き、絵にして表示します。
-- ファイルを保存すると、表示が更新されます。お使いのエディタで書きながら、Obunzuで見た目を確かめられます。変換に失敗したときは、原稿の何行目で問題が起きたかを示します。
-- Windows（64ビット）向けの、ポータブルなZIPで配布します。Pythonと図のツールを同梱しているため、先にインストールするものはありません。[Releasesのページ](https://github.com/tokudiro/text-compositor/releases/latest)から、ダウンロードしてください。
-- 文書の編集と、PDFの出力は、できません。PDFが必要なときは、下のtext-compositorを使ってください。
-
-開発する人向けの情報は[viewer/README-ja.md](viewer/README-ja.md)に、使う人向けの説明は[Obunzuの説明書](doc/obunzu-guide/)にあります。
-
 ## text-compositorの特徴
 
 - 複数のテキストファイル（章）を1冊のPDFに結合
@@ -108,7 +95,7 @@ digraph {
 
 詳細は[使い方ガイド](doc/usage/)を参照してください。
 
-## 必要なもの
+## インストール
 
 - Python 3.10以上
 
@@ -144,57 +131,6 @@ Typstコンパイラ本体はバイナリを同梱せず、上記の `pip instal
 ### 最新版を使う
 
 セキュリティ修正やバグ修正は、新しい版として出します。自動更新はないため、最新版を使ってください。pipの場合は、`pipx upgrade text-compositor`（または`pip install -U text-compositor`）です。[Obunzu Markdown Viewer](viewer/README-ja.md)は、[Releasesのページ](https://github.com/tokudiro/text-compositor/releases/latest)から、最新のZIPを取得します。Viewerは、Pythonを同梱しているため、新しいZIPで、そのPythonと、ほかの同梱物も更新されます。Obunzuの使い方は、[Obunzu使い方ガイド](doc/obunzu-guide/)（Releasesに、PDFを添付しています）を参照してください。
-
-### Mermaid図を使う場合（任意）
-
-原稿の中で ` ```mermaid ` フェンスを使う場合（または`.mmd`ファイルを`chapters`に直接指定する場合）のみ必要です。方法Aの場合は`mermaid`エクストラを追加でインストールします。
-
-```bash
-pipx install "text-compositor[mermaid]"
-# 既にインストール済みの場合: pipx inject text-compositor playwright==1.63.0
-```
-
-方法B（クローンして直接実行）の場合:
-
-```bash
-pip install playwright==1.63.0
-```
-
-- **システムにインストール済みのGoogle ChromeまたはMicrosoft Edge**（既定では新規ダウンロードしない。ビルド時に自動検出して再利用する）
-- 上記の `playwright` パッケージ（既存ブラウザへCDP接続するために使うだけで、既定ではPlaywright自身のブラウザダウンロード機能は使わない）
-
-Node.js/npmは不要です。ビルド時にMermaid公式配布の単一バンドルJS（`mermaid.min.js`、約5.5MB）を取得してヘッドレスブラウザに読み込ませ、SVGに変換します（バンドルJS自体はOS標準のユーザーキャッシュディレクトリ、例えばWindowsなら`%LOCALAPPDATA%\text-compositor\Cache`、Linuxなら`~/.cache/text-compositor`にキャッシュし、変換結果は `.text-compositor/cache/` にキャッシュされ、次回以降は再取得しません）。Mermaidを使わない原稿ではこれらは一切不要です。
-
-システムにChrome/Edgeが無い場合は既定でエラー終了します。`plugins: { mermaid_auto_download: true }` にすると代わりにPlaywright自身のChromiumを自動取得します。ただし、**このダウンロードは約700MBあります**（プレインストールされたブラウザを使わない場合の最後の手段として用意した設定です。既定でこの量をダウンロードしてしまうことは意図的に避けています）。
-
-### PlantUML図を使う場合（任意）
-
-原稿の中で ` ```plantuml ` フェンスを使う場合（または`.puml`ファイルを`chapters`に直接指定する場合）、`config.yaml`側の追加設定は不要です（`plugins.plantuml`は既定`true`。追加の`pip install`も不要）。
-
-- ローカルにJava（11以上）があればそのまま再利用します
-- 無ければ既定でEclipse Temurin JRE（Adoptium配布、約49.7MB）を上記と同じユーザーキャッシュディレクトリへ自動取得・キャッシュします。`plugins: { plantuml_auto_download: false }` にすると、自動取得せずエラー終了に変えられます
-- GitHub Actionsの`ubuntu-latest`にはJavaが標準搭載されているため、CI上では追加ダウンロードは発生しません
-
-レイアウトエンジンには純Java実装の Smetana を使うため、Graphviz（`dot`）等の外部バイナリは不要です。PlantUML本体（MIT版、約17.6MB）は同じユーザーキャッシュディレクトリに、変換結果はMermaidと同じく `.text-compositor/cache/` にキャッシュされます。
-
-PlantUMLのスプライト記法も使えます。独自の`sprite`定義に加え、jarへ同梱されたアイコンライブラリ（`aws`/`awslib14`・`azure`・`gcp`・`k8s`・`office`・`archimate`・`tupadr3`ほか約30種）も利用できます。これらのstdlibはplantuml.jar自体に含まれるため、ネットワークアクセスなしで描画できます（`!include <office/Servers/database_server>`と`!include <tupadr3/common>`を組み合わせた例で、出力SVGへPNGアイコンがインライン埋め込みされることを確認済みです）。一部のライブラリ（`office`・`awslib14`等）は、マクロ呼び出し（`OFF_DATABASE_SERVER(id, "label")`等）のために`tupadr3/common`の併記が要ります。ライブラリの一覧と正確なマクロ名は、[PlantUML公式のstdlibドキュメント](https://plantuml.com/stdlib)を参照してください。
-
-### D2図を使う場合（任意）
-
-原稿の中で ` ```d2 ` フェンスを使う場合（または`.d2`ファイルを`chapters`に直接指定する場合）、`config.yaml`側の追加設定は不要です（`plugins.d2`は既定`true`。追加の`pip install`も不要）。
-
-- ローカルに`d2`コマンドがあればそのまま再利用します
-- 無ければ既定でD2公式CLIバイナリ（Go製の単一実行ファイル、約13MB）を上記と同じユーザーキャッシュディレクトリへ自動取得・キャッシュします。`plugins: { d2_auto_download: false }` にすると、自動取得せずエラー終了に変えられます
-
-Java（PlantUMLが使う）やブラウザ（Mermaidが使う）と異なり、GitHub Actionsの`ubuntu-latest`にはD2が標準搭載されていないため、`d2`図を使うとCI実行のたびにこの約13MBのダウンロードが発生します（このプロジェクトのワークフローは、実行間でキャッシュディレクトリを永続化していません）。
-
-### Structurizr図（C4モデル）を使う場合（任意・既定オフ）
-
-Mermaid/PlantUML/D2と異なり、`plugins.structurizr`は既定`false`です。` ```structurizr ` フェンス（または`.dsl`ファイルを`chapters`に直接指定する場合）を使うには、`plugins: { structurizr: true }`と明示してください。既定でオフなのは、内部で使う公式`structurizr-cli`が約99MBあるためです（他のプラグインは13〜18MB）。この大きさの大半はKotlin/JRuby/Groovyのスクリプト機能（本ツールでは使わない）が占めており、代わりに使える軽量な公式配布物はありません。
-
-内部では、DSLを`structurizr-cli`でPlantUMLへ書き出し、上記と同じPlantUML/Smetanaのパイプラインで描画します（新しい描画エンジンは持ちません）。PlantUMLと同じくJavaが必要で、`plugins.plantuml_auto_download`とは独立した`plugins.structurizr_auto_download`（既定`true`）で制御します。
-
-1つのワークスペースが定義できるビューは、フェンス1つにつき1つに限ります。`structurizr-cli`には、複数ビューから1つだけ選ぶオプションが無いため、黙ってどれかを選ぶ代わりにエラーで終了します。複数のビューが必要な場合は、フェンスを分け、共通のモデルはDSLの`!include`で共有してください。
 
 ## 使い方
 
@@ -253,6 +189,76 @@ python ../build.py
 ```
 
 `sample/SampleDocument.pdf` が生成されます。ほかのテンプレートを示すサンプルが2つあります。`sample/paper/`（2段組みの論文形式、`template.path: paper`）と、`sample/universe-ilm/`（[Typst Universe](https://typst.app/universe)のテンプレートをアダプタ経由で使う例。初回のビルドはネットワークが必要）です。
+
+## 図の種類ごとの準備（任意）
+
+Mermaidは、ブラウザが要ります。PlantUMLとD2は、追加の設定なしで使えます（足りないものは自動で取得します）。使う図の種類の分だけ、読んでください。
+
+### Mermaid図を使う場合（任意）
+
+原稿の中で ` ```mermaid ` フェンスを使う場合（または`.mmd`ファイルを`chapters`に直接指定する場合）のみ必要です。方法Aの場合は`mermaid`エクストラを追加でインストールします。
+
+```bash
+pipx install "text-compositor[mermaid]"
+# 既にインストール済みの場合: pipx inject text-compositor playwright==1.63.0
+```
+
+方法B（クローンして直接実行）の場合:
+
+```bash
+pip install playwright==1.63.0
+```
+
+- **システムにインストール済みのGoogle ChromeまたはMicrosoft Edge**（既定では新規ダウンロードしない。ビルド時に自動検出して再利用する）
+- 上記の `playwright` パッケージ（既存ブラウザへCDP接続するために使うだけで、既定ではPlaywright自身のブラウザダウンロード機能は使わない）
+
+Node.js/npmは不要です。ビルド時にMermaid公式配布の単一バンドルJS（`mermaid.min.js`、約5.5MB）を取得してヘッドレスブラウザに読み込ませ、SVGに変換します（バンドルJS自体はOS標準のユーザーキャッシュディレクトリ、例えばWindowsなら`%LOCALAPPDATA%\text-compositor\Cache`、Linuxなら`~/.cache/text-compositor`にキャッシュし、変換結果は `.text-compositor/cache/` にキャッシュされ、次回以降は再取得しません）。Mermaidを使わない原稿ではこれらは一切不要です。
+
+システムにChrome/Edgeが無い場合は既定でエラー終了します。`plugins: { mermaid_auto_download: true }` にすると代わりにPlaywright自身のChromiumを自動取得します。ただし、**このダウンロードは約700MBあります**（プレインストールされたブラウザを使わない場合の最後の手段として用意した設定です。既定でこの量をダウンロードしてしまうことは意図的に避けています）。
+
+### PlantUML図を使う場合（任意）
+
+原稿の中で ` ```plantuml ` フェンスを使う場合（または`.puml`ファイルを`chapters`に直接指定する場合）、`config.yaml`側の追加設定は不要です（`plugins.plantuml`は既定`true`。追加の`pip install`も不要）。
+
+- ローカルにJava（11以上）があればそのまま再利用します
+- 無ければ既定でEclipse Temurin JRE（Adoptium配布、約49.7MB）を上記と同じユーザーキャッシュディレクトリへ自動取得・キャッシュします。`plugins: { plantuml_auto_download: false }` にすると、自動取得せずエラー終了に変えられます
+- GitHub Actionsの`ubuntu-latest`にはJavaが標準搭載されているため、CI上では追加ダウンロードは発生しません
+
+レイアウトエンジンには純Java実装の Smetana を使うため、Graphviz（`dot`）等の外部バイナリは不要です。PlantUML本体（MIT版、約17.6MB）は同じユーザーキャッシュディレクトリに、変換結果はMermaidと同じく `.text-compositor/cache/` にキャッシュされます。
+
+PlantUMLのスプライト記法も使えます。独自の`sprite`定義に加え、jarへ同梱されたアイコンライブラリ（`aws`/`awslib14`・`azure`・`gcp`・`k8s`・`office`・`archimate`・`tupadr3`ほか約30種）も利用できます。これらのstdlibはplantuml.jar自体に含まれるため、ネットワークアクセスなしで描画できます（`!include <office/Servers/database_server>`と`!include <tupadr3/common>`を組み合わせた例で、出力SVGへPNGアイコンがインライン埋め込みされることを確認済みです）。一部のライブラリ（`office`・`awslib14`等）は、マクロ呼び出し（`OFF_DATABASE_SERVER(id, "label")`等）のために`tupadr3/common`の併記が要ります。ライブラリの一覧と正確なマクロ名は、[PlantUML公式のstdlibドキュメント](https://plantuml.com/stdlib)を参照してください。
+
+### D2図を使う場合（任意）
+
+原稿の中で ` ```d2 ` フェンスを使う場合（または`.d2`ファイルを`chapters`に直接指定する場合）、`config.yaml`側の追加設定は不要です（`plugins.d2`は既定`true`。追加の`pip install`も不要）。
+
+- ローカルに`d2`コマンドがあればそのまま再利用します
+- 無ければ既定でD2公式CLIバイナリ（Go製の単一実行ファイル、約13MB）を上記と同じユーザーキャッシュディレクトリへ自動取得・キャッシュします。`plugins: { d2_auto_download: false }` にすると、自動取得せずエラー終了に変えられます
+
+Java（PlantUMLが使う）やブラウザ（Mermaidが使う）と異なり、GitHub Actionsの`ubuntu-latest`にはD2が標準搭載されていないため、`d2`図を使うとCI実行のたびにこの約13MBのダウンロードが発生します（このプロジェクトのワークフローは、実行間でキャッシュディレクトリを永続化していません）。
+
+### Structurizr図（C4モデル）を使う場合（任意・既定オフ）
+
+Mermaid/PlantUML/D2と異なり、`plugins.structurizr`は既定`false`です。` ```structurizr ` フェンス（または`.dsl`ファイルを`chapters`に直接指定する場合）を使うには、`plugins: { structurizr: true }`と明示してください。既定でオフなのは、内部で使う公式`structurizr-cli`が約99MBあるためです（他のプラグインは13〜18MB）。この大きさの大半はKotlin/JRuby/Groovyのスクリプト機能（本ツールでは使わない）が占めており、代わりに使える軽量な公式配布物はありません。
+
+内部では、DSLを`structurizr-cli`でPlantUMLへ書き出し、上記と同じPlantUML/Smetanaのパイプラインで描画します（新しい描画エンジンは持ちません）。PlantUMLと同じくJavaが必要で、`plugins.plantuml_auto_download`とは独立した`plugins.structurizr_auto_download`（既定`true`）で制御します。
+
+1つのワークスペースが定義できるビューは、フェンス1つにつき1つに限ります。`structurizr-cli`には、複数ビューから1つだけ選ぶオプションが無いため、黙ってどれかを選ぶ代わりにエラーで終了します。複数のビューが必要な場合は、フェンスを分け、共通のモデルはDSLの`!include`で共有してください。
+
+## Obunzu Markdown Viewer
+
+このリポジトリには、**Obunzu Markdown Viewer**（略称はObunzu）も入っています。Markdownと図を表示する、軽量な、閲覧専用のViewerです。text-compositorと、同じ変換の仕組みの上に作っています。
+
+- Markdownのファイルと、図の単体ファイル（Mermaid・PlantUML・D2・Graphviz・Vega-Lite・SVGなど）を、専用のウィンドウで開き、絵にして表示します。
+- ファイルを保存すると、表示が更新されます。お使いのエディタで書きながら、Obunzuで見た目を確かめられます。変換に失敗したときは、原稿の何行目で問題が起きたかを示します。
+- Windows（64ビット）向けの、ポータブルなZIPで配布します。Pythonと図のツールを同梱しているため、先にインストールするものはありません。[Releasesのページ](https://github.com/tokudiro/text-compositor/releases/latest)から、ダウンロードしてください。
+- 文書の編集と、PDFの出力は、できません。PDFが必要なときは、text-compositorを使ってください。
+
+開発する人向けの情報は[viewer/README-ja.md](viewer/README-ja.md)に、使う人向けの説明は[Obunzuの説明書](doc/obunzu-guide/)にあります。
+
+## ほかのツールとの違い
+
+同じ図の変換は、pandocやTypstを直接使っても、原理的にできます。text-compositorが新しい変換能力を持つわけではありません。text-compositorがしているのは、Mermaid・PlantUML・D2などのツールごとの環境構築（依存ツールのインストール、キャッシュ管理、CI対応）を、`config.yaml`ひとつにまとめることと、複数の人（AIを含む）が持ち寄ったテキストを、安全に1冊にまとめるための決まりを、ツールに組み込むことです。Typst自体との違い、Quarto等の汎用ツールとの違いは、[doc/diff-ja.md](doc/diff-ja.md)にまとめています。
 
 ## 実装状況
 
