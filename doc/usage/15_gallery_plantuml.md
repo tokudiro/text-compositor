@@ -362,6 +362,24 @@ Project starts 2026-04-01
 
 PlantUMLの標準ライブラリには、C4モデル用のマクロ（C4-PlantUML）が入っています。`!include <C4/C4_Container>`と書くだけで、`Person`・`Container`・`Rel`などが使えます。`plantuml.jar`に同梱されているため、ネットワークは要りません。
 
+::: layout-left {left=55 right=45}
+````text
+@startuml
+!include <C4/C4_Container>
+LAYOUT_LEFT_RIGHT()
+
+Person(customer, "顧客", "商品を注文する")
+System_Boundary(ec, "ECサイト") {
+    Container(web, "Webアプリ", "TypeScript / React", "画面を提供する")
+    Container(api, "API", "Java / Spring Boot", "注文を処理する")
+    ContainerDb(db, "データベース", "PostgreSQL", "注文を保存する")
+}
+Rel(customer, web, "注文する", "HTTPS")
+Rel(web, api, "呼び出す", "JSON / HTTPS")
+Rel(api, db, "読み書きする", "JDBC")
+@enduml
+````
+
 ```plantuml
 @startuml
 !include <C4/C4_Container>
@@ -378,8 +396,9 @@ Rel(web, api, "呼び出す", "JSON / HTTPS")
 Rel(api, db, "読み書きする", "JDBC")
 @enduml
 ```
+:::
 
-System Context・Container・Component・Dynamic・Deploymentの5つの図を載せた、文書の例が、`sample/c4-plantuml/`にあります。同じ題材を、Structurizr DSLで書いた例は、`sample/c4/`です（1つのモデルを、すべての図が共有できます。18章「Structurizrのギャラリー」）。
+System Context・Container・Component・Dynamic・Deploymentの5つの図を載せた、文書の例が、`sample/c4-plantuml/`にあります。同じ題材を、Structurizr DSLで書いた例は、`sample/c4-structurizr/`です（1つのモデルを、すべての図が共有できます。18章「Structurizrのギャラリー」）。
 
 PlantUMLの`!include`で、ファイルを取り込むときは、原稿のあるフォルダではなく、ビルドを実行した場所が基準です。また、取り込んだファイルを直しても、図は描き直されません。そのため、共通の定義ファイルは、使わないでください。標準ライブラリ（`<C4/...>`）は、この影響を受けません。
 

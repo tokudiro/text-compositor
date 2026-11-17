@@ -190,7 +190,7 @@ python ../build.py
 
 This generates `sample/SampleDocument.pdf`. Two more samples show other templates: `sample/paper/` (two-column paper layout, `template.path: paper`) and `sample/universe-ilm/` (a [Typst Universe](https://typst.app/universe) template used through an adapter; needs network access on the first build).
 
-For a C4 model document, see `sample/c4/`. One model (`model.dsl`) is shared via `!include` by five diagrams: System Context, Container, Component, Dynamic and Deployment, so changing the model updates every diagram (`text-compositor --config sample/c4/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
+For a C4 model document, see `sample/c4-structurizr/`. One model (`model.dsl`) is shared via `!include` by five diagrams: System Context, Container, Component, Dynamic and Deployment, so changing the model updates every diagram (`text-compositor --config sample/c4-structurizr/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
 
 For a C4 model document written with PlantUML (C4-PlantUML), see `sample/c4-plantuml/`. It has five diagrams: System Context, Container, Component, Dynamic and Deployment, and needs no extra downloads (`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`).
 
