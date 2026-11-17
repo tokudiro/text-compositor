@@ -7,14 +7,15 @@ ECサイトの外側にいる人と、外部のシステムとの関係を示す
 ```plantuml
 @startuml
 !include <C4/C4_Context>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Person(customer, "利用者", "商品を探して、注文する")
-Person(operator, "運用担当", "商品と在庫を管理し、出荷を指示する")
-System(ec, "ECサイト", "商品の閲覧、注文、在庫の管理、出荷指示の出力を行う")
-System_Ext(pay, "決済代行サービス", "カード決済を処理する。カード情報を受け取る")
-System_Ext(mail, "メール配信サービス", "利用者と運用担当に、メールを送る")
-System_Ext(logistics, "物流倉庫", "商品を保管し、出荷する")
+Person(customer, $customer_name, $customer_desc)
+Person(operator, $operator_name, $operator_desc)
+System(ec, $ec_name, $ec_desc)
+System_Ext(pay, $pay_name, $pay_desc)
+System_Ext(mail, $mail_name, $mail_desc)
+System_Ext(logistics, $logistics_name, $logistics_desc)
 
 Rel(customer, ec, "商品を探して、注文する")
 Rel(operator, ec, "商品と在庫を管理し、出荷指示を出力する")
