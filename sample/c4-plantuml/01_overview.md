@@ -2,9 +2,9 @@
 
 この文書は、ECサイトの構造を、C4モデルで説明します。図は、PlantUMLの標準ライブラリに入っている、[C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML)のマクロ（`Person`・`Container`・`Rel`など）で書きます。ライブラリは、`plantuml.jar`に同梱されているため、`!include <C4/C4_Container>`と書くだけで使えます。追加の取得は要りません。
 
-同じ題材を、Structurizr DSLで書いた例が、`sample/c4/`にあります。
+同じ題材を、Structurizr DSLで書いた例が、`sample/c4-structurizr/`にあります。
 
-| | Structurizr（`sample/c4/`） | PlantUML（この例） |
+| | Structurizr（`sample/c4-structurizr/`） | PlantUML（この例） |
 | --- | --- | --- |
 | 追加で要るもの | `plugins.structurizr: true`、Java、`structurizr-cli`（約99MB） | なし（既定で使える。Javaは、無ければ自動で取得する） |
 | モデルの共有 | 1つのモデルを、すべてのビューが共有する | 図ごとに、要素を書く |

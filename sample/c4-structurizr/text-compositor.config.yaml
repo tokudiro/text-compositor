@@ -1,5 +1,5 @@
 # C4モデルの文書の例（#618）。1つのモデル（model.dsl）を、すべてのビューが`!include`で共有する。
-# 実行: text-compositor --config sample/c4/text-compositor.config.yaml
+# 実行: text-compositor --config sample/c4-structurizr/text-compositor.config.yaml
 # 初回は、structurizr-cli（約99MB）とJavaが要る（`plugins.structurizr`が既定でオフのため、ここでオンにしている）。
 document:
   title: "ECサイト アーキテクチャ設計書"
@@ -7,9 +7,10 @@ document:
   author: "text-compositor"
   date: "2026-11-17"
   toc: true
+  landscape: true   # 横に長い図が多いので、全体をA4横にする
 
 output:
-  filename: "C4Sample.pdf"
+  filename: "C4StructurizrSample.pdf"
   dir: "."
 
 plugins:
@@ -21,10 +22,7 @@ inputs:
 chapters:
   - "01_overview.md"
   - "02_context.md"
-  - file: "03_container.md"
-    landscape: true   # 横に長い図は、A4横にして、文字を読みやすくする
-  - file: "04_component.md"
-    landscape: true   # 横に長い図は、A4横にして、文字を読みやすくする
-  - file: "05_dynamic.md"
-    landscape: true   # 横に長い図は、A4横にして、文字を読みやすくする
+  - "03_container.md"
+  - "04_component.md"
+  - "05_dynamic.md"
   - "06_deployment.md"
