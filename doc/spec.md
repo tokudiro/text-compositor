@@ -94,6 +94,11 @@ text-compositor/                         my-project/
     * `html_output.py`の`HtmlRenderer`は、`TypstRenderer`を継承する。
     * `typst_literal.py`は、Typstの文字列リテラルの補助関数。
   * `deps.py`（外部ツール・取得物の検出とダウンロード）、`env_check.py`（`--check-env`）、`mermaid.py`（Mermaid・Vega・WaveDrom・Bytefield用ブラウザ）、`vega_render.py`（Vega・Vega-Liteの仕様の検査と、ブラウザで実行する描画スクリプト）、`wavedrom_render.py`（WaveDromの仕様の検査と、描画スクリプト）、`bytefield_render.py`（Bytefieldの入力の検査と、描画スクリプト）、`host_renderers.py`（Viewerのような呼び出し元へ図の描画を任せるフック）、`log.py`（ログの詳細度）。
+* **サンプル（`sample/`）の方針**（[#641](https://github.com/tokudiro/text-compositor/issues/641)）: サンプルは、ツールの能力を示す、実際の文書の例である。図や機能を並べただけでは、その文書を「書けた」とは言えないため、次を守る。
+  * **具体的に書く**: 次の4つを、すべて満たす。(1) 数値・名前・値が書かれている（「上限を設ける」ではなく「3秒」）。(2) 入力・出力・失敗したときの動作が書かれている。(3) 他の章の項目（品質目標・制約・決定の番号など）への参照がある。(4) 図や表の言い換えではなく、図に出ない情報（内部の決まり・理由）がある。例は、arc42の12章に沿ったC4サンプル（`sample/c4-structurizr/`・`sample/c4-plantuml/`。[#625](https://github.com/tokudiro/text-compositor/issues/625)）。
+  * **省くときは、構造上の理由を、文書に書く**: ページ数や図の枚数を理由に、内容を省かない。省くのは、別の章に書いた内容や、同じ構造の繰り返しに限り、その理由を、文書の中に書く（例: 6章の冒頭に、書かなかったシナリオと理由を書いた）。章の長さに、上限は設けない。
+  * **作りながら、ツールの課題を探す**: 実際に文書を書くと、ツールの課題が見つかる（改ページ・図の大きさ・表紙・用語索引・目次など。#629〜#633・#636）。見つかった課題は、サンプルの側で回避して済ませず、issueにする。
+  * **見やすさを確かめる**: ページの割り付け（表の孤立行・見出しだけがページの末尾に残る、など）は、PDFを実際に見て確かめる。
 * **Typstコンパイラの入手方法**: バイナリを同梱しない（2章）。PyPIの `typst` パッケージ（[typst-py](https://github.com/messense/typst-py/)、`requirements.txt` で版固定）がOSごとのホイールにコンパイラ本体を含むため、`pip install -r requirements.txt` だけで済む。`compiler.py` は `typst.compile(input, output=, root=)` というPython APIを直接呼び出すだけで、バイナリの配置やOS判定コードを持たない。
 
 ## 4. 使い方（CLI 仕様）
