@@ -417,6 +417,8 @@ Mermaid・Vega-LiteはChrome/Edge、PlantUML・StructurizrはJava（11以上）�
 - **PDF出力では、既定で無効です。** 使うには`plugins: { structurizr: true }`を明示してください（内部で使う`structurizr-cli`一式が約99MBあるため）。Obunzuは、`structurizr-cli`を同梱しているため、常に有効です。
 - 中身は、実際のStructurizr DSL構文どおりに書きます（[Structurizr DSL公式ドキュメント](https://docs.structurizr.com/dsl/language)を参照）。新しい描画コードは持たず、公式`structurizr-cli`でPlantUMLへ書き出し、PlantUMLと同じパイプラインで描画するだけです。
 - **1つのワークスペースが定義できるビューは、1フェンスにつき1つだけです。** `structurizr-cli`は、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、こちらから1つだけ選ぶ方法がありません。2つ以上のビュー（`systemContext`と`container`を両方書く等）を定義すると、エラーで終了します。System ContextとContainerの両方を見せたい場合は、フェンスを2つに分け、共通のモデル定義はDSLの`!include`で別ファイルに切り出してください。
+
+**`!include`の書き方と、取り込める範囲**（[#618](https://github.com/tokudiro/text-compositor/issues/618)）: `!include model.dsl`のように、原稿のあるフォルダからの相対パスで書きます。入れ子の`!include`は、取り込んだファイルのあるフォルダが基準です。取り込めるのは、プロジェクトの中にある`.dsl`ファイルだけです。URL・絶対パス・プロジェクトの外へ出るパス（`../`・シンボリックリンク）・`.dsl`以外・フォルダは、エラーになります。取り込んだファイルを直すと、図は描き直されます（Obunzuでは、保存し直すと表示も更新されます）。例は`sample/c4/`にあります。
 - `plugins.structurizr_auto_download`（既定`true`）で、Java・`structurizr-cli`一式の自動取得を制御します。`plugins.plantuml_auto_download`とは別の設定です（Structurizrを使うプロジェクトが、常にPlantUMLのフェンスも使うとは限らないため）。`plantuml.jar`自体は、`plugins.plantuml`の値に関わらず、内部実装として常に取得されます。
 
 ````markdown

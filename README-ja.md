@@ -190,6 +190,8 @@ python ../build.py
 
 `sample/SampleDocument.pdf` が生成されます。ほかのテンプレートを示すサンプルが2つあります。`sample/paper/`（2段組みの論文形式、`template.path: paper`）と、`sample/universe-ilm/`（[Typst Universe](https://typst.app/universe)のテンプレートをアダプタ経由で使う例。初回のビルドはネットワークが必要）です。
 
+C4モデルの文書の例は、`sample/c4/`です。1つのモデル（`model.dsl`）を、System Context・Container・Component・Dynamic・Deploymentの5つの図が、`!include`で共有します。モデルを直すと、すべての図に反映されます（`text-compositor --config sample/c4/text-compositor.config.yaml`。Structurizrを使うため、初回は、Javaと`structurizr-cli`（約99MB）の取得が要ります）。
+
 ## 図の種類ごとの準備（任意）
 
 Mermaidは、ブラウザが要ります。PlantUMLとD2は、追加の設定なしで使えます（足りないものは自動で取得します）。使う図の種類の分だけ、読んでください。
