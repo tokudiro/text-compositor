@@ -185,6 +185,8 @@ python ../build.py
 
 This generates `sample/SampleDocument.pdf`. Two more samples show other templates: `sample/paper/` (two-column paper layout, `template.path: paper`) and `sample/universe-ilm/` (a [Typst Universe](https://typst.app/universe) template used through an adapter; needs network access on the first build).
 
+For a C4 model document, see `sample/c4/`. One model (`model.dsl`) is shared via `!include` by five diagrams: System Context, Container, Component, Dynamic and Deployment, so changing the model updates every diagram (`text-compositor --config sample/c4/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
+
 ## Implementation status
 
 The core feature implemented so far is combining multiple files into a single PDF according to the config file specified via `--config` (or auto-detected). A single Markdown file can also be built without a config (`FILE.md`, `-o`, `-t`). Further CLI options (e.g., passing several files or directories directly) are still in the planning stage. See [GitHub Issues](https://github.com/tokudiro/text-compositor/issues) for known issues and upcoming plans.

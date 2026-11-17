@@ -185,6 +185,8 @@ python ../build.py
 
 `sample/SampleDocument.pdf` が生成されます。ほかのテンプレートを示すサンプルが2つあります。`sample/paper/`（2段組みの論文形式、`template.path: paper`）と、`sample/universe-ilm/`（[Typst Universe](https://typst.app/universe)のテンプレートをアダプタ経由で使う例。初回のビルドはネットワークが必要）です。
 
+C4モデルの文書の例は、`sample/c4/`です。1つのモデル（`model.dsl`）を、System Context・Container・Component・Dynamic・Deploymentの5つの図が、`!include`で共有します。モデルを直すと、すべての図に反映されます（`text-compositor --config sample/c4/text-compositor.config.yaml`。Structurizrを使うため、初回は、Javaと`structurizr-cli`（約99MB）の取得が要ります）。
+
 ## 実装状況
 
 現在実装されているのは「`--config` で指定した（または自動検出した）設定ファイルに従い、複数のファイルを1つのPDFへ結合する」というコア機能です。単一のMarkdownは、configなしでもPDFにできます（`FILE.md`・`-o`・`-t`）。ほかのCLIオプションの拡張（複数のファイルやフォルダの直接指定など）は構想段階です。既知の課題・今後の予定は [GitHub Issues](https://github.com/tokudiro/text-compositor/issues) を参照してください。
