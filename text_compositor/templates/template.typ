@@ -51,8 +51,10 @@
   // 1. 表紙 (Cover Page) : cover: false のときは省略する
   // -------------------------
   if cover {
+    // 用紙と向きは、本文・改版履歴・目次と同じ（`document.paper_size`・`document.landscape`。#636）。
+    // 以前は、A4縦に固定していたため、A4横の文書で、表紙だけが縦になった。
     set page(
-      paper: "a4", flipped: false, margin: 2.5cm, header: none,
+      paper: paper_size, flipped: landscape, margin: 2.5cm, header: none,
       footer: if cover_page_number { align(center)[#text(10pt)[#context counter(page).display("1")]] } else { none }
     )
 

@@ -7,7 +7,7 @@
 | `author` | 著者名。表紙に出る。PDFの作成者（プロパティ）にも入る | `"開発チーム"` |
 | `date` | 日付。`"auto"`（既定）だと、ビルドした日（`YYYY-MM-DD`）が入る。`YYYY-MM-DD`の形なら、PDFの作成日（プロパティ）にもなる | `"auto"` |
 | `paper_size` | 用紙サイズ（`a4`, `a3`, `presentation-16-9` 等、Typstが認識する値） | `"a4"` |
-| `landscape` | 横向きにするか | `false` |
+| `landscape` | 横向きにするか。表紙・改版履歴・目次・本文のすべてに効く（章ごとの上書きは、本文だけ） | `false` |
 | `binding_margin` | 綴じ代の幅（`"1cm"`・`"8mm"`など、単位つき。下記） | なし（左右とも同じ余白） |
 | `binding_side` | 綴じる側（`left`・`right`）。`binding_margin`と一緒に使う | `left` |
 | `cover` | 表紙の扱い（下記） | `"none"` |
