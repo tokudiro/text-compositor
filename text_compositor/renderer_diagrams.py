@@ -11,7 +11,7 @@ import subprocess
 from text_compositor.layout_blocks import LayersMatch
 import hashlib
 import tempfile
-from text_compositor import bizmodel_render, cetz_render, flowchart_render, graphviz_render, host_renderers, pikchr_render, svg_trim, vega_render, wavedrom_render, bytefield_render
+from text_compositor import bizmodel_render, cetz_render, flowchart_render, graphviz_render, host_renderers, pikchr_render, structurizr_include, svg_trim, vega_render, wavedrom_render, bytefield_render
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, BYTEFIELD_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, ensure_bytefield_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
@@ -895,7 +895,24 @@ class DiagramMixin:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _structurizr_dsl_to_plantuml(self, code, line=None):
+    def _structurizr_includes(self, code, origin_dir, line=None):
+        """`!include`で取り込まれる`.dsl`ファイルの実パスを返す。取り込めなければ、診断を出して終了する。"""
+        try:
+            files = structurizr_include.collect_includes(code, origin_dir, structurizr_include.include_root(origin_dir, self.base_dir))
+        except structurizr_include.IncludeError as e:
+            self._diagram_error("Structurizr", str(e), line)
+            sys.exit(1)
+        dependencies = getattr(self, 'dependencies', None)
+        if dependencies is not None:
+            dependencies.update(files)   # HTML（Obunzu）では、取り込んだファイルを保存し直すと、自動で更新される
+        return files
+
+    def _structurizr_cache_code(self, code, origin_dir, line=None):
+        """キャッシュのキーに使う文字列。`!include`したファイルの中身を含めるため、そのファイルを直すと、図を描き直す。"""
+        files = self._structurizr_includes(code, origin_dir, line)
+        return code + structurizr_include.cache_suffix(files, structurizr_include.include_root(origin_dir, self.base_dir))
+
+    def _structurizr_dsl_to_plantuml(self, code, line=None, origin_dir=None):
         """Structurizrのワークスペース（DSL）を、structurizr-cliでPlantUMLソースへ書き出す
         （#212、#307で事前収集フェーズからも呼べるよう`_structurizr_svg_path`から切り出した）。
 
@@ -905,8 +922,12 @@ class DiagramMixin:
         （複数ビューを1つのモデルから使い回したい場合は、DSLの`!include`で共通モデルを別ファイルへ
         切り出し、フェンスごとに`views`ブロックだけ変えるよう案内する）。"""
         java_bin, lib_dir, _ = self._ensure_structurizr_tools()
+        origin_dir = origin_dir or self.current_dir or self.base_dir
+        includes = self._structurizr_includes(code, origin_dir, line)
         with tempfile.TemporaryDirectory(prefix="structurizr-") as tmp_dir:
-            dsl_path = os.path.join(tmp_dir, "workspace.dsl")
+            # `!include`は、原稿のフォルダ基準で探される。取り込むファイルを、プロジェクトと同じ構造でコピーする
+            ws_dir = structurizr_include.stage(includes, origin_dir, structurizr_include.include_root(origin_dir, self.base_dir), tmp_dir)
+            dsl_path = os.path.join(ws_dir, "workspace.dsl")
             with open(dsl_path, "w", encoding="utf-8") as f:
                 f.write(code)
             out_dir = os.path.join(tmp_dir, "out")
@@ -953,7 +974,7 @@ class DiagramMixin:
         # trim有効時はここで作り直す。バッチ起動の高速化（#307）が効かなくなるだけで、
         # 正しさには影響しない）。
         version = f"{STRUCTURIZR_CLI_SHA256}:{PLANTUML_JAR_SHA256}" + (":trim1" if effective_trim else "")
-        svg_path, _ = self._diagram_cache_path("structurizr", version, code)
+        svg_path, _ = self._diagram_cache_path("structurizr", version, self._structurizr_cache_code(code, self.current_dir or self.base_dir, line))
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering Structurizr diagram via local Java -> {os.path.basename(svg_path)}")
@@ -1018,13 +1039,15 @@ class DiagramMixin:
                     if not self.structurizr_enabled:
                         continue
                     version = f"{STRUCTURIZR_CLI_SHA256}:{PLANTUML_JAR_SHA256}"
-                    cache_path, _ = self._diagram_cache_path("structurizr", version, code)
+                    self.current_file = filepath
+                    origin_dir = os.path.dirname(os.path.abspath(filepath))
+                    cache_path, _ = self._diagram_cache_path("structurizr", version, self._structurizr_cache_code(code, origin_dir, line))
                     if os.path.exists(cache_path) or cache_path in targets:
                         continue
                     # DSL->PlantUML変換自体はバッチ化できない（structurizr-cliに常駐/バッチモードは無い、
                     # #307のissueコメント参照）。1図ごとに1回起動する点は変わらない。
                     self.current_file = filepath
-                    puml_code = self._structurizr_dsl_to_plantuml(code, line)
+                    puml_code = self._structurizr_dsl_to_plantuml(code, line, origin_dir)
                     targets[cache_path] = (puml_code, filepath, line, "Structurizr")
 
         if not targets:

@@ -2,22 +2,78 @@
 
 *[日本語版 (Japanese version)](README-ja.md)*
 
-A tool for technical documents — design docs, architecture notes, and similar deliverables — that mix multiple diagram formats such as Mermaid, PlantUML, D2, and Graphviz with prose. It treats each source file as an independent fragment and deterministically composes them into a single human-readable PDF, with no diagram toolchain to set up yourself: each tool's compiler or renderer is fetched and cached automatically. It works just as well for existing, hand-authored documents you want to organize and consolidate, or for AI-generated drafts refined by humans.
+text-compositor turns Markdown into a single PDF for technical documents full of diagrams — design docs, architecture notes, and the like. Mermaid, PlantUML, D2, Graphviz and more can be mixed in one source, whichever tool draws them. You don't install a toolchain per diagram: whatever is needed is fetched and cached automatically. The same input always produces the same PDF. It works for hand-written documents and for AI-written drafts refined by people alike.
 
-You could wire up the same diagram conversions directly with pandoc or Typst — the underlying capability isn't new. What text-compositor adds is packaging that toolchain setup (dependency installation, caching, CI support) for Mermaid/PlantUML/D2 behind a single `config.yaml`, instead of you assembling it yourself for each tool. See [doc/diff.md](doc/diff.md) for how this compares to Typst directly and to general-purpose tools like Quarto.
+This README covers only the essentials needed to get started quickly. For a full walkthrough of `config.yaml` and how to write your source documents, see the [usage guide](doc/usage/) (which can also be built into a PDF with `cd doc/usage && python ../../build.py`). For design rationale and implementation status, see [doc/spec.md](doc/spec.md).
 
-This README covers only the essentials needed to get started quickly. For a full walkthrough of `config.yaml` and how to write your source documents, see the [usage guide](doc/usage/) (which can also be built into a PDF with `cd doc/usage && python ../../build.py`). For detailed design rationale and implementation status, see [doc/spec.md](doc/spec.md).
+## At a glance: mix diagrams in a single document
 
-## Obunzu Markdown Viewer
+Write the diagram code right inside your Markdown. The syntax is the same whichever tool draws it — Graphviz, PlantUML, D2, Mermaid, and more.
 
-This repository also contains **Obunzu Markdown Viewer** (Obunzu for short), a lightweight, read-only viewer for Markdown and diagrams. It is built on the same conversion engine as text-compositor.
+````markdown
+# Order service design
 
-- Opens Markdown files and standalone diagram files (Mermaid, PlantUML, D2, Graphviz, Vega-Lite, SVG and more) in its own window, and shows them as pictures.
-- Updates the view when you save the file, so you can write in your own editor and check the result in Obunzu. When a conversion fails, it shows which line of the source went wrong.
-- Comes as a portable ZIP for Windows (64-bit). Python and the diagram tools are bundled, so there is nothing to install first. Download it from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest).
-- Does not edit documents and does not produce a PDF. Use text-compositor below when you need a PDF.
+```dot
+digraph { rankdir=LR; Web -> API -> DB; API -> Queue -> Worker; }
+```
 
-See [viewer/README.md](viewer/README.md) for developers, and the [Obunzu guide](doc/obunzu-guide/) (in Japanese) for users.
+```plantuml
+@startuml
+Client -> API : POST /orders
+API -> DB : insert
+API --> Client : 201 Created
+@enduml
+```
+
+```d2
+user -> web -> api -> db
+```
+
+| Item | Target |
+| --- | --- |
+| Response time | under 200ms |
+````
+
+`text-compositor design.md` turns this into the following PDF (page 1; the sample text is in Japanese).
+
+![Example PDF mixing three kinds of diagrams in one document](doc/images/mixed-demo.png)
+
+You don't install a tool per diagram, or export images and paste them back in. The Graphviz, PlantUML, and D2 above work with no extra configuration (the needed tools are fetched and cached automatically; PlantUML uses Java). Only the diagrams drawn in a browser, such as Mermaid, need [a separate setup](#using-mermaid-diagrams-optional). Tables live in the same source as well. You can also split the source into separate files and compose them into one PDF (see [Usage](#usage)).
+
+## Annotate a diagram with SVG
+
+You can lay SVG shapes and text over a diagram to point out what matters. The example below traces the `timeout` transition of a state machine in red and rings the Error state. Inside `::: layers`, write the diagram fence and then an annotation `svg` fence. Later items are drawn on top.
+
+````markdown
+::: layers Job state machine. Timeouts into Error are frequent
+```dot
+digraph {
+  rankdir=LR; node [shape=circle];
+  Idle -> Running [label="start"];
+  Running -> Done [label="ok"];
+  Running -> Error [label="timeout"];
+  Error -> Running [label="retry"];
+}
+```
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="470pt" height="132pt" viewBox="0 0 470 132" font-size="12">
+  <g transform="translate(4 122.88)" fill="none" stroke="#d00" stroke-width="3">
+    <path d="M173.79,-49.01C193.14,-44.84 218.12,-39.29 240.2,-33.88 243.02,-33.19 245.94,-32.46 248.86,-31.7"/>
+    <circle cx="282.2" cy="-22.88" r="27"/>
+  </g>
+  <line x1="313" y1="100" x2="340" y2="100" stroke="#d00" stroke-width="2"/>
+  <rect x="340" y="78" width="126" height="44" fill="#fff8c4" stroke="#d00"/>
+  <text x="348" y="95" fill="#d00">Frequent timeouts</text>
+  <text x="348" y="112" fill="#d00">~300 per day</text>
+</svg>
+```
+:::
+````
+
+![A state diagram with a transition traced in red, a state circled and a callout attached](doc/images/annotated-demo.png)
+
+The `path` that traces the transition uses the coordinates in the SVG Graphviz produces (the example adds `translate(4 122.88)` to those values). If you change the diagram and nodes move, update the annotation coordinates. Graphviz sizes its diagrams in pt, so give the annotation `svg` pt dimensions too (`width="470pt"`); with no unit it is read as px and drifts by a factor of 1.33. (The sample image text is in Japanese.)
 
 ## text-compositor features
 
@@ -39,7 +95,7 @@ Files listed in `chapters` are handled differently depending on their extension:
 
 See the [usage guide](doc/usage/) for details.
 
-## Requirements
+## Installation
 
 - Python 3.10+
 
@@ -75,57 +131,6 @@ No Typst compiler binary is bundled; it's obtained from the `typst` package (PyP
 ### Keeping up to date
 
 Security and bug fixes ship as new releases. There is no automatic update, so use the latest release: `pipx upgrade text-compositor` (or `pip install -U text-compositor`). For the [Obunzu Markdown Viewer](viewer/README.md), download the latest ZIP from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest). The Viewer bundles its own Python, so a new ZIP also updates that Python and the other bundled parts. A guide to using Obunzu (in Japanese) is in [doc/obunzu-guide/](doc/obunzu-guide/); its PDF is attached to each release.
-
-### Using Mermaid diagrams (optional)
-
-This is only needed if your source documents use ` ```mermaid ` fences (or specify an `.mmd` file directly in `chapters`). With Option A, install the `mermaid` extra:
-
-```bash
-pipx install "text-compositor[mermaid]"
-# or, if already installed: pipx inject text-compositor playwright==1.63.0
-```
-
-With Option B (clone and run directly):
-
-```bash
-pip install playwright==1.63.0
-```
-
-- **A Google Chrome or Microsoft Edge installation already present on your system** (no new download by default; it's auto-detected and reused at build time)
-- The `playwright` package above (used only to connect to the existing browser via CDP; Playwright's own browser-download feature is not used by default)
-
-Node.js/npm is not required. At build time, the official single-file Mermaid bundle (`mermaid.min.js`, ~5.5MB) is fetched and loaded into a headless browser to convert diagrams to SVG (the bundle JS itself is cached under an OS-standard user cache directory — e.g. `%LOCALAPPDATA%\text-compositor\Cache` on Windows, `~/.cache/text-compositor` on Linux — and conversion results are cached under `.text-compositor/cache/`; neither is re-fetched afterward). None of this is needed for documents that don't use Mermaid.
-
-If no Chrome/Edge is found on the system, the build fails by default. Setting `plugins: { mermaid_auto_download: true }` instead auto-fetches Playwright's own Chromium, but **this download is about 700MB** (this setting exists as a last resort for when no pre-installed browser is available; downloading that much by default is intentionally avoided).
-
-### Using PlantUML diagrams (optional)
-
-No extra `config.yaml` settings are needed to use ` ```plantuml ` fences in your source documents (or to specify a `.puml` file directly in `chapters`) — `plugins.plantuml` defaults to `true` and no additional `pip install` is required.
-
-- If Java (11+) is available locally, it's reused as-is
-- Otherwise, Eclipse Temurin JRE (Adoptium distribution, ~49.7MB) is auto-fetched and cached by default under the same user cache directory as above. Setting `plugins: { plantuml_auto_download: false }` disables the auto-fetch and fails the build instead
-- GitHub Actions' `ubuntu-latest` ships with Java by default, so no extra download happens on CI
-
-The layout engine is the pure-Java Smetana implementation, so no external binary like Graphviz (`dot`) is required. PlantUML itself (MIT edition, ~17.6MB) is cached under the same user cache directory, and conversion results are cached under `.text-compositor/cache/`, same as Mermaid.
-
-PlantUML's sprite notation works too — both custom `sprite` definitions and the icon libraries bundled inside the jar (`aws`/`awslib14`, `azure`, `gcp`, `k8s`, `office`, `archimate`, `tupadr3`, and about 30 others). These stdlib icon sets ship inside the jar itself, so they render without network access (verified with `!include <office/Servers/database_server>` combined with `!include <tupadr3/common>`, producing an inline PNG icon in the output SVG). Some libraries (e.g. `office`, `awslib14`) need that `tupadr3/common` include alongside them for their macros (`OFF_DATABASE_SERVER(id, "label")`, etc.) — see [PlantUML's stdlib docs](https://plantuml.com/stdlib) for the full library list and exact macro names.
-
-### Using D2 diagrams (optional)
-
-No extra `config.yaml` settings are needed to use ` ```d2 ` fences in your source documents (or to specify a `.d2` file directly in `chapters`) — `plugins.d2` defaults to `true` and no additional `pip install` is required.
-
-- If the `d2` command is available locally, it's reused as-is
-- Otherwise, the official D2 CLI binary (a single Go executable, ~13MB) is auto-fetched and cached by default under the same user cache directory as above. Setting `plugins: { d2_auto_download: false }` disables the auto-fetch and fails the build instead
-
-Unlike Java (used by PlantUML) or a browser (used by Mermaid), GitHub Actions' `ubuntu-latest` does not ship with D2 preinstalled, so a `d2` diagram triggers this ~13MB download on every CI run (this project's workflows don't persist the cache directory across separate runs).
-
-### Using Structurizr diagrams (C4 model, optional and off by default)
-
-Unlike Mermaid/PlantUML/D2, `plugins.structurizr` defaults to `false` — set `plugins: { structurizr: true }` to use ` ```structurizr ` fences (or a `.dsl` file directly in `chapters`). It's off by default because the tool it uses internally, the official `structurizr-cli`, is a ~99MB download (the other plugins are 13-18MB) — most of that size is Kotlin/JRuby/Groovy scripting support this project doesn't use, but there's no lighter official build to fetch instead.
-
-Internally, the DSL is exported to PlantUML via `structurizr-cli` and rendered through the same PlantUML/Smetana pipeline described above — no separate rendering engine. Java is required, same as PlantUML, controlled by its own `plugins.structurizr_auto_download` (defaults `true`) independent of `plugins.plantuml_auto_download`.
-
-A workspace must define exactly one view per fence — `structurizr-cli` has no option to pick a single view when a workspace defines several, so this tool fails fast instead of silently picking one. Split multiple views into separate fences, sharing the model between them with the DSL's own `!include` if needed.
 
 ## Usage
 
@@ -185,7 +190,79 @@ python ../build.py
 
 This generates `sample/SampleDocument.pdf`. Two more samples show other templates: `sample/paper/` (two-column paper layout, `template.path: paper`) and `sample/universe-ilm/` (a [Typst Universe](https://typst.app/universe) template used through an adapter; needs network access on the first build).
 
+For a C4 model document, see `sample/c4/`. One model (`model.dsl`) is shared via `!include` by five diagrams: System Context, Container, Component, Dynamic and Deployment, so changing the model updates every diagram (`text-compositor --config sample/c4/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
+
 For a C4 model document written with PlantUML (C4-PlantUML), see `sample/c4-plantuml/`. It has five diagrams: System Context, Container, Component, Dynamic and Deployment, and needs no extra downloads (`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`).
+
+## Setup per diagram type (optional)
+
+Mermaid needs a browser. PlantUML and D2 work with no extra configuration (anything missing is fetched automatically). Read only the ones you use.
+
+### Using Mermaid diagrams (optional)
+
+This is only needed if your source documents use ` ```mermaid ` fences (or specify an `.mmd` file directly in `chapters`). With Option A, install the `mermaid` extra:
+
+```bash
+pipx install "text-compositor[mermaid]"
+# or, if already installed: pipx inject text-compositor playwright==1.63.0
+```
+
+With Option B (clone and run directly):
+
+```bash
+pip install playwright==1.63.0
+```
+
+- **A Google Chrome or Microsoft Edge installation already present on your system** (no new download by default; it's auto-detected and reused at build time)
+- The `playwright` package above (used only to connect to the existing browser via CDP; Playwright's own browser-download feature is not used by default)
+
+Node.js/npm is not required. At build time, the official single-file Mermaid bundle (`mermaid.min.js`, ~5.5MB) is fetched and loaded into a headless browser to convert diagrams to SVG (the bundle JS itself is cached under an OS-standard user cache directory — e.g. `%LOCALAPPDATA%\text-compositor\Cache` on Windows, `~/.cache/text-compositor` on Linux — and conversion results are cached under `.text-compositor/cache/`; neither is re-fetched afterward). None of this is needed for documents that don't use Mermaid.
+
+If no Chrome/Edge is found on the system, the build fails by default. Setting `plugins: { mermaid_auto_download: true }` instead auto-fetches Playwright's own Chromium, but **this download is about 700MB** (this setting exists as a last resort for when no pre-installed browser is available; downloading that much by default is intentionally avoided).
+
+### Using PlantUML diagrams (optional)
+
+No extra `config.yaml` settings are needed to use ` ```plantuml ` fences in your source documents (or to specify a `.puml` file directly in `chapters`) — `plugins.plantuml` defaults to `true` and no additional `pip install` is required.
+
+- If Java (11+) is available locally, it's reused as-is
+- Otherwise, Eclipse Temurin JRE (Adoptium distribution, ~49.7MB) is auto-fetched and cached by default under the same user cache directory as above. Setting `plugins: { plantuml_auto_download: false }` disables the auto-fetch and fails the build instead
+- GitHub Actions' `ubuntu-latest` ships with Java by default, so no extra download happens on CI
+
+The layout engine is the pure-Java Smetana implementation, so no external binary like Graphviz (`dot`) is required. PlantUML itself (MIT edition, ~17.6MB) is cached under the same user cache directory, and conversion results are cached under `.text-compositor/cache/`, same as Mermaid.
+
+PlantUML's sprite notation works too — both custom `sprite` definitions and the icon libraries bundled inside the jar (`aws`/`awslib14`, `azure`, `gcp`, `k8s`, `office`, `archimate`, `tupadr3`, and about 30 others). These stdlib icon sets ship inside the jar itself, so they render without network access (verified with `!include <office/Servers/database_server>` combined with `!include <tupadr3/common>`, producing an inline PNG icon in the output SVG). Some libraries (e.g. `office`, `awslib14`) need that `tupadr3/common` include alongside them for their macros (`OFF_DATABASE_SERVER(id, "label")`, etc.) — see [PlantUML's stdlib docs](https://plantuml.com/stdlib) for the full library list and exact macro names.
+
+### Using D2 diagrams (optional)
+
+No extra `config.yaml` settings are needed to use ` ```d2 ` fences in your source documents (or to specify a `.d2` file directly in `chapters`) — `plugins.d2` defaults to `true` and no additional `pip install` is required.
+
+- If the `d2` command is available locally, it's reused as-is
+- Otherwise, the official D2 CLI binary (a single Go executable, ~13MB) is auto-fetched and cached by default under the same user cache directory as above. Setting `plugins: { d2_auto_download: false }` disables the auto-fetch and fails the build instead
+
+Unlike Java (used by PlantUML) or a browser (used by Mermaid), GitHub Actions' `ubuntu-latest` does not ship with D2 preinstalled, so a `d2` diagram triggers this ~13MB download on every CI run (this project's workflows don't persist the cache directory across separate runs).
+
+### Using Structurizr diagrams (C4 model, optional and off by default)
+
+Unlike Mermaid/PlantUML/D2, `plugins.structurizr` defaults to `false` — set `plugins: { structurizr: true }` to use ` ```structurizr ` fences (or a `.dsl` file directly in `chapters`). It's off by default because the tool it uses internally, the official `structurizr-cli`, is a ~99MB download (the other plugins are 13-18MB) — most of that size is Kotlin/JRuby/Groovy scripting support this project doesn't use, but there's no lighter official build to fetch instead.
+
+Internally, the DSL is exported to PlantUML via `structurizr-cli` and rendered through the same PlantUML/Smetana pipeline described above — no separate rendering engine. Java is required, same as PlantUML, controlled by its own `plugins.structurizr_auto_download` (defaults `true`) independent of `plugins.plantuml_auto_download`.
+
+A workspace must define exactly one view per fence — `structurizr-cli` has no option to pick a single view when a workspace defines several, so this tool fails fast instead of silently picking one. Split multiple views into separate fences, sharing the model between them with the DSL's own `!include` if needed.
+
+## Obunzu Markdown Viewer
+
+This repository also contains **Obunzu Markdown Viewer** (Obunzu for short), a lightweight, read-only viewer for Markdown and diagrams. It is built on the same conversion engine as text-compositor.
+
+- Opens Markdown files and standalone diagram files (Mermaid, PlantUML, D2, Graphviz, Vega-Lite, SVG and more) in its own window, and shows them as pictures.
+- Updates the view when you save the file, so you can write in your own editor and check the result in Obunzu. When a conversion fails, it shows which line of the source went wrong.
+- Comes as a portable ZIP for Windows (64-bit). Python and the diagram tools are bundled, so there is nothing to install first. Download it from the [Releases page](https://github.com/tokudiro/text-compositor/releases/latest).
+- Does not edit documents and does not produce a PDF. Use text-compositor when you need a PDF.
+
+See [viewer/README.md](viewer/README.md) for developers, and the [Obunzu guide](doc/obunzu-guide/) (in Japanese) for users.
+
+## How it differs from other tools
+
+You could wire up the same diagram conversions directly with pandoc or Typst, so the underlying capability isn't new. What text-compositor does is package the per-tool setup (dependency installation, caching, CI support) for Mermaid, PlantUML, D2 and the rest behind a single `config.yaml`, and build into the tool the rules for safely composing text brought in by several writers, AI included. See [doc/diff.md](doc/diff.md) for how this compares to Typst directly and to general-purpose tools like Quarto.
 
 ## Implementation status
 

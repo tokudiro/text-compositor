@@ -417,6 +417,8 @@ Mermaid・Vega-LiteはChrome/Edge、PlantUML・StructurizrはJava（11以上）�
 - **PDF出力では、既定で無効です。** 使うには`plugins: { structurizr: true }`を明示してください（内部で使う`structurizr-cli`一式が約99MBあるため）。Obunzuは、`structurizr-cli`を同梱しているため、常に有効です。
 - 中身は、実際のStructurizr DSL構文どおりに書きます（[Structurizr DSL公式ドキュメント](https://docs.structurizr.com/dsl/language)を参照）。新しい描画コードは持たず、公式`structurizr-cli`でPlantUMLへ書き出し、PlantUMLと同じパイプラインで描画するだけです。
 - **1つのワークスペースが定義できるビューは、1フェンスにつき1つだけです。** `structurizr-cli`は、ワークスペースが定義するビューの数だけファイルを分けて書き出す仕様で、こちらから1つだけ選ぶ方法がありません。2つ以上のビュー（`systemContext`と`container`を両方書く等）を定義すると、エラーで終了します。System ContextとContainerの両方を見せたい場合は、フェンスを2つに分け、共通のモデル定義はDSLの`!include`で別ファイルに切り出してください。
+
+**`!include`の書き方と、取り込める範囲**（[#618](https://github.com/tokudiro/text-compositor/issues/618)）: `!include model.dsl`のように、原稿のあるフォルダからの相対パスで書きます。入れ子の`!include`は、取り込んだファイルのあるフォルダが基準です。取り込めるのは、プロジェクトの中にある`.dsl`ファイルだけです。URL・絶対パス・プロジェクトの外へ出るパス（`../`・シンボリックリンク）・`.dsl`以外・フォルダは、エラーになります。取り込んだファイルを直すと、図は描き直されます（Obunzuでは、保存し直すと表示も更新されます）。例は`sample/c4/`にあります。
 - `plugins.structurizr_auto_download`（既定`true`）で、Java・`structurizr-cli`一式の自動取得を制御します。`plugins.plantuml_auto_download`とは別の設定です（Structurizrを使うプロジェクトが、常にPlantUMLのフェンスも使うとは限らないため）。`plantuml.jar`自体は、`plugins.plantuml`の値に関わらず、内部実装として常に取得されます。
 
 ````markdown
@@ -578,6 +580,7 @@ graph TD
 - **重なり順**: 先に書いたものが下、後に書いたものが上です。土台という区別はありません。
 - **部品**: PNG・JPEG・SVGの画像（単独行の`![alt](ファイル)`）と、`svg`・Mermaidなどの図のフェンスを、同じように重ねられます。
 - **位置**: すべての部品を、左上の同じ点に、原寸で置きます。ずらすときは`x=`・`y=`（ピクセル。負の値も可）を指定します。画像は`![|x=40|y=20](ファイル)`、フェンスは`{x=240 y=140}`と書きます。画像の`|`の前はaltですが、各層のaltは読み上げません。空にして構いません。
+- **単位**: 部品の大きさは、それぞれの図の単位のままです。Graphvizの図はptで決まるため、注釈の`svg`にも`width="480pt"`のように書くと、座標が合います。単位なしの`svg`はpx扱いで、Graphvizの図に対して1.33倍ずれます。
 - **大きさ**: 重ね全体の大きさは、全部品を包む最小の長方形です。はみ出した部分も切らずに表示します。ページの幅に収めるときは、全体を同じ比率で縮めます（部品ごとには縮めません）。PDFでは、高さも12cmまでに収めます。
 - **代替テキスト**: 見出し行の文字列です。省略すると、装飾として読み上げから外れます。
 - **`layout-*`の中**: `layout-right`・`layout-left`・`layout-compare`・`layout-feature`の中に置けます。重ね全体を1枚の図として扱います。`align`・`layout-columns`・`layout-takahashi`の中にも、文章と並べて置けます。
