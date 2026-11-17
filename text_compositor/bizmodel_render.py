@@ -11,7 +11,8 @@ import re
 from dataclasses import dataclass, field
 from xml.sax.saxutils import escape
 
-# 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）
+# 描画の見た目や、図の形を変えたとき、SVGのキャッシュを無効にするための版（呼び出し側が、キャッシュのキーに使う）。
+# 描画の結果が変わる修正では、必ず上げる（上げ忘れて、古い図が残った実例がある）。
 CACHE_VERSION = "9"
 
 FONT_FAMILY = "'Noto Sans JP','Yu Gothic','Meiryo',sans-serif"
