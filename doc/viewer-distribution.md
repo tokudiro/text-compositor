@@ -202,11 +202,32 @@ text-compositor本体のテスト（`test.yml`）とは、別のワークフロ�
 
 ### リリースの手順（通常）
 
-1. `pyproject.toml`と、`viewer/package.json`・`viewer/package-lock.json`の`version`を、同じ値に上げる（`tests/test_viewer_version.py`が確認する）。
-2. 事前に、Actionsの「Viewer release」を、手動で実行する。テストと、配布物のビルドが通り、成果物（`obunzu-markdown-viewer-win-x64`）として、ZIPを取得できる。Releaseは、作られない。
-3. text-compositor側の事前の確認（wheelの内容など）を行う。
-4. タグ`v<バージョン>`を、`master`に打って、pushする。`release.yml`が、PDFとPyPIと、Obunzuの ZIPを、順に、同じReleaseへ集める。
-5. Releaseの本文は、自動生成されたたたき台になる。公開後に、`gh release edit`で、英語と日本語の両方に、書き直す。
+1. 版を上げる。次の**8か所**を、同じ値にする（旧版の数字は、`git grep`で探す。`pyproject.toml`と`viewer/package.json`・`viewer/package-lock.json`の一致は、`tests/test_viewer_version.py`が確認する）。
+   - `pyproject.toml`
+   - `viewer/package.json`、`viewer/package-lock.json`（2か所）
+   - `text_compositor/worker.py`（先頭の説明にある、起動時のイベントの例）
+   - `doc/spec.md`（起動時のイベント）、`doc/usage/13_python_api.md`（同じイベント）
+   - `doc/viewer-distribution.md`（配布物のフォルダ名の例）、`doc/obunzu-guide/01_about.md`（説明書が基準にした版）
+
+   版上げだけのPRでも、`viewer/package.json`を触るため、Viewerのワークフローは動く。一方、`test.yml`は動かない（`development.md`）。ローカルで`pytest`を実行する。
+2. 事前に、Actionsの「Viewer release」を、手動で実行する（`gh workflow run "Viewer release" --ref master`）。テストと、配布物のビルドが通り、成果物（`obunzu-markdown-viewer-win-x64`）として、ZIPを取得できる。Releaseは、作られない。
+3. text-compositor側の事前の確認を行う。**PyPIは、同じ版を再アップロードできない**ため、タグを打つ前に、必ず行う。
+   - `pytest`を実行する。
+   - wheelは、`pyproject-build --wheel`で作る（`python -m build`は使わない。リポジトリ直下の`build.py`と、名前が衝突するため）。含まれるファイル（`templates/*.typ`など）を確認する。
+   - 新しいvenvに、wheelをインストールして、主要な機能（表・layers・コードブロックなど、その版で入れたものを含む文書）を、HTMLとPDFで作ってみる。
+4. 公開の前に、確認を取る。タグ`v<バージョン>`の`push`で、`release.yml`が、PyPIへ、**自動で公開する（取り消せない）**。`pypi`環境には、承認の保護が付いていない。
+5. タグ`v<バージョン>`を、`master`に打って、pushする。`release.yml`が、PDFとPyPIと、Obunzuの ZIPを、順に、同じReleaseへ集める。ワークフローの成功を確認する。
+6. Releaseの本文は、自動生成されたたたき台になる。公開後に、`gh release edit`で、英語と日本語の両方に、書き直す（次の「Releaseの本文」）。
+
+#### Releaseの本文
+
+英語と日本語の両方を書く（v0.3.0以降の形式）。直前のReleaseの本文（`gh release view v<前の版>`）を、雛形にする。
+
+- 先頭に、言語の切り替えリンク（`[English](#english) | [日本語](#日本語)`）を置く。続けて、`# English`と`# 日本語`の2節を置き、各節に、同じ見出し構成（機能のカテゴリ・注意点）を書く。日本語の節は、[development.md](development.md)の書き方に従う。
+- 末尾の`What's Changed`（マージ済みPRの一覧）と`Full Changelog`は、言語共通で、1回だけ置く。
+- **本文をつなぐときは、改行を保つ。** PowerShellで、`gh release view --jq .body`の出力（行の配列）を、`+`でつなぐと、改行が空白に変わり、`What's Changed`の一覧が、1つの段落に崩れる（v0.4.5で実際に起きた）。一覧は、`gh api repos/<owner>/<repo>/releases/generate-notes -f tag_name=v<版> -f previous_tag_name=v<前の版>`で作り直し、ファイル（Python）で、改行を保って連結する。`gh release edit --notes-file`のあと、取得し直して、1PR1行になっていることを確認する。
+- ZIPの大きさは、Releaseに添付された、ファイルの`size`（10進のMB）を書く。手動実行（Viewer release）の成果物は、約2 MB小さい。
+- セキュリティ更新（同梱した部品の更新を含む）があれば、その旨と、更新した部品・版を書く（「利用者への知らせ」）。
 
 ### Obunzuだけを出す（例外）
 
@@ -289,6 +310,20 @@ python packaging/winget/make_manifest.py --version 0.4.6 --out temp/winget
 - **メジャー更新**（`check-pins`が「メジャー更新」と示すもの、DependabotのメジャーのPR）: 互換性を確認してから、取り込む。図の描画が変わりうるもの（Mermaidなど）は、`check-dist.js`と、実際の文書での表示を確かめる。
 - **Electron**: 最新の安定版に追従する（Chromiumの修正が、最も頻繁なため）。
 - **組込版Python**: バイナリの配布が続く版に置く（次の節）。
+
+### 同梱部品を更新する手順
+
+週次チェック（[#255](https://github.com/tokudiro/text-compositor/issues/255)）の差を、解消するときの手順と、落とし穴。1件ずつ、別のPRにする。図の描画が変わりうるものは、新旧を、同じ入力で描いて比べてから上げる。
+
+1. **版の書き換え先**: `text_compositor/deps.py`、`viewer/scripts/build-dist.js`（版・URL・SHA256。ライセンスのURLも）、`viewer/scripts/check-dist.js`、文書（版の数字・ファイルの大きさ）。旧版の数字を、`git grep`で探して、漏れを防ぐ。
+2. **SHA256**: 自分で取得して計算し、公表値（GitHubのdigest・`.sha256.txt`・npmのtarball）と突き合わせる。python.orgのMD5は、空の場合がある。Python 3.14は、Sigstoreだけで検証できる（`sigstore verify identity --cert-identity hugo@python.org --cert-oidc-issuer https://github.com/login/oauth`。専用のvenvで実行する）。
+3. **見た目の比較**: 実際の描画の入口（`RENDER_SCRIPT`など）を、新旧のJSで動かして、比べる。Mermaidは、SVGのキャッシュのキーが、固定したSHA256のため、キャッシュを通さずに比べる。
+4. **配布物の確認**: `npm run build-dist`のあと、`node scripts/check-dist.js`（54項目）を実行する。環境変数は、`TEXT_COMPOSITOR_PYTHON`・`PYTHON_FOR_BUILD`。
+5. **落とし穴**:
+   - **Temurin JRE**: Adoptiumは、21.0.13+9のWindows ARM（aarch64）向けJREを配布していない。`deps.py`の`TEMURIN_JRE_RELEASE_OVERRIDES`で、ARMだけ、21.0.12.1+1のままにしている。ARM向けが出たら、この例外を外す。`check-pins.py`は、この例外を報告しない。
+   - **図のJSのキャッシュ**（[#597](https://github.com/tokudiro/text-compositor/issues/597)）: キャッシュのファイル名に、固定したSHA256の先頭12文字を含め、使う前に、一致を確認する。以前は、固定名で、確認なしに使っていたため、版を上げても、古い版が使われた。`build-dist.js`の`fetchVerified`も、一致しない古いキャッシュを取り直す。
+   - **diagraph 0.3.8**: 構文エラーのメッセージが、2行になった。`graphviz_render.py`で、1行に整えている。
+   - **不安定なテスト**: `worker-integration`の「watch reports a changed config file」（[#595](https://github.com/tokudiro/text-compositor/issues/595)）は、同じサイズの2回の書き込みが原因と推測して、サイズを変えて直した。再発したら、別の原因を疑う。
 
 ### 被害を小さくする設計
 

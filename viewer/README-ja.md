@@ -163,6 +163,15 @@ npm test
 
 CI（`.github/workflows/viewer.yml`）は、`viewer/`や`text_compositor/`を変えたPR・pushで、Windowsで`npm test`を実行します。Electronは、起動しません。リリースは、text-compositor本体と同時に行います。タグ`v<バージョン>`を1つpushすると、ポータブルなZIPが作られ、同じGitHub Releaseに添付されます（`.github/workflows/release.yml`と`viewer-release.yml`。Obunzuだけを出す例外は、タグ`obunzu-markdown-viewer-v<バージョン>`。[doc/viewer-distribution.md](../doc/viewer-distribution.md)）。
 
+### 開発中の起動と、実機での確認
+
+- **開発中の起動**: `TEXT_COMPOSITOR_PYTHONPATH`に、リポジトリのルートを指定する（例: `TEXT_COMPOSITOR_PYTHONPATH="C:/path/to/text-compositor" npm start`）。指定しないと、`PATH`上のPythonの`site-packages`にある、古い`text_compositor`が使われ、「No module named text_compositor.worker」のワーカーエラーになる。
+- **確認スクリプト**（`scripts/check-*.js`）は、実際のElectronを起動する手動の確認で、`npm test`では見つからない、起動時のエラー（定数の宣言順など）を、見つけた実績がある。ワーカーのPythonには、環境変数`TEXT_COMPOSITOR_PYTHON`（Python実行ファイルのフルパス）と、`TEXT_COMPOSITOR_PYTHONPATH`を渡す。
+- **パスは、`C:/...`の形式で渡す。** Git Bashの`/c/...`の形式（`$(which python)`の結果など）は、Nodeから起動できない。画面に「Pythonのワーカーを起動できません」と出て、文書が表示されず、確認スクリプトが「内容のビューが見つからない」で落ちる。masterでも失敗して見えるため、変更のせいと誤認しやすい（[#339](https://github.com/tokudiro/text-compositor/issues/339)で実際に起きた）。落ちたら、まず、パスの形式を疑う。
+- **`npm start`を止めても、Electron本体が残ることがある。** 残ると、次の起動は、二重起動の防止で、すぐ終了する（終了コード0）。止めるときは、コマンドラインに`text-compositor`と`viewer`を含む`electron.exe`だけを、PIDを指定して、`taskkill /T /F`で終了する。名前での一括終了は、しない（無関係なElectronのアプリも、終了してしまうため）。窓を閉じると、バックグラウンドのタスクが、終了コード0で完了する。
+- 配布物の構文確認に、`node -e "require('.../build-dist.js')"`は使えない（本体が実行される）。`node --check`を使う。
+- Vegaのワードクラウドは、毎回、配置が違う。PDFの比較で、1ページの差が出ることがある。
+
 ## サードパーティのコンポーネント
 
 Electron（MIT）と、同梱のChromiumです。配布物（ZIP）には、同梱するソフトウェアの一覧とライセンスの全文を、`licenses/`に付けています（[doc/viewer-distribution.md](../doc/viewer-distribution.md)の「ライセンス表記」）。
