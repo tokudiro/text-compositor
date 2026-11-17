@@ -405,7 +405,9 @@ Mermaid・Vega-LiteはChrome/Edge、PlantUML・StructurizrはJava（11以上）�
 - `@startuml` / `@enduml` を省略せず、実際のPlantUML構文どおりに書いてください（自動補完はしません）。
 - レイアウトエンジンには純Java実装の Smetana を使うため、`dot`（Graphviz）等の外部バイナリは不要です。
 - `plantuml.jar`（MIT版）は初回ビルド時のみ取得し、OS標準のユーザーキャッシュ領域（Windows: `%LOCALAPPDATA%\text-compositor\Cache`、Linux: `~/.cache/text-compositor`、macOS: `~/Library/Caches/text-compositor`）にキャッシュします。Eclipse Temurin JREを自動取得した場合も同じ領域にキャッシュします。
-- **`!include`で取り込めるのは、標準ライブラリだけです**（[#622](https://github.com/tokudiro/text-compositor/issues/622)）。`plantuml.jar`は、PlantUML自身のセキュリティ設定（`ALLOWLIST`）で動かします。`!include <C4/C4_Container>`のように、山括弧で囲む標準ライブラリ（`plantuml.jar`に同梱）と、`!theme`は、使えます。一方、ファイル（`!include defs.iuml`）と、URL（`!include https://…`・`!includeurl`）の取り込みは、拒否されます。原稿の外のファイルや、公開URLを、図に取り込めないようにするためです。環境変数`PLANTUML_SECURITY_PROFILE`で、設定を緩めることはできません。拒否されると、図の描画がエラーで止まり、理由の補足が付きます。原稿のフォルダにあるファイルを取り込む機能は、対応を予定しています（#622）。
+- **`!include`の書き方と、取り込める範囲**（[#622](https://github.com/tokudiro/text-compositor/issues/622)）: `!include defs.iuml`のように、**原稿のあるフォルダ**からの相対パスで書きます（ビルドを実行した場所には、よりません）。入れ子の`!include`は、取り込んだファイルのあるフォルダを先に探し、なければ、原稿のフォルダを探します。`!include`・`!include_once`・`!include_many`・`!includesub`が対象です。`!include <C4/C4_Container>`のように、山括弧で囲む標準ライブラリ（`plantuml.jar`に同梱）と、`!theme`は、これまでどおり使えます。取り込んだファイルを直すと、図は描き直されます（Obunzuでは、保存し直すと表示も更新されます）。
+- 取り込めるのは、**原稿のフォルダの中にあるファイルだけ**です。URL（`!include https://…`・`!includeurl`）・絶対パス・原稿のフォルダの外へ出るもの（`../`・シンボリックリンク）・見つからないファイルは、エラーになり、理由が表示されます。複数の書き手が、原稿の外のファイルや、公開URLを、図に取り込めないようにするためです。`plantuml.jar`は、PlantUML自身のセキュリティ設定（`ALLOWLIST`）で動かし、環境変数`PLANTUML_SECURITY_PROFILE`で、設定を緩めることはできません。共通の定義ファイルを、複数のフォルダで共有したい場合は、そのファイルを、使うフォルダに置いてください（Structurizrの`!include`は、プロジェクトのルートの中なら`../`も使えますが、PlantUMLは、より厳しく、原稿のフォルダの中だけです）。
+- 以前の版では、`!include`が、ビルドを実行した場所を基準にファイルを探していました。この動きに頼っていた原稿は、原稿のフォルダ基準に、書き直してください。
 
 ## D2固有の注意点
 

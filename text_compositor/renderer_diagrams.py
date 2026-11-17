@@ -11,7 +11,7 @@ import subprocess
 from text_compositor.layout_blocks import LayersMatch
 import hashlib
 import tempfile
-from text_compositor import bizmodel_render, cetz_render, flowchart_render, graphviz_render, host_renderers, pikchr_render, structurizr_include, svg_trim, vega_render, wavedrom_render, bytefield_render
+from text_compositor import bizmodel_render, cetz_render, flowchart_render, graphviz_render, host_renderers, pikchr_render, plantuml_include, structurizr_include, svg_trim, vega_render, wavedrom_render, bytefield_render
 from text_compositor.deps import D2_RELEASE, MERMAID_JS_SHA256, VEGA_JS_SHA256, VEGA_LITE_JS_SHA256, WAVEDROM_JS_SHA256, WAVEDROM_SKIN_SHA256, BYTEFIELD_JS_SHA256, PLANTUML_JAR_SHA256, STRUCTURIZR_CLI_SHA256, _system_d2_version, bundled_d2_bin, bundled_java_bin, bundled_plantuml_jar, bundled_structurizr_cli_lib, ensure_d2_binary, ensure_mermaid_js, ensure_vega_js, ensure_wavedrom_js, ensure_bytefield_js, ensure_plantuml_jar, ensure_structurizr_cli, ensure_temurin_jre, find_system_d2, find_system_java
 from text_compositor.env_check import _check_d2, _check_isolated_env, _check_plantuml, _check_structurizr
 from text_compositor.log import _error, _hint, _log_info, _log_verbose
@@ -47,21 +47,29 @@ _JAVA_UTF8_ENCODING_OPTS = [
 # 既定（LEGACY）のままだと、図のコードの`!include`が、プロジェクトの外のファイルや、公開URLを
 # 読めてしまう（実機で確認）。ALLOWLISTは、`!include <C4/C4_Container>`のような標準ライブラリ
 # （jar同梱）は使えるまま、ファイルとURLの取り込みを、許可した場所以外では拒否する。
-# 許可する場所（原稿のフォルダ）は、手順2で、`PLANTUML_INCLUDE_PATH`として渡す。
+# 許可する場所は、図が書かれた原稿のフォルダだけ。`PLANTUML_INCLUDE_PATH`として渡す（ALLOWLISTは、
+# include.pathのフォルダの中のファイルを許可し、`../`で外へ出るものは拒否する。実機で確認）。
 _PLANTUML_SECURITY_PROFILE = "ALLOWLIST"
 
 # 呼び出し元の環境変数が、許可の範囲を、広げてしまわないよう、取り除く環境変数
 _PLANTUML_ENV_REMOVED = ("PLANTUML_ALLOWLIST_PATH", "PLANTUML_INCLUDE_PATH")
 
 
-def _plantuml_env():
+def _plantuml_env(include_dir=None):
     """plantuml.jarを起動するときの環境変数。呼び出し元の環境を引き継ぎつつ、セキュリティの
     プロファイルを、ALLOWLISTに固定する（呼び出し元の`PLANTUML_SECURITY_PROFILE`は上書きする。
-    原稿の書き手も、実行する人も、設定で緩められないようにするため）。"""
+    原稿の書き手も、実行する人も、設定で緩められないようにするため）。
+
+    include_dir: ファイルの`!include`を、許可して、探す場所（図が書かれた原稿のフォルダ）。
+    Noneなら、ファイルの取り込みを、すべて拒否する（標準ライブラリだけが使える）。
+    `include.path`はJVM全体の設定で、複数のフォルダを並べると、同名のファイルを取り違えるため、
+    1回の起動につき、1つのフォルダだけを渡す（バッチ描画も、フォルダごとに分ける）。"""
     env = dict(os.environ)
     for name in _PLANTUML_ENV_REMOVED:
         env.pop(name, None)
     env["PLANTUML_SECURITY_PROFILE"] = _PLANTUML_SECURITY_PROFILE
+    if include_dir:
+        env["PLANTUML_INCLUDE_PATH"] = include_dir
     return env
 
 
@@ -239,8 +247,9 @@ class DiagramMixin:
         if tool in ("PlantUML", "Structurizr") and ("cannot include" in output or "Cannot open URL" in output):
             # ALLOWLIST（#622）で拒否された取り込みは、PlantUMLの出力だけでは、理由が分かりにくい
             output += ("\n\nHint: PlantUML runs with PLANTUML_SECURITY_PROFILE=ALLOWLIST (#622), so "
-                       "!include of files and URLs is blocked. Only the bundled standard library "
-                       "(for example `!include <C4/C4_Container>`) can be included.")
+                       "!include can read only files inside the manuscript folder and the bundled standard "
+                       "library (for example `!include <C4/C4_Container>`). URLs and files outside the "
+                       "manuscript folder are blocked.")
         self._error_here(f"{tool} diagram failed to render", line=line, detail=output or None,
                          cli_text=f"{tool} rendering failed for {self.current_file}:\n{output}")
 
@@ -807,20 +816,21 @@ class DiagramMixin:
         root_rel_path = escape_string_literal("/" + os.path.relpath(svg_path, self.typst_root).replace(os.sep, '/'))
         return self._render_sized_image(root_rel_path, width, height)
 
-    def _run_plantuml_jar(self, java_bin, jar_path, code, timeout=60):
+    def _run_plantuml_jar(self, java_bin, jar_path, code, timeout=60, include_dir=None):
         """plantuml.jarへcodeを標準入力で渡し、SVGを標準出力から受け取る（PlantUML本体・
-        Structurizr共通、#212）。OSError・終了コードのハンドリングは呼び出し側が行う。"""
+        Structurizr共通、#212）。OSError・終了コードのハンドリングは呼び出し側が行う。
+        include_dir: `!include`で、ファイルを取り込める、原稿のフォルダ（#622）。"""
         return subprocess.run(
             [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-jar", jar_path, "-tsvg", "-pipe", "-Playout=smetana"],
             input=code, capture_output=True, text=True, encoding="utf-8", timeout=timeout,
-            env=_plantuml_env())
+            env=_plantuml_env(include_dir))
 
     # 複数の図をまとめて1回のJVM起動で処理するときの区切り文字列（#307）。plantuml.jarの
     # `-pipedelimitor`が標準出力にこの行をそのまま挟んで返す仕様を使う（実機確認）。図のコード
     # 自身にこの文字列が現れる可能性は無視できるほど低いため、固定値のままにする。
     _PLANTUML_BATCH_DELIMITER = "===text-compositor-plantuml-batch-delimiter==="
 
-    def _run_plantuml_batch(self, java_bin, jar_path, codes, timeout=120):
+    def _run_plantuml_batch(self, java_bin, jar_path, codes, timeout=120, include_dir=None):
         """複数のPlantUMLソース（codes）を、1回のJVM起動でまとめて処理する（#307）。
         `-pipe`は標準入力に連結した複数の@startuml/@endumlブロックを読み、`-pipedelimitor`で
         指定した区切り文字列を挟んで図の数だけSVG（または失敗時はエラー画像のSVG）を順に返す
@@ -835,7 +845,7 @@ class DiagramMixin:
             [java_bin, *_JAVA_UTF8_ENCODING_OPTS, "-jar", jar_path, "-tsvg", "-pipe",
              "-pipedelimitor", self._PLANTUML_BATCH_DELIMITER, "-Playout=smetana"],
             input=combined, capture_output=True, text=True, encoding="utf-8", timeout=timeout,
-            env=_plantuml_env())
+            env=_plantuml_env(include_dir))
         delim_line = self._PLANTUML_BATCH_DELIMITER + "\n"
         parts = result.stdout.split(delim_line)
         if parts and parts[-1] == "":
@@ -856,14 +866,17 @@ class DiagramMixin:
         # prefetch_plantuml_diagrams()の事前描画フェーズは、常にtrim無しのキーで書くため、
         # trim有効時はここで作り直す。バッチ起動の高速化（#307）が効かなくなるだけで、
         # 正しさには影響しない）。
-        version = PLANTUML_JAR_SHA256 + (":trim1" if effective_trim else "")
+        # `!include`したファイルの中身も、キーに含める（#622）。そのファイルを直すと、図を描き直す。
+        origin_dir = self.current_dir or self.base_dir
+        includes = self._plantuml_includes(code, origin_dir, line)
+        version = PLANTUML_JAR_SHA256 + (":trim1" if effective_trim else "") + plantuml_include.cache_suffix(includes, origin_dir)
         svg_path, _ = self._diagram_cache_path("plantuml", version, code)
 
         if not os.path.exists(svg_path):
             _log_info(f"Rendering PlantUML diagram via local Java -> {os.path.basename(svg_path)}")
             java_bin, jar_path = self._ensure_plantuml_tools()
             try:
-                result = self._run_plantuml_jar(java_bin, jar_path, code)
+                result = self._run_plantuml_jar(java_bin, jar_path, code, include_dir=self._plantuml_include_dir(includes, origin_dir))
             except OSError as e:
                 self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
                 # 隔離環境（venv/pipx）外での実行が原因の可能性が高い（#113、ファイルが
@@ -882,6 +895,26 @@ class DiagramMixin:
         else:
             _log_verbose(f"Reusing cached PlantUML diagram: {os.path.basename(svg_path)}")
         return svg_path
+
+    def _plantuml_includes(self, code, origin_dir, line=None):
+        """図のコードが`!include`で取り込む、ファイルの実パスを返す（#622）。取り込めないものがあれば
+        （URL・絶対パス・原稿のフォルダの外・見つからない）、診断を出して終了する。
+        HTML（Obunzu）では、取り込んだファイルも、変更の検知（dependencies）に加える。"""
+        try:
+            files = plantuml_include.collect_includes(code, origin_dir)
+        except plantuml_include.IncludeError as e:
+            self._diagram_error("PlantUML", str(e), line)
+            sys.exit(1)
+        dependencies = getattr(self, 'dependencies', None)
+        if dependencies is not None:
+            dependencies.update(files)
+        return files
+
+    @staticmethod
+    def _plantuml_include_dir(includes, origin_dir):
+        """plantuml.jarに渡す、ファイルの取り込みを許す場所。ファイルを取り込む図のときだけ、原稿のフォルダ。
+        取り込まない図は、None（すべて拒否）にして、バッチ描画を、フォルダに分けずに済ませる。"""
+        return os.path.realpath(origin_dir) if includes else None
 
     def _ensure_structurizr_tools(self):
         """Structurizr実行に必要なjava実行ファイル・structurizr-cli一式・plantuml.jarを遅延解決する
@@ -1060,10 +1093,15 @@ class DiagramMixin:
                 if lang == 'plantuml':
                     if not self.plantuml_enabled:
                         continue
-                    cache_path, _ = self._diagram_cache_path("plantuml", PLANTUML_JAR_SHA256, code)
+                    # `!include`するファイルの中身も、キャッシュのキーに含める（通常の描画経路と同じキーにする）
+                    self.current_file = filepath
+                    origin_dir = os.path.dirname(os.path.abspath(filepath))
+                    includes = self._plantuml_includes(code, origin_dir, line)
+                    version = PLANTUML_JAR_SHA256 + plantuml_include.cache_suffix(includes, origin_dir)
+                    cache_path, _ = self._diagram_cache_path("plantuml", version, code)
                     if os.path.exists(cache_path) or cache_path in targets:
                         continue
-                    targets[cache_path] = (code, filepath, line, "PlantUML")
+                    targets[cache_path] = (code, filepath, line, "PlantUML", self._plantuml_include_dir(includes, origin_dir))
                 else:
                     if not self.structurizr_enabled:
                         continue
@@ -1077,7 +1115,7 @@ class DiagramMixin:
                     # #307のissueコメント参照）。1図ごとに1回起動する点は変わらない。
                     self.current_file = filepath
                     puml_code = self._structurizr_dsl_to_plantuml(code, line, origin_dir)
-                    targets[cache_path] = (puml_code, filepath, line, "Structurizr")
+                    targets[cache_path] = (puml_code, filepath, line, "Structurizr", None)
 
         if not targets:
             return
@@ -1087,11 +1125,25 @@ class DiagramMixin:
         else:
             java_bin, _, jar_path = self._ensure_structurizr_tools()
 
-        cache_paths = list(targets.keys())
+        # `include.path`は、JVM全体の設定で、複数のフォルダを並べると、同名のファイルを取り違える（#622）。
+        # ファイルを取り込む図は、その原稿のフォルダごとに、バッチを分ける。取り込まない図（大半）は、
+        # include_dirがNoneのまとまりに入り、これまでどおり、1回の起動で描く。
+        groups = {}
+        for cache_path, target in targets.items():
+            groups.setdefault(target[4], []).append(cache_path)
+        if len(groups) == 1:
+            _log_info(f"Pre-rendering {len(targets)} PlantUML/Structurizr diagram(s) via a single Java process...")
+        else:
+            _log_info(f"Pre-rendering {len(targets)} PlantUML/Structurizr diagram(s) via {len(groups)} Java processes "
+                      "(one per manuscript folder that includes files)...")
+        for include_dir, cache_paths in groups.items():
+            self._render_plantuml_group(java_bin, jar_path, include_dir, cache_paths, targets)
+
+    def _render_plantuml_group(self, java_bin, jar_path, include_dir, cache_paths, targets):
+        """include_dirが同じ図を、1回のJVM起動でまとめて描き、キャッシュへ書く（prefetch_plantuml_diagramsの一部）。"""
         codes = [targets[p][0] for p in cache_paths]
-        _log_info(f"Pre-rendering {len(cache_paths)} PlantUML/Structurizr diagram(s) via a single Java process...")
         try:
-            returncode, parts, _stderr = self._run_plantuml_batch(java_bin, jar_path, codes)
+            returncode, parts, _stderr = self._run_plantuml_batch(java_bin, jar_path, codes, include_dir=include_dir)
         except OSError as e:
             self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
             sys.exit(1)
@@ -1105,10 +1157,10 @@ class DiagramMixin:
         # バッチの一部（または全部）が失敗、あるいは出力の対応が取れなかった。安全側に倒し、
         # 1件ずつ個別に再実行して、失敗した図だけをFail-fastで報告する（成功分はキャッシュに書く）。
         for cache_path in cache_paths:
-            code, filepath, line, label = targets[cache_path]
+            code, filepath, line, label, _include_dir = targets[cache_path]
             self.current_file = filepath
             try:
-                result = self._run_plantuml_jar(java_bin, jar_path, code)
+                result = self._run_plantuml_jar(java_bin, jar_path, code, include_dir=include_dir)
             except OSError as e:
                 self._error_here(f"Failed to run PlantUML for {self.current_file}:\n{e}")
                 sys.exit(1)
