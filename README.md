@@ -190,9 +190,9 @@ python ../build.py
 
 This generates `sample/SampleDocument.pdf`. Two more samples show other templates: `sample/paper/` (two-column paper layout, `template.path: paper`) and `sample/universe-ilm/` (a [Typst Universe](https://typst.app/universe) template used through an adapter; needs network access on the first build).
 
-For a C4 model document, see `sample/c4-structurizr/`. One model (`model.dsl`) is shared via `!include` by five diagrams: System Context, Container, Component, Dynamic and Deployment, so changing the model updates every diagram (`text-compositor --config sample/c4-structurizr/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
+For an architecture document that follows the arc42 template (12 sections) with C4 diagrams, see `sample/c4-structurizr/`. It covers a fictional EC site: goals and quality goals (ASR), constraints, the five C4 views (System Context, Container, Component, Dynamic, Deployment), runtime scenarios, architecture decisions (ADR), risks and a glossary, plus a revision history and a glossary index. One model (`model.dsl`) is shared via `!include` by every diagram, so changing the model updates all of them (`text-compositor --config sample/c4-structurizr/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
 
-For a C4 model document written with PlantUML (C4-PlantUML), see `sample/c4-plantuml/`. It has five diagrams: System Context, Container, Component, Dynamic and Deployment, and needs no extra downloads (`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`).
+The same document written with PlantUML (C4-PlantUML) is in `sample/c4-plantuml/`. It needs no extra downloads (`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`).
 
 ## Setup per diagram type (optional)
 

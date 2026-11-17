@@ -1,28 +1,61 @@
-# C4モデルの文書の例（#618）。1つのモデル（model.dsl）を、すべてのビューが`!include`で共有する。
+# C4モデルとarc42の文書の例（Structurizr版、#618・#625）。1つのモデル（model.dsl）を、すべてのビューが共有する。
 # 実行: text-compositor --config sample/c4-structurizr/text-compositor.config.yaml
 # 初回は、structurizr-cli（約99MB）とJavaが要る（`plugins.structurizr`が既定でオフのため、ここでオンにしている）。
+# PlantUML版は、sample/c4-plantuml/。
+# 章立ては、arc42の12章。架空のECサイトを題材に、制約・品質目標（ASR）・設計判断（ADR）まで書く。
 document:
   title: "ECサイト アーキテクチャ設計書"
-  subtitle: "C4モデル"
+  subtitle: "C4モデルとarc42（Structurizr版）"
   author: "text-compositor"
   date: "2026-11-17"
+  cover: template   # タイトル・副題・著者・日付の表紙を出す（既定のnoneでは、表紙が出ず、最初の章のH1も落ちる）
   toc: true
   landscape: true   # 横に長い図が多いので、全体をA4横にする
+  glossary: true    # 本文の[[用語]]から、巻末に用語索引を作る（定義は、12章の用語集に手で書く）
+  revision_history:
+    - version: "0.1"
+      date: "2026-09-01"
+      description: "骨子を作成（arc42の12章の見出しと、品質目標の案）"
+      author: "開発者A"
+    - version: "0.5"
+      date: "2026-09-29"
+      description: |
+        構成要素の見方（5章）と、実行時の見方（6章）を追加
+        ADR-1〜ADR-3を記録
+      author: "開発者A・B"
+    - version: "1.0"
+      date: "2026-10-15"
+      description: |
+        初版。12章がそろった
+        評価のシナリオS1〜S4に、測り方を追加
+      author: "開発者A・B・C"
+    - version: "1.1"
+      date: "2026-11-05"
+      description: |
+        夜間の照合（5.10、6.5）を追加。ADR-2の結果に、打切り後の後始末を追記
+        PaymentGatewayにlistPaymentsを追加（ADR-5）
+      author: "開発者B"
+
+plugins:
+  structurizr: true
 
 output:
   filename: "C4StructurizrSample.pdf"
   dir: "."
 
-plugins:
-  structurizr: true
-
 inputs:
   dir: "."
 
 chapters:
-  - "01_overview.md"
-  - "02_context.md"
-  - "03_container.md"
-  - "04_component.md"
-  - "05_dynamic.md"
-  - "06_deployment.md"
+  - "01_introduction.md"
+  - "02_constraints.md"
+  - "03_context.md"
+  - "04_strategy.md"
+  - "05_building_blocks.md"
+  - "06_runtime.md"
+  - "07_deployment.md"
+  - "08_concepts.md"
+  - "09_decisions.md"
+  - "10_quality.md"
+  - "11_risks.md"
+  - "12_glossary.md"
