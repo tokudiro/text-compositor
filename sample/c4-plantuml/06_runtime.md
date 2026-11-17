@@ -26,14 +26,15 @@
 ```plantuml
 @startuml
 !include <C4/C4_Dynamic>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Person(customer, "利用者", "")
-Container(web, "Webアプリ", "TypeScript / React", "")
-Container(api, "API", "Java 21 / Spring Boot", "")
-ContainerDb(db, "データベース", "PostgreSQL", "")
-System_Ext(pay, "決済代行サービス", "")
-System_Ext(mail, "メール配信サービス", "")
+Person(customer, $customer_name, "")
+Container(web, $web_name, $web_tech, "")
+Container(api, $api_name, $api_tech, "")
+ContainerDb(db, $db_name, $db_tech, "")
+System_Ext(pay, $pay_name, "")
+System_Ext(mail, $mail_name, "")
 
 Rel(customer, web, "決済用のトークンを取得する")
 Rel(web, api, "POST /orders")
@@ -66,12 +67,13 @@ Rel(api, mail, "確認メールを依頼する（非同期）")
 ```plantuml
 @startuml
 !include <C4/C4_Dynamic>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Container(web, "Webアプリ", "TypeScript / React", "")
-Container(api, "API", "Java 21 / Spring Boot", "")
-ContainerDb(db, "データベース", "PostgreSQL", "")
-System_Ext(pay, "決済代行サービス", "")
+Container(web, $web_name, $web_tech, "")
+Container(api, $api_name, $api_tech, "")
+ContainerDb(db, $db_name, $db_tech, "")
+System_Ext(pay, $pay_name, "")
 
 Rel(web, api, "POST /orders")
 Rel(api, db, "在庫を引き当て、PENDINGの注文を保存する")
@@ -101,17 +103,18 @@ Rel(api, web, "504 Gateway Timeout")
 ```plantuml
 @startuml
 !include <C4/C4_Dynamic>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Container_Boundary(api, "API") {
-    Component(job, "未確定の注文の回収", "Spring Scheduled", "")
-    Component(orderSvc, "注文サービス", "Spring Bean", "")
-    Component(stockClient, "在庫クライアント", "Spring Bean", "")
+Container_Boundary(api, $api_name) {
+    Component(collector, $collector_name, $collector_tech, "")
+    Component(orderSvc, $orderSvc_name, $orderSvc_tech, "")
+    Component(stockClient, $stockClient_name, $stockClient_tech, "")
 }
-ContainerDb(db, "データベース", "PostgreSQL", "")
+ContainerDb(db, $db_name, $db_tech, "")
 
-Rel(job, db, "PENDINGのまま30分を過ぎた注文を探す")
-Rel(job, orderSvc, "cancel(orderId)")
+Rel(collector, db, "PENDINGのまま30分を過ぎた注文を探す")
+Rel(collector, orderSvc, "cancel(orderId)")
 Rel(orderSvc, stockClient, "release(items)")
 Rel(stockClient, db, "在庫を戻す")
 Rel(orderSvc, db, "CANCELLEDにする")
@@ -137,14 +140,15 @@ Rel(orderSvc, db, "CANCELLEDにする")
 ```plantuml
 @startuml
 !include <C4/C4_Dynamic>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Person(customer, "利用者", "")
-Container(web, "Webアプリ", "TypeScript / React", "")
-Container(api, "API", "Java 21 / Spring Boot", "")
-ContainerDb(db, "データベース", "PostgreSQL", "")
-System_Ext(pay, "決済代行サービス", "")
-System_Ext(mail, "メール配信サービス", "")
+Person(customer, $customer_name, "")
+Container(web, $web_name, $web_tech, "")
+Container(api, $api_name, $api_tech, "")
+ContainerDb(db, $db_name, $db_tech, "")
+System_Ext(pay, $pay_name, "")
+System_Ext(mail, $mail_name, "")
 
 Rel(customer, web, "注文の取消を選ぶ")
 Rel(web, api, "DELETE /orders/{id}")
@@ -174,13 +178,14 @@ Rel(api, mail, "取消のメールを依頼する（非同期）")
 ```plantuml
 @startuml
 !include <C4/C4_Dynamic>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Person(operator, "運用担当", "")
-Container(api, "API", "Java 21 / Spring Boot", "")
-ContainerDb(db, "データベース", "PostgreSQL", "")
-System_Ext(pay, "決済代行サービス", "")
-System_Ext(mail, "メール配信サービス", "")
+Person(operator, $operator_name, "")
+Container(api, $api_name, $api_tech, "")
+ContainerDb(db, $db_name, $db_tech, "")
+System_Ext(pay, $pay_name, "")
+System_Ext(mail, $mail_name, "")
 
 Rel(api, db, "前日のCANCELLEDの注文を取得する")
 Rel(api, pay, "前日の決済の記録を取得する")
@@ -208,12 +213,13 @@ Rel(operator, pay, "管理画面で返金する")
 ```plantuml
 @startuml
 !include <C4/C4_Dynamic>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Person(operator, "運用担当", "")
-Container(web, "Webアプリ", "TypeScript / React", "")
-Container(api, "API", "Java 21 / Spring Boot", "")
-ContainerDb(db, "データベース", "PostgreSQL", "")
+Person(operator, $operator_name, "")
+Container(web, $web_name, $web_tech, "")
+Container(api, $api_name, $api_tech, "")
+ContainerDb(db, $db_name, $db_tech, "")
 
 Rel(operator, web, "在庫の数を入力する")
 Rel(web, api, "PUT /stock/{itemId}")

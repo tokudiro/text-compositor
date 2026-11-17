@@ -7,18 +7,19 @@ ECサイトの構造を、2つのレベルで示す。レベル1はECサイト�
 ```plantuml
 @startuml
 !include <C4/C4_Container>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Person(customer, "利用者", "商品を探して、注文する")
-Person(operator, "運用担当", "商品と在庫を管理し、出荷を指示する")
+Person(customer, $customer_name, $customer_desc)
+Person(operator, $operator_name, $operator_desc)
 
-System_Boundary(ec, "ECサイト") {
-    Container(web, "Webアプリ", "TypeScript / React", "画面を提供する")
-    Container(api, "API", "Java 21 / Spring Boot", "注文・在庫のビジネスロジックを提供する")
-    ContainerDb(db, "データベース", "PostgreSQL（マネージドサービス）", "注文と在庫を保存する")
+System_Boundary(ec, $ec_name) {
+    Container(web, $web_name, $web_tech, $web_desc)
+    Container(api, $api_name, $api_tech, $api_desc)
+    ContainerDb(db, $db_name, $db_tech, $db_desc)
 }
-System_Ext(pay, "決済代行サービス", "カード決済を処理する")
-System_Ext(mail, "メール配信サービス", "メールを送る")
+System_Ext(pay, $pay_name, $pay_desc)
+System_Ext(mail, $mail_name, $mail_desc)
 
 Rel(customer, web, "商品を探して、注文する", "HTTPS")
 Rel(operator, web, "在庫を更新し、出荷指示を出力する", "HTTPS")
@@ -47,22 +48,23 @@ Webアプリは、`/api`以下のREST（JSON・HTTPS）で、APIを呼ぶ（C4�
 ```plantuml
 @startuml
 !include <C4/C4_Component>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
-Container(web, "Webアプリ", "TypeScript / React", "")
-ContainerDb(db, "データベース", "PostgreSQL", "")
-System_Ext(pay, "決済代行サービス", "")
-System_Ext(mail, "メール配信サービス", "")
+Container(web, $web_name, $web_tech, "")
+ContainerDb(db, $db_name, $db_tech, "")
+System_Ext(pay, $pay_name, "")
+System_Ext(mail, $mail_name, "")
 
-Container_Boundary(api, "API") {
-    Component(orderCtl, "注文コントローラ", "Spring MVC", "注文リクエストを受け付ける")
-    Component(adminCtl, "在庫・出荷コントローラ", "Spring MVC", "運用担当の操作を受け付ける")
-    Component(orderSvc, "注文サービス", "Spring Bean", "注文の確定と取消を行う")
-    Component(stockClient, "在庫クライアント", "Spring Bean", "在庫を引き当て、戻す")
-    Component(payClient, "決済クライアント", "Spring Bean", "決済を依頼する")
-    Component(mailClient, "メール通知クライアント", "Spring Bean", "メールの送信を依頼する")
-    Component(collector, "未確定の注文の回収", "Spring Scheduled", "止まった注文を取り消す")
-    Component(recon, "夜間の照合", "Spring Scheduled", "決済の記録と照合する")
+Container_Boundary(api, $api_name) {
+    Component(orderCtl, $orderCtl_name, $orderCtl_tech, $orderCtl_desc)
+    Component(adminCtl, $adminCtl_name, $adminCtl_tech, $adminCtl_desc)
+    Component(orderSvc, $orderSvc_name, $orderSvc_tech, $orderSvc_desc)
+    Component(stockClient, $stockClient_name, $stockClient_tech, $stockClient_desc)
+    Component(payClient, $payClient_name, $payClient_tech, $payClient_desc)
+    Component(mailClient, $mailClient_name, $mailClient_tech, $mailClient_desc)
+    Component(collector, $collector_name, $collector_tech, $collector_desc)
+    Component(recon, $recon_name, $recon_tech, $recon_desc)
 }
 
 Rel(web, orderCtl, "POST・DELETE /orders", "REST")

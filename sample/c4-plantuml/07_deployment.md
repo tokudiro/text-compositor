@@ -7,10 +7,11 @@ ECサイトを、クラウドのどこで、どう動かすかを示す。本番
 ```plantuml
 @startuml
 !include <C4/C4_Deployment>
+!include c4-defs.iuml
 LAYOUT_LEFT_RIGHT()
 
 Deployment_Node(browser, "利用者・運用担当のブラウザ", "Chrome / Safari / Edge") {
-    Container(web, "Webアプリ", "TypeScript / React", "画面を提供する")
+    Container(web, $web_name, $web_tech, $web_desc)
 }
 Deployment_Node(cdn, "CDN", "クラウドの配信サービス") {
     Deployment_Node(static, "静的ファイルの置き場", "オブジェクトストレージ") {
@@ -23,14 +24,14 @@ Deployment_Node(cloud, "クラウド", "東京リージョン") {
     }
     Deployment_Node(runtime, "コンテナ実行サービス", "マネージドサービス。平常時2台、最大6台") {
         Deployment_Node(c1, "コンテナ（API）", "1 vCPU / 2 GB") {
-            Container(api1, "API", "Java 21 / Spring Boot", "")
+            Container(api1, $api_name, $api_tech, "")
         }
         Deployment_Node(c2, "コンテナ（API）", "1 vCPU / 2 GB") {
-            Container(api2, "API", "Java 21 / Spring Boot", "")
+            Container(api2, $api_name, $api_tech, "")
         }
     }
     Deployment_Node(dbsvc, "データベース", "マネージドのPostgreSQL。2つのゾーンに冗長化") {
-        ContainerDb(db, "データベース", "PostgreSQL", "主系と待機系")
+        ContainerDb(db, $db_name, $db_tech, "主系と待機系")
     }
 }
 

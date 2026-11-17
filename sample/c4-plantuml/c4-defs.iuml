@@ -1,0 +1,66 @@
+' C4の図が共有する、要素の名前・技術・説明（#622）。
+' Structurizr版のmodel.dslと、同じ内容にする。ここを直すと、使うすべての図に反映される。
+' 図には、`!include <C4/C4_...>`の後ろで、`!include c4-defs.iuml`と書いて取り込み、
+' `Person(customer, $customer_name, $customer_desc)`のように使う。関係（Rel）は、図ごとに書く。
+
+!$customer_name = "利用者"
+!$customer_desc = "商品を探して、注文する"
+
+!$operator_name = "運用担当"
+!$operator_desc = "商品と在庫を管理し、出荷を指示する"
+
+!$ec_name = "ECサイト"
+!$ec_desc = "商品の閲覧、注文、在庫の管理、出荷指示の出力を行う"
+
+!$pay_name = "決済代行サービス"
+!$pay_desc = "カード決済を処理する。カード情報を受け取る"
+
+!$mail_name = "メール配信サービス"
+!$mail_desc = "利用者と運用担当に、メールを送る"
+
+!$logistics_name = "物流倉庫"
+!$logistics_desc = "商品を保管し、出荷する"
+
+!$web_name = "Webアプリ"
+!$web_tech = "TypeScript / React"
+!$web_desc = "画面を提供する"
+
+!$api_name = "API"
+!$api_tech = "Java 21 / Spring Boot"
+!$api_desc = "注文・在庫のビジネスロジックを提供する"
+
+!$db_name = "データベース"
+!$db_tech = "PostgreSQL（マネージドサービス）"
+!$db_desc = "注文と在庫を保存する"
+
+!$orderCtl_name = "注文コントローラ"
+!$orderCtl_tech = "Spring MVC"
+!$orderCtl_desc = "注文リクエストを受け付ける"
+
+!$adminCtl_name = "在庫・出荷コントローラ"
+!$adminCtl_tech = "Spring MVC"
+!$adminCtl_desc = "運用担当の操作を受け付ける"
+
+!$orderSvc_name = "注文サービス"
+!$orderSvc_tech = "Spring Bean"
+!$orderSvc_desc = "注文の確定と取消を行う"
+
+!$stockClient_name = "在庫クライアント"
+!$stockClient_tech = "Spring Bean"
+!$stockClient_desc = "在庫を引き当て、戻す"
+
+!$payClient_name = "決済クライアント"
+!$payClient_tech = "Spring Bean"
+!$payClient_desc = "決済を依頼する"
+
+!$mailClient_name = "メール通知クライアント"
+!$mailClient_tech = "Spring Bean"
+!$mailClient_desc = "メールの送信を依頼する"
+
+!$collector_name = "未確定の注文の回収"
+!$collector_tech = "Spring Scheduled"
+!$collector_desc = "止まった注文を取り消す"
+
+!$recon_name = "夜間の照合"
+!$recon_tech = "Spring Scheduled"
+!$recon_desc = "決済の記録と照合する"
