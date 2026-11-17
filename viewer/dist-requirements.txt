@@ -4,8 +4,8 @@
 # CeTZなどの図。#237）のために、同梱する（#263）。Mermaid用の`playwright`（約106 MB。ブラウザを起動して描画する）は、
 # 同梱しない（Mermaidは、ElectronのChromiumで描画する。#207）。
 # 版は、リポジトリ直下のpyproject.tomlの`dependencies`と、そろえる（tests/test_viewer_dist_requirements.pyが確認する）。
-markdown-it-py==4.2.0
-mdit-py-plugins==0.6.1
+markdown-it-py==4.3.0
+mdit-py-plugins==0.7.0
 PyYAML==6.0.3
 platformdirs==4.14.5
 typst==0.15.2
