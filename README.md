@@ -192,6 +192,8 @@ This generates `sample/SampleDocument.pdf`. Two more samples show other template
 
 For a C4 model document, see `sample/c4/`. One model (`model.dsl`) is shared via `!include` by five diagrams: System Context, Container, Component, Dynamic and Deployment, so changing the model updates every diagram (`text-compositor --config sample/c4/text-compositor.config.yaml`; it uses Structurizr, so the first build fetches Java and `structurizr-cli`, about 99MB).
 
+For a C4 model document written with PlantUML (C4-PlantUML), see `sample/c4-plantuml/`. It has five diagrams: System Context, Container, Component, Dynamic and Deployment, and needs no extra downloads (`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`).
+
 ## Setup per diagram type (optional)
 
 Mermaid needs a browser. PlantUML and D2 work with no extra configuration (anything missing is fetched automatically). Read only the ones you use.
