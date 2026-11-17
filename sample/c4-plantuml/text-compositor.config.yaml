@@ -1,0 +1,29 @@
+# C4モデルの文書の例（PlantUML版、#620）。PlantUMLの標準ライブラリのC4-PlantUMLを使う。
+# 実行: text-compositor --config sample/c4-plantuml/text-compositor.config.yaml
+# 追加の設定は要らない（`plugins.plantuml`は既定でオン。C4のライブラリは、plantuml.jarに入っている）。
+# Structurizr版は、sample/c4/。
+document:
+  title: "ECサイト アーキテクチャ設計書"
+  subtitle: "C4モデル（PlantUML版）"
+  author: "text-compositor"
+  date: "2026-11-17"
+  toc: true
+
+output:
+  filename: "C4PlantUMLSample.pdf"
+  dir: "."
+
+inputs:
+  dir: "."
+
+chapters:
+  - "01_overview.md"
+  - "02_context.md"
+  - file: "03_container.md"
+    landscape: true   # 横に長い図は、A4横にして、文字を読みやすくする
+  - file: "04_component.md"
+    landscape: true
+  - file: "05_dynamic.md"
+    landscape: true
+  - file: "06_deployment.md"
+    landscape: true
