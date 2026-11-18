@@ -194,6 +194,8 @@ For an architecture document that follows the arc42 template (12 sections) with 
 
 The same document written with PlantUML (C4-PlantUML) is in `sample/c4-plantuml/`. It needs no extra downloads (`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`).
 
+For a real system rather than a fictional one, `sample/arc42-text-compositor/` is an arc42 architecture document about text-compositor itself (with Obunzu), written with C4-PlantUML. Its constraints, quality goals and decisions (ADR) each point to the repository record behind them (README, `doc/`, issue numbers); anything that could not be confirmed is marked as unconfirmed. It needs no extra downloads (`text-compositor --config sample/arc42-text-compositor/text-compositor.config.yaml`; the sample text is in Japanese).
+
 ## Setup per diagram type (optional)
 
 Mermaid needs a browser. PlantUML and D2 work with no extra configuration (anything missing is fetched automatically). Read only the ones you use.

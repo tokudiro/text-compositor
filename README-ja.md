@@ -194,6 +194,8 @@ arc42の章立て（12章）とC4モデルの図で書いた、アーキテク�
 
 同じ文書を、PlantUML（C4-PlantUML）で書いた例は、`sample/c4-plantuml/`です。追加の取得は要りません（`text-compositor --config sample/c4-plantuml/text-compositor.config.yaml`）。
 
+架空ではなく、実在のシステムを題材にした例として、`sample/arc42-text-compositor/`があります。text-compositor自身（Obunzuを含む）を、arc42の12章とC4-PlantUMLで書いた設計書です。制約・品質目標・決定（ADR）の各項目に、根拠になったリポジトリの記録（README・`doc/`・issue番号）を示し、確認できなかったことは「未確認」と書いています。追加の取得は要りません（`text-compositor --config sample/arc42-text-compositor/text-compositor.config.yaml`）。
+
 ## 図の種類ごとの準備（任意）
 
 Mermaidは、ブラウザが要ります。PlantUMLとD2は、追加の設定なしで使えます（足りないものは自動で取得します）。使う図の種類の分だけ、読んでください。

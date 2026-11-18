@@ -1,0 +1,42 @@
+# text-compositor自身を題材にした、arc42の設計書（#627）。図は、PlantUMLのC4（C4-PlantUML）で描く。
+# 実行: text-compositor --config sample/arc42-text-compositor/text-compositor.config.yaml
+# 追加の設定は要らない（`plugins.plantuml`は既定でオン。C4のライブラリは、plantuml.jarに入っている）。
+# 題材は、架空のECサイト（sample/c4-plantuml/）ではなく、このリポジトリの実際の構成・制約・判断。
+# 数値と理由は、リポジトリの記録（README・doc/・issue・コード）にあるものだけを書く。確認できないことは「未確認」「推測」と書く。
+document:
+  title: "text-compositor アーキテクチャ設計書"
+  subtitle: "arc42とC4モデルで、text-compositor自身を書く（v0.4.7）"
+  author: "text-compositor"
+  date: "2026-11-18"
+  cover: template   # タイトル・副題・著者・日付の表紙を出す（既定のnoneでは、表紙が出ず、最初の章のH1も落ちる）
+  toc: true
+  landscape: true   # 横に長い図が多いので、全体をA4横にする
+  glossary: true    # 本文の[[用語]]から、巻末に用語索引を作る（定義は、12章の用語集に手で書く）
+  revision_history:
+    - version: "1.0"
+      date: "2026-11-18"
+      description: |
+        初版（#627）。arc42の12章がそろった
+        対象は、text-compositor v0.4.7（PDF・HTMLの変換エンジン）と、Obunzu Markdown Viewer
+      author: "text-compositor"
+
+output:
+  filename: "Arc42TextCompositor.pdf"
+  dir: "."
+
+inputs:
+  dir: "."
+
+chapters:
+  - "01_introduction.md"
+  - "02_constraints.md"
+  - "03_context.md"
+  - "04_strategy.md"
+  - "05_building_blocks.md"
+  - "06_runtime.md"
+  - "07_deployment.md"
+  - "08_concepts.md"
+  - "09_decisions.md"
+  - "10_quality.md"
+  - "11_risks.md"
+  - "12_glossary.md"
