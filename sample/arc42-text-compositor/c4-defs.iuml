@@ -1,0 +1,94 @@
+' C4の図が共有する、要素の名前・技術・説明（#627）。ここを直すと、使うすべての図に反映される。
+' 図には、`!include <C4/C4_...>`の後ろで、`!include c4-defs.iuml`と書いて取り込み、
+' `Person(author, $author_name, $author_desc)`のように使う。関係（Rel）は、図ごとに書く。
+
+!$author_name = "書き手"
+!$author_desc = "原稿（Markdown・図表のソース）と設定を書く。人、または人が仕上げるAI"
+
+!$reader_name = "読み手"
+!$reader_desc = "PDFまたはObunzuで、文書を読む"
+
+!$maint_name = "開発者"
+!$maint_desc = "text-compositorとObunzuを保守し、リリースする"
+
+!$tc_name = "text-compositor"
+!$tc_desc = "Markdownと図表のソースから、同じ入力に同じPDF・HTMLを組み上げる。Viewer（Obunzu）を含む"
+
+!$gh_name = "GitHub"
+!$gh_desc = "リポジトリ、CI（Actions）、Release（ZIP・ガイドのPDF）。フォント・JRE・PlantUML・D2の配布元でもある"
+
+!$pypi_name = "PyPI"
+!$pypi_desc = "text-compositorと依存パッケージ（typstなど）を配る。Trusted Publishingで公開する"
+
+!$jsd_name = "jsDelivr（npmのCDN）"
+!$jsd_desc = "Mermaid・Vega・WaveDromなどのJSを配る。pip版・CIが取得する（Obunzuは同梱）"
+
+!$tpkg_name = "Typstパッケージの配布元"
+!$tpkg_desc = "packages.typst.org。diagraph・cetzなどのTypstパッケージを配る"
+
+!$browser_name = "Chrome / Edge"
+!$browser_desc = "pip版のMermaid描画に使う。PCにあるものを再利用する"
+
+!$engine_name = "変換エンジン"
+!$engine_tech = "Python 3.10以上（text_compositor）"
+!$engine_desc = "Markdown・図表ソースを、PDF・HTMLにする。CLI・Python APIの入口を持つ"
+
+!$worker_name = "常駐ワーカー"
+!$worker_tech = "python -m text_compositor.worker"
+!$worker_desc = "標準入出力のJSON行で依頼を受け、文書ごとに監視と再変換をする。コードは変換エンジンと同じ"
+
+!$viewer_name = "Obunzu Markdown Viewer"
+!$viewer_tech = "Electron 45 / Node.js"
+!$viewer_desc = "Markdownを開き、HTMLで表示する。保存のたびに更新する。閲覧専用"
+
+!$typst_name = "Typstコンパイラ"
+!$typst_tech = "PyPIのtypst==0.15.2（プロセス内で動く）"
+!$typst_desc = "Typstのコードを、PDF（またはSVG）にする。Typstのパッケージを使う"
+
+!$tools_name = "図表ツール"
+!$tools_tech = "Java 21＋PlantUML、D2、Structurizr CLI、Mermaid（ブラウザ）"
+!$tools_desc = "図のソースをSVGにする。子プロセス、またはブラウザとして呼ぶ"
+
+!$cache_name = "キャッシュ"
+!$cache_tech = "ファイル"
+!$cache_desc = "図のSVG（.text-compositor/cache/）と、取得した部品（ユーザーキャッシュ領域）を保存する"
+
+!$entry_name = "入口"
+!$entry_tech = "build.py・api.py"
+!$entry_desc = "CLIと、Python API（Session）"
+
+!$project_name = "ビルド本体"
+!$project_tech = "project.py"
+!$project_desc = "configの読み込みから、Typstコードの生成、PDFの出力までを進める"
+
+!$cfg_name = "設定・章の展開"
+!$cfg_tech = "config.py・chapters.py・document.py"
+!$cfg_desc = "config.yamlの検証と変数展開。章（ファイル）の展開。表紙・目次・用語索引・改訂履歴"
+
+!$rend_name = "Markdown→Typst変換"
+!$rend_tech = "renderer.py＋ミックスイン"
+!$rend_desc = "markdown-it-pyのASTを、Typstに変換する。表・レイアウト・インラインを分けて持つ"
+
+!$html_name = "HTML出力"
+!$html_tech = "html_output.py"
+!$html_desc = "同じ変換を、HTMLに出す。Viewerが使う（実験的）"
+
+!$diag_name = "図の描画"
+!$diag_tech = "renderer_diagrams.py・*_render.py"
+!$diag_desc = "図のフェンスを、種類ごとにSVGまたはTypstにする。SVGをキャッシュする"
+
+!$deps_name = "外部部品の取得・検出"
+!$deps_tech = "deps.py・env_check.py"
+!$deps_desc = "フォント・JRE・jar・JSを、版とSHA256を固定して取得する。システムのJava・ブラウザを検出する"
+
+!$comp_name = "コンパイル・位置の対応づけ"
+!$comp_tech = "compiler.py"
+!$comp_desc = "Typstをコンパイルし、エラーの位置を、元のMarkdownの行へ直す"
+
+!$diagn_name = "診断"
+!$diagn_tech = "diagnostics.py"
+!$diagn_desc = "警告・エラーを、CLIでは標準出力へ、Python APIでは構造化して返す"
+
+!$tmpl_name = "テンプレート"
+!$tmpl_tech = "templates/*.typ（Typst）"
+!$tmpl_desc = "既定の見た目（表紙・本文・ヘッダー・図の収め方）を持つ"
