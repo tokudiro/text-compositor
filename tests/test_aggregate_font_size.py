@@ -21,7 +21,7 @@ def _render(tmp_path, ch_extra):
 
 def test_font_size_wraps_only_the_table(tmp_path):
     code = _render(tmp_path, {"font_size": "8pt"})
-    assert "#[\n#set text(size: 8pt)\n#table(" in code
+    assert "#[\n#set text(size: 8pt)\n#show table: set text(size: 8pt)\n#table(" in code
     assert code.index("= Heading") < code.index("#set text(size: 8pt)")   # 見出しは、表の外
 
 

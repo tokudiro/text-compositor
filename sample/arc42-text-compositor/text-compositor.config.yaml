@@ -12,6 +12,7 @@ document:
   toc: true
   landscape: true   # 横に長い図が多いので、全体をA4横にする
   glossary: true    # 本文の[[用語]]から、巻末に用語索引を作る（定義は、12章の用語集に手で書く）
+  table_font_size: 9pt  # 表の中は、本文（10.5pt）より小さくする。幅の狭い列の折り返しが減る
   revision_history:
     - version: "1.0"
       date: "2026-11-18"

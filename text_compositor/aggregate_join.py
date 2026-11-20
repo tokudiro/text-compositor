@@ -514,5 +514,6 @@ def render_aggregate_table(ch_dict, ch_file, agg_path, inputs_dir, renderer):
     # 文字の大きさは、表と集計だけに効かせる（章の見出しは、呼び出し側で表の外に出している）。
     font_size = _parse_aggregate_font_size(ch_dict.get("font_size"), where)
     if font_size:
-        code = f'#[\n#set text(size: {font_size})\n{code}]\n'
+        # `document.table_font_size`のshowルールより優先させるため、表にも同じ大きさのshowルールを重ねる
+        code = f'#[\n#set text(size: {font_size})\n#show table: set text(size: {font_size})\n{code}]\n'
     return code + '#pagebreak(weak: true)\n'

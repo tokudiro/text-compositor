@@ -20,7 +20,7 @@ except ImportError:
 _ALLOWED_TOP_LEVEL_KEYS = {"document", "output", "template", "inputs", "chapters", "plugins", "variables", "fonts", "lint"}
 _ALLOWED_DOCUMENT_KEYS = {
     "title", "subtitle", "author", "date", "diagnostics", "landscape", "paper_size",
-    "table_header", "header", "footer", "paginate", "background", "logo", "cover",
+    "table_header", "table_font_size", "header", "footer", "paginate", "background", "logo", "cover",
     "cover_page_number", "toc", "revision_history", "abstract", "glossary",
     "marp_compat", "csv_header", "code_block",
     "binding_margin", "binding_side",

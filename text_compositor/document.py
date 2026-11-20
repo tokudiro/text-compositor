@@ -172,6 +172,18 @@ def _binding_typst_args(doc_config):
         sys.exit(1)
     return f'  binding_margin: {margin.strip()},\n  binding_side: {side},\n'
 
+_TABLE_FONT_SIZE_RE = re.compile(r"\d+(\.\d+)?pt")   # front-matter・aggregate・code_blockの`font_size`と同じ書式
+
+def _table_font_size_rule(value):
+    """`document.table_font_size`（`9pt`・`8.5pt`の形）を検証し、表の文字の大きさを決めるTypstのshowルールを返す。
+    省略（None）は空文字（本文と同じ大きさ）。誤りは、エラーにして止める（`code_block`・aggregateの`font_size`と同じ）。"""
+    if value is None:
+        return ''
+    if not isinstance(value, str) or not _TABLE_FONT_SIZE_RE.fullmatch(value):
+        _error(f"document.table_font_size must look like '9pt' or '8.5pt' (got {value!r}).")
+        sys.exit(1)
+    return f'#show table: set text(size: {value})\n'
+
 def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, project_dir, typst_root):
     """document:設定からtypst_codeの冒頭（テンプレートのimportとconf()呼び出し）を組み立てる。
     戻り値は (preamble文字列, global_landscape, global_paper, cover_mode, global_table_header,
@@ -181,6 +193,9 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
     global_paper = doc_config.get('paper_size', 'a4')
     # 通常のMarkdownテーブルのヘッダ行スタイル（#45）。未指定なら従来どおり無装飾。
     global_table_header = doc_config.get('table_header') or {}
+    # 表の中の文字の大きさ（`table_font_size: 9pt`）。本文より小さくして、幅の狭い列の折り返しを減らす。
+    # 未指定なら、本文と同じ大きさ（従来どおり）。aggregateの`font_size`が、表ごとの指定として優先される。
+    table_font_size_rule = _table_font_size_rule(doc_config.get('table_font_size'))
     # 本文ページのヘッダー・フッター・ページ番号表示（#42）。header/footerは未指定ならNone
     # （テンプレート側でheaderはtitleへフォールバックする。footerはページ番号のみの従来動作）。
     global_header = doc_config.get('header')
@@ -249,7 +264,7 @@ def _build_document_preamble(config, template_root_rel_path, graphviz_enabled, p
   logo: {_typst_str_or_none(global_logo)},
   doc,
 )
-
+{table_font_size_rule}
 """
     return (preamble, global_landscape, global_paper, cover_mode, global_table_header,
             global_header, global_footer, global_paginate, global_background, global_logo)
