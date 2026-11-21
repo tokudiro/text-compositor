@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Typstコンパイラ | `requirements.txt`と`pyproject.toml`で`typst==0.15.2`。ビルドのたびに、入っている版と比べ、食い違えば、警告する（ビルドは続ける。[#49](https://github.com/tokudiro/text-compositor/issues/49)） | `--check-env`。`requirements.txt`が無いpip環境では、比べる対象が無く、何もしない |
 | Typstのパッケージ | `_common.typ`などで、版を固定する（例: `diagraph` 0.3.8） | `tests/test_bundled_typst_assets.py`が、配布物の版と、ツール本体の版を比べる |
-| 図表ツール・JS・JRE・フォント | `deps.py`に、URLとSHA256を固定する（PlantUML 1.2026.9、Temurin JRE 21.0.13+9、D2 v0.9.0、Mermaid 12.2.0、Noto Sans JP 2.004など） | `tests/test_bundled_diagram_tools.py`。取得のたびに、SHA256を確かめる |
+| 図表ツール・JS・JRE・フォント | `deps.py`に、URLとSHA256を固定する（PlantUML 1.2026.10、Temurin JRE 21.0.13+9、D2 v0.9.0、Mermaid 12.2.0、Noto Sans JP 2.004など） | `tests/test_bundled_diagram_tools.py`。取得のたびに、SHA256を確かめる |
 | フォント | OSのフォントを使わない。Noto Sans JPなどを、`font_paths`で指定する（TC6） | `tests/test_pdf_fonts.py`。`template.typ`は、OSのフォント名を書かない |
 | 配布物の依存 | `viewer/dist-requirements.txt`に、版を固定する | `tests/test_distribution.py`が、`pyproject.toml`と比べる |
 | 図のSVGのキャッシュ | キーに、図の種類・ツールの版・入力を入れる。`!include`するファイルの相対パスと中身も入れる（`:inc=<ハッシュ>`） | `tests/test_diagram_cache_key.py` |

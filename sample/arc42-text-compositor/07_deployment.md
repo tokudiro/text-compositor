@@ -74,7 +74,7 @@ ZIP（`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`）は、約297.8 MB
 | Eclipse Temurin JRE 21（`jre/`） | 約144.5 MB | PlantUML・Structurizr（GPLv2＋Classpath Exception） |
 | D2のCLI v0.9.0（`d2/`） | 約40.8 MB | D2 |
 | フォント（`fonts/`） | 8.8 MB＋約32 MB | Noto Sans JPと、Noto Sans Mono CJK JP（OFL-1.1） |
-| `plantuml-mit-1.2026.9.jar`（`plantuml/`） | 約17.1 MB | PlantUML（MIT版） |
+| `plantuml-mit-1.2026.10.jar`（`plantuml/`） | 約17.4 MB | PlantUML（MIT版） |
 | Structurizr CLI（絞り込み版。`structurizr-cli/`） | 約13.5 MB | DSLの解析とPlantUMLへの書き出しに要るjarだけに絞った（公式配布は約99 MB） |
 | Typstのパッケージ（`typst-packages/`） | 約7 MB | 実際に使う版だけ（`diagraph` 0.3.8・`kip`・`cetz`・`fletcher`・`timeliney`・`finite`など） |
 | `mermaid.min.js` 12.2.0、Vega・Vega-Lite・WaveDrom・Bytefield-svgのJS | 約5.5 MB＋約1.7 MB | Electronで描画する。Bytefield-svgは、EPL-2.0で、全文とソースの入手先を添える。改変しない |
