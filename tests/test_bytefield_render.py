@@ -152,7 +152,8 @@ class TestRealBrowser:
         result = render_html(str(md), plugins={"mermaid": False, "plantuml": False, "d2": False})
         assert not result.ok
         error = [d for d in result.diagnostics if d.severity == "error"][0]
-        assert "span larger than remaining columns" in error.detail and "[at line 1, column 1]" in error.detail
+        # 1.12.0から、メッセージの末尾の「[at line N, column M]」は、付かなくなった。位置は、診断の`line`（原稿の行）で示す
+        assert "span larger than remaining columns" in error.detail and error.line == 3
 
     def test_javascript_interop_is_not_available_to_the_source(self, tmp_path):
         """記述から、ブラウザの機能（通信など）には触れない。インタプリタが、`js/`の記号を解決しない。"""
@@ -161,4 +162,5 @@ class TestRealBrowser:
         result = render_html(str(md), plugins={"mermaid": False, "plantuml": False, "d2": False})
         assert not result.ok
         error = [d for d in result.diagnostics if d.severity == "error"][0]
-        assert "Could not resolve symbol: js/fetch" in error.detail
+        # 文言は、版で変わる（1.11.0: Could not resolve symbol、1.12.0: Unable to resolve symbol）
+        assert "resolve symbol: js/fetch" in error.detail
