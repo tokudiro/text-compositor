@@ -444,7 +444,7 @@ citation（`[@key]`）とdefinition list（`Term\n: Definition`）は、いず�
    * **実装**: `renderer_diagrams.py`の`_render_wavedrom`（PDF）・`_wavedrom_svg_path`（PDF・HTML共通。キャッシュキーは、本体・スキンのSHA256から作る）。レイアウトブロック（`::: layout-right`など）の中でも使える。テストは、`tests/test_wavedrom_render.py`。
 
 13. **Bytefield**（Bytefield-svgで描く、プロトコルのパケット構造などのビット/バイトフィールド図、[#300](https://github.com/tokudiro/text-compositor/issues/300)）: WaveDromの`reg`は、レジスタ図向けで、パケットの図（32ビット幅の行を重ね、オフセット・列番号・ギャップを添える）には、合わせにくい。Bytefield-svgは、その用途に向く。
-   * **描画方式**: WaveDrom（上の12）と同じ型。Mermaid・Vega・WaveDromと同じヘッドレスブラウザに、別のタブとして`lib.js`（約855KB。ClojureScriptをコンパイルした、単一のUMD）を読み込ませ、`window.returnExports(source)`を呼ぶ（`mermaid.py`の`ensure_bytefield_page`）。Node.jsは、要らない。
+   * **描画方式**: WaveDrom（上の12）と同じ型。Mermaid・Vega・WaveDromと同じヘッドレスブラウザに、別のタブとして`lib.js`（約1.1MB。ClojureScriptをコンパイルした、単一のUMD）を読み込ませ、`window.returnExports(source)`を呼ぶ（`mermaid.py`の`ensure_bytefield_page`）。Node.jsは、要らない。
    * **入力は、Clojureの記述**: JSONではなく、SCIのインタプリタが評価するDSLのため、Pythonでは、構文を検査しない。構文・仕様の誤りは、Bytefield-svgが、行・桁つきのメッセージで、例外にする（`bytefield_render.RENDER_SCRIPT`が、`message`を取り出す）。空の入力だけは、空の図になるため、描く前に止める。
    * **記述が、ブラウザやネットワークに触れない**: インタプリタが、`js/`の記号を解決しない（実測: `Could not resolve symbol: js/fetch`）。`tests/test_bytefield_render.py`の`test_javascript_interop_is_not_available_to_the_source`が、確かめる。
    * **ライセンス（EPL-2.0）**: 弱いコピーレフト（ファイル単位）。`lib.js`を、改変せずに、別のファイルとして使うため、このツールのMITには及ばない。pip（PyPI）の配布物には含めず、実行時に取得する（SHA256を固定）。**Obunzuの配布物（ZIP）には、同梱する**。EPL-2.0が、再配布に求める、(1)ライセンス全文（`licenses/Bytefield-svg-LICENSE.txt`）と、(2)ソースの入手先（`THIRD-PARTY-NOTICES.md`の「Bytefield-svg (EPL-2.0)」。GitHubのタグとnpmパッケージ）を、添える。`lib.js`を改変した場合は、改変部分のソースを、EPL-2.0で公開する義務が生じるため、改変しない。`viewer/scripts/check-dist.js`が、全文と入手先の同梱を確かめる。
