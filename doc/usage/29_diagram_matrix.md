@@ -6,7 +6,7 @@ font_size: 8pt
 
 原稿を書くときに「この図を描きたいが、どの記法を使えばいいか」を判断する材料です。`○`＝その記法が、その図の種類を名指しで対応している、`×`＝対応していない。代用の推測は書きません。図の種類の対応が基本ですが、判断を左右する重要な機能差（例: シーケンス図のコンビネーションフラグメント）は、注記に書きます。
 
-`○`には、その機能が入った版を、確認できたものだけ添えています（例: `○(v11.0+)`）。本ツールが同梱する版は、mermaid 12.2.0・PlantUML 1.2026.9・D2 v0.9.0・structurizr-cli v2025.11.09・Vega 6.4.0・Vega-Lite 6.5.0・WaveDrom 3.8.0・Bytefield-svg 1.11.0です。同梱の版が、必要な版以上であることを確認済みです。
+`○`には、その機能が入った版を、確認できたものだけ添えています（例: `○(v11.0+)`）。本ツールが同梱する版は、mermaid 12.3.0・PlantUML 1.2026.9・D2 v0.9.0・structurizr-cli v2025.11.09・Vega 6.4.0・Vega-Lite 6.5.0・WaveDrom 3.8.0・Bytefield-svg 1.11.0です。同梱の版が、必要な版以上であることを確認済みです。
 
 `vega`の列は、`vega-lite`と`vega`の両方を指します。`wavedrom`の列は、`signal`（タイミング図）と`reg`（レジスタ図）を指します。この表の`○`は、対応の有無だけを示します。実際の見た目・書き方は、記法ごとのギャラリーページに、`○`の図の種類すべての実例（コード＋出力）があります（[#323](https://github.com/tokudiro/text-compositor/issues/323)）。[Mermaid](14_gallery_mermaid.md)・[PlantUML](15_gallery_plantuml.md)・[D2](16_gallery_d2.md)・[Graphviz](17_gallery_graphviz.md)・[Structurizr](18_gallery_structurizr.md)・[Pikchr](19_gallery_pikchr.md)・[CeTZ](20_gallery_cetz.md)・[Fletcher](21_gallery_fletcher.md)・[timeliney](22_gallery_timeliney.md)・[finite](24_gallery_finite.md)・[Vega-Lite・Vega](23_gallery_vega.md)・[WaveDrom](25_gallery_wavedrom.md)・[Bytefield](26_gallery_bytefield.md)。
 
@@ -106,7 +106,7 @@ font_size: 8pt
 
 - ※1 Graphvizの`shape=record`は、このツールでは使えません（[#264](https://github.com/tokudiro/text-compositor/issues/264)）。
 - ※2 PlantUMLでC4モデルを描く方法（C4-PlantUML）はありますが、外部からファイルを取得する必要があり、本ツールの方針に反するため使えません。
-- ※3 mermaidのユースケース図は、本ツールが同梱する版（12.2.0）でも、まだ使えません（`usecase`・`usecaseDiagram`は、図の種類として検出されません）。
+- ※3 mermaidのユースケース図は、本ツールが同梱する版（12.3.0）でも、まだ使えません（`usecase`・`usecaseDiagram`は、図の種類として検出されません）。
 - ※4 SysML v2.0は、2025年9月に発行されたばかりの、別物の新標準（旧来のダイアグラム構成ではなく、テキスト中心の新しい言語）です。主要なMBSE専用ツール（Cameo、CATIA Magicなど）でも対応はまだ発展途上で、既存のSysML 1.xの資産が多いため、当面はv1.xとの併存が見込まれます。13記法のいずれも、SysML v2.0への対応はありません。
 - ※5 分岐・繰り返し（コンビネーションフラグメント。`alt`/`opt`/`loop`等）に対応するかどうかで、実用性が大きく変わります。mermaid・PlantUML・D2は対応します。
 - ※6 mermaidは、サブマシン状態（複合状態）・並行状態（fork/join）・選択擬似状態には対応しますが、**履歴状態（history state）は非対応です。** 異なる複合状態の内部状態どうしを、直接つなぐ遷移も書けません。PlantUMLは、この2つに対応します。
@@ -117,5 +117,5 @@ font_size: 8pt
 - ※11 有限オートマトンの状態遷移図です。受理状態の二重丸など、オートマトン理論の記法で描きます。複合状態・並行状態など、一般のUMLの状態遷移図には向きません（それらは、mermaid・plantumlを使います）。
 - ※12 WaveDromの`reg`（レジスタ・ビットフィールド図）で描けます。ビット幅つきのフィールドを並べる図で、通信のパケットの構造も、同じ形で書けます。
 - ※13 `bytefield`は、プロトコルの仕様書にあるような、32ビット幅などの行を重ねるパケットの図（行ごとのオフセット・列の番号・可変長のギャップ・色分け）が得意です。WaveDromの`reg`は、レジスタ図向けで、パケットの図の読み方（先頭が左上）には、合わせにくい場合があります。
-- ※14 `ishikawa-beta`は、Mermaidのベータ版の記法です。本ツールが同梱する版（12.2.0）で、実機で描画できることを確認済みです。ベータ版のため、Mermaidの更新で、書き方が変わる可能性があります。
+- ※14 `ishikawa-beta`は、Mermaidのベータ版の記法です。本ツールが同梱する版（12.3.0）で、実機で描画できることを確認済みです。ベータ版のため、Mermaidの更新で、書き方が変わる可能性があります。
 - ※15 管理図の上限・中心線・下限は、計算せず、手で書いた値です。限界を外れた点は、色だけに頼らず、形や大きさも変えると、白黒印刷で区別できます（実例は、ギャラリーにあります）。
