@@ -504,8 +504,8 @@ def ensure_temurin_jre():
 # 分かったが、Markdown原稿（GitHub管理・AI生成）には絵文字が含まれ得るため、フル機能のmit版を
 # 採用する）。レイアウトエンジンはSmetana（純Java実装）を明示指定し、Graphviz(dot)実行ファイルへの
 # 依存を避ける（-Playout=smetana）。バージョン・SHA256を固定し、決定論的な取得結果にする（9章）。
-PLANTUML_JAR_URL = "https://github.com/plantuml/plantuml/releases/download/v1.2026.9/plantuml-mit-1.2026.9.jar"
-PLANTUML_JAR_SHA256 = "835b2f2eb1d756da3f03bffdbd0baf252b4b858547a741ac8e972958a09c7f91"
+PLANTUML_JAR_URL = "https://github.com/plantuml/plantuml/releases/download/v1.2026.10/plantuml-mit-1.2026.10.jar"
+PLANTUML_JAR_SHA256 = "30a66b81a16127fd3ec560992f31964fe9ae3f1233c614ef4558a4558a21489e"
 
 def ensure_plantuml_jar():
     """plantuml.jarがユーザーキャッシュディレクトリの plantuml/ になければダウンロードする。
