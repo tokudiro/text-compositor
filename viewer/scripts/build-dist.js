@@ -111,10 +111,10 @@ const LGPL_NOTICE = [
 const EPL_NOTICE = [
   '## Bytefield-svg (EPL-2.0)',
   '',
-  'Bytefield-svg (`bytefield/lib.js`, version 1.11.0) is licensed under the Eclipse Public License, version 2.0.',
+  'Bytefield-svg (`bytefield/lib.js`, version 1.12.0) is licensed under the Eclipse Public License, version 2.0.',
   'It is included unmodified, as a separate file. The license text is `Bytefield-svg-LICENSE.txt` in this folder.',
-  'The source code is available at https://github.com/Deep-Symmetry/bytefield-svg (tag v1.11.0), and in the npm package',
-  'https://www.npmjs.com/package/bytefield-svg/v/1.11.0 (the `src/` folder). Bytefield-svg is used only through a browser page;',
+  'The source code is available at https://github.com/Deep-Symmetry/bytefield-svg (tag v1.12.0), and in the npm package',
+  'https://www.npmjs.com/package/bytefield-svg/v/1.12.0 (the `src/` folder). Bytefield-svg is used only through a browser page;',
   'the generated SVG/PDF/HTML files and your documents are not covered by the EPL.',
   '',
 ];
@@ -199,13 +199,13 @@ const WAVEDROM_LICENSE = {
 // EPL-2.0は、再配布するとき、(1)ライセンス全文を添え、(2)ソースの入手先を、利用者に伝える義務がある。lib.jsは、改変せずに、そのまま同梱する。
 // (1)は、同じ版のnpmパッケージ（jsDelivr）のLICENSEを、別途取得・固定して、licenses/に置く。(2)は、下の`notices`の本文に書く。
 const BYTEFIELD_JS = {
-  version: '1.11.0',
+  version: '1.12.0',
   file: 'lib.js',
-  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/lib.js',
-  sha256: '0b4d2787103dee479c2506d46f92301fa09b216064f6c232d996b1cbd6940d30',
+  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.12.0/lib.js',
+  sha256: 'a1335c2eea405b6ff5f2fb230827802c2ac4c743380a6ef75cf156899e2e064a',
 };
 const BYTEFIELD_LICENSE = {
-  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/LICENSE',
+  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.12.0/LICENSE',
   sha256: '0becf16567beb77fa252b7664631dd177c8f9a1889e48995b45379c7130e5303',
 };
 const BYTEFIELD_SOURCE = 'https://github.com/Deep-Symmetry/bytefield-svg';

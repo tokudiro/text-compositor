@@ -268,7 +268,7 @@ final: ("q0",)
 - **構文の誤りは、行・桁つきで報告します**（例: `draw-box called with span larger than remaining columns in row [at line 1, column 1]`。行は、フェンスの中での位置です）。空のフェンスも、エラーで止めます（Bytefield-svgは、空の入力を、空の図にするためです）。
 - **記述は、ブラウザの機能やネットワークに触れません。** Bytefield-svgのインタプリタは、`js/`で始まる、JavaScriptの呼び出しを許しません（`Could not resolve symbol: js/fetch`になります）。
 - **WaveDromの`reg`との使い分け**: `reg`はレジスタ図向け、`bytefield`はパケットの図向けです（対応表の※13）。
-- 描画には、Mermaid・Vega・WaveDromと同じヘッドレスブラウザ（Chrome/Edge）を使います（Obunzuは、自身のChromiumです）。初回だけ、`lib.js`（約855KB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。
+- 描画には、Mermaid・Vega・WaveDromと同じヘッドレスブラウザ（Chrome/Edge）を使います（Obunzuは、自身のChromiumです）。初回だけ、`lib.js`（約1.1MB）を取得し、ユーザーキャッシュに保存します（SHA256を固定して検証します）。
 - **ライセンスは、EPL-2.0です。** 改変せずに、そのまま使うため、このツールのライセンス（MIT）や、書いた文書には及びません。pipの配布物には含まれず、実行時に取得します。Obunzuの配布物には、ライセンス全文とソースの入手先を添えて、同梱します。
 - サイズは、図の大きさで決まります。フェンスの`{width=...}`でも指定できます。
 - `plugins.bytefield: false`で、無効にできます。

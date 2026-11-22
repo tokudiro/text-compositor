@@ -368,12 +368,12 @@ def ensure_wavedrom_js():
     return (_ensure_verified_js(WAVEDROM_SKIN_URL, WAVEDROM_SKIN_SHA256, "wavedrom", "default.js"),
             _ensure_verified_js(WAVEDROM_JS_URL, WAVEDROM_JS_SHA256, "wavedrom", "wavedrom.min.js"))
 
-# Bytefield-svg公式配布のブラウザ用JS（EPL-2.0。#300）。ClojureScriptをコンパイルした、単一のUMDバンドルで、約855KB。
+# Bytefield-svg公式配布のブラウザ用JS（EPL-2.0。#300）。ClojureScriptをコンパイルした、単一のUMDバンドルで、約1.1MB。
 # Mermaid・Vega・WaveDromと同じヘッドレスブラウザに読み込ませ、`window.returnExports(source)`を呼ぶ。
 # EPL-2.0は、弱いコピーレフト（ファイル単位）。改変せずに、実行時に取得して使うため、このツールのライセンス（MIT）には及ばない。
 # バージョン・SHA256を固定し、決定論的にする。
-BYTEFIELD_JS_URL = "https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/lib.js"
-BYTEFIELD_JS_SHA256 = "0b4d2787103dee479c2506d46f92301fa09b216064f6c232d996b1cbd6940d30"
+BYTEFIELD_JS_URL = "https://cdn.jsdelivr.net/npm/bytefield-svg@1.12.0/lib.js"
+BYTEFIELD_JS_SHA256 = "a1335c2eea405b6ff5f2fb230827802c2ac4c743380a6ef75cf156899e2e064a"
 
 # 呼び出し元が、同梱したlib.jsのフォルダを教える環境変数（#300）。ViewerのZIPは、これを`bytefield/`に同梱している。
 BYTEFIELD_JS_DIR_ENV = "TEXT_COMPOSITOR_BYTEFIELD_JS_DIR"
