@@ -134,6 +134,20 @@ class TestFencedCode:
         assert '<code class="language-python">print(1)' in html and "highlighted" not in html
 
     def test_diagram_fences_are_not_highlighted_as_code(self, tmp_path):
-        """図のフェンスは、図にする（コードとして色を付けない）。無効にしたときだけ、素のコード表示。"""
+        """図のフェンスは、図にする（コードとして色を付けない）。bytefieldの描画は、playwrightと
+        ブラウザが要るため、無い環境では、スキップする（失敗させない）。"""
+        pytest.importorskip("playwright")
+        from text_compositor.deps import find_system_browser
+        if find_system_browser() is None:
+            pytest.skip("needs a system Chrome/Edge")
         _, html = convert(tmp_path, "d.md", '```bytefield\n(draw-box "A" {:span 8})\n```\n')
-        assert "language-bytefield" in html and "highlighted" not in html or "<img" in html
+        assert "<img" in html and "highlighted" not in html
+
+    def test_a_disabled_diagram_fence_stays_plain_code(self, tmp_path):
+        """プラグインを無効にした図のフェンスは、素のコード表示のまま（色を付けない）。ブラウザに依存しない。"""
+        path = tmp_path / "d.md"
+        path.write_text('```bytefield\n(draw-box "A" {:span 8})\n```\n', encoding="utf-8")
+        result = render_html(str(path), plugins={**PLAIN, "bytefield": False})
+        assert result.ok, result.diagnostics
+        html = open(result.html_path, encoding="utf-8").read()
+        assert "language-bytefield" in html and "highlighted" not in html

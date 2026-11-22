@@ -111,10 +111,10 @@ const LGPL_NOTICE = [
 const EPL_NOTICE = [
   '## Bytefield-svg (EPL-2.0)',
   '',
-  'Bytefield-svg (`bytefield/lib.js`, version 1.11.0) is licensed under the Eclipse Public License, version 2.0.',
+  'Bytefield-svg (`bytefield/lib.js`, version 1.12.0) is licensed under the Eclipse Public License, version 2.0.',
   'It is included unmodified, as a separate file. The license text is `Bytefield-svg-LICENSE.txt` in this folder.',
-  'The source code is available at https://github.com/Deep-Symmetry/bytefield-svg (tag v1.11.0), and in the npm package',
-  'https://www.npmjs.com/package/bytefield-svg/v/1.11.0 (the `src/` folder). Bytefield-svg is used only through a browser page;',
+  'The source code is available at https://github.com/Deep-Symmetry/bytefield-svg (tag v1.12.0), and in the npm package',
+  'https://www.npmjs.com/package/bytefield-svg/v/1.12.0 (the `src/` folder). Bytefield-svg is used only through a browser page;',
   'the generated SVG/PDF/HTML files and your documents are not covered by the EPL.',
   '',
 ];
@@ -132,11 +132,11 @@ const JRE = {
 // PlantUML本体（deps.pyのPLANTUML_JAR_URL/SHA256と同じ、MIT版）。jarの中にライセンス全文は無いため、
 // GitHub上の対応するライセンスファイル（同じ版のタグ）を、Apache-2.0の全文と同じ手順で別途取得・固定する。
 const PLANTUML = {
-  url: 'https://github.com/plantuml/plantuml/releases/download/v1.2026.9/plantuml-mit-1.2026.9.jar',
-  sha256: '835b2f2eb1d756da3f03bffdbd0baf252b4b858547a741ac8e972958a09c7f91',
+  url: 'https://github.com/plantuml/plantuml/releases/download/v1.2026.10/plantuml-mit-1.2026.10.jar',
+  sha256: '30a66b81a16127fd3ec560992f31964fe9ae3f1233c614ef4558a4558a21489e',
 };
 const PLANTUML_LICENSE = {
-  url: 'https://raw.githubusercontent.com/plantuml/plantuml/v1.2026.9/license-variants/plantuml-mit/mit-license.txt',
+  url: 'https://raw.githubusercontent.com/plantuml/plantuml/v1.2026.10/license-variants/plantuml-mit/mit-license.txt',
   sha256: '0aadc58e7c3e1eee5914418ff63ffbd19b79747075190b5f9f69017ab58966df',
 };
 
@@ -199,13 +199,13 @@ const WAVEDROM_LICENSE = {
 // EPL-2.0は、再配布するとき、(1)ライセンス全文を添え、(2)ソースの入手先を、利用者に伝える義務がある。lib.jsは、改変せずに、そのまま同梱する。
 // (1)は、同じ版のnpmパッケージ（jsDelivr）のLICENSEを、別途取得・固定して、licenses/に置く。(2)は、下の`notices`の本文に書く。
 const BYTEFIELD_JS = {
-  version: '1.11.0',
+  version: '1.12.0',
   file: 'lib.js',
-  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/lib.js',
-  sha256: '0b4d2787103dee479c2506d46f92301fa09b216064f6c232d996b1cbd6940d30',
+  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.12.0/lib.js',
+  sha256: 'a1335c2eea405b6ff5f2fb230827802c2ac4c743380a6ef75cf156899e2e064a',
 };
 const BYTEFIELD_LICENSE = {
-  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.11.0/LICENSE',
+  url: 'https://cdn.jsdelivr.net/npm/bytefield-svg@1.12.0/LICENSE',
   sha256: '0becf16567beb77fa252b7664631dd177c8f9a1889e48995b45379c7130e5303',
 };
 const BYTEFIELD_SOURCE = 'https://github.com/Deep-Symmetry/bytefield-svg';

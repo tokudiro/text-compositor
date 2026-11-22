@@ -44,7 +44,7 @@ Rel(typst, net, "パッケージを取得する", "HTTPS")
 | [[常駐ワーカー]] | Viewerのような呼び出し元のために、変換エンジンを常駐させる。文書ごとに、監視と再変換をする | `python -m text_compositor.worker`。コードは、変換エンジンと同じパッケージ |
 | Obunzu | 文書を開き、HTMLで表示する。タブ・フォルダの木・検索・設定・自動更新。ワーカーを子プロセスとして起動する | Electron 45・Node.js（`viewer/`）。画面は、HTML・CSS・JS（`viewer/src/chrome/`） |
 | Typstコンパイラ | Typstのコードを、PDFまたはSVGにする。Typstのパッケージ（`diagraph`など）を使う | PyPIの`typst==0.15.2`。プロセス内で動く。`typst.Compiler`は、常駐中、使い回す |
-| 図表ツール | 図のソースをSVGにする。PlantUML・Structurizr（Java）、D2、Mermaid（ブラウザ） | Eclipse Temurin JRE 21、`plantuml-mit-1.2026.9.jar`、D2 v0.9.0、Structurizr CLI、`mermaid.min.js` 12.3.0 |
+| 図表ツール | 図のソースをSVGにする。PlantUML・Structurizr（Java）、D2、Mermaid（ブラウザ） | Eclipse Temurin JRE 21、`plantuml-mit-1.2026.10.jar`、D2 v0.9.0、Structurizr CLI、`mermaid.min.js` 12.3.0 |
 | キャッシュ | 図のSVGと、取得した部品を保存する | ファイル。SVGは、原稿の隣の`.text-compositor/cache/`（Viewerは、アプリの領域の`cache/`。[#258](https://github.com/tokudiro/text-compositor/issues/258)）。部品は、ユーザーのキャッシュ領域（Linuxは`~/.cache/text-compositor`、Windowsは`%LOCALAPPDATA%\text-compositor\Cache`） |
 
 - Graphviz・Pikchr・CeTZ・Fletcher・timeliney・finiteは、図表ツールを使わない。Typstのパッケージ（`diagraph`・`kip`・`cetz`・`fletcher`・`timeliney`・`finite`）が、Typstコンパイラの中で描く（[#264](https://github.com/tokudiro/text-compositor/issues/264)・[#213](https://github.com/tokudiro/text-compositor/issues/213)・[#236](https://github.com/tokudiro/text-compositor/issues/236)・[#294](https://github.com/tokudiro/text-compositor/issues/294)）。
