@@ -17,7 +17,7 @@ def parse_spec(code):
 
     WaveDromと違い、入力はJSONではなく、Bytefield-svgのDSL（SCIのインタプリタが評価する）のため、Pythonでは、構文を検査しない。
     構文の誤り・仕様の誤りは、Bytefield-svg自身が、行・桁つきのメッセージで、例外にする（RENDER_SCRIPTが、メッセージを取り出す）。
-    インタプリタは、JavaScriptの呼び出し（`js/...`）を許さない（実測: `Could not resolve symbol: js/fetch`）。そのため、
+    インタプリタは、JavaScriptの呼び出し（`js/...`）を許さない（実測: `Unable to resolve symbol: js/fetch`（1.12.0。1.11.0は`Could not resolve symbol`））。そのため、
     原稿の記述が、ブラウザの機能やネットワークに触れることはない。ただし、空の入力は、エラーにならず、空の図になるため、止める。"""
     if not code.strip():
         raise SpecError("The diagram source is empty. Write drawing commands such as (draw-box \"Field\" {:span 8}).")

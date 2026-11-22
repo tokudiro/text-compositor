@@ -112,7 +112,7 @@ class MermaidBrowser:
 
     def ensure_bytefield_page(self, mermaid_enabled, mermaid_auto_download):
         """Bytefield-svg描画用のページを遅延起動して返す（#300）。Mermaid・Vega・WaveDromと同じヘッドレスブラウザに、別のタブとして開く。
-        lib.js（約855KB）を読み込ませ、`window.returnExports`を直接呼ぶ（Node.jsは、要らない）。"""
+        lib.js（約1.1MB）を読み込ませ、`window.returnExports`を直接呼ぶ（Node.jsは、要らない）。"""
         if self.bytefield_page is not None:
             try:
                 if not self.bytefield_page.is_closed() and self.browser.is_connected():
