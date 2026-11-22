@@ -254,8 +254,8 @@ def ensure_fonts():
 # ではなくこのファイル単体（実測約5.5MB）だけを取得し、Playwright経由でヘッドレスブラウザに
 # 読み込ませてmermaid.render()を直接呼び出す（仕様書11章、#35）。バージョン・SHA256を固定し、
 # Noto Sans JPと同様に決定論的な取得結果にする（9章）。
-MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js"
-MERMAID_JS_SHA256 = "a8a6a6f805b074a8261a2825c86f99c8054acb3b35f50bb7e24a4f9f2c3c3b9f"
+MERMAID_JS_URL = "https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js"
+MERMAID_JS_SHA256 = "336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3"
 
 # 呼び出し元が、同梱したmermaid.min.jsのファイルを教える環境変数（#310）。ViewerのZIPは、これを`mermaid/`に
 # 同梱しており、FONT_DIR_ENVと同じ仕組みで、ダウンロードせずに、これを使う。

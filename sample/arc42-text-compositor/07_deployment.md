@@ -77,7 +77,7 @@ ZIP（`Obunzu-Markdown-Viewer-<バージョン>-win-x64.zip`）は、約297.8 MB
 | `plantuml-mit-1.2026.10.jar`（`plantuml/`） | 約17.4 MB | PlantUML（MIT版） |
 | Structurizr CLI（絞り込み版。`structurizr-cli/`） | 約13.5 MB | DSLの解析とPlantUMLへの書き出しに要るjarだけに絞った（公式配布は約99 MB） |
 | Typstのパッケージ（`typst-packages/`） | 約7 MB | 実際に使う版だけ（`diagraph` 0.3.8・`kip`・`cetz`・`fletcher`・`timeliney`・`finite`など） |
-| `mermaid.min.js` 12.2.0、Vega・Vega-Lite・WaveDrom・Bytefield-svgのJS | 約5.5 MB＋約2.0 MB | Electronで描画する。Bytefield-svgは、EPL-2.0で、全文とソースの入手先を添える。改変しない |
+| `mermaid.min.js` 12.3.0、Vega・Vega-Lite・WaveDrom・Bytefield-svgのJS | 約5.5 MB＋約2.0 MB | Electronで描画する。Bytefield-svgは、EPL-2.0で、全文とソースの入手先を添える。改変しない |
 | ライセンス表記（`licenses/`） | 0.1 MB未満 | `THIRD-PARTY-NOTICES.md`が一覧にする |
 
 `playwright`（約106 MB）は、同梱しない。Mermaidは、Electronで描くためである（6.3）。`trove4j`（LGPL-2.1以降。Structurizr CLIが使う）は、改造せず、別のjarのまま入れる。

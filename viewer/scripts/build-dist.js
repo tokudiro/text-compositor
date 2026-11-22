@@ -143,10 +143,10 @@ const PLANTUML_LICENSE = {
 // Mermaid公式配布の単一バンドルJS（deps.pyのMERMAID_JS_URL/SHA256と同じ）。#310。ライセンス全文は、jsの中に
 // 無いため、PlantUMLと同じ手順で、GitHub上のLICENSE（現在のmasterの内容）を別途取得・固定する。
 const MERMAID_JS = {
-  version: '12.2.0',
+  version: '12.3.0',
   file: 'mermaid.min.js',
-  url: 'https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js',
-  sha256: 'a8a6a6f805b074a8261a2825c86f99c8054acb3b35f50bb7e24a4f9f2c3c3b9f',
+  url: 'https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js',
+  sha256: '336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3',
 };
 const MERMAID_LICENSE = {
   url: 'https://raw.githubusercontent.com/mermaid-js/mermaid/master/LICENSE',
